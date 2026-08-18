@@ -1,0 +1,59 @@
+{
+  "entities": {
+    "TenantProfile": {
+      "title": "Tenant Profile",
+      "description": "Root configuration and metadata for a provisioned DBK client environment",
+      "type": "object",
+      "properties": {
+        "tenantId": { "type": "string", "pattern": "^[a-zA-Z0-9_-]+$", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 200 },
+        "blueprintId": { "type": "string", "maxLength": 64 },
+        "status": { "type": "string", "enum": ["ACTIVE", "SUSPENDED", "PROVISIONING"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["tenantId", "name", "status"]
+    },
+    "BranchProfile": {
+      "title": "Branch Profile",
+      "description": "Branch operating location within a tenant",
+      "type": "object",
+      "properties": {
+        "branchId": { "type": "string", "pattern": "^[a-zA-Z0-9_-]+$", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 200 },
+        "isHeadquarters": { "type": "boolean" },
+        "status": { "type": "string", "enum": ["ACTIVE", "INACTIVE"] }
+      },
+      "required": ["branchId", "name"]
+    },
+    "SecurityAuditRecord": {
+      "title": "Security Audit Record",
+      "description": "Immutable security and access audit log record",
+      "type": "object",
+      "properties": {
+        "eventId": { "type": "string", "pattern": "^[a-zA-Z0-9_-]+$", "maxLength": 128 },
+        "eventType": { "type": "string", "maxLength": 64 },
+        "principalId": { "type": "string", "maxLength": 128 },
+        "tenantId": { "type": "string", "maxLength": 128 },
+        "branchId": { "type": "string", "maxLength": 128 },
+        "action": { "type": "string", "maxLength": 128 },
+        "result": { "type": "string", "enum": ["ALLOWED", "DENIED", "ERROR"] },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["eventId", "eventType", "principalId", "result", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/tenants/{tenantId}": {
+      "schema": "TenantProfile",
+      "description": "Tenant root document"
+    },
+    "/tenants/{tenantId}/branches/{branchId}": {
+      "schema": "BranchProfile",
+      "description": "Branch profile subcollection"
+    },
+    "/tenants/{tenantId}/security_audits/{auditId}": {
+      "schema": "SecurityAuditRecord",
+      "description": "Tenant-scoped immutable security audit subcollection"
+    }
+  }
+}

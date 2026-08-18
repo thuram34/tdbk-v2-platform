@@ -1,0 +1,168 @@
+/**
+ * TDBK V2 — AUTHORITATIVE PERSISTENCE LAYER TYPES
+ * Layer: ARCHITECTURAL FOUNDATION — FIRESTORE NATIVE MODE
+ * 
+ * Canonical Path Model: /tenants/{tenantId}/...
+ * Invariant: tenantId === dbkId for tenant boundaries.
+ */
+
+import { DbkIdentity, DbkBranch, DbkWorkspaceState } from '../platform/types';
+import { BusinessDNA } from '../blueprint/types';
+import { DbkCapabilityRecord } from '../capability/types';
+import { ExperienceEntityRecord } from '../experience/types';
+import { DocumentMetadata, AiProposedAction, AiConversationMessage } from '../document_ai/types';
+import { WorkflowInstance } from '../orchestration/workflow/types';
+import { AuditEvent } from '../kernel/types';
+
+export interface FirestoreDocumentMetadata {
+  _createdAt: string;
+  _updatedAt: string;
+  _version?: number;
+}
+
+export interface FirestoreWriteOptions {
+  merge?: boolean;
+  expectedVersion?: number;
+}
+
+export interface FirestoreTransaction {
+  get<T>(path: string): Promise<T | null>;
+  set<T>(path: string, data: T, options?: FirestoreWriteOptions): Promise<void>;
+  update<T>(path: string, data: Partial<T>): Promise<void>;
+  delete(path: string): Promise<void>;
+}
+
+export interface IdempotencyRecord {
+  idempotencyKey: string;
+  tenantId: string;
+  action: string;
+  requestHash: string;
+  status: 'IN_PROGRESS' | 'COMPLETED' | 'FAILED';
+  statusCode?: number;
+  responsePayload?: Record<string, unknown>;
+  createdAt: string;
+  expiresAt: string;
+}
+
+// -------------------------------------------------------------
+// REPOSITORY INTERFACES
+// -------------------------------------------------------------
+
+export interface IDbkRegistryRepository {
+  saveDbk(tenantId: string, dbk: DbkIdentity): Promise<void>;
+  getDbk(tenantId: string): Promise<DbkIdentity | null>;
+  listAllDbks(): Promise<DbkIdentity[]>;
+  hasDbk(tenantId: string): Promise<boolean>;
+  deleteDbk(tenantId: string): Promise<void>;
+}
+
+export interface IBusinessDnaRepository {
+  saveDna(tenantId: string, dna: BusinessDNA): Promise<void>;
+  getDna(tenantId: string): Promise<BusinessDNA | null>;
+  hasDna(tenantId: string): Promise<boolean>;
+  deleteDna(tenantId: string): Promise<void>;
+}
+
+export interface IBranchRepository {
+  saveBranch(tenantId: string, branchId: string, branch: DbkBranch): Promise<void>;
+  getBranch(tenantId: string, branchId: string): Promise<DbkBranch | null>;
+  listBranches(tenantId: string): Promise<DbkBranch[]>;
+  deleteBranch(tenantId: string, branchId: string): Promise<void>;
+}
+
+export interface ICapabilityStateRepository {
+  saveCapabilityState(tenantId: string, capabilityId: string, record: DbkCapabilityRecord): Promise<void>;
+  getCapabilityState(tenantId: string, capabilityId: string): Promise<DbkCapabilityRecord | null>;
+  listCapabilityStates(tenantId: string): Promise<DbkCapabilityRecord[]>;
+  deleteCapabilityState(tenantId: string, capabilityId: string): Promise<void>;
+}
+
+export interface IWorkspaceRepository {
+  saveActiveWorkspace(tenantId: string, workspace: DbkWorkspaceState): Promise<void>;
+  getActiveWorkspace(tenantId: string): Promise<DbkWorkspaceState | null>;
+  deleteActiveWorkspace(tenantId: string): Promise<void>;
+}
+
+export interface IEntityRecordRepository {
+  saveRecord(tenantId: string, capabilityId: string, recordId: string, record: ExperienceEntityRecord): Promise<void>;
+  getRecord(tenantId: string, capabilityId: string, recordId: string): Promise<ExperienceEntityRecord | null>;
+  listRecords(tenantId: string, capabilityId: string, branchId?: string | null): Promise<ExperienceEntityRecord[]>;
+  deleteRecord(tenantId: string, capabilityId: string, recordId: string): Promise<void>;
+}
+
+export interface IDocumentMetadataRepository {
+  saveDocument(tenantId: string, documentId: string, doc: DocumentMetadata): Promise<void>;
+  getDocument(tenantId: string, documentId: string): Promise<DocumentMetadata | null>;
+  listDocuments(tenantId: string, branchId?: string | null): Promise<DocumentMetadata[]>;
+  deleteDocument(tenantId: string, documentId: string): Promise<void>;
+}
+
+export interface IAiProposalRepository {
+  saveProposal(tenantId: string, proposalId: string, proposal: AiProposedAction): Promise<void>;
+  getProposal(tenantId: string, proposalId: string): Promise<AiProposedAction | null>;
+  listProposals(tenantId: string, branchId?: string | null): Promise<AiProposedAction[]>;
+  deleteProposal(tenantId: string, proposalId: string): Promise<void>;
+}
+
+export interface IAiConversationRepository {
+  saveMessage(tenantId: string, conversationId: string, messageId: string, message: AiConversationMessage): Promise<void>;
+  listMessages(tenantId: string, conversationId: string): Promise<AiConversationMessage[]>;
+  getConversationMetadata(tenantId: string, conversationId: string): Promise<{ conversationId: string; branchId: string; principalId: string } | null>;
+  saveConversationMetadata(tenantId: string, conversationId: string, meta: { conversationId: string; branchId: string; principalId: string }): Promise<void>;
+}
+
+export interface IWorkflowInstanceRepository {
+  saveWorkflow(tenantId: string, workflowId: string, workflow: WorkflowInstance): Promise<void>;
+  getWorkflow(tenantId: string, workflowId: string): Promise<WorkflowInstance | null>;
+  listWorkflows(tenantId: string): Promise<WorkflowInstance[]>;
+}
+
+export type OutboxStatus =
+  | 'PENDING'
+  | 'PROCESSING'
+  | 'DELIVERED'
+  | 'RETRY_WAIT'
+  | 'FAILED'
+  | 'DEAD_LETTER';
+
+export interface OutboxRecord {
+  eventId: string;
+  tenantId: string;
+  branchId: string | null;
+  eventType: string;
+  eventVersion: string;
+  occurredAt: string;
+  correlationId: string;
+  causationId: string | null;
+  source: string;
+  payload: Record<string, unknown>;
+  status: OutboxStatus;
+  attemptCount: number;
+  availableAt: string;
+  createdAt: string;
+  updatedAt: string;
+  leaseOwner: string | null;
+  leaseUntil: string | null;
+  lastError: string | null;
+  deliveredAt: string | null;
+}
+
+export interface IIdempotencyRepository {
+  saveIdempotencyRecord(tenantId: string, key: string, record: IdempotencyRecord): Promise<void>;
+  getIdempotencyRecord(tenantId: string, key: string): Promise<IdempotencyRecord | null>;
+  deleteIdempotencyRecord(tenantId: string, key: string): Promise<void>;
+}
+
+export interface IOutboxRepository {
+  saveOutbox(tenantId: string, eventId: string, record: OutboxRecord, transaction?: FirestoreTransaction): Promise<void>;
+  getOutbox(tenantId: string, eventId: string): Promise<OutboxRecord | null>;
+  listOutbox(tenantId: string, status?: OutboxStatus): Promise<OutboxRecord[]>;
+  claimNextPending(tenantId: string, workerId: string, leaseDurationMs: number): Promise<OutboxRecord | null>;
+  updateStatus(tenantId: string, eventId: string, status: OutboxStatus, extra?: Partial<OutboxRecord>): Promise<void>;
+  deleteOutbox(tenantId: string, eventId: string): Promise<void>;
+}
+
+export interface IAuditRepository {
+  appendAudit(tenantId: string | null, auditId: string, event: AuditEvent): Promise<void>;
+  listAudits(tenantId?: string | null, limit?: number): Promise<AuditEvent[]>;
+}

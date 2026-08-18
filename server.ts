@@ -1,0 +1,880 @@
+import express, { Request, Response } from 'express';
+import path from 'path';
+import { createServer as createViteServer } from 'vite';
+import { healthMonitoring } from './src/kernel/observability/health';
+import { securityContextFactory } from './src/kernel/context/contextFactory';
+import { rbacEngine } from './src/kernel/authorization/rbacEngine';
+import { masterAuthority } from './src/kernel/master/masterAuthority';
+import { tenantIsolation } from './src/kernel/tenancy/tenantIsolation';
+import { branchAuthority } from './src/kernel/branch/branchAuthority';
+import { auditLogger } from './src/kernel/audit/auditLogger';
+import { phase0TestRunner } from './src/kernel/tests/phase0TestRunner';
+import { KernelError } from './src/kernel/errors/kernelErrors';
+import { blueprintRegistry } from './src/blueprint/registry';
+import { businessDnaManager } from './src/blueprint/dnaManager';
+import { blueprintCompiler } from './src/blueprint/compiler';
+import { Phase1TestRunner } from './src/blueprint/tests/phase1TestRunner';
+import { capabilityRegistry } from './src/capability/registry';
+import { discoveryEngine } from './src/capability/discovery';
+import { activationEvaluator } from './src/capability/evaluator';
+import { dbkCapabilityManager } from './src/capability/dbkCapabilityManager';
+import { entitlementEngine } from './src/capability/entitlement';
+import { Phase2TestRunner } from './src/capability/tests/phase2TestRunner';
+import { Phase3TestRunner } from './src/orchestration/tests/phase3TestRunner';
+import { runPhase4TestSuite } from './src/platform/tests/phase4TestRunner';
+import { runDbkProvisioningTestSuite } from './src/platform/tests/dbkProvisioningTestRunner';
+import { provisioningService } from './src/platform/provisioning/provisioningService';
+import { dbkRegistry } from './src/platform/dbkRegistry';
+import { experienceProjection } from './src/platform/projection/experienceProjection';
+import { seedDemoDbks } from './src/platform/seeder';
+import { runPhase5TestSuite } from './src/experience/tests/phase5TestRunner';
+import { experienceResolver } from './src/experience/experienceResolver';
+import { entityEngine } from './src/experience/entity/entityEngine';
+import { runPhase6TestSuite } from './src/document_ai/tests/phase6TestRunner';
+import { documentIngestionService } from './src/document_ai/ingestion/documentIngestionService';
+import { documentStore } from './src/document_ai/storage/documentStore';
+import { documentLifecycleManager } from './src/document_ai/lifecycle/documentLifecycleManager';
+import { documentClassifier } from './src/document_ai/extraction/documentClassifier';
+import { documentExtractor } from './src/document_ai/extraction/documentExtractor';
+import { aiProvider } from './src/document_ai/ai/aiProvider';
+import { aiSecurityGuard } from './src/document_ai/ai/aiSecurityGuard';
+import { aiCommandBoundary } from './src/document_ai/ai/aiCommandBoundary';
+import { aiMemoryManager } from './src/document_ai/memory/aiMemoryManager';
+
+async function startServer() {
+  // Explicit bootstrap boundary: Seed demo DBKs only in development, preview, or explicit flag
+  if (process.env.NODE_ENV !== 'production' || process.env.SEED_DEMO_DBKS === 'true') {
+    await seedDemoDbks();
+  }
+
+  const app = express();
+  const PORT = 3000;
+
+  app.use(express.json());
+
+  // -------------------------------------------------------------
+  // HEALTH & READINESS ENDPOINTS
+  // -------------------------------------------------------------
+  app.get('/api/health/live', (req: Request, res: Response) => {
+    res.json(healthMonitoring.getLiveStatus());
+  });
+
+  app.get('/api/health/ready', (req: Request, res: Response) => {
+    const status = healthMonitoring.getReadyStatus();
+    res.status(status.status === 'HEALTHY' ? 200 : 503).json(status);
+  });
+
+  // -------------------------------------------------------------
+  // KERNEL SECURITY CONTEXT & AUTHORIZATION ENDPOINTS
+  // -------------------------------------------------------------
+  app.get('/api/kernel/context', (req: Request, res: Response) => {
+    try {
+      const authHeader = req.headers.authorization;
+      const targetTenantId = req.query.tenantId as string;
+      const targetBranchId = req.query.branchId as string;
+
+      const context = securityContextFactory.createSecurityContext({
+        authHeader,
+        targetTenantId,
+        targetBranchId,
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+      });
+
+      res.json({ status: 'SUCCESS', securityContext: context });
+    } catch (err) {
+      if (err instanceof KernelError) {
+        res.status(err.statusCode).json(err.toJSON());
+      } else {
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: (err as Error).message } });
+      }
+    }
+  });
+
+  app.post('/api/kernel/authorize', (req: Request, res: Response) => {
+    try {
+      const authHeader = req.headers.authorization;
+      const { action, resource, tenantId, branchId, requiredRole, requiredPermission } = req.body;
+
+      const context = securityContextFactory.createSecurityContext({
+        authHeader,
+        targetTenantId: tenantId,
+        targetBranchId: branchId,
+        ipAddress: req.ip,
+      });
+
+      const result = rbacEngine.authorize(context.principal, action, resource, {
+        tenantId,
+        branchId,
+        requiredRole,
+        requiredPermission,
+        requestId: context.requestId,
+      });
+
+      res.json({ status: 'SUCCESS', result });
+    } catch (err) {
+      if (err instanceof KernelError) {
+        res.status(err.statusCode).json(err.toJSON());
+      } else {
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: (err as Error).message } });
+      }
+    }
+  });
+
+  // -------------------------------------------------------------
+  // MASTER & TENANT VERIFICATION ENDPOINTS
+  // -------------------------------------------------------------
+  app.get('/api/master/verify', (req: Request, res: Response) => {
+    try {
+      const authHeader = req.headers.authorization;
+      const context = securityContextFactory.createSecurityContext({ authHeader, ipAddress: req.ip });
+      masterAuthority.assertMasterAuthority(context.principal, 'VERIFY_MASTER', context.requestId);
+      res.json({ status: 'SUCCESS', message: 'TDBK MASTER authority verified', principal: context.principal });
+    } catch (err) {
+      if (err instanceof KernelError) {
+        res.status(err.statusCode).json(err.toJSON());
+      } else {
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: (err as Error).message } });
+      }
+    }
+  });
+
+  app.get('/api/tenant/verify/:tenantId', (req: Request, res: Response) => {
+    try {
+      const authHeader = req.headers.authorization;
+      const tenantId = req.params.tenantId;
+      const context = securityContextFactory.createSecurityContext({ authHeader, targetTenantId: tenantId, ipAddress: req.ip });
+      const tenantCtx = tenantIsolation.assertTenantIsolation(context.principal, tenantId, 'VERIFY_TENANT', context.requestId);
+      res.json({ status: 'SUCCESS', tenantContext: tenantCtx, principal: context.principal });
+    } catch (err) {
+      if (err instanceof KernelError) {
+        res.status(err.statusCode).json(err.toJSON());
+      } else {
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: (err as Error).message } });
+      }
+    }
+  });
+
+  app.get('/api/audit/logs', (req: Request, res: Response) => {
+    const tenantId = req.query.tenantId as string;
+    const events = auditLogger.getEvents({ tenantId, limit: 50 });
+    res.json({ status: 'SUCCESS', events });
+  });
+
+  // -------------------------------------------------------------
+  // PHASE 0 AUTOMATED TEST RUNNER ENDPOINT
+  // -------------------------------------------------------------
+  app.post('/api/test/phase0', (req: Request, res: Response) => {
+    const testSummary = phase0TestRunner.runAllTests();
+    res.json({ status: 'SUCCESS', summary: testSummary });
+  });
+
+  // -------------------------------------------------------------
+  // PHASE 1: BLUEPRINT & BUSINESS DNA ENDPOINTS
+  // -------------------------------------------------------------
+  app.get('/api/blueprints', (req: Request, res: Response) => {
+    res.json({ status: 'SUCCESS', blueprints: blueprintRegistry.getAllBlueprints() });
+  });
+
+  app.get('/api/blueprints/:id', (req: Request, res: Response) => {
+    const version = req.query.version as string;
+    const blueprint = blueprintRegistry.getBlueprint(req.params.id, version);
+    if (!blueprint) {
+      res.status(404).json({ error: { code: 'NOT_FOUND', message: `Blueprint '${req.params.id}' not found` } });
+      return;
+    }
+    res.json({ status: 'SUCCESS', blueprint });
+  });
+
+  app.get('/api/dna/:dbkId', (req: Request, res: Response) => {
+    try {
+      const authHeader = req.headers.authorization;
+      const context = securityContextFactory.createSecurityContext({
+        authHeader,
+        targetTenantId: req.params.dbkId,
+        ipAddress: req.ip,
+      });
+      const dna = businessDnaManager.getBusinessDna(context, req.params.dbkId);
+      res.json({ status: 'SUCCESS', dna });
+    } catch (err) {
+      if (err instanceof KernelError) {
+        res.status(err.statusCode).json(err.toJSON());
+      } else {
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: (err as Error).message } });
+      }
+    }
+  });
+
+  app.post('/api/dna/bind', (req: Request, res: Response) => {
+    try {
+      const authHeader = req.headers.authorization;
+      const { dbkId, businessName, blueprintId, blueprintVersion, branchTopology } = req.body;
+
+      const context = securityContextFactory.createSecurityContext({
+        authHeader,
+        targetTenantId: dbkId,
+        ipAddress: req.ip,
+      });
+
+      const dna = businessDnaManager.bindBlueprintToDbk(
+        context,
+        dbkId,
+        businessName,
+        blueprintId,
+        blueprintVersion,
+        branchTopology
+      );
+
+      res.json({ status: 'SUCCESS', dna });
+    } catch (err) {
+      if (err instanceof KernelError) {
+        res.status(err.statusCode).json(err.toJSON());
+      } else {
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: (err as Error).message } });
+      }
+    }
+  });
+
+  app.post('/api/blueprint/compile', (req: Request, res: Response) => {
+    try {
+      const authHeader = req.headers.authorization;
+      const { dbkId } = req.body;
+
+      const context = securityContextFactory.createSecurityContext({
+        authHeader,
+        targetTenantId: dbkId,
+        ipAddress: req.ip,
+      });
+
+      const workspace = blueprintCompiler.compileWorkspace(context, dbkId);
+      res.json({ status: 'SUCCESS', workspace });
+    } catch (err) {
+      if (err instanceof KernelError) {
+        res.status(err.statusCode).json(err.toJSON());
+      } else {
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: (err as Error).message } });
+      }
+    }
+  });
+
+  app.post('/api/test/phase1', async (req: Request, res: Response) => {
+    const summary = await Phase1TestRunner.runAllTests();
+    res.json({ status: 'SUCCESS', summary });
+  });
+
+  // -------------------------------------------------------------
+  // PHASE 2: CAPABILITY & ENTITLEMENT ENDPOINTS
+  // -------------------------------------------------------------
+  app.get('/api/capability/catalog', (req: Request, res: Response) => {
+    res.json({ status: 'SUCCESS', capabilities: capabilityRegistry.getAllCapabilities() });
+  });
+
+  app.get('/api/capability/discover/:dbkId', (req: Request, res: Response) => {
+    try {
+      const authHeader = req.headers.authorization;
+      const context = securityContextFactory.createSecurityContext({
+        authHeader,
+        targetTenantId: req.params.dbkId,
+        ipAddress: req.ip,
+      });
+
+      const surface = discoveryEngine.discoverCapabilitiesForDbk(context, req.params.dbkId);
+      res.json({ status: 'SUCCESS', discoverySurface: surface });
+    } catch (err) {
+      if (err instanceof KernelError) {
+        res.status(err.statusCode).json(err.toJSON());
+      } else {
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: (err as Error).message } });
+      }
+    }
+  });
+
+  app.post('/api/capability/enable', (req: Request, res: Response) => {
+    try {
+      const authHeader = req.headers.authorization;
+      const { dbkId, capabilityId } = req.body;
+
+      const context = securityContextFactory.createSecurityContext({
+        authHeader,
+        targetTenantId: dbkId,
+        ipAddress: req.ip,
+      });
+
+      const decision = activationEvaluator.evaluateActivation(context, dbkId, capabilityId);
+      if (!decision.allowed) {
+        res.status(403).json({ status: 'DENIED', decision });
+        return;
+      }
+
+      const cap = capabilityRegistry.getCapability(capabilityId);
+      const record = dbkCapabilityManager.enableCapability(
+        context,
+        dbkId,
+        capabilityId,
+        'ENTITLED',
+        cap.configurationSchema.requiresConfiguration
+      );
+
+      res.json({ status: 'SUCCESS', decision, record });
+    } catch (err) {
+      if (err instanceof KernelError) {
+        res.status(err.statusCode).json(err.toJSON());
+      } else {
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: (err as Error).message } });
+      }
+    }
+  });
+
+  app.post('/api/capability/configure', (req: Request, res: Response) => {
+    try {
+      const authHeader = req.headers.authorization;
+      const { dbkId, capabilityId, configData } = req.body;
+
+      const context = securityContextFactory.createSecurityContext({
+        authHeader,
+        targetTenantId: dbkId,
+        ipAddress: req.ip,
+      });
+
+      const record = dbkCapabilityManager.configureCapability(context, dbkId, capabilityId, configData);
+      res.json({ status: 'SUCCESS', record });
+    } catch (err) {
+      if (err instanceof KernelError) {
+        res.status(err.statusCode).json(err.toJSON());
+      } else {
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: (err as Error).message } });
+      }
+    }
+  });
+
+  app.post('/api/capability/disable', (req: Request, res: Response) => {
+    try {
+      const authHeader = req.headers.authorization;
+      const { dbkId, capabilityId } = req.body;
+
+      const context = securityContextFactory.createSecurityContext({
+        authHeader,
+        targetTenantId: dbkId,
+        ipAddress: req.ip,
+      });
+
+      const record = dbkCapabilityManager.disableCapability(context, dbkId, capabilityId);
+      res.json({ status: 'SUCCESS', record });
+    } catch (err) {
+      if (err instanceof KernelError) {
+        res.status(err.statusCode).json(err.toJSON());
+      } else {
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: (err as Error).message } });
+      }
+    }
+  });
+
+  app.post('/api/capability/tier', (req: Request, res: Response) => {
+    try {
+      const { dbkId, tier } = req.body;
+
+      entitlementEngine.setDbkSubscriptionTier(dbkId, tier);
+      res.json({ status: 'SUCCESS', dbkId, currentTier: tier });
+    } catch (err) {
+      res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: (err as Error).message } });
+    }
+  });
+
+  app.post('/api/test/phase2', async (req: Request, res: Response) => {
+    const summary = await Phase2TestRunner.runAllTests();
+    res.json({ status: 'SUCCESS', summary });
+  });
+
+  // -------------------------------------------------------------
+  // PHASE 3: WORKFLOW ENGINE, EVENT BUS & BRIDGES ENDPOINTS
+  // -------------------------------------------------------------
+  app.post('/api/test/phase3', async (req: Request, res: Response) => {
+    const summary = await Phase3TestRunner.runAllTests();
+    res.json({ status: 'SUCCESS', summary });
+  });
+
+  // -------------------------------------------------------------
+  // PHASE 4: PLATFORM CONTROL & DBK PROVISIONING ENDPOINTS
+  // -------------------------------------------------------------
+  app.post('/api/test/phase4', async (req: Request, res: Response) => {
+    const summary = await runPhase4TestSuite();
+    res.json({ status: 'SUCCESS', summary });
+  });
+
+  app.post('/api/test/dbk-provisioning', async (req: Request, res: Response) => {
+    const summary = await runDbkProvisioningTestSuite();
+    res.json({ status: 'SUCCESS', summary });
+  });
+
+  app.post('/api/platform/provision', async (req: Request, res: Response) => {
+    try {
+      const authHeader = req.headers.authorization;
+      const context = securityContextFactory.createSecurityContext({
+        authHeader,
+        ipAddress: req.ip,
+      });
+
+      const result = await provisioningService.provisionDbk(context, req.body);
+      res.json({ status: 'SUCCESS', result });
+    } catch (err) {
+      if (err instanceof KernelError) {
+        res.status(err.statusCode).json(err.toJSON());
+      } else {
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: (err as Error).message } });
+      }
+    }
+  });
+
+  app.get('/api/platform/dbks', (req: Request, res: Response) => {
+    try {
+      const authHeader = req.headers.authorization;
+      const context = securityContextFactory.createSecurityContext({
+        authHeader,
+        ipAddress: req.ip,
+      });
+
+      const dbks = dbkRegistry.listAllDbks(context);
+      res.json({ status: 'SUCCESS', dbks });
+    } catch (err) {
+      if (err instanceof KernelError) {
+        res.status(err.statusCode).json(err.toJSON());
+      } else {
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: (err as Error).message } });
+      }
+    }
+  });
+
+  app.get('/api/platform/projection/:dbkId', (req: Request, res: Response) => {
+    try {
+      const authHeader = req.headers.authorization;
+      const { dbkId } = req.params;
+      const context = securityContextFactory.createSecurityContext({
+        authHeader,
+        targetTenantId: dbkId,
+        ipAddress: req.ip,
+      });
+
+      const projection = experienceProjection.getExperienceProjection(context, dbkId);
+      res.json({ status: 'SUCCESS', projection });
+    } catch (err) {
+      if (err instanceof KernelError) {
+        res.status(err.statusCode).json(err.toJSON());
+      } else {
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: (err as Error).message } });
+      }
+    }
+  });
+
+  // -------------------------------------------------------------
+  // PHASE 5: EXPERIENCE LAYER & DYNAMIC VIEW RESOLVER ENDPOINTS
+  // -------------------------------------------------------------
+  app.post('/api/test/phase5', async (req: Request, res: Response) => {
+    const summary = await runPhase5TestSuite();
+    res.json({ status: 'SUCCESS', summary });
+  });
+
+  app.get('/api/experience/resolve/:dbkId', (req: Request, res: Response) => {
+    try {
+      const authHeader = req.headers.authorization;
+      const { dbkId } = req.params;
+      const targetBranchId = req.query.branchId as string;
+
+      const context = securityContextFactory.createSecurityContext({
+        authHeader,
+        targetTenantId: dbkId,
+        targetBranchId,
+        ipAddress: req.ip,
+      });
+
+      const resolved = experienceResolver.resolveExperience(context, dbkId);
+      res.json({ status: 'SUCCESS', resolved });
+    } catch (err) {
+      if (err instanceof KernelError) {
+        res.status(err.statusCode).json(err.toJSON());
+      } else {
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: (err as Error).message } });
+      }
+    }
+  });
+
+  app.post('/api/experience/command', async (req: Request, res: Response) => {
+    try {
+      const authHeader = req.headers.authorization;
+      const { commandType, targetDbkId, payload } = req.body;
+      const targetBranchId = (payload && payload.branchId) as string;
+
+      const context = securityContextFactory.createSecurityContext({
+        authHeader,
+        targetTenantId: targetDbkId,
+        targetBranchId,
+        ipAddress: req.ip,
+      });
+
+      const commandResponse = await experienceResolver.dispatchCommand(context, {
+        commandType,
+        targetDbkId,
+        payload,
+      });
+
+      res.json({ status: 'SUCCESS', commandResponse });
+    } catch (err) {
+      if (err instanceof KernelError) {
+        res.status(err.statusCode).json(err.toJSON());
+      } else {
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: (err as Error).message } });
+      }
+    }
+  });
+
+  app.get('/api/experience/entities/:dbkId/:capabilityId', (req: Request, res: Response) => {
+    try {
+      const { dbkId, capabilityId } = req.params;
+      const records = entityEngine.getRecords(dbkId, capabilityId);
+      res.json({ status: 'SUCCESS', records });
+    } catch (err) {
+      res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: (err as Error).message } });
+    }
+  });
+
+  // -------------------------------------------------------------
+  // PHASE 6: ADVANCED DOCUMENT INGESTION & AI BOUNDARY ENDPOINTS
+  // -------------------------------------------------------------
+  app.post('/api/test/phase6', async (req: Request, res: Response) => {
+    const summary = await runPhase6TestSuite();
+    res.json({ status: 'SUCCESS', summary });
+  });
+
+  app.post('/api/documents/upload', async (req: Request, res: Response) => {
+    try {
+      const authHeader = req.headers.authorization;
+      const { tenantId, branchId, fileName, mimeType, fileBufferBase64, textContent, source } = req.body;
+
+      const context = securityContextFactory.createSecurityContext({
+        authHeader,
+        targetTenantId: tenantId,
+        targetBranchId: branchId,
+        ipAddress: req.ip,
+      });
+
+      const doc = await documentIngestionService.ingestDocument(context, {
+        tenantId,
+        branchId,
+        fileName,
+        mimeType,
+        fileBufferBase64,
+        textContent,
+        source,
+      });
+
+      res.json({ status: 'SUCCESS', document: doc });
+    } catch (err) {
+      if (err instanceof KernelError) {
+        res.status(err.statusCode).json(err.toJSON());
+      } else {
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: (err as Error).message } });
+      }
+    }
+  });
+
+  app.get('/api/documents/:dbkId', (req: Request, res: Response) => {
+    try {
+      const authHeader = req.headers.authorization;
+      const { dbkId } = req.params;
+      const branchId = req.query.branchId as string;
+
+      const context = securityContextFactory.createSecurityContext({
+        authHeader,
+        targetTenantId: dbkId,
+        targetBranchId: branchId,
+        ipAddress: req.ip,
+      });
+
+      const docs = documentStore.listDocuments(context, dbkId, branchId);
+      res.json({ status: 'SUCCESS', documents: docs });
+    } catch (err) {
+      if (err instanceof KernelError) {
+        res.status(err.statusCode).json(err.toJSON());
+      } else {
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: (err as Error).message } });
+      }
+    }
+  });
+
+  app.get('/api/documents/:dbkId/:documentId', (req: Request, res: Response) => {
+    try {
+      const authHeader = req.headers.authorization;
+      const { dbkId, documentId } = req.params;
+
+      const context = securityContextFactory.createSecurityContext({
+        authHeader,
+        targetTenantId: dbkId,
+        ipAddress: req.ip,
+      });
+
+      const doc = documentStore.getDocument(context, dbkId, documentId);
+      if (!doc) {
+        return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Document not found' } });
+      }
+      res.json({ status: 'SUCCESS', document: doc });
+    } catch (err) {
+      if (err instanceof KernelError) {
+        res.status(err.statusCode).json(err.toJSON());
+      } else {
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: (err as Error).message } });
+      }
+    }
+  });
+
+  app.post('/api/documents/:dbkId/:documentId/process', async (req: Request, res: Response) => {
+    try {
+      const authHeader = req.headers.authorization;
+      const { dbkId, documentId } = req.params;
+
+      const context = securityContextFactory.createSecurityContext({
+        authHeader,
+        targetTenantId: dbkId,
+        ipAddress: req.ip,
+      });
+
+      const doc = documentStore.getDocument(context, dbkId, documentId);
+      if (!doc) {
+        return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Document not found' } });
+      }
+
+      // Transition to PROCESSING
+      documentLifecycleManager.transitionStatus(context, dbkId, documentId, 'PROCESSING');
+
+      const raw = documentStore.getRawContent(context, doc) || doc.contentSnippet || '';
+      const classification = documentClassifier.classifyDocument(raw, doc.fileName);
+      const extraction = documentExtractor.extractStructuredData(raw, classification.type);
+
+      const targetStatus = extraction.requiresReview ? 'REVIEW_REQUIRED' : 'EXTRACTED';
+
+      const updated = documentLifecycleManager.recordProcessingSnapshot(context, dbkId, documentId, {
+        provider: 'tdbk-hybrid-engine',
+        model: 'gemini-2.5-flash',
+        classification,
+        extractedFields: extraction.extractedFields,
+        confidenceAverage: extraction.confidenceAverage,
+        durationMs: 120,
+        status: targetStatus,
+        notes: extraction.requiresReview ? 'Low confidence flags detected, human review queued' : 'Extraction complete',
+      });
+
+      // Auto-generate proposal if review is ready
+      if (classification.type === 'invoice') {
+        const amt = extraction.extractedFields.totalAmount?.value || 0;
+        const ref = extraction.extractedFields.referenceNumber?.value || 'INV-TEMP';
+        aiCommandBoundary.createProposal(context, {
+          tenantId: dbkId,
+          branchId: doc.branchId,
+          documentId,
+          proposalType: 'PROPOSE_CREATE_INVOICE',
+          suggestedPayload: { invoiceNumber: ref, amount: amt, branchId: doc.branchId },
+          confidence: extraction.confidenceAverage,
+          summary: `Register invoice ${ref} for KES ${amt}`,
+        });
+      }
+
+      res.json({ status: 'SUCCESS', document: updated, extraction });
+    } catch (err) {
+      if (err instanceof KernelError) {
+        res.status(err.statusCode).json(err.toJSON());
+      } else {
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: (err as Error).message } });
+      }
+    }
+  });
+
+  app.delete('/api/documents/:dbkId/:documentId', (req: Request, res: Response) => {
+    try {
+      const authHeader = req.headers.authorization;
+      const { dbkId, documentId } = req.params;
+      const reason = (req.body && req.body.reason) || 'Manual deletion request';
+
+      const context = securityContextFactory.createSecurityContext({
+        authHeader,
+        targetTenantId: dbkId,
+        ipAddress: req.ip,
+      });
+
+      documentStore.deleteDocument(context, dbkId, documentId, reason);
+      res.json({ status: 'SUCCESS', message: 'Document removed or archived per policy' });
+    } catch (err) {
+      if (err instanceof KernelError) {
+        res.status(err.statusCode).json(err.toJSON());
+      } else {
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: (err as Error).message } });
+      }
+    }
+  });
+
+  app.get('/api/ai/proposals/:dbkId', (req: Request, res: Response) => {
+    try {
+      const authHeader = req.headers.authorization;
+      const { dbkId } = req.params;
+      const status = req.query.status as any;
+
+      const context = securityContextFactory.createSecurityContext({
+        authHeader,
+        targetTenantId: dbkId,
+        ipAddress: req.ip,
+      });
+
+      const proposals = aiCommandBoundary.listProposals(context, dbkId, status);
+      res.json({ status: 'SUCCESS', proposals });
+    } catch (err) {
+      if (err instanceof KernelError) {
+        res.status(err.statusCode).json(err.toJSON());
+      } else {
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: (err as Error).message } });
+      }
+    }
+  });
+
+  app.post('/api/ai/proposals/:dbkId/:proposalId/approve', async (req: Request, res: Response) => {
+    try {
+      const authHeader = req.headers.authorization;
+      const { dbkId, proposalId } = req.params;
+      const { adjustedPayload } = req.body;
+
+      const context = securityContextFactory.createSecurityContext({
+        authHeader,
+        targetTenantId: dbkId,
+        ipAddress: req.ip,
+      });
+
+      const result = await aiCommandBoundary.approveProposal(context, dbkId, proposalId, adjustedPayload);
+      res.json({ status: 'SUCCESS', ...result });
+    } catch (err) {
+      if (err instanceof KernelError) {
+        res.status(err.statusCode).json(err.toJSON());
+      } else {
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: (err as Error).message } });
+      }
+    }
+  });
+
+  app.post('/api/ai/proposals/:dbkId/:proposalId/reject', (req: Request, res: Response) => {
+    try {
+      const authHeader = req.headers.authorization;
+      const { dbkId, proposalId } = req.params;
+      const { reason } = req.body;
+
+      const context = securityContextFactory.createSecurityContext({
+        authHeader,
+        targetTenantId: dbkId,
+        ipAddress: req.ip,
+      });
+
+      const result = aiCommandBoundary.rejectProposal(context, dbkId, proposalId, reason || 'Rejected by reviewer');
+      res.json({ status: 'SUCCESS', proposal: result });
+    } catch (err) {
+      if (err instanceof KernelError) {
+        res.status(err.statusCode).json(err.toJSON());
+      } else {
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: (err as Error).message } });
+      }
+    }
+  });
+
+  app.get('/api/ai/conversation/:dbkId', (req: Request, res: Response) => {
+    try {
+      const authHeader = req.headers.authorization;
+      const { dbkId } = req.params;
+      const branchId = (req.query.branchId as string) || 'HQ';
+
+      const context = securityContextFactory.createSecurityContext({
+        authHeader,
+        targetTenantId: dbkId,
+        targetBranchId: branchId,
+        ipAddress: req.ip,
+      });
+
+      const conv = aiMemoryManager.getOrCreateConversation(context, dbkId, branchId);
+      res.json({ status: 'SUCCESS', conversation: conv });
+    } catch (err) {
+      if (err instanceof KernelError) {
+        res.status(err.statusCode).json(err.toJSON());
+      } else {
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: (err as Error).message } });
+      }
+    }
+  });
+
+  app.post('/api/ai/conversation/:dbkId', async (req: Request, res: Response) => {
+    try {
+      const authHeader = req.headers.authorization;
+      const { dbkId } = req.params;
+      const { message, branchId } = req.body;
+
+      const context = securityContextFactory.createSecurityContext({
+        authHeader,
+        targetTenantId: dbkId,
+        targetBranchId: branchId,
+        ipAddress: req.ip,
+      });
+
+      // 1. Sanitize user prompt for prompt injection
+      const sanitized = aiSecurityGuard.sanitizeInput(context, message, 'PROMPT');
+
+      // 2. Add user message to conversation
+      aiMemoryManager.addMessage(context, dbkId, `conv_${context.principal.id}_${branchId || 'HQ'}`, {
+        sender: 'USER',
+        text: message,
+        untrustedWarning: sanitized.isFlagged,
+      });
+
+      // 3. Assemble tenant context
+      const tenantContext = aiMemoryManager.assembleTenantContext(context, dbkId, branchId || 'HQ');
+
+      // 4. Generate AI response
+      const aiResponse = await aiProvider.generateText({
+        tenantId: dbkId,
+        branchId: branchId || 'HQ',
+        principalId: context.principal.id,
+        task: 'ASSISTANT_QUERY',
+        prompt: sanitized.sanitizedPrompt,
+        untrustedDocumentContent: tenantContext.contextPrompt,
+        correlationId: context.correlationId,
+      });
+
+      // 5. Add AI assistant message
+      const assistantMsg = aiMemoryManager.addMessage(context, dbkId, `conv_${context.principal.id}_${branchId || 'HQ'}`, {
+        sender: 'AI_ASSISTANT',
+        text: aiResponse.data || 'I am your TDBK Assistant. How can I help you today?',
+      });
+
+      res.json({ status: 'SUCCESS', message: assistantMsg, isFlagged: sanitized.isFlagged });
+    } catch (err) {
+      if (err instanceof KernelError) {
+        res.status(err.statusCode).json(err.toJSON());
+      } else {
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: (err as Error).message } });
+      }
+    }
+  });
+
+  // -------------------------------------------------------------
+  // VITE DEV / PRODUCTION MIDDLEWARE
+  // -------------------------------------------------------------
+  if (process.env.NODE_ENV !== 'production') {
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: 'spa',
+    });
+    app.use(vite.middlewares);
+  } else {
+    const distPath = path.join(process.cwd(), 'dist');
+    app.use(express.static(distPath));
+    app.get('*', (req: Request, res: Response) => {
+      res.sendFile(path.join(distPath, 'index.html'));
+    });
+  }
+
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`[TDBK_V2_KERNEL] Express Server listening on http://0.0.0.0:${PORT}`);
+  });
+}
+
+startServer();

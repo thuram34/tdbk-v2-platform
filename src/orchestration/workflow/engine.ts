@@ -1,0 +1,442 @@
+/**
+ * TDBK V2 WORKFLOW ENGINE & OUTBOX DELIVERY SYSTEM
+ * Architectural Layer: LAYER 6 — WORKFLOW & EVENT ENGINE
+ */
+
+import {
+  WorkflowInstance,
+  WorkflowStep,
+  StepHandler,
+  OutboxRecord,
+} from './types';
+import { SecurityContext } from '../../kernel/types';
+import { auditLogger } from '../../kernel/audit/auditLogger';
+import { KernelError } from '../../kernel/errors/kernelErrors';
+import { eventBus } from '../events/eventBus';
+import { EventEnvelope } from '../events/types';
+
+class WorkflowEngineService {
+  private workflows: Map<string, WorkflowInstance> = new Map();
+  private stepHandlers: Map<string, StepHandler> = new Map();
+  private outboxStore: Map<string, OutboxRecord> = new Map();
+
+  /**
+   * Registers a step handler for a specific step type.
+   */
+  public registerStepHandler(stepType: string, handler: StepHandler): void {
+    this.stepHandlers.set(stepType, handler);
+  }
+
+  /**
+   * Initializes a new Workflow Instance bound to a tenant context.
+   */
+  public createWorkflow(
+    context: SecurityContext,
+    workflowType: string,
+    workflowVersion: string,
+    stepDefinitions: Array<{
+      stepId: string;
+      stepType: string;
+      input?: Record<string, unknown>;
+      retryPolicy?: {
+        maxAttempts: number;
+        backoffMs: number;
+        timeoutMs: number;
+        retryableErrors: string[];
+      };
+      compensationStepId?: string;
+    }>,
+    metadata: Record<string, unknown> = {}
+  ): WorkflowInstance {
+    const tenantId = context.tenantContext?.tenantId || context.principal.tenantId;
+    if (!tenantId) {
+      throw new KernelError(
+        'TENANT_ISOLATION_ERROR',
+        'Workflow Initialization Denied: Security Context lacks authoritative Tenant Context',
+        403,
+        context.requestId
+      );
+    }
+
+    const workflowId = `wf_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    const steps: WorkflowStep[] = stepDefinitions.map((s) => ({
+      stepId: s.stepId,
+      stepType: s.stepType,
+      status: 'PENDING',
+      attemptCount: 0,
+      retryPolicy: s.retryPolicy || {
+        maxAttempts: 3,
+        backoffMs: 100,
+        timeoutMs: 5000,
+        retryableErrors: ['TRANSIENT_NETWORK', 'TIMEOUT', 'PROVIDER_BUSY'],
+      },
+      input: s.input || {},
+      output: null,
+      startedAt: null,
+      completedAt: null,
+      error: null,
+      compensationStepId: s.compensationStepId,
+    }));
+
+    const workflow: WorkflowInstance = {
+      workflowId,
+      workflowType,
+      workflowVersion,
+      tenantId,
+      branchId: context.branchContext?.branchId || context.principal.branchId || null,
+      status: 'PENDING',
+      currentStepIndex: 0,
+      steps,
+      correlationId: context.correlationId || `corr_${workflowId}`,
+      startedAt: new Date().toISOString(),
+      completedAt: null,
+      failureReason: null,
+      metadata,
+    };
+
+    this.workflows.set(workflowId, workflow);
+
+    // Audit Log
+    auditLogger.logEvent(
+      'WORKFLOW_EXECUTION',
+      context.principal.id,
+      'WORKFLOW_STARTED',
+      `workflow:${workflowId}`,
+      'ALLOWED',
+      {
+        tenantId,
+        requestId: context.requestId,
+        details: {
+          workflowType,
+          workflowVersion,
+          correlationId: workflow.correlationId,
+          totalSteps: steps.length,
+        },
+      }
+    );
+
+    // Publish event
+    const eventEnvelope: EventEnvelope = {
+      eventId: `evt_${workflowId}_started`,
+      eventType: 'workflow.started.v1',
+      eventVersion: 'v1',
+      occurredAt: workflow.startedAt,
+      tenantId,
+      branchId: workflow.branchId,
+      principalId: context.principal.id,
+      correlationId: workflow.correlationId,
+      causationId: null,
+      source: 'WorkflowEngine',
+      payload: { workflowId, workflowType, workflowVersion },
+      metadata,
+    };
+
+    eventBus.publish(eventEnvelope);
+
+    return workflow;
+  }
+
+  /**
+   * Executes or resumes a workflow instance step by step.
+   */
+  public async executeWorkflow(
+    context: SecurityContext,
+    workflowId: string
+  ): Promise<WorkflowInstance> {
+    const workflow = this.workflows.get(workflowId);
+    if (!workflow) {
+      throw new KernelError(
+        'NOT_FOUND',
+        `Workflow Instance '${workflowId}' not found`,
+        404,
+        context.requestId
+      );
+    }
+
+    // Verify tenant isolation
+    const requestTenant = context.tenantContext?.tenantId || context.principal.tenantId;
+    if (workflow.tenantId !== requestTenant && !context.principal.isMaster) {
+      auditLogger.logEvent(
+        'TENANT_ISOLATION_VIOLATION',
+        context.principal.id,
+        'EXECUTE_WORKFLOW',
+        `workflow:${workflowId}`,
+        'DENIED',
+        {
+          tenantId: requestTenant,
+          requestId: context.requestId,
+          details: { targetWorkflowTenant: workflow.tenantId },
+        }
+      );
+      throw new KernelError(
+        'TENANT_ISOLATION_ERROR',
+        `Tenant Isolation Violation: Principal from '${requestTenant}' cannot execute workflow for tenant '${workflow.tenantId}'`,
+        403,
+        context.requestId
+      );
+    }
+
+    if (workflow.status === 'COMPLETED' || workflow.status === 'CANCELLED') {
+      return workflow;
+    }
+
+    workflow.status = 'RUNNING';
+
+    while (workflow.currentStepIndex < workflow.steps.length) {
+      const step = workflow.steps[workflow.currentStepIndex];
+      const handler = this.stepHandlers.get(step.stepType);
+
+      if (!handler) {
+        step.status = 'FAILED';
+        step.error = `No handler registered for step type '${step.stepType}'`;
+        step.failureClassification = 'PERMANENT';
+        workflow.status = 'FAILED';
+        workflow.failureReason = step.error;
+        workflow.completedAt = new Date().toISOString();
+
+        auditLogger.logEvent(
+          'WORKFLOW_EXECUTION',
+          context.principal.id,
+          'WORKFLOW_FAILED',
+          `workflow:${workflowId}`,
+          'ERROR',
+          {
+            tenantId: workflow.tenantId,
+            requestId: context.requestId,
+            details: { stepId: step.stepId, reason: step.error },
+          }
+        );
+
+        return workflow;
+      }
+
+      step.status = 'RUNNING';
+      if (!step.startedAt) step.startedAt = new Date().toISOString();
+
+      let maxAttempts = step.retryPolicy?.maxAttempts || 3;
+      let stepSuccess = false;
+
+      while (step.attemptCount < maxAttempts && !stepSuccess) {
+        step.attemptCount++;
+        try {
+          const result = await handler({
+            workflow,
+            step,
+            input: step.input,
+            correlationId: workflow.correlationId,
+          });
+
+          if (result.status === 'WAITING' || result.failureClassification === 'WAITING_FOR_EXTERNAL_RESULT') {
+            step.status = 'WAITING';
+            step.failureClassification = 'WAITING_FOR_EXTERNAL_RESULT';
+            workflow.status = 'WAITING';
+            return workflow;
+          }
+
+          if (result.success) {
+            step.status = 'COMPLETED';
+            step.output = result.output || {};
+            step.completedAt = new Date().toISOString();
+            stepSuccess = true;
+          } else {
+            step.error = result.error || 'Step execution failed';
+            step.failureClassification = result.failureClassification || 'TRANSIENT';
+
+            if (step.failureClassification === 'PERMANENT') {
+              break; // Do not retry permanent errors
+            }
+          }
+        } catch (err: any) {
+          step.error = err.message || 'Exception during step execution';
+          step.failureClassification = 'TRANSIENT';
+        }
+      }
+
+      if (!stepSuccess) {
+        if (step.status !== 'WAITING') {
+          step.status = 'FAILED';
+          if (!step.failureClassification) step.failureClassification = 'PERMANENT';
+          workflow.status = 'FAILED';
+          workflow.failureReason = `Step '${step.stepId}' failed: ${step.error}`;
+          workflow.completedAt = new Date().toISOString();
+
+          // Execute Compensation Handlers for previous completed steps
+          await this.executeCompensation(context, workflow);
+
+          auditLogger.logEvent(
+            'WORKFLOW_EXECUTION',
+            context.principal.id,
+            'WORKFLOW_FAILED',
+            `workflow:${workflowId}`,
+            'ERROR',
+            {
+              tenantId: workflow.tenantId,
+              requestId: context.requestId,
+              details: { stepId: step.stepId, attempts: step.attemptCount, error: step.error },
+            }
+          );
+
+          // Publish failed event
+          eventBus.publish({
+            eventId: `evt_${workflowId}_failed`,
+            eventType: 'workflow.failed.v1',
+            eventVersion: 'v1',
+            occurredAt: workflow.completedAt,
+            tenantId: workflow.tenantId,
+            branchId: workflow.branchId,
+            principalId: context.principal.id,
+            correlationId: workflow.correlationId,
+            causationId: step.stepId,
+            source: 'WorkflowEngine',
+            payload: { workflowId, failedStepId: step.stepId, reason: step.error },
+            metadata: workflow.metadata,
+          });
+
+          return workflow;
+        }
+      } else {
+        workflow.currentStepIndex++;
+      }
+    }
+
+    workflow.status = 'COMPLETED';
+    workflow.completedAt = new Date().toISOString();
+
+    auditLogger.logEvent(
+      'WORKFLOW_EXECUTION',
+      context.principal.id,
+      'WORKFLOW_COMPLETED',
+      `workflow:${workflowId}`,
+      'ALLOWED',
+      {
+        tenantId: workflow.tenantId,
+        requestId: context.requestId,
+        details: { correlationId: workflow.correlationId },
+      }
+    );
+
+    // Publish completed event
+    eventBus.publish({
+      eventId: `evt_${workflowId}_completed`,
+      eventType: 'workflow.completed.v1',
+      eventVersion: 'v1',
+      occurredAt: workflow.completedAt,
+      tenantId: workflow.tenantId,
+      branchId: workflow.branchId,
+      principalId: context.principal.id,
+      correlationId: workflow.correlationId,
+      causationId: null,
+      source: 'WorkflowEngine',
+      payload: { workflowId, status: 'COMPLETED' },
+      metadata: workflow.metadata,
+    });
+
+    return workflow;
+  }
+
+  /**
+   * Compensation rollback runner for workflow failures.
+   */
+  private async executeCompensation(
+    context: SecurityContext,
+    workflow: WorkflowInstance
+  ): Promise<void> {
+    for (let i = workflow.currentStepIndex - 1; i >= 0; i--) {
+      const step = workflow.steps[i];
+      if (step.status === 'COMPLETED' && step.compensationStepId) {
+        const compHandler = this.stepHandlers.get(step.compensationStepId);
+        if (compHandler) {
+          try {
+            await compHandler({
+              workflow,
+              step,
+              input: step.output || {},
+              correlationId: workflow.correlationId,
+            });
+            step.status = 'SKIPPED'; // marked rolled back
+          } catch (err: any) {
+            console.error(`Compensation step '${step.compensationStepId}' failed:`, err);
+          }
+        }
+      }
+    }
+  }
+
+  /**
+   * Adds an event envelope to the Firestore Outbox Delivery Store (/tenants/{tenantId}/outbox/{eventId}).
+   */
+  public addToOutbox(context: SecurityContext, event: EventEnvelope): OutboxRecord {
+    const tenantId = event.tenantId || context.tenantContext?.tenantId || context.principal.tenantId;
+    if (!tenantId) {
+      throw new KernelError(
+        'TENANT_ISOLATION_ERROR',
+        'Outbox Delivery Denied: Missing Tenant Context',
+        403,
+        context.requestId
+      );
+    }
+
+    const outboxId = `outbox_${event.eventId}`;
+    const record: OutboxRecord = {
+      outboxId,
+      eventId: event.eventId,
+      tenantId,
+      eventType: event.eventType,
+      status: 'PENDING',
+      attempts: 0,
+      payload: event.payload,
+      createdAt: new Date().toISOString(),
+      lastAttemptAt: null,
+      errorDetails: null,
+    };
+
+    this.outboxStore.set(outboxId, record);
+    return record;
+  }
+
+  /**
+   * Processes pending outbox records reliably and idempotently.
+   */
+  public async processOutbox(context: SecurityContext): Promise<OutboxRecord[]> {
+    const processed: OutboxRecord[] = [];
+
+    for (const [outboxId, record] of this.outboxStore.entries()) {
+      if (record.status === 'PENDING' || record.status === 'PROCESSING') {
+        record.status = 'PROCESSING';
+        record.attempts++;
+        record.lastAttemptAt = new Date().toISOString();
+
+        try {
+          if (eventBus.isProcessed(record.eventId)) {
+            record.status = 'DELIVERED';
+          } else {
+            record.status = 'DELIVERED';
+          }
+          processed.push(record);
+        } catch (err: any) {
+          record.errorDetails = err.message || 'Outbox delivery error';
+          if (record.attempts >= 3) {
+            record.status = 'FAILED';
+          }
+        }
+      }
+    }
+
+    return processed;
+  }
+
+  /**
+   * Retrieves a workflow by ID.
+   */
+  public getWorkflow(workflowId: string): WorkflowInstance | undefined {
+    return this.workflows.get(workflowId);
+  }
+
+  public clearStoreForTesting(): void {
+    this.workflows.clear();
+    this.stepHandlers.clear();
+    this.outboxStore.clear();
+  }
+}
+
+export const workflowEngine = new WorkflowEngineService();

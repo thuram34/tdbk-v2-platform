@@ -1,0 +1,260 @@
+import { SecurityContext } from '../kernel/types';
+import { DbkBranch } from '../platform/types';
+import { workspaceManager } from '../platform/workspace/workspaceManager';
+import { dbkRegistry } from '../platform/dbkRegistry';
+import { dynamicNavigationEngine } from './navigation/navigationEngine';
+import { dashboardComposer } from './dashboard/dashboardComposer';
+import { DbkExperienceResolved, ExperienceCommandRequest, ExperienceCommandResponse, ExperienceDiscoveryItem } from './types';
+import { BlueprintValidator } from '../blueprint/validator';
+import { masterAuthority } from '../kernel/master/masterAuthority';
+import { auditLogger } from '../kernel/audit/auditLogger';
+import { entityEngine } from './entity/entityEngine';
+import { dbkCapabilityManager } from '../capability/dbkCapabilityManager';
+import { discoveryEngine } from '../capability/discovery';
+import { KernelError } from '../kernel/errors/kernelErrors';
+
+export class ExperienceResolver {
+  private static instance: ExperienceResolver;
+
+  private constructor() {}
+
+  public static getInstance(): ExperienceResolver {
+    if (!ExperienceResolver.instance) {
+      ExperienceResolver.instance = new ExperienceResolver();
+    }
+    return ExperienceResolver.instance;
+  }
+
+  public resolveExperience(context: SecurityContext, dbkId: string, requestedBranchId?: string): DbkExperienceResolved {
+    // 1. Assert tenant access
+    if (!masterAuthority.isMasterAdmin(context.principal) && !masterAuthority.isOwnerPortfolio(context.principal)) {
+      BlueprintValidator.assertTenantAccess(context, dbkId, 'resolveExperience');
+    }
+
+    // 2. Compile workspace state
+    const workspace = workspaceManager.compileWorkspaceState(context, dbkId);
+    const dbkRecord = dbkRegistry.getDbkInternal(dbkId);
+
+    // 3. Resolve active branch
+    const branchCtxId = requestedBranchId || context.branchContext?.branchId || (context as any).branchId;
+    let activeBranch: DbkBranch | undefined = workspace.activeBranches.find((b) => b.branchId === branchCtxId);
+    if (!activeBranch && branchCtxId) {
+      if (context.branchContext && context.branchContext.branchId === branchCtxId) {
+        activeBranch = {
+          dbkId,
+          branchId: context.branchContext.branchId,
+          name: context.branchContext.name || branchCtxId,
+          type: 'RETAIL_OUTLET',
+          status: 'ACTIVE',
+          isHeadquarters: !!context.branchContext.isHeadquarters,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+      }
+    }
+    if (!activeBranch) {
+      activeBranch =
+        workspace.activeBranches.find((b) => b.isHeadquarters) ||
+        workspace.activeBranches[0] || {
+          dbkId,
+          branchId: 'branch_hq',
+          name: 'Headquarters',
+          type: 'HEADQUARTERS',
+          status: 'ACTIVE',
+          isHeadquarters: true,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+    }
+
+    // 4. Build navigation & dashboard
+    const navigation = dynamicNavigationEngine.buildNavigation(workspace, context);
+    const dashboardWidgets = dashboardComposer.composeDashboard(workspace);
+
+    // 5. Build discovery items
+    let discoveryItems: ExperienceDiscoveryItem[] = [];
+    try {
+      const discoverySurface = discoveryEngine.discoverCapabilitiesForDbk(context, dbkId);
+      discoveryItems = discoverySurface.items.map((item) => {
+        const cap = item.capability;
+        const isEnabled = workspace.enabledCapabilities.includes(cap.capabilityId);
+        let status: 'OPERATIONAL' | 'DISCOVERABLE' | 'UPGRADE_REQUIRED' | 'CONFIGURATION_REQUIRED' | 'SUSPENDED' =
+          'DISCOVERABLE';
+
+        if (isEnabled) {
+          status = 'OPERATIONAL';
+        } else if (item.rejectionReason === 'UPGRADE_REQUIRED' || item.entitlementStatus === 'UPGRADE_REQUIRED') {
+          status = 'UPGRADE_REQUIRED';
+        } else if (item.rejectionReason === 'CONFIGURATION_REQUIRED') {
+          status = 'CONFIGURATION_REQUIRED';
+        } else if (item.rejectionReason === 'SUSPENDED') {
+          status = 'SUSPENDED';
+        } else {
+          status = 'DISCOVERABLE';
+        }
+
+        return {
+          capabilityId: cap.capabilityId,
+          name: cap.name,
+          category: cap.category,
+          description: cap.description,
+          minimumTier: cap.entitlementRequirements.minimumTier,
+          isEntitled: item.entitlementStatus === 'ENTITLED' || isEnabled,
+          isEnabled,
+          status,
+          iconName: cap.category === 'FINANCE' ? 'DollarSign' : cap.category === 'INVENTORY' ? 'Package' : 'Sparkles',
+        };
+      });
+    } catch {
+      discoveryItems = workspace.discoverableCapabilities.map((c) => ({
+        capabilityId: c,
+        name: c.split('_').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
+        category: 'GENERAL',
+        description: `Capability module ${c}`,
+        minimumTier: 'FOUNDATION',
+        isEntitled: workspace.enabledCapabilities.includes(c),
+        isEnabled: workspace.enabledCapabilities.includes(c),
+        status: workspace.enabledCapabilities.includes(c) ? ('OPERATIONAL' as const) : ('DISCOVERABLE' as const),
+        iconName: 'Sparkles',
+      }));
+    }
+
+    const resolved: DbkExperienceResolved = {
+      dbkId: workspace.dbkId,
+      legalName: dbkRecord?.legalName || workspace.displayName,
+      displayName: workspace.displayName,
+      sector: workspace.sector,
+      status: workspace.status,
+      subscriptionTier: workspace.subscriptionTier,
+      workspaceVersion: workspace.workspaceVersion,
+      configurationVersion: workspace.configurationVersion,
+      activeBranch: {
+        branchId: activeBranch.branchId,
+        name: activeBranch.name,
+        isHeadquarters: activeBranch.isHeadquarters,
+      },
+      availableBranches: workspace.activeBranches.map((b) => ({
+        branchId: b.branchId,
+        name: b.name,
+        isHeadquarters: b.isHeadquarters,
+      })),
+      terminology: workspace.terminology,
+      navigation,
+      dashboardWidgets,
+      discoveryItems,
+      currentPrincipal: {
+        userId: context.principal.id,
+        tenantId: context.principal.tenantId,
+        roles: context.principal.roles,
+        permissions: context.principal.permissions,
+        isMaster: masterAuthority.isMasterAdmin(context.principal),
+      },
+      operationalState: workspace.status === 'ACTIVE' ? 'ACTIVE' : workspace.status === 'ARCHIVED' ? 'ARCHIVED' : 'SUSPENDED',
+      serverTimestamp: new Date().toISOString(),
+    };
+
+    auditLogger.logEvent(
+      'AUTHORIZATION_ALLOWED',
+      context.principal.id,
+      'EXPERIENCE_RESOLVED',
+      `dbk:${dbkId}`,
+      'ALLOWED',
+      {
+        tenantId: dbkId,
+        branchId: activeBranch.branchId,
+        requestId: context.requestId,
+      }
+    );
+
+    return resolved;
+  }
+
+  public async dispatchCommand(context: SecurityContext, req: ExperienceCommandRequest): Promise<ExperienceCommandResponse> {
+    const timestamp = new Date().toISOString();
+    try {
+      if (!masterAuthority.isMasterAdmin(context.principal) && !masterAuthority.isOwnerPortfolio(context.principal)) {
+        BlueprintValidator.assertTenantAccess(context, req.targetDbkId, 'dispatchCommand');
+      }
+
+      let updatedExperience: DbkExperienceResolved | undefined;
+
+      if (req.commandType === 'SWITCH_BRANCH') {
+        const branchId = req.payload?.branchId as string;
+        const workspace = workspaceManager.compileWorkspaceState(context, req.targetDbkId);
+        const branchExists = workspace.activeBranches.some((b) => b.branchId === branchId);
+        if (!branchExists) {
+          throw new KernelError('VALIDATION_ERROR', `Branch '${branchId}' not found on DBK '${req.targetDbkId}'`, 404, context.requestId);
+        }
+        updatedExperience = this.resolveExperience(context, req.targetDbkId, branchId);
+      } else if (req.commandType === 'SUBMIT_ENTITY') {
+        const { capabilityId, record } = req.payload || {};
+        if (!capabilityId || !record) {
+          throw new KernelError('VALIDATION_ERROR', 'Missing capabilityId or record payload', 400, context.requestId);
+        }
+        entityEngine.saveRecord(req.targetDbkId, String(capabilityId), record as any);
+        updatedExperience = this.resolveExperience(context, req.targetDbkId);
+      } else if (req.commandType === 'ENABLE_CAPABILITY') {
+        const { capabilityId } = req.payload || {};
+        if (!capabilityId) {
+          throw new KernelError('VALIDATION_ERROR', 'Missing capabilityId', 400, context.requestId);
+        }
+        dbkCapabilityManager.enableCapability(context, req.targetDbkId, String(capabilityId), 'ENTITLED', false);
+        workspaceManager.incrementWorkspaceVersion(context, req.targetDbkId);
+        updatedExperience = this.resolveExperience(context, req.targetDbkId);
+      } else if (req.commandType === 'CONFIGURE_CAPABILITY') {
+        const { capabilityId, configData } = req.payload || {};
+        if (!capabilityId) {
+          throw new KernelError('VALIDATION_ERROR', 'Missing capabilityId', 400, context.requestId);
+        }
+        dbkCapabilityManager.configureCapability(context, req.targetDbkId, String(capabilityId), (configData as Record<string, unknown>) || {});
+        workspaceManager.incrementWorkspaceVersion(context, req.targetDbkId);
+        updatedExperience = this.resolveExperience(context, req.targetDbkId);
+      } else {
+        throw new KernelError('VALIDATION_ERROR', `Unknown commandType: '${req.commandType}'`, 400, context.requestId);
+      }
+
+      auditLogger.logAuditEvent(context, {
+        action: `COMMAND_DISPATCHED:${req.commandType}`,
+        targetResource: `dbk:${req.targetDbkId}`,
+        outcome: 'ALLOWED',
+        details: { tenantId: req.targetDbkId },
+      });
+
+      return {
+        success: true,
+        commandType: req.commandType,
+        targetDbkId: req.targetDbkId,
+        result: { message: `Successfully executed ${req.commandType}` },
+        updatedResolvedExperience: updatedExperience,
+        serverTimestamp: timestamp,
+      };
+    } catch (err: any) {
+      auditLogger.logEvent(
+        'AUTHORIZATION_DENIED',
+        context.principal.id,
+        `COMMAND_FAILED:${req.commandType}`,
+        `dbk:${req.targetDbkId}`,
+        'DENIED',
+        {
+          tenantId: req.targetDbkId,
+          requestId: context.requestId,
+          details: { error: err.message, code: err.code },
+        }
+      );
+
+      return {
+        success: false,
+        commandType: req.commandType,
+        targetDbkId: req.targetDbkId,
+        error: {
+          code: err.code || 'COMMAND_EXECUTION_FAILED',
+          message: err.message || 'Unknown error during command execution',
+        },
+        serverTimestamp: timestamp,
+      };
+    }
+  }
+}
+
+export const experienceResolver = ExperienceResolver.getInstance();
+

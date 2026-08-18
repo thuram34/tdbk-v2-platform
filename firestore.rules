@@ -1,0 +1,58 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isMasterAdmin() {
+      return isSignedIn() && request.auth.token.isMaster == true;
+    }
+
+    function isTenantMember(tenantId) {
+      return isSignedIn() && (request.auth.token.tenantId == tenantId || isMasterAdmin());
+    }
+
+    function isBranchAuthorized(branchId) {
+      return !('branchId' in request.auth.token) ||
+             request.auth.token.branchId == null ||
+             request.auth.token.branchId == branchId ||
+             isMasterAdmin();
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Default Deny Catch-All Rule
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Tenant Isolation Hierarchy (/tenants/{tenantId})
+    match /tenants/{tenantId} {
+      allow get: if isTenantMember(tenantId) && isValidId(tenantId);
+      allow list: if isMasterAdmin();
+      allow create, update, delete: if isMasterAdmin();
+
+      // Branch Subcollection
+      match /branches/{branchId} {
+        allow get, list: if isTenantMember(tenantId) && isValidId(branchId) && isBranchAuthorized(branchId);
+        allow write: if isTenantMember(tenantId) && request.auth.token.role == 'TENANT_ADMIN';
+      }
+
+      // Security Audit Logs (Read-only for tenant admin, append-only via server)
+      match /security_audits/{auditId} {
+        allow get, list: if isTenantMember(tenantId) && request.auth.token.role == 'TENANT_ADMIN';
+        allow write: if false; // Audit logs can only be created by authoritative server runtime
+      }
+
+      // Catch-all for any future DBK operational subcollection
+      match /{allSubcollections=**} {
+        allow read, write: if isTenantMember(tenantId);
+      }
+    }
+  }
+}

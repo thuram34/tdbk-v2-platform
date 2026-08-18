@@ -1,0 +1,101 @@
+/**
+ * TDBK V2 WORKSPACE MANAGER & VERSIONING
+ * Architectural Layer: LAYER 7 — PLATFORM CONTROL & DBK LIFECYCLE
+ * Compiles server-authoritative workspace state projections for DBK instances.
+ */
+
+import { DbkWorkspaceState, DbkIdentity } from '../types';
+import { SecurityContext } from '../../kernel/types';
+import { masterAuthority } from '../../kernel/master/masterAuthority';
+import { BlueprintValidator } from '../../blueprint/validator';
+import { dbkRegistry } from '../dbkRegistry';
+import { branchManager } from '../branch/branchManager';
+import { blueprintRegistry } from '../../blueprint/registry';
+import { dbkCapabilityManager } from '../../capability/dbkCapabilityManager';
+import { discoveryEngine } from '../../capability/discovery';
+import { KernelError } from '../../kernel/errors/kernelErrors';
+
+export class WorkspaceManagerService {
+  private static instance: WorkspaceManagerService;
+
+  private constructor() {}
+
+  public static getInstance(): WorkspaceManagerService {
+    if (!WorkspaceManagerService.instance) {
+      WorkspaceManagerService.instance = new WorkspaceManagerService();
+    }
+    return WorkspaceManagerService.instance;
+  }
+
+  /**
+   * Compiles the authoritative workspace state for a given DBK.
+   */
+  public compileWorkspaceState(context: SecurityContext, dbkId: string): DbkWorkspaceState {
+    if (!masterAuthority.isMasterAdmin(context.principal) && !masterAuthority.isOwnerPortfolio(context.principal)) {
+      BlueprintValidator.assertTenantAccess(context, dbkId, 'compileWorkspaceState');
+    }
+
+    const dbk = dbkRegistry.getDbk(context, dbkId);
+    if (!dbk) {
+      throw new KernelError('NOT_FOUND', `DBK with ID '${dbkId}' does not exist`, 404, context.requestId);
+    }
+
+    const blueprint = blueprintRegistry.getBlueprint(dbk.blueprintId, dbk.blueprintVersion);
+    const branches = branchManager.getBranchesForDbk(context, dbkId);
+
+    // Get enabled and discoverable capabilities
+    const capabilityRecords = dbkCapabilityManager.getDbkCapabilityRecords(context, dbkId);
+    const enabledCapabilities = capabilityRecords
+      .filter((r) => r.state === 'ENABLED' || r.state === 'CONFIGURED')
+      .map((r) => r.capabilityId);
+
+    let discoverableCapabilities: string[] = [];
+    try {
+      const discoverySurface = discoveryEngine.discoverCapabilitiesForDbk(context, dbkId);
+      discoverableCapabilities = discoverySurface.availableCapabilities.map((c) => c.capabilityId);
+    } catch {
+      // Fallback if DNA not yet bound
+      discoverableCapabilities = [];
+    }
+
+    const terminology = blueprint?.terminology || {};
+
+    return {
+      dbkId: dbk.dbkId,
+      displayName: dbk.displayName,
+      legalName: dbk.legalName,
+      sector: dbk.sector,
+      blueprintId: dbk.blueprintId,
+      blueprintVersion: dbk.blueprintVersion,
+      subscriptionTier: dbk.subscriptionTier,
+      status: dbk.status,
+      workspaceVersion: dbk.workspaceVersion,
+      configurationVersion: dbk.configurationVersion,
+      activeBranches: branches.filter((b) => b.status === 'ACTIVE'),
+      currentBranchContext: context.branchContext,
+      enabledCapabilities,
+      discoverableCapabilities,
+      terminology,
+      lastSyncedAt: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * Increments workspace version upon configuration changes.
+   */
+  public incrementWorkspaceVersion(context: SecurityContext, dbkId: string): DbkIdentity {
+    const dbk = dbkRegistry.getDbk(context, dbkId);
+    if (!dbk) {
+      throw new KernelError('NOT_FOUND', `DBK '${dbkId}' not found`, 404, context.requestId);
+    }
+
+    dbk.workspaceVersion += 1;
+    dbk.configurationVersion += 1;
+    dbk.updatedAt = new Date().toISOString();
+
+    dbkRegistry.saveDbk(context, dbk);
+    return dbk;
+  }
+}
+
+export const workspaceManager = WorkspaceManagerService.getInstance();
