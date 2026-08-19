@@ -38,7 +38,7 @@ export class GoogleCloudFirestoreDriver implements IFirestoreDriver {
     // Dynamic resolution on Node server runtime prevents browser bundle errors
     if (typeof window !== 'undefined') {
       throw new KernelError(
-        'CLIENT_ENVIRONMENT_VIOLATION',
+        'INTERNAL_ERROR',
         'GoogleCloudFirestoreDriver cannot run directly in browser client. Use server API or TestMemoryFirestoreDriver for preview.',
         500
       );
