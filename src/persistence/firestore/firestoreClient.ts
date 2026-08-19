@@ -1,29 +1,50 @@
 /**
- * TDBK V2 — FIRESTORE NATIVE MODE CLIENT
+ * TDBK V2 — FIRESTORE NATIVE CLIENT
  * Layer: ARCHITECTURAL FOUNDATION — AUTHORITATIVE SERVER PERSISTENCE
  * 
  * Rules:
  * - Authoritative Canonical Paths: /tenants/{tenantId}/...
  * - No /tdbk_tenants/ competing namespace.
  * - Server-only execution; credentials never exposed to client.
+ * - Authoritative production backend: Google Cloud Firestore (Native Mode) via ADC.
+ * - Isolated test execution: TestMemoryFirestoreDriver for deterministic unit testing.
+ * - NO silent mock fallback in production.
  * - Supports atomic transactions with rollback safety.
  * - Optimistic concurrency, deterministic keys, and server timestamps.
  */
 
+import { IFirestoreDriver } from './driver/types';
+import { TestMemoryFirestoreDriver } from './driver/testMemoryFirestoreDriver';
+import { GoogleCloudFirestoreDriver } from './driver/googleCloudFirestoreDriver';
 import { FirestoreTransaction, FirestoreWriteOptions } from '../types';
 import { KernelError } from '../../kernel/errors/kernelErrors';
 
 export class FirestoreClient {
   private static instance: FirestoreClient;
-
-  // Authoritative document store: canonical path -> raw JSON document
-  private documents: Map<string, { data: Record<string, unknown>; _createdAt: string; _updatedAt: string; _version: number }> = new Map();
-
-  // Snapshot store for simulated restart / re-instantiation verification
-  private static persistentBackingStore: Map<string, string> = new Map();
+  private driver: IFirestoreDriver;
+  private isProductionMode: boolean;
 
   private constructor() {
-    this.rehydrateFromBackingStore();
+    const isBrowser = typeof window !== 'undefined';
+    const isTest =
+      !isBrowser &&
+      typeof process !== 'undefined' &&
+      (process.env.NODE_ENV === 'test' ||
+        process.env.VITEST === 'true' ||
+        process.env.TDBK_PERSISTENCE_DRIVER === 'test_memory');
+
+    this.isProductionMode =
+      !isBrowser &&
+      typeof process !== 'undefined' &&
+      (process.env.NODE_ENV === 'production' || process.env.TDBK_PERSISTENCE_DRIVER === 'gcp_firestore');
+
+    if (isBrowser || isTest || !this.isProductionMode) {
+      // In browser preview, isolated test runner, or local dev without GCP ADC
+      this.driver = new TestMemoryFirestoreDriver();
+    } else {
+      // In production / GCP Cloud Run environment, strictly use GoogleCloudFirestoreDriver
+      this.driver = new GoogleCloudFirestoreDriver();
+    }
   }
 
   public static getInstance(): FirestoreClient {
@@ -34,37 +55,34 @@ export class FirestoreClient {
   }
 
   /**
-   * Resets local memory and backing store (used strictly for isolated test suites).
+   * Returns the currently configured persistence driver.
    */
-  public clearAllForTesting(): void {
-    this.documents.clear();
-    FirestoreClient.persistentBackingStore.clear();
+  public getDriver(): IFirestoreDriver {
+    return this.driver;
   }
 
   /**
-   * Simulates a hard server restart by re-instantiating the client from the persistent backing store.
+   * Allows test harnesses to explicitly inject a test driver.
    */
-  public simulateServerRestart(): void {
-    this.syncToBackingStore();
-    this.documents.clear();
-    this.rehydrateFromBackingStore();
+  public setDriverForTesting(driver: IFirestoreDriver): void {
+    this.driver = driver;
   }
 
-  private syncToBackingStore(): void {
-    FirestoreClient.persistentBackingStore.clear();
-    for (const [path, entry] of this.documents.entries()) {
-      FirestoreClient.persistentBackingStore.set(path, JSON.stringify(entry));
+  /**
+   * Resets local memory and backing store (used strictly for isolated test suites).
+   */
+  public clearAllForTesting(): void {
+    if (typeof this.driver.clearAllForTesting === 'function') {
+      this.driver.clearAllForTesting();
     }
   }
 
-  private rehydrateFromBackingStore(): void {
-    for (const [path, json] of FirestoreClient.persistentBackingStore.entries()) {
-      try {
-        const parsed = JSON.parse(json);
-        this.documents.set(path, parsed);
-      } catch {
-        // Skip corrupted entries
-      }
+  /**
+   * Simulates a hard server restart by re-instantiating state from persistent store.
+   */
+  public simulateServerRestart(): void {
+    if (typeof this.driver.simulateServerRestart === 'function') {
+      this.driver.simulateServerRestart();
     }
   }
 
@@ -104,9 +122,7 @@ export class FirestoreClient {
    */
   public async get<T>(path: string): Promise<T | null> {
     const normalized = this.normalizePath(path);
-    const entry = this.documents.get(normalized);
-    if (!entry) return null;
-    return JSON.parse(JSON.stringify(entry.data)) as T;
+    return await this.driver.get<T>(normalized);
   }
 
   /**
@@ -118,30 +134,7 @@ export class FirestoreClient {
     options: FirestoreWriteOptions = {}
   ): Promise<void> {
     const normalized = this.normalizePath(path);
-    const now = new Date().toISOString();
-    const existing = this.documents.get(normalized);
-
-    if (options.expectedVersion !== undefined && existing && existing._version !== options.expectedVersion) {
-      throw new KernelError(
-        'OPTIMISTIC_LOCK_ERROR',
-        `Concurrent modification on '${normalized}': expected version ${options.expectedVersion}, found ${existing._version}`,
-        409
-      );
-    }
-
-    const version = existing ? existing._version + 1 : 1;
-    const createdAt = existing ? existing._createdAt : now;
-    const finalData = options.merge && existing ? { ...existing.data, ...data } : { ...data };
-
-    const entry = {
-      data: finalData,
-      _createdAt: createdAt,
-      _updatedAt: now,
-      _version: version,
-    };
-
-    this.documents.set(normalized, entry);
-    this.syncToBackingStore();
+    await this.driver.set(normalized, data, options);
   }
 
   /**
@@ -149,12 +142,7 @@ export class FirestoreClient {
    */
   public async update<T extends Record<string, unknown>>(path: string, data: Partial<T>): Promise<void> {
     const normalized = this.normalizePath(path);
-    const existing = this.documents.get(normalized);
-    if (!existing) {
-      throw new KernelError('NOT_FOUND', `Cannot update non-existent document at '${normalized}'`, 404);
-    }
-
-    await this.set(path, data as Record<string, unknown>, { merge: true });
+    await this.driver.update(normalized, data);
   }
 
   /**
@@ -162,8 +150,7 @@ export class FirestoreClient {
    */
   public async delete(path: string): Promise<void> {
     const normalized = this.normalizePath(path);
-    this.documents.delete(normalized);
-    this.syncToBackingStore();
+    await this.driver.delete(normalized);
   }
 
   /**
@@ -171,20 +158,7 @@ export class FirestoreClient {
    */
   public async listCollection<T>(collectionPath: string): Promise<T[]> {
     const normalizedCollection = this.normalizePath(collectionPath);
-    const prefix = `${normalizedCollection}/`;
-    const results: T[] = [];
-
-    for (const [path, entry] of this.documents.entries()) {
-      if (path.startsWith(prefix)) {
-        const subPath = path.substring(prefix.length);
-        // Direct child check (no further slashes)
-        if (!subPath.includes('/')) {
-          results.push(JSON.parse(JSON.stringify(entry.data)) as T);
-        }
-      }
-    }
-
-    return results;
+    return await this.driver.listCollection<T>(normalizedCollection);
   }
 
   /**
@@ -193,61 +167,28 @@ export class FirestoreClient {
   public async runTransaction<T>(
     updateFunction: (transaction: FirestoreTransaction) => Promise<T>
   ): Promise<T> {
-    // Take a point-in-time snapshot of the database for rollback safety
-    const snapshot = new Map(this.documents);
-    const stagingWrites = new Map<string, { data: Record<string, unknown>; options?: FirestoreWriteOptions }>();
-    const stagingDeletes = new Set<string>();
+    return await this.driver.runTransaction(async (tx) => {
+      const txProxy: FirestoreTransaction = {
+        get: async <R>(path: string): Promise<R | null> => {
+          const normalized = this.normalizePath(path);
+          return await tx.get<R>(normalized);
+        },
+        set: async <R>(path: string, data: R, options?: FirestoreWriteOptions): Promise<void> => {
+          const normalized = this.normalizePath(path);
+          await tx.set<R>(normalized, data, options);
+        },
+        update: async <R>(path: string, data: Partial<R>): Promise<void> => {
+          const normalized = this.normalizePath(path);
+          await tx.update<R>(normalized, data);
+        },
+        delete: async (path: string): Promise<void> => {
+          const normalized = this.normalizePath(path);
+          await tx.delete(normalized);
+        },
+      };
 
-    const transaction: FirestoreTransaction = {
-      get: async <R>(path: string): Promise<R | null> => {
-        const normalized = this.normalizePath(path);
-        if (stagingDeletes.has(normalized)) return null;
-        if (stagingWrites.has(normalized)) {
-          return JSON.parse(JSON.stringify(stagingWrites.get(normalized)!.data)) as R;
-        }
-        const entry = snapshot.get(normalized);
-        if (!entry) return null;
-        return JSON.parse(JSON.stringify(entry.data)) as R;
-      },
-      set: async <R>(path: string, data: R, options?: FirestoreWriteOptions): Promise<void> => {
-        const normalized = this.normalizePath(path);
-        stagingDeletes.delete(normalized);
-        stagingWrites.set(normalized, { data: data as unknown as Record<string, unknown>, options });
-      },
-      update: async <R>(path: string, data: Partial<R>): Promise<void> => {
-        const normalized = this.normalizePath(path);
-        const current = stagingWrites.get(normalized)?.data || snapshot.get(normalized)?.data;
-        if (!current) {
-          throw new KernelError('NOT_FOUND', `Transaction update failed: Document '${normalized}' does not exist`, 404);
-        }
-        stagingDeletes.delete(normalized);
-        stagingWrites.set(normalized, { data: { ...current, ...data } as Record<string, unknown>, options: { merge: true } });
-      },
-      delete: async (path: string): Promise<void> => {
-        const normalized = this.normalizePath(path);
-        stagingWrites.delete(normalized);
-        stagingDeletes.add(normalized);
-      },
-    };
-
-    try {
-      const result = await updateFunction(transaction);
-
-      // Commit staging changes atomically
-      for (const [path, { data, options }] of stagingWrites.entries()) {
-        await this.set(path, data, options);
-      }
-      for (const path of stagingDeletes) {
-        await this.delete(path);
-      }
-
-      return result;
-    } catch (err) {
-      // Revert to snapshot on transaction failure
-      this.documents = snapshot;
-      this.syncToBackingStore();
-      throw err;
-    }
+      return await updateFunction(txProxy);
+    });
   }
 }
 
