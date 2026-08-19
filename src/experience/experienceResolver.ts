@@ -25,15 +25,15 @@ export class ExperienceResolver {
     return ExperienceResolver.instance;
   }
 
-  public resolveExperience(context: SecurityContext, dbkId: string, requestedBranchId?: string): DbkExperienceResolved {
+  public async resolveExperience(context: SecurityContext, dbkId: string, requestedBranchId?: string): Promise<DbkExperienceResolved> {
     // 1. Assert tenant access
     if (!masterAuthority.isMasterAdmin(context.principal) && !masterAuthority.isOwnerPortfolio(context.principal)) {
       BlueprintValidator.assertTenantAccess(context, dbkId, 'resolveExperience');
     }
 
     // 2. Compile workspace state
-    const workspace = workspaceManager.compileWorkspaceState(context, dbkId);
-    const dbkRecord = dbkRegistry.getDbkInternal(dbkId);
+    const workspace = await workspaceManager.compileWorkspaceState(context, dbkId);
+    const dbkRecord = await dbkRegistry.getDbkInternal(dbkId);
 
     // 3. Resolve active branch
     const branchCtxId = requestedBranchId || context.branchContext?.branchId || (context as any).branchId;
@@ -180,35 +180,35 @@ export class ExperienceResolver {
 
       if (req.commandType === 'SWITCH_BRANCH') {
         const branchId = req.payload?.branchId as string;
-        const workspace = workspaceManager.compileWorkspaceState(context, req.targetDbkId);
+        const workspace = await workspaceManager.compileWorkspaceState(context, req.targetDbkId);
         const branchExists = workspace.activeBranches.some((b) => b.branchId === branchId);
         if (!branchExists) {
           throw new KernelError('VALIDATION_ERROR', `Branch '${branchId}' not found on DBK '${req.targetDbkId}'`, 404, context.requestId);
         }
-        updatedExperience = this.resolveExperience(context, req.targetDbkId, branchId);
+        updatedExperience = await this.resolveExperience(context, req.targetDbkId, branchId);
       } else if (req.commandType === 'SUBMIT_ENTITY') {
         const { capabilityId, record } = req.payload || {};
         if (!capabilityId || !record) {
           throw new KernelError('VALIDATION_ERROR', 'Missing capabilityId or record payload', 400, context.requestId);
         }
         entityEngine.saveRecord(req.targetDbkId, String(capabilityId), record as any);
-        updatedExperience = this.resolveExperience(context, req.targetDbkId);
+        updatedExperience = await this.resolveExperience(context, req.targetDbkId);
       } else if (req.commandType === 'ENABLE_CAPABILITY') {
         const { capabilityId } = req.payload || {};
         if (!capabilityId) {
           throw new KernelError('VALIDATION_ERROR', 'Missing capabilityId', 400, context.requestId);
         }
         dbkCapabilityManager.enableCapability(context, req.targetDbkId, String(capabilityId), 'ENTITLED', false);
-        workspaceManager.incrementWorkspaceVersion(context, req.targetDbkId);
-        updatedExperience = this.resolveExperience(context, req.targetDbkId);
+        await workspaceManager.incrementWorkspaceVersion(context, req.targetDbkId);
+        updatedExperience = await this.resolveExperience(context, req.targetDbkId);
       } else if (req.commandType === 'CONFIGURE_CAPABILITY') {
         const { capabilityId, configData } = req.payload || {};
         if (!capabilityId) {
           throw new KernelError('VALIDATION_ERROR', 'Missing capabilityId', 400, context.requestId);
         }
         dbkCapabilityManager.configureCapability(context, req.targetDbkId, String(capabilityId), (configData as Record<string, unknown>) || {});
-        workspaceManager.incrementWorkspaceVersion(context, req.targetDbkId);
-        updatedExperience = this.resolveExperience(context, req.targetDbkId);
+        await workspaceManager.incrementWorkspaceVersion(context, req.targetDbkId);
+        updatedExperience = await this.resolveExperience(context, req.targetDbkId);
       } else {
         throw new KernelError('VALIDATION_ERROR', `Unknown commandType: '${req.commandType}'`, 400, context.requestId);
       }
@@ -257,4 +257,3 @@ export class ExperienceResolver {
 }
 
 export const experienceResolver = ExperienceResolver.getInstance();
-

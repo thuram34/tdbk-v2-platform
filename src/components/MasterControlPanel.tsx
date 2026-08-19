@@ -54,9 +54,9 @@ export const MasterControlPanel: React.FC = () => {
     correlationId: `corr_ui_${Date.now()}`,
   };
 
-  const reloadDbks = () => {
+  const reloadDbks = async () => {
     try {
-      const allDbks = dbkRegistry.listAllDbks(masterContext);
+      const allDbks = await dbkRegistry.listAllDbks(masterContext);
       setDbks(allDbks);
       if (allDbks.length > 0 && !selectedDbkId) {
         setSelectedDbkId(allDbks[0].dbkId);
@@ -71,14 +71,19 @@ export const MasterControlPanel: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    let mounted = true;
     if (selectedDbkId) {
-      try {
-        const proj = experienceProjection.getExperienceProjection(masterContext, selectedDbkId);
-        setProjection(proj);
-      } catch {
-        setProjection(null);
-      }
+      experienceProjection.getExperienceProjection(masterContext, selectedDbkId)
+        .then((proj) => {
+          if (mounted) setProjection(proj);
+        })
+        .catch(() => {
+          if (mounted) setProjection(null);
+        });
     }
+    return () => {
+      mounted = false;
+    };
   }, [selectedDbkId, dbks]);
 
   const handleProvision = async () => {
@@ -106,7 +111,7 @@ export const MasterControlPanel: React.FC = () => {
           type: 'success',
           text: `DBK '${result.dbkId}' successfully provisioned with status '${result.status}'.`,
         });
-        reloadDbks();
+        await reloadDbks();
         setSelectedDbkId(result.dbkId);
       } else {
         setActionMessage({
@@ -124,41 +129,41 @@ export const MasterControlPanel: React.FC = () => {
     }
   };
 
-  const handleSuspend = (dbkId: string) => {
+  const handleSuspend = async (dbkId: string) => {
     try {
-      dbkLifecycleManager.suspendDbk(masterContext, dbkId, 'Suspension requested via Master Console');
+      await dbkLifecycleManager.suspendDbk(masterContext, dbkId, 'Suspension requested via Master Console');
       setActionMessage({ type: 'success', text: `DBK '${dbkId}' is now SUSPENDED.` });
-      reloadDbks();
+      await reloadDbks();
     } catch (err: any) {
       setActionMessage({ type: 'error', text: err.message });
     }
   };
 
-  const handleReactivate = (dbkId: string) => {
+  const handleReactivate = async (dbkId: string) => {
     try {
-      dbkLifecycleManager.reactivateDbk(masterContext, dbkId, 'Reactivation requested via Master Console');
+      await dbkLifecycleManager.reactivateDbk(masterContext, dbkId, 'Reactivation requested via Master Console');
       setActionMessage({ type: 'success', text: `DBK '${dbkId}' is now ACTIVE.` });
-      reloadDbks();
+      await reloadDbks();
     } catch (err: any) {
       setActionMessage({ type: 'error', text: err.message });
     }
   };
 
-  const handleArchive = (dbkId: string) => {
+  const handleArchive = async (dbkId: string) => {
     try {
-      dbkLifecycleManager.archiveDbk(masterContext, dbkId, 'Archived via Master Console');
+      await dbkLifecycleManager.archiveDbk(masterContext, dbkId, 'Archived via Master Console');
       setActionMessage({ type: 'success', text: `DBK '${dbkId}' is now ARCHIVED (historical records preserved).` });
-      reloadDbks();
+      await reloadDbks();
     } catch (err: any) {
       setActionMessage({ type: 'error', text: err.message });
     }
   };
 
-  const handleRestore = (dbkId: string) => {
+  const handleRestore = async (dbkId: string) => {
     try {
-      dbkLifecycleManager.restoreDbk(masterContext, dbkId, 'Restored from archive via Master Console');
+      await dbkLifecycleManager.restoreDbk(masterContext, dbkId, 'Restored from archive via Master Console');
       setActionMessage({ type: 'success', text: `DBK '${dbkId}' is now RESTORED to ACTIVE.` });
-      reloadDbks();
+      await reloadDbks();
     } catch (err: any) {
       setActionMessage({ type: 'error', text: err.message });
     }

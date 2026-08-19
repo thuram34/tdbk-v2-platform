@@ -328,7 +328,7 @@ export async function runPhase4TestSuite(): Promise<Phase4TestSummary> {
 
   // P4_TEST_14: DBK lifecycle starts PROVISIONING
   await runTest('P4_TEST_14', 'DBK lifecycle starts PROVISIONING', async () => {
-    const dbk = dbkRegistry.getDbk(masterContext, 'tenant_p4_school_01');
+    const dbk = await dbkRegistry.getDbk(masterContext, 'tenant_p4_school_01');
     if (!dbk || dbk.lifecycleHistory[0]?.fromStatus !== 'PROVISIONING') {
       throw new Error('DBK initial lifecycle transition record did not record PROVISIONING');
     }
@@ -336,7 +336,7 @@ export async function runPhase4TestSuite(): Promise<Phase4TestSummary> {
 
   // P4_TEST_15: Successful provisioning reaches ACTIVE
   await runTest('P4_TEST_15', 'Successful provisioning reaches ACTIVE', async () => {
-    const dbk = dbkRegistry.getDbk(masterContext, 'tenant_p4_school_01');
+    const dbk = await dbkRegistry.getDbk(masterContext, 'tenant_p4_school_01');
     if (!dbk || dbk.status !== 'ACTIVE') {
       throw new Error(`Expected final status 'ACTIVE', found '${dbk?.status}'`);
     }
@@ -393,7 +393,7 @@ export async function runPhase4TestSuite(): Promise<Phase4TestSummary> {
 
   // P4_TEST_19: Master suspension works
   await runTest('P4_TEST_19', 'Master suspension works', async () => {
-    const suspended = dbkLifecycleManager.suspendDbk(masterContext, 'tenant_p4_school_01', 'Non-compliance audit');
+    const suspended = await dbkLifecycleManager.suspendDbk(masterContext, 'tenant_p4_school_01', 'Non-compliance audit');
     if (suspended.status !== 'SUSPENDED') {
       throw new Error(`Expected status SUSPENDED, found ${suspended.status}`);
     }
@@ -403,7 +403,7 @@ export async function runPhase4TestSuite(): Promise<Phase4TestSummary> {
   await runTest('P4_TEST_20', 'Suspended DBK operational access denied', async () => {
     let denied = false;
     try {
-      dbkLifecycleManager.assertDbkOperational(tenantContextSchool, 'tenant_p4_school_01');
+      await dbkLifecycleManager.assertDbkOperational(tenantContextSchool, 'tenant_p4_school_01');
     } catch (err: any) {
       if (err.message.includes('is currently in \'SUSPENDED\' state')) {
         denied = true;
@@ -414,7 +414,7 @@ export async function runPhase4TestSuite(): Promise<Phase4TestSummary> {
 
   // P4_TEST_21: DBK reactivation works
   await runTest('P4_TEST_21', 'DBK reactivation works', async () => {
-    const reactivated = dbkLifecycleManager.reactivateDbk(masterContext, 'tenant_p4_school_01', 'Audit passed');
+    const reactivated = await dbkLifecycleManager.reactivateDbk(masterContext, 'tenant_p4_school_01', 'Audit passed');
     if (reactivated.status !== 'ACTIVE') {
       throw new Error(`Expected status ACTIVE after reactivation, found ${reactivated.status}`);
     }
@@ -422,12 +422,12 @@ export async function runPhase4TestSuite(): Promise<Phase4TestSummary> {
 
   // P4_TEST_22: Archive works without destructive deletion
   await runTest('P4_TEST_22', 'Archive works without destructive deletion', async () => {
-    const archived = dbkLifecycleManager.archiveDbk(masterContext, 'tenant_p4_school_01', 'Voluntary closure');
+    const archived = await dbkLifecycleManager.archiveDbk(masterContext, 'tenant_p4_school_01', 'Voluntary closure');
     if (archived.status !== 'ARCHIVED') {
       throw new Error(`Expected status ARCHIVED, found ${archived.status}`);
     }
     // Verify records remain in registry
-    const dbk = dbkRegistry.getDbk(masterContext, 'tenant_p4_school_01');
+    const dbk = await dbkRegistry.getDbk(masterContext, 'tenant_p4_school_01');
     if (!dbk || dbk.dbkId !== 'tenant_p4_school_01') {
       throw new Error('Archived DBK records were destructively removed');
     }
@@ -437,14 +437,14 @@ export async function runPhase4TestSuite(): Promise<Phase4TestSummary> {
   await runTest('P4_TEST_23', 'Archived DBK cannot become active without authorized restore flow', async () => {
     let denied = false;
     try {
-      dbkLifecycleManager.reactivateDbk(masterContext, 'tenant_p4_school_01');
+      await dbkLifecycleManager.reactivateDbk(masterContext, 'tenant_p4_school_01');
     } catch {
       denied = true;
     }
     if (!denied) throw new Error('Direct reactivate of ARCHIVED DBK should be rejected; restore flow required');
 
     // Restore via authorized flow
-    const restored = dbkLifecycleManager.restoreDbk(masterContext, 'tenant_p4_school_01', 'Official reopening');
+    const restored = await dbkLifecycleManager.restoreDbk(masterContext, 'tenant_p4_school_01', 'Official reopening');
     if (restored.status !== 'ACTIVE') {
       throw new Error(`Expected status ACTIVE after restore, found ${restored.status}`);
     }
@@ -504,7 +504,7 @@ export async function runPhase4TestSuite(): Promise<Phase4TestSummary> {
     };
     let denied = false;
     try {
-      dbkLifecycleManager.suspendDbk(forgedCtx, 'tenant_p4_school_01', 'Hacked');
+      await dbkLifecycleManager.suspendDbk(forgedCtx, 'tenant_p4_school_01', 'Hacked');
     } catch {
       denied = true;
     }
@@ -515,7 +515,7 @@ export async function runPhase4TestSuite(): Promise<Phase4TestSummary> {
   await runTest('P4_TEST_28', 'Client cannot forge tenant identity', async () => {
     let denied = false;
     try {
-      dbkRegistry.getDbk(tenantContextHardware, 'tenant_p4_school_01');
+      await dbkRegistry.getDbk(tenantContextHardware, 'tenant_p4_school_01');
     } catch {
       denied = true;
     }
@@ -564,7 +564,7 @@ export async function runPhase4TestSuite(): Promise<Phase4TestSummary> {
 
   // P4_TEST_32: Provisioning correlationId preserved
   await runTest('P4_TEST_32', 'Provisioning correlationId preserved', async () => {
-    const dbk = dbkRegistry.getDbk(masterContext, 'tenant_p4_school_01');
+    const dbk = await dbkRegistry.getDbk(masterContext, 'tenant_p4_school_01');
     if (!dbk || !dbk.lifecycleHistory[0]?.correlationId) {
       throw new Error('CorrelationId was not preserved in DBK lifecycle history');
     }
@@ -601,7 +601,7 @@ export async function runPhase4TestSuite(): Promise<Phase4TestSummary> {
 
   // P4_TEST_35: DBK workspace projection is generated from authoritative state
   await runTest('P4_TEST_35', 'DBK workspace projection is generated from authoritative state', async () => {
-    const projection = experienceProjection.getExperienceProjection(tenantContextSchool, 'tenant_p4_school_01');
+    const projection = await experienceProjection.getExperienceProjection(tenantContextSchool, 'tenant_p4_school_01');
     if (
       !projection ||
       projection.dbkId !== 'tenant_p4_school_01' ||
@@ -637,7 +637,7 @@ export async function runPhase4TestSuite(): Promise<Phase4TestSummary> {
       branchContext: null,
       correlationId: 'corr_fresh_session',
     };
-    const workspace = workspaceManager.compileWorkspaceState(freshSessionCtx, 'tenant_p4_school_01');
+    const workspace = await workspaceManager.compileWorkspaceState(freshSessionCtx, 'tenant_p4_school_01');
     if (!workspace || workspace.dbkId !== 'tenant_p4_school_01' || workspace.status !== 'ACTIVE') {
       throw new Error('Server authoritative state was not preserved across fresh sessions');
     }
@@ -736,7 +736,7 @@ export async function runPhase4TestSuite(): Promise<Phase4TestSummary> {
 
   // P4_TEST_42: Master can inspect DBK lifecycle
   await runTest('P4_TEST_42', 'Master can inspect DBK lifecycle', async () => {
-    const allDbks = dbkRegistry.listAllDbks(masterContext);
+    const allDbks = await dbkRegistry.listAllDbks(masterContext);
     if (!allDbks || allDbks.length < 2) {
       throw new Error('Master inspection of all DBKs failed');
     }
@@ -744,11 +744,11 @@ export async function runPhase4TestSuite(): Promise<Phase4TestSummary> {
 
   // P4_TEST_43: DBK can inspect only its own lifecycle
   await runTest('P4_TEST_43', 'DBK can inspect only its own lifecycle', async () => {
-    const ownDbk = dbkRegistry.getDbk(tenantContextSchool, 'tenant_p4_school_01');
+    const ownDbk = await dbkRegistry.getDbk(tenantContextSchool, 'tenant_p4_school_01');
     if (!ownDbk) throw new Error('DBK could not inspect its own identity');
     let denied = false;
     try {
-      dbkRegistry.getDbk(tenantContextSchool, 'tenant_p4_hardware_01');
+      await dbkRegistry.getDbk(tenantContextSchool, 'tenant_p4_hardware_01');
     } catch {
       denied = true;
     }
@@ -757,7 +757,7 @@ export async function runPhase4TestSuite(): Promise<Phase4TestSummary> {
 
   // P4_TEST_44: Archived DBK preserves audit history
   await runTest('P4_TEST_44', 'Archived DBK preserves audit history', async () => {
-    dbkLifecycleManager.archiveDbk(masterContext, 'tenant_p4_hardware_01', 'End of lease');
+    await dbkLifecycleManager.archiveDbk(masterContext, 'tenant_p4_hardware_01', 'End of lease');
     const logs = auditLogger.getEventsForTenant('tenant_p4_hardware_01');
     if (logs.length === 0) {
       throw new Error('Archiving DBK destroyed tenant audit history');
@@ -766,7 +766,7 @@ export async function runPhase4TestSuite(): Promise<Phase4TestSummary> {
 
   // P4_TEST_45: Provisioning secrets never enter client bundle
   await runTest('P4_TEST_45', 'Provisioning secrets never enter client bundle', async () => {
-    const projection = experienceProjection.getExperienceProjection(tenantContextSchool, 'tenant_p4_school_01');
+    const projection = await experienceProjection.getExperienceProjection(tenantContextSchool, 'tenant_p4_school_01');
     const projectionStr = JSON.stringify(projection);
     if (
       projectionStr.includes('privateKey') ||

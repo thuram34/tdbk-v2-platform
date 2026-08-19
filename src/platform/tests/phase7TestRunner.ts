@@ -178,7 +178,7 @@ export async function runPhase7TestSuite(): Promise<Phase7TestSummary> {
       throw new Error(`School DBK provisioning failed: ${provResult.error || 'Unknown error'}`);
     }
 
-    const registered = dbkRegistry.getDbk(masterContext, schoolDbkId);
+    const registered = await dbkRegistry.getDbk(masterContext, schoolDbkId);
     if (!registered || registered.status !== 'ACTIVE') {
       throw new Error('School DBK not registered as ACTIVE');
     }
@@ -196,7 +196,7 @@ export async function runPhase7TestSuite(): Promise<Phase7TestSummary> {
       throw new Error('student_records capability not enabled');
     }
 
-    const exp = experienceResolver.resolveExperience(schoolContext, schoolDbkId);
+    const exp = await experienceResolver.resolveExperience(schoolContext, schoolDbkId);
     if (!exp || exp.displayName !== 'Premier Academy Nairobi' || exp.operationalState !== 'ACTIVE') {
       throw new Error('Failed to resolve active school experience');
     }
@@ -391,7 +391,7 @@ Date: 2026-08-14`;
 
     let readDenied = false;
     try {
-      dbkRegistry.getDbk(schoolContext, hardwareDbkId);
+      await dbkRegistry.getDbk(schoolContext, hardwareDbkId);
     } catch {
       readDenied = true;
     }

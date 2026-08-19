@@ -425,7 +425,7 @@ async function startServer() {
     }
   });
 
-  app.get('/api/platform/dbks', (req: Request, res: Response) => {
+  app.get('/api/platform/dbks', async (req: Request, res: Response) => {
     try {
       const authHeader = req.headers.authorization;
       const context = securityContextFactory.createSecurityContext({
@@ -433,7 +433,7 @@ async function startServer() {
         ipAddress: req.ip,
       });
 
-      const dbks = dbkRegistry.listAllDbks(context);
+      const dbks = await dbkRegistry.listAllDbks(context);
       res.json({ status: 'SUCCESS', dbks });
     } catch (err) {
       if (err instanceof KernelError) {
@@ -444,7 +444,7 @@ async function startServer() {
     }
   });
 
-  app.get('/api/platform/projection/:dbkId', (req: Request, res: Response) => {
+  app.get('/api/platform/projection/:dbkId', async (req: Request, res: Response) => {
     try {
       const authHeader = req.headers.authorization;
       const { dbkId } = req.params;
@@ -454,7 +454,7 @@ async function startServer() {
         ipAddress: req.ip,
       });
 
-      const projection = experienceProjection.getExperienceProjection(context, dbkId);
+      const projection = await experienceProjection.getExperienceProjection(context, dbkId);
       res.json({ status: 'SUCCESS', projection });
     } catch (err) {
       if (err instanceof KernelError) {
@@ -473,7 +473,7 @@ async function startServer() {
     res.json({ status: 'SUCCESS', summary });
   });
 
-  app.get('/api/experience/resolve/:dbkId', (req: Request, res: Response) => {
+  app.get('/api/experience/resolve/:dbkId', async (req: Request, res: Response) => {
     try {
       const authHeader = req.headers.authorization;
       const { dbkId } = req.params;
@@ -486,7 +486,7 @@ async function startServer() {
         ipAddress: req.ip,
       });
 
-      const resolved = experienceResolver.resolveExperience(context, dbkId);
+      const resolved = await experienceResolver.resolveExperience(context, dbkId);
       res.json({ status: 'SUCCESS', resolved });
     } catch (err) {
       if (err instanceof KernelError) {

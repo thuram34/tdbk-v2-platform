@@ -36,13 +36,13 @@ export async function seedDemoDbks(force: boolean = false): Promise<void> {
     return; // Production safeguard: Never silently populate production clusters with demo fixtures
   }
 
-  const existing = dbkRegistry.listAllDbks(masterCtx);
+  const existing = await dbkRegistry.listAllDbks(masterCtx);
   if (existing.length >= 4) {
     return; // Already seeded
   }
 
   // 1. Education DBK
-  if (!dbkRegistry.hasDbk('tenant_school_01')) {
+  if (!await dbkRegistry.hasDbk('tenant_school_01')) {
     await provisioningService.provisionDbk(masterCtx, {
       dbkId: 'tenant_school_01',
       legalName: 'Premier Academy Nairobi Ltd',
@@ -62,7 +62,7 @@ export async function seedDemoDbks(force: boolean = false): Promise<void> {
   }
 
   // 2. Hardware DBK
-  if (!dbkRegistry.hasDbk('tenant_hardware_01')) {
+  if (!await dbkRegistry.hasDbk('tenant_hardware_01')) {
     await provisioningService.provisionDbk(masterCtx, {
       dbkId: 'tenant_hardware_01',
       legalName: 'Apex Building Materials & Timber Ltd',
@@ -82,7 +82,7 @@ export async function seedDemoDbks(force: boolean = false): Promise<void> {
   }
 
   // 3. Logistics DBK
-  if (!dbkRegistry.hasDbk('tenant_logistics_01')) {
+  if (!await dbkRegistry.hasDbk('tenant_logistics_01')) {
     await provisioningService.provisionDbk(masterCtx, {
       dbkId: 'tenant_logistics_01',
       legalName: 'Rift Hauliers & Freight Ltd',
@@ -102,7 +102,7 @@ export async function seedDemoDbks(force: boolean = false): Promise<void> {
   }
 
   // 4. Healthcare DBK
-  if (!dbkRegistry.hasDbk('tenant_healthcare_01')) {
+  if (!await dbkRegistry.hasDbk('tenant_healthcare_01')) {
     await provisioningService.provisionDbk(masterCtx, {
       dbkId: 'tenant_healthcare_01',
       legalName: 'St. Jude Family Care Hospital Ltd',
@@ -115,7 +115,7 @@ export async function seedDemoDbks(force: boolean = false): Promise<void> {
   }
 
   // 5. Retail Supermarket DBK
-  if (!dbkRegistry.hasDbk('tenant_retail_01')) {
+  if (!await dbkRegistry.hasDbk('tenant_retail_01')) {
     await provisioningService.provisionDbk(masterCtx, {
       dbkId: 'tenant_retail_01',
       legalName: 'Boma Fresh Supermarkets Ltd',

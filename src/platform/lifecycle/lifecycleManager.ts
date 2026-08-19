@@ -44,10 +44,10 @@ export class DbkLifecycleManagerService {
    * Suspends a DBK.
    * RESTRICTED: TDBK MASTER ADMIN ONLY.
    */
-  public suspendDbk(context: SecurityContext, dbkId: string, reason: string): DbkIdentity {
+  public async suspendDbk(context: SecurityContext, dbkId: string, reason: string): Promise<DbkIdentity> {
     masterAuthority.assertMasterAuthority(context.principal, 'suspendDbk', context.requestId);
 
-    const dbk = dbkRegistry.getDbk(context, dbkId);
+    const dbk = await dbkRegistry.getDbk(context, dbkId);
     if (!dbk) {
       throw new KernelError('NOT_FOUND', `DBK '${dbkId}' not found`, 404, context.requestId);
     }
@@ -61,7 +61,7 @@ export class DbkLifecycleManagerService {
       );
     }
 
-    const updated = dbkRegistry.updateStatus(context, dbkId, 'SUSPENDED', reason);
+    const updated = await dbkRegistry.updateStatus(context, dbkId, 'SUSPENDED', reason);
 
     // Emit event
     eventBus.publishEvent(
@@ -83,10 +83,10 @@ export class DbkLifecycleManagerService {
    * Reactivates a suspended DBK.
    * RESTRICTED: TDBK MASTER ADMIN ONLY.
    */
-  public reactivateDbk(context: SecurityContext, dbkId: string, reason?: string): DbkIdentity {
+  public async reactivateDbk(context: SecurityContext, dbkId: string, reason?: string): Promise<DbkIdentity> {
     masterAuthority.assertMasterAuthority(context.principal, 'reactivateDbk', context.requestId);
 
-    const dbk = dbkRegistry.getDbk(context, dbkId);
+    const dbk = await dbkRegistry.getDbk(context, dbkId);
     if (!dbk) {
       throw new KernelError('NOT_FOUND', `DBK '${dbkId}' not found`, 404, context.requestId);
     }
@@ -100,7 +100,7 @@ export class DbkLifecycleManagerService {
       );
     }
 
-    const updated = dbkRegistry.updateStatus(context, dbkId, 'ACTIVE', reason || 'Reactivated by Master Admin');
+    const updated = await dbkRegistry.updateStatus(context, dbkId, 'ACTIVE', reason || 'Reactivated by Master Admin');
 
     // Emit event
     eventBus.publishEvent(
@@ -122,10 +122,10 @@ export class DbkLifecycleManagerService {
    * Archives a DBK (Non-destructive preservation of records).
    * RESTRICTED: TDBK MASTER ADMIN ONLY.
    */
-  public archiveDbk(context: SecurityContext, dbkId: string, reason: string): DbkIdentity {
+  public async archiveDbk(context: SecurityContext, dbkId: string, reason: string): Promise<DbkIdentity> {
     masterAuthority.assertMasterAuthority(context.principal, 'archiveDbk', context.requestId);
 
-    const dbk = dbkRegistry.getDbk(context, dbkId);
+    const dbk = await dbkRegistry.getDbk(context, dbkId);
     if (!dbk) {
       throw new KernelError('NOT_FOUND', `DBK '${dbkId}' not found`, 404, context.requestId);
     }
@@ -139,7 +139,7 @@ export class DbkLifecycleManagerService {
       );
     }
 
-    const updated = dbkRegistry.updateStatus(context, dbkId, 'ARCHIVED', reason);
+    const updated = await dbkRegistry.updateStatus(context, dbkId, 'ARCHIVED', reason);
 
     // Emit event
     eventBus.publishEvent(
@@ -161,10 +161,10 @@ export class DbkLifecycleManagerService {
    * Restores an archived DBK.
    * RESTRICTED: TDBK MASTER ADMIN ONLY.
    */
-  public restoreDbk(context: SecurityContext, dbkId: string, reason?: string): DbkIdentity {
+  public async restoreDbk(context: SecurityContext, dbkId: string, reason?: string): Promise<DbkIdentity> {
     masterAuthority.assertMasterAuthority(context.principal, 'restoreDbk', context.requestId);
 
-    const dbk = dbkRegistry.getDbk(context, dbkId);
+    const dbk = await dbkRegistry.getDbk(context, dbkId);
     if (!dbk) {
       throw new KernelError('NOT_FOUND', `DBK '${dbkId}' not found`, 404, context.requestId);
     }
@@ -178,7 +178,7 @@ export class DbkLifecycleManagerService {
       );
     }
 
-    const updated = dbkRegistry.updateStatus(context, dbkId, 'ACTIVE', reason || 'Restored from Archive by Master Admin');
+    const updated = await dbkRegistry.updateStatus(context, dbkId, 'ACTIVE', reason || 'Restored from Archive by Master Admin');
 
     eventBus.publishEvent(
       context,
@@ -198,8 +198,8 @@ export class DbkLifecycleManagerService {
   /**
    * Asserts that a DBK is in ACTIVE status before permitting normal business operations.
    */
-  public assertDbkOperational(context: SecurityContext, dbkId: string): void {
-    const dbk = dbkRegistry.getDbk(context, dbkId);
+  public async assertDbkOperational(context: SecurityContext, dbkId: string): Promise<void> {
+    const dbk = await dbkRegistry.getDbk(context, dbkId);
     if (!dbk) {
       throw new KernelError('NOT_FOUND', `DBK '${dbkId}' not found`, 404, context.requestId);
     }

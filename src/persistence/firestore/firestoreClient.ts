@@ -98,7 +98,7 @@ export class FirestoreClient {
       cleanPath = cleanPath.slice(0, -1);
     }
 
-    if (!cleanPath.startsWith('/tenants/') && !cleanPath.startsWith('/system/')) {
+    if (!cleanPath.startsWith('/tenants/') && cleanPath !== '/tenants' && !cleanPath.startsWith('/system/')) {
       throw new KernelError(
         'VALIDATION_ERROR',
         `Invalid Firestore Path '${cleanPath}': All authoritative state must reside under '/tenants/{tenantId}/...'`,

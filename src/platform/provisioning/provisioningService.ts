@@ -243,7 +243,7 @@ export class ProvisioningService {
       const mockCtx = createStepContext(workflow, dbkId);
 
       try {
-        const workspace = workspaceManager.compileWorkspaceState(mockCtx, dbkId);
+        const workspace = await workspaceManager.compileWorkspaceState(mockCtx, dbkId);
         return { success: true, output: { workspaceVersion: workspace.workspaceVersion } };
       } catch (err: any) {
         return {
@@ -259,7 +259,7 @@ export class ProvisioningService {
       const dbkId = input.dbkId as string;
       const mockCtx = createStepContext(workflow, dbkId);
 
-      dbkRegistry.updateStatus(mockCtx, dbkId, 'ACTIVE', 'Provisioning completed successfully');
+      await dbkRegistry.updateStatus(mockCtx, dbkId, 'ACTIVE', 'Provisioning completed successfully');
       return { success: true, output: { status: 'ACTIVE' } };
     });
 
@@ -300,8 +300,8 @@ export class ProvisioningService {
     }
 
     // 3. Prevent duplicate creation under same dbkId with different keys
-    if (dbkRegistry.hasDbk(request.dbkId)) {
-      const existing = dbkRegistry.getDbk(context, request.dbkId);
+    if (await dbkRegistry.hasDbk(request.dbkId)) {
+      const existing = await dbkRegistry.getDbk(context, request.dbkId);
       if (existing && existing.status !== 'PROVISIONING_FAILED') {
         throw new KernelError(
           'CONFLICT',
@@ -367,7 +367,7 @@ export class ProvisioningService {
       metadata: request.customPreferences || {},
     };
 
-    dbkRegistry.saveDbk(context, initialDbk);
+    await dbkRegistry.saveDbk(context, initialDbk);
 
     // 6. Emit DBK_PROVISIONING_REQUESTED & STARTED
     eventBus.publishEvent(
@@ -482,7 +482,7 @@ export class ProvisioningService {
 
     if (executedWorkflow.status !== 'COMPLETED') {
       // Provisioning Failed
-      dbkRegistry.updateStatus(
+      await dbkRegistry.updateStatus(
         context,
         request.dbkId,
         'PROVISIONING_FAILED',
@@ -530,10 +530,10 @@ export class ProvisioningService {
     }
 
     // 8. Provisioning Succeeded
-    const finalDbk = dbkRegistry.getDbk(context, request.dbkId)!;
+    const finalDbk = (await dbkRegistry.getDbk(context, request.dbkId))!;
     const branches = branchManager.getBranchesForDbk(context, request.dbkId);
     finalDbk.branchTopology = branches;
-    dbkRegistry.saveDbk(context, finalDbk);
+    await dbkRegistry.saveDbk(context, finalDbk);
 
     eventBus.publishEvent(
       context,

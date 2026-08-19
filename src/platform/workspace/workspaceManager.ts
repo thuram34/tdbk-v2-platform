@@ -30,12 +30,12 @@ export class WorkspaceManagerService {
   /**
    * Compiles the authoritative workspace state for a given DBK.
    */
-  public compileWorkspaceState(context: SecurityContext, dbkId: string): DbkWorkspaceState {
+  public async compileWorkspaceState(context: SecurityContext, dbkId: string): Promise<DbkWorkspaceState> {
     if (!masterAuthority.isMasterAdmin(context.principal) && !masterAuthority.isOwnerPortfolio(context.principal)) {
       BlueprintValidator.assertTenantAccess(context, dbkId, 'compileWorkspaceState');
     }
 
-    const dbk = dbkRegistry.getDbk(context, dbkId);
+    const dbk = await dbkRegistry.getDbk(context, dbkId);
     if (!dbk) {
       throw new KernelError('NOT_FOUND', `DBK with ID '${dbkId}' does not exist`, 404, context.requestId);
     }
@@ -83,8 +83,8 @@ export class WorkspaceManagerService {
   /**
    * Increments workspace version upon configuration changes.
    */
-  public incrementWorkspaceVersion(context: SecurityContext, dbkId: string): DbkIdentity {
-    const dbk = dbkRegistry.getDbk(context, dbkId);
+  public async incrementWorkspaceVersion(context: SecurityContext, dbkId: string): Promise<DbkIdentity> {
+    const dbk = await dbkRegistry.getDbk(context, dbkId);
     if (!dbk) {
       throw new KernelError('NOT_FOUND', `DBK '${dbkId}' not found`, 404, context.requestId);
     }
@@ -93,7 +93,7 @@ export class WorkspaceManagerService {
     dbk.configurationVersion += 1;
     dbk.updatedAt = new Date().toISOString();
 
-    dbkRegistry.saveDbk(context, dbk);
+    await dbkRegistry.saveDbk(context, dbk);
     return dbk;
   }
 }

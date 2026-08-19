@@ -188,7 +188,7 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
   // SECTION 1: RESOLVER & WORKSPACE PROJECTION
   // -------------------------------------------------------------
   await runTest('P5_TEST_01', 'Experience Resolver returns valid DbkExperienceResolved for School DBK', async () => {
-    const resolved = experienceResolver.resolveExperience(masterCtx, schoolDbkId);
+    const resolved = await experienceResolver.resolveExperience(masterCtx, schoolDbkId);
     if (!resolved || resolved.dbkId !== schoolDbkId) {
       throw new Error(`Invalid resolved experience for ${schoolDbkId}`);
     }
@@ -201,7 +201,7 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
   });
 
   await runTest('P5_TEST_02', 'Experience Resolver returns valid DbkExperienceResolved for Hardware DBK', async () => {
-    const resolved = experienceResolver.resolveExperience(masterCtx, hardwareDbkId);
+    const resolved = await experienceResolver.resolveExperience(masterCtx, hardwareDbkId);
     if (resolved.sector !== 'HARDWARE') {
       throw new Error(`Expected sector HARDWARE, got ${resolved.sector}`);
     }
@@ -211,7 +211,7 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
   });
 
   await runTest('P5_TEST_03', 'Experience Resolver returns valid DbkExperienceResolved for Clinic DBK', async () => {
-    const resolved = experienceResolver.resolveExperience(masterCtx, clinicDbkId);
+    const resolved = await experienceResolver.resolveExperience(masterCtx, clinicDbkId);
     if (resolved.sector !== 'HEALTHCARE') {
       throw new Error(`Expected sector HEALTHCARE, got ${resolved.sector}`);
     }
@@ -225,7 +225,7 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
 
     let failed = false;
     try {
-      experienceResolver.resolveExperience(foreignCtx, schoolDbkId);
+      await experienceResolver.resolveExperience(foreignCtx, schoolDbkId);
     } catch {
       failed = true;
     }
@@ -239,7 +239,7 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
   // SECTION 2: DYNAMIC TERMINOLOGY RESOLUTION
   // -------------------------------------------------------------
   await runTest('P5_TEST_05', 'School DBK resolves customer terminology to Student / Students', async () => {
-    const resolved = experienceResolver.resolveExperience(masterCtx, schoolDbkId);
+    const resolved = await experienceResolver.resolveExperience(masterCtx, schoolDbkId);
     const term = resolved.terminology as any;
     if (term.customer.singular !== 'Student' || term.customer.plural !== 'Students') {
       throw new Error(`Expected Student/Students, got: ${JSON.stringify(term.customer)}`);
@@ -247,7 +247,7 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
   });
 
   await runTest('P5_TEST_06', 'Hardware DBK resolves customer terminology to Buyer / Customer', async () => {
-    const resolved = experienceResolver.resolveExperience(masterCtx, hardwareDbkId);
+    const resolved = await experienceResolver.resolveExperience(masterCtx, hardwareDbkId);
     const term = resolved.terminology as any;
     if (!term.customer.singular.includes('Buyer') && !term.customer.singular.includes('Customer')) {
       throw new Error(`Expected Buyer/Customer, got: ${JSON.stringify(term.customer)}`);
@@ -255,7 +255,7 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
   });
 
   await runTest('P5_TEST_07', 'Clinic DBK resolves customer terminology to Patient / Patients', async () => {
-    const resolved = experienceResolver.resolveExperience(masterCtx, clinicDbkId);
+    const resolved = await experienceResolver.resolveExperience(masterCtx, clinicDbkId);
     const term = resolved.terminology as any;
     if (term.customer.singular !== 'Patient' || term.customer.plural !== 'Patients') {
       throw new Error(`Expected Patient/Patients, got: ${JSON.stringify(term.customer)}`);
@@ -263,7 +263,7 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
   });
 
   await runTest('P5_TEST_08', 'Dynamic navigation labels adopt Blueprint terminology (Student Directory)', async () => {
-    const resolved = experienceResolver.resolveExperience(masterCtx, schoolDbkId);
+    const resolved = await experienceResolver.resolveExperience(masterCtx, schoolDbkId);
     const studentNav = resolved.navigation.find((n) => n.capabilityId === 'student_records');
     if (!studentNav) {
       throw new Error('student_records navigation item missing');
@@ -274,7 +274,7 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
   });
 
   await runTest('P5_TEST_09', 'Hardware navigation labels adopt Blueprint terminology (Yard Inventory)', async () => {
-    const resolved = experienceResolver.resolveExperience(masterCtx, hardwareDbkId);
+    const resolved = await experienceResolver.resolveExperience(masterCtx, hardwareDbkId);
     const stockNav = resolved.navigation.find((n) => n.capabilityId === 'stock_control');
     if (!stockNav) {
       throw new Error('stock_control navigation item missing');
@@ -290,7 +290,7 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
   await runTest('P5_TEST_10', 'Teacher role in School DBK only sees academic and student navigation', async () => {
     const teacherCtx = createTenantContext('usr_teacher_01', schoolDbkId, ['TEACHER'], ['read:students', 'write:grades']);
 
-    const resolved = experienceResolver.resolveExperience(teacherCtx, schoolDbkId);
+    const resolved = await experienceResolver.resolveExperience(teacherCtx, schoolDbkId);
     const feeNav = resolved.navigation.find((n) => n.capabilityId === 'fee_management');
     const settingsNav = resolved.navigation.find((n) => n.id === 'nav_settings');
 
@@ -305,7 +305,7 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
   await runTest('P5_TEST_11', 'Principal role in School DBK sees executive overview, fees, and settings', async () => {
     const principalCtx = createTenantContext('usr_principal_01', schoolDbkId, ['SCHOOL_PRINCIPAL', 'TENANT_ADMIN'], ['*']);
 
-    const resolved = experienceResolver.resolveExperience(principalCtx, schoolDbkId);
+    const resolved = await experienceResolver.resolveExperience(principalCtx, schoolDbkId);
     const feeNav = resolved.navigation.find((n) => n.capabilityId === 'fee_management');
     const settingsNav = resolved.navigation.find((n) => n.id === 'nav_settings');
 
@@ -320,7 +320,7 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
   await runTest('P5_TEST_12', 'Cashier in Hardware DBK sees POS navigation but not Settings', async () => {
     const cashierCtx = createTenantContext('usr_cashier_01', hardwareDbkId, ['CASHIER'], ['read:pos', 'write:receipt']);
 
-    const resolved = experienceResolver.resolveExperience(cashierCtx, hardwareDbkId);
+    const resolved = await experienceResolver.resolveExperience(cashierCtx, hardwareDbkId);
     const posNav = resolved.navigation.find((n) => n.capabilityId === 'counter_pos');
     const settingsNav = resolved.navigation.find((n) => n.id === 'nav_settings');
 
@@ -333,7 +333,7 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
   });
 
   await runTest('P5_TEST_13', 'Overview & Dashboard is always present as first navigation item', async () => {
-    const resolved = experienceResolver.resolveExperience(masterCtx, schoolDbkId);
+    const resolved = await experienceResolver.resolveExperience(masterCtx, schoolDbkId);
     if (resolved.navigation[0].id !== 'nav_overview') {
       throw new Error(`Expected first item to be nav_overview, got ${resolved.navigation[0].id}`);
     }
@@ -343,7 +343,7 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
   // SECTION 4: DYNAMIC DASHBOARD COMPOSITION
   // -------------------------------------------------------------
   await runTest('P5_TEST_14', 'School DBK dashboard composes student enrollment and fee metrics', async () => {
-    const resolved = experienceResolver.resolveExperience(masterCtx, schoolDbkId);
+    const resolved = await experienceResolver.resolveExperience(masterCtx, schoolDbkId);
     const enrollmentWidget = resolved.dashboardWidgets.find((w) => w.id === 'widget_school_enrollment');
     const feeWidget = resolved.dashboardWidgets.find((w) => w.id === 'widget_school_fees');
 
@@ -356,7 +356,7 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
   });
 
   await runTest('P5_TEST_15', 'Hardware DBK dashboard composes yard turnover and low stock alerts', async () => {
-    const resolved = experienceResolver.resolveExperience(masterCtx, hardwareDbkId);
+    const resolved = await experienceResolver.resolveExperience(masterCtx, hardwareDbkId);
     const salesWidget = resolved.dashboardWidgets.find((w) => w.id === 'widget_hardware_sales');
     const alertWidget = resolved.dashboardWidgets.find((w) => w.id === 'widget_hardware_low_stock');
 
@@ -369,7 +369,7 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
   });
 
   await runTest('P5_TEST_16', 'Clinic DBK dashboard composes triage queue and pharmacy metrics', async () => {
-    const resolved = experienceResolver.resolveExperience(masterCtx, clinicDbkId);
+    const resolved = await experienceResolver.resolveExperience(masterCtx, clinicDbkId);
     const queueWidget = resolved.dashboardWidgets.find((w) => w.id === 'widget_clinic_queue');
     const rxWidget = resolved.dashboardWidgets.find((w) => w.id === 'widget_pharmacy_metrics');
 
@@ -385,7 +385,7 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
   // SECTION 5: CAPABILITY DISCOVERY SURFACE
   // -------------------------------------------------------------
   await runTest('P5_TEST_17', 'Discovery items include all catalog capabilities with accurate entitlement state', async () => {
-    const resolved = experienceResolver.resolveExperience(masterCtx, schoolDbkId);
+    const resolved = await experienceResolver.resolveExperience(masterCtx, schoolDbkId);
     if (!resolved.discoveryItems || resolved.discoveryItems.length === 0) {
       throw new Error('Discovery items empty');
     }
@@ -400,7 +400,7 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
   });
 
   await runTest('P5_TEST_18', 'Discovery flags higher tier capabilities as UPGRADE_REQUIRED for lower tier DBKs', async () => {
-    const resolved = experienceResolver.resolveExperience(masterCtx, hardwareDbkId); // FOUNDATION tier
+    const resolved = await experienceResolver.resolveExperience(masterCtx, hardwareDbkId); // FOUNDATION tier
     const multiBranchCap = resolved.discoveryItems.find((d) => d.minimumTier === 'ENTERPRISE' || d.minimumTier === 'PRO');
 
     if (multiBranchCap && !multiBranchCap.isEntitled) {
@@ -421,7 +421,7 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
       type: 'RETAIL_OUTLET',
     });
 
-    const resolved = experienceResolver.resolveExperience(masterCtx, hardwareDbkId);
+    const resolved = await experienceResolver.resolveExperience(masterCtx, hardwareDbkId);
     if (resolved.availableBranches.length < 2) {
       throw new Error(`Expected at least 2 branches, got ${resolved.availableBranches.length}`);
     }
@@ -455,7 +455,7 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
   // SECTION 7: ENTITY INTERACTION & COMMAND MODEL
   // -------------------------------------------------------------
   await runTest('P5_TEST_22', 'Entity Engine resolves dynamic entity schema for student_records', async () => {
-    const projection = experienceResolver.resolveExperience(masterCtx, schoolDbkId);
+    const projection = await experienceResolver.resolveExperience(masterCtx, schoolDbkId);
     const workspace = (experienceResolver as any).experienceProjection?.getExperienceProjection(masterCtx, schoolDbkId)?.workspace || {
       sector: 'EDUCATION',
       terminology: projection.terminology,
@@ -557,16 +557,16 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
   // SECTION 9: LIFECYCLE STATE BOUNDARIES
   // -------------------------------------------------------------
   await runTest('P5_TEST_27', 'Suspended DBK reports operationalState = SUSPENDED in Experience Projection', async () => {
-    dbkLifecycleManager.suspendDbk(masterCtx, schoolDbkId, 'Billing overdue verification');
-    const resolved = experienceResolver.resolveExperience(masterCtx, schoolDbkId);
+    await dbkLifecycleManager.suspendDbk(masterCtx, schoolDbkId, 'Billing overdue verification');
+    const resolved = await experienceResolver.resolveExperience(masterCtx, schoolDbkId);
 
     if (resolved.operationalState !== 'SUSPENDED') {
       throw new Error(`Expected operationalState SUSPENDED, got ${resolved.operationalState}`);
     }
 
     // Re-activate for subsequent tests
-    dbkLifecycleManager.reactivateDbk(masterCtx, schoolDbkId, 'Billing settled');
-    const reactivated = experienceResolver.resolveExperience(masterCtx, schoolDbkId);
+    await dbkLifecycleManager.reactivateDbk(masterCtx, schoolDbkId, 'Billing settled');
+    const reactivated = await experienceResolver.resolveExperience(masterCtx, schoolDbkId);
     if (reactivated.operationalState !== 'ACTIVE') {
       throw new Error(`Expected operationalState ACTIVE after reactivation, got ${reactivated.operationalState}`);
     }
@@ -584,10 +584,10 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
       primaryBranchName: 'HQ',
     });
 
-    dbkLifecycleManager.suspendDbk(masterCtx, temp.dbkId, 'Preparation for archive');
-    dbkLifecycleManager.archiveDbk(masterCtx, temp.dbkId, 'Decommissioned');
+    await dbkLifecycleManager.suspendDbk(masterCtx, temp.dbkId, 'Preparation for archive');
+    await dbkLifecycleManager.archiveDbk(masterCtx, temp.dbkId, 'Decommissioned');
 
-    const resolved = experienceResolver.resolveExperience(masterCtx, temp.dbkId);
+    const resolved = await experienceResolver.resolveExperience(masterCtx, temp.dbkId);
     if (resolved.operationalState !== 'ARCHIVED') {
       throw new Error(`Expected operationalState ARCHIVED, got ${resolved.operationalState}`);
     }
@@ -597,7 +597,7 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
   // SECTION 10: AUDIT LOGGING & OBSERVABILITY
   // -------------------------------------------------------------
   await runTest('P5_TEST_29', 'Experience resolution generates traceable EXPERIENCE_RESOLVED audit event', async () => {
-    experienceResolver.resolveExperience(masterCtx, schoolDbkId);
+    await experienceResolver.resolveExperience(masterCtx, schoolDbkId);
     const events = auditLogger.getEvents({ tenantId: schoolDbkId });
     const resolvedEvent = events.find((e) => e.action === 'EXPERIENCE_RESOLVED');
     if (!resolvedEvent) {
@@ -633,7 +633,7 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
       primaryBranchName: 'Outlet 1',
     });
 
-    const exp = experienceResolver.resolveExperience(masterCtx, res.dbkId);
+    const exp = await experienceResolver.resolveExperience(masterCtx, res.dbkId);
     if (exp.sector !== 'RETAIL') {
       throw new Error(`Expected RETAIL, got ${exp.sector}`);
     }
@@ -654,7 +654,7 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
       primaryBranchName: 'Nairobi Hub',
     });
 
-    const exp = experienceResolver.resolveExperience(masterCtx, res.dbkId);
+    const exp = await experienceResolver.resolveExperience(masterCtx, res.dbkId);
     if (exp.sector !== 'LOGISTICS') {
       throw new Error(`Expected LOGISTICS, got ${exp.sector}`);
     }
@@ -675,7 +675,7 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
       primaryBranchName: 'Lodge Main',
     });
 
-    const exp = experienceResolver.resolveExperience(masterCtx, res.dbkId);
+    const exp = await experienceResolver.resolveExperience(masterCtx, res.dbkId);
     if (exp.sector !== 'HOSPITALITY') {
       throw new Error(`Expected HOSPITALITY, got ${exp.sector}`);
     }
@@ -696,7 +696,7 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
       primaryBranchName: 'Kilimani Studio',
     });
 
-    const exp = experienceResolver.resolveExperience(masterCtx, res.dbkId);
+    const exp = await experienceResolver.resolveExperience(masterCtx, res.dbkId);
     if (exp.sector !== 'BEAUTY') {
       throw new Error(`Expected BEAUTY, got ${exp.sector}`);
     }
@@ -717,7 +717,7 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
       primaryBranchName: 'Upper Hill Chambers',
     });
 
-    const exp = experienceResolver.resolveExperience(masterCtx, res.dbkId);
+    const exp = await experienceResolver.resolveExperience(masterCtx, res.dbkId);
     if (exp.sector !== 'PROFESSIONAL_SERVICES') {
       throw new Error(`Expected PROFESSIONAL_SERVICES, got ${exp.sector}`);
     }
@@ -727,14 +727,14 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
   // SECTION 12: STATELESS UI & INTEGRITY CHECKS
   // -------------------------------------------------------------
   await runTest('P5_TEST_36', 'Resolved Experience contains server timestamp for cache invalidation', async () => {
-    const exp = experienceResolver.resolveExperience(masterCtx, schoolDbkId);
+    const exp = await experienceResolver.resolveExperience(masterCtx, schoolDbkId);
     if (!exp.serverTimestamp) {
       throw new Error('Missing serverTimestamp in resolved experience');
     }
   });
 
   await runTest('P5_TEST_37', 'Workspace configurationVersion increments when capabilities are enabled', async () => {
-    const expBefore = experienceResolver.resolveExperience(masterCtx, schoolDbkId);
+    const expBefore = await experienceResolver.resolveExperience(masterCtx, schoolDbkId);
     const vBefore = expBefore.configurationVersion;
 
     await experienceResolver.dispatchCommand(masterCtx, {
@@ -743,7 +743,7 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
       payload: { capabilityId: 'fee_management', configData: { termStructure: 'THREE_TERMS' } },
     });
 
-    const expAfter = experienceResolver.resolveExperience(masterCtx, schoolDbkId);
+    const expAfter = await experienceResolver.resolveExperience(masterCtx, schoolDbkId);
     if (expAfter.configurationVersion <= vBefore) {
       throw new Error(`Expected configurationVersion to increment from ${vBefore}, got ${expAfter.configurationVersion}`);
     }
@@ -772,20 +772,20 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
       },
     };
 
-    const exp = experienceResolver.resolveExperience(customBranchCtx, hardwareDbkId);
+    const exp = await experienceResolver.resolveExperience(customBranchCtx, hardwareDbkId);
     if (exp.activeBranch.branchId !== 'br_apex_mombasa') {
       throw new Error(`Expected active branch br_apex_mombasa, got ${exp.activeBranch.branchId}`);
     }
   });
 
   await runTest('P5_TEST_40', 'Master Authority is reflected in currentPrincipal.isMaster in Resolved Experience', async () => {
-    const masterExp = experienceResolver.resolveExperience(masterCtx, schoolDbkId);
+    const masterExp = await experienceResolver.resolveExperience(masterCtx, schoolDbkId);
     if (!masterExp.currentPrincipal.isMaster) {
       throw new Error('Expected currentPrincipal.isMaster to be true for masterCtx');
     }
 
     const tenantUserCtx = createTenantContext('usr_local', schoolDbkId, ['TEACHER'], ['read']);
-    const tenantExp = experienceResolver.resolveExperience(tenantUserCtx, schoolDbkId);
+    const tenantExp = await experienceResolver.resolveExperience(tenantUserCtx, schoolDbkId);
     if (tenantExp.currentPrincipal.isMaster) {
       throw new Error('Expected currentPrincipal.isMaster to be false for tenant user');
     }

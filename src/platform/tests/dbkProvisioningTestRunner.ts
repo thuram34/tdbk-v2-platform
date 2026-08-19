@@ -109,7 +109,7 @@ export async function runDbkProvisioningTestSuite(): Promise<DbkProvisioningTest
     await provisionDbk(id4, 'Fourth Logistics Fleet', 'logistics_fleet');
     await provisionDbk(id5, 'Fifth Medical Clinic', 'clinic_patients');
 
-    const allDbks = dbkRegistry.listAllDbks(masterContext).filter(d => d.dbkId.includes(`${runId}`));
+    const allDbks = (await dbkRegistry.listAllDbks(masterContext)).filter(d => d.dbkId.includes(`${runId}`));
     const passed = allDbks.length >= 5;
     results.push({
       id: 'DBK_PROVISION_04',
@@ -148,8 +148,8 @@ export async function runDbkProvisioningTestSuite(): Promise<DbkProvisioningTest
     await provisionDbk(idA, 'Enterprise A', 'school_fee_structure');
     await provisionDbk(idB, 'Enterprise B', 'pos_register');
 
-    const dbkA = dbkRegistry.getDbk(masterContext, idA);
-    const dbkB = dbkRegistry.getDbk(masterContext, idB);
+    const dbkA = await dbkRegistry.getDbk(masterContext, idA);
+    const dbkB = await dbkRegistry.getDbk(masterContext, idB);
 
     const passed = !!dbkA && !!dbkB && dbkA.dbkId !== dbkB.dbkId && dbkA.legalName !== dbkB.legalName;
     results.push({
@@ -192,8 +192,8 @@ export async function runDbkProvisioningTestSuite(): Promise<DbkProvisioningTest
     await provisionDbk(idA, 'Workspace A', 'school_fee_structure');
     await provisionDbk(idB, 'Workspace B', 'pos_register');
 
-    const wsA = workspaceManager.compileWorkspaceState(masterContext, idA);
-    const wsB = workspaceManager.compileWorkspaceState(masterContext, idB);
+    const wsA = await workspaceManager.compileWorkspaceState(masterContext, idA);
+    const wsB = await workspaceManager.compileWorkspaceState(masterContext, idB);
 
     const passed = wsA.dbkId === idA && wsB.dbkId === idB && wsA.dbkId !== wsB.dbkId;
     results.push({
@@ -268,7 +268,7 @@ export async function runDbkProvisioningTestSuite(): Promise<DbkProvisioningTest
   try {
     const id = `owner_assigned_${runId}`;
     await provisionDbk(id, 'Owner Assigned Corp', 'pos_register');
-    const dbk = dbkRegistry.getDbk(masterContext, id);
+    const dbk = await dbkRegistry.getDbk(masterContext, id);
     const passed = !!dbk && dbk.masterOwner === masterContext.principal.id;
     results.push({
       id: 'DBK_PROVISION_12',
@@ -346,7 +346,7 @@ export async function runDbkProvisioningTestSuite(): Promise<DbkProvisioningTest
 
     let blocked = false;
     try {
-      dbkRegistry.getDbk(contextA, idB);
+      await dbkRegistry.getDbk(contextA, idB);
     } catch {
       blocked = true;
     }
@@ -367,7 +367,7 @@ export async function runDbkProvisioningTestSuite(): Promise<DbkProvisioningTest
     const id = `survive_${runId}`;
     await provisionDbk(id, 'Surviving Enterprise', 'pos_register');
     // Registry in memory / Firestore mock persists records
-    const dbk = dbkRegistry.getDbk(masterContext, id);
+    const dbk = await dbkRegistry.getDbk(masterContext, id);
     const passed = !!dbk && dbk.status === 'ACTIVE';
     results.push({
       id: 'DBK_PROVISION_15',
@@ -391,7 +391,7 @@ export async function runDbkProvisioningTestSuite(): Promise<DbkProvisioningTest
       failed = true;
     }
 
-    const dbk = dbkRegistry.getDbk(masterContext, id);
+    const dbk = await dbkRegistry.getDbk(masterContext, id);
     const notReady = !dbk || dbk.status !== 'ACTIVE';
     const passed = failed && notReady;
     results.push({
@@ -413,7 +413,7 @@ export async function runDbkProvisioningTestSuite(): Promise<DbkProvisioningTest
     await provisionDbk(id, 'Retry Corp', 'pos_register', 'PROFESSIONAL', idemKey);
     // Retry with same idempotency key
     const retryRes = await provisionDbk(id, 'Retry Corp', 'pos_register', 'PROFESSIONAL', idemKey);
-    const allDbks = dbkRegistry.listAllDbks(masterContext).filter(d => d.dbkId === id);
+    const allDbks = (await dbkRegistry.listAllDbks(masterContext)).filter(d => d.dbkId === id);
 
     const passed = retryRes.success && allDbks.length === 1;
     results.push({
@@ -464,7 +464,7 @@ export async function runDbkProvisioningTestSuite(): Promise<DbkProvisioningTest
   try {
     const id = `ui_school_${runId}`;
     await provisionDbk(id, 'UI School', 'school_fee_structure');
-    const exp = experienceResolver.resolveExperience(masterContext, id);
+    const exp = await experienceResolver.resolveExperience(masterContext, id);
     const passed = exp.dbkId === id && exp.sector === 'EDUCATION';
     results.push({
       id: 'DBK_PROVISION_20_21',
@@ -481,7 +481,7 @@ export async function runDbkProvisioningTestSuite(): Promise<DbkProvisioningTest
   try {
     const id = `ui_pharmacy_${runId}`;
     await provisionDbk(id, 'UI Pharmacy', 'pos_register');
-    const exp = experienceResolver.resolveExperience(masterContext, id);
+    const exp = await experienceResolver.resolveExperience(masterContext, id);
     const passed = exp.dbkId === id && exp.sector === 'RETAIL';
     results.push({
       id: 'DBK_PROVISION_22',
@@ -498,7 +498,7 @@ export async function runDbkProvisioningTestSuite(): Promise<DbkProvisioningTest
   try {
     const id = `ui_hardware_${runId}`;
     await provisionDbk(id, 'UI Hardware', 'inventory_catalog');
-    const exp = experienceResolver.resolveExperience(masterContext, id);
+    const exp = await experienceResolver.resolveExperience(masterContext, id);
     const passed = exp.dbkId === id && (exp.sector === 'HARDWARE' || exp.sector === 'RETAIL');
     results.push({
       id: 'DBK_PROVISION_23',
@@ -543,7 +543,7 @@ export async function runDbkProvisioningTestSuite(): Promise<DbkProvisioningTest
 
     let blocked = false;
     try {
-      dbkRegistry.getDbk(regularContext, id);
+      await dbkRegistry.getDbk(regularContext, id);
     } catch {
       blocked = true;
     }

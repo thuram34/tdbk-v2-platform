@@ -25,14 +25,14 @@ export class ExperienceProjectionService {
   /**
    * Projects authoritative DBK state for a stateless client/UI session.
    */
-  public getExperienceProjection(context: SecurityContext, dbkId: string): DbkExperienceProjection {
+  public async getExperienceProjection(context: SecurityContext, dbkId: string): Promise<DbkExperienceProjection> {
     // 1. Assert tenant boundaries
     if (!masterAuthority.isMasterAdmin(context.principal)) {
       BlueprintValidator.assertTenantAccess(context, dbkId, 'getExperienceProjection');
     }
 
     // 2. Compile authoritative workspace state
-    const workspace = workspaceManager.compileWorkspaceState(context, dbkId);
+    const workspace = await workspaceManager.compileWorkspaceState(context, dbkId);
 
     // 3. Project clean projection
     return {

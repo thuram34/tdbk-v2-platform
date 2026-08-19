@@ -88,7 +88,7 @@ export class DocumentIngestionService {
     tenantIsolation.assertTenantIsolation(ctx.principal, req.tenantId);
 
     // 1b. Check DBK status (Suspended DBK cannot ingest documents)
-    const tenant = dbkRegistry.getDbk(ctx, req.tenantId);
+    const tenant = await dbkRegistry.getDbk(ctx, req.tenantId);
     if (tenant && tenant.status === 'SUSPENDED') {
       throw new KernelError(
         'FORBIDDEN_OPERATION' as any,

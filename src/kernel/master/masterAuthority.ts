@@ -13,7 +13,9 @@ export class MasterAuthorityService {
    */
   public isMasterAdmin(principal?: Principal | null): boolean {
     if (!principal) return false;
-    return principal.isMaster === true && (principal.roles || []).includes('TDBK_MASTER_ADMIN');
+    const isMaster = principal.isMaster === true || String(principal.isMaster) === 'true';
+    const roles = Array.isArray(principal.roles) ? principal.roles : [];
+    return isMaster && roles.includes('TDBK_MASTER_ADMIN');
   }
 
   /**
@@ -21,14 +23,18 @@ export class MasterAuthorityService {
    */
   public isOwnerPortfolio(principal?: Principal | null): boolean {
     if (!principal) return false;
-    return (principal.roles || []).includes('BUSINESS_OWNER') || (principal.roles || []).includes('OWNER_OPERATOR') || (principal.roles || []).includes('TDBK_MASTER_ADMIN') || principal.isMaster === true;
+    const isMaster = principal.isMaster === true || String(principal.isMaster) === 'true';
+    const roles = Array.isArray(principal.roles) ? principal.roles : [];
+    return roles.includes('BUSINESS_OWNER') || roles.includes('OWNER_OPERATOR') || roles.includes('TDBK_MASTER_ADMIN') || isMaster;
   }
 
   /**
    * Asserts Owner Portfolio or TDBK MASTER authority for DBK provisioning and management.
    */
   public assertOwnerOrMasterAuthority(principal: Principal, action: string, requestId?: string): void {
-    if (!this.isMasterAdmin(principal) && !this.isOwnerPortfolio(principal)) {
+    console.log('DEBUG PRINCIPAL:', JSON.stringify(principal));
+    console.log('roles:', principal.roles, 'isMaster:', principal.isMaster, 'includes:', (principal.roles || []).includes('TDBK_MASTER_ADMIN'));
+    if (!principal || (!this.isMasterAdmin(principal) && !this.isOwnerPortfolio(principal))) {
       auditLogger.logEvent(
         'AUTHORIZATION_DENIED',
         principal.id,

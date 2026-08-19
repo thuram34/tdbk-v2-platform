@@ -1,7 +1,7 @@
 /**
  * TDBK V2 DBK REGISTRY & IDENTITY STORE
  * Architectural Layer: LAYER 7 — PLATFORM CONTROL & DBK LIFECYCLE
- * Canonical server-authoritative store for DBK identities and lifecycle state.
+ * Canonical server-authoritative store for DBK identities and lifecycle state backed by Google Cloud Firestore.
  */
 
 import { DbkIdentity, DbkLifecycleStatus } from './types';
@@ -11,11 +11,10 @@ import { BlueprintValidator } from '../blueprint/validator';
 import { KernelError } from '../kernel/errors/kernelErrors';
 import { auditLogger } from '../kernel/audit/auditLogger';
 import { dbkRegistryRepository } from '../persistence/firestore/repositories/dbkRegistryRepository';
+import { firestoreClient } from '../persistence/firestore/firestoreClient';
 
 export class DbkRegistryService {
   private static instance: DbkRegistryService;
-  // Authoritative DBK Store keyed by dbkId (canonical tenant ID)
-  private dbkStore: Map<string, DbkIdentity> = new Map();
 
   private constructor() {}
 
@@ -27,68 +26,68 @@ export class DbkRegistryService {
   }
 
   /**
-   * Resets the DBK store for test isolation.
+   * Resets the persistence driver store for test isolation.
    */
   public clearStoreForTesting(): void {
-    this.dbkStore.clear();
+    const driver = firestoreClient.getDriver();
+    if ('clearAllForTesting' in driver && typeof (driver as any).clearAllForTesting === 'function') {
+      (driver as any).clearAllForTesting();
+    }
   }
 
   /**
-   * Registers or saves an authoritative DBK identity.
-   * Can be called by Master or internal provisioning orchestrators.
+   * Registers or saves an authoritative DBK identity in Firestore.
    */
-  public saveDbk(context: SecurityContext, dbk: DbkIdentity): void {
+  public async saveDbk(context: SecurityContext, dbk: DbkIdentity): Promise<void> {
     const record: DbkIdentity = {
       ...dbk,
       updatedAt: new Date().toISOString(),
     };
-    this.dbkStore.set(dbk.dbkId, record);
-    // Write-through to Firestore Native Mode repository
-    void dbkRegistryRepository.saveDbk(dbk.dbkId, record);
+    await dbkRegistryRepository.saveDbk(dbk.dbkId, record);
   }
 
   /**
-   * Retrieves a DBK by its unique dbkId with tenant isolation enforcement.
-   * Master admin can inspect any DBK.
-   * DBK users can only inspect their own DBK.
+   * Retrieves a DBK by its unique dbkId from Firestore with tenant isolation enforcement.
    */
-  public getDbk(context: SecurityContext, dbkId: string): DbkIdentity | undefined {
+  public async getDbk(context: SecurityContext, dbkId: string): Promise<DbkIdentity | undefined> {
     if (!masterAuthority.isMasterAdmin(context.principal) && !masterAuthority.isOwnerPortfolio(context.principal)) {
       BlueprintValidator.assertTenantAccess(context, dbkId, 'getDbk');
     }
-    return this.dbkStore.get(dbkId);
+    const dbk = await dbkRegistryRepository.getDbk(dbkId);
+    return dbk || undefined;
   }
 
   /**
    * Direct lookup without security check for internal kernel/orchestrator pipelines.
    */
-  public getDbkInternal(dbkId: string): DbkIdentity | undefined {
-    return this.dbkStore.get(dbkId);
+  public async getDbkInternal(dbkId: string): Promise<DbkIdentity | undefined> {
+    const dbk = await dbkRegistryRepository.getDbk(dbkId);
+    return dbk || undefined;
   }
 
   /**
-   * Lists DBKs for the authorized owner portfolio or all DBKs for master admin.
+   * Lists DBKs from Firestore for the authorized owner portfolio or all DBKs for master admin.
    */
-  public listAllDbks(context: SecurityContext): DbkIdentity[] {
+  public async listAllDbks(context: SecurityContext): Promise<DbkIdentity[]> {
     masterAuthority.assertOwnerOrMasterAuthority(context.principal, 'listAllDbks', context.requestId);
-    const all = Array.from(this.dbkStore.values());
+    const all = await dbkRegistryRepository.listAllDbks();
     if (masterAuthority.isMasterAdmin(context.principal)) {
       return all;
     }
-    // If business owner, return DBKs they own (masterOwner === principal.id), created by them, or match tenantId
+    // If business owner, return DBKs they own, created by them, or match tenantId
     return all.filter(d => d.masterOwner === context.principal.id || d.createdBy === context.principal.id || d.dbkId === context.principal.tenantId);
   }
 
   /**
-   * Updates the lifecycle status of a DBK.
+   * Updates the lifecycle status of a DBK in Firestore.
    */
-  public updateStatus(
+  public async updateStatus(
     context: SecurityContext,
     dbkId: string,
     newStatus: DbkLifecycleStatus,
     reason?: string
-  ): DbkIdentity {
-    const dbk = this.dbkStore.get(dbkId);
+  ): Promise<DbkIdentity> {
+    const dbk = await dbkRegistryRepository.getDbk(dbkId);
     if (!dbk) {
       throw new KernelError('NOT_FOUND', `DBK with ID '${dbkId}' not found`, 404, context.requestId);
     }
@@ -109,8 +108,7 @@ export class DbkRegistryService {
     };
 
     dbk.lifecycleHistory.push(transitionRecord);
-    this.dbkStore.set(dbkId, dbk);
-    void dbkRegistryRepository.saveDbk(dbkId, dbk);
+    await dbkRegistryRepository.saveDbk(dbkId, dbk);
 
     auditLogger.logEvent(
       'SECURITY_CONFIGURATION_CHANGE',
@@ -134,22 +132,21 @@ export class DbkRegistryService {
   }
 
   /**
-   * Checks if a DBK exists.
+   * Checks if a DBK exists in Firestore.
    */
-  public hasDbk(dbkId: string): boolean {
-    return this.dbkStore.has(dbkId);
+  public async hasDbk(dbkId: string): Promise<boolean> {
+    return await dbkRegistryRepository.hasDbk(dbkId);
   }
 
   /**
-   * Increments the configuration version for a DBK.
+   * Increments the configuration version for a DBK in Firestore.
    */
-  public incrementConfigurationVersion(context: SecurityContext, dbkId: string): number {
-    const dbk = this.getDbk(context, dbkId);
+  public async incrementConfigurationVersion(context: SecurityContext, dbkId: string): Promise<number> {
+    const dbk = await this.getDbk(context, dbkId);
     if (!dbk) return 1;
     dbk.configurationVersion = (dbk.configurationVersion || 1) + 1;
     dbk.updatedAt = new Date().toISOString();
-    this.dbkStore.set(dbkId, dbk);
-    void dbkRegistryRepository.saveDbk(dbkId, dbk);
+    await dbkRegistryRepository.saveDbk(dbkId, dbk);
     return dbk.configurationVersion;
   }
 }

@@ -756,7 +756,7 @@ export async function runPhase6TestSuite(): Promise<Phase6TestSummary> {
 
   await runTest('P6_TEST_40', 'Suspended DBK AI and document access restricted', async () => {
     // Temporarily suspend school DBK
-    dbkLifecycleManager.suspendDbk(masterCtx, schoolDbkId, 'Compliance verification');
+    await dbkLifecycleManager.suspendDbk(masterCtx, schoolDbkId, 'Compliance verification');
 
     let threw = false;
     try {
@@ -772,7 +772,7 @@ export async function runPhase6TestSuite(): Promise<Phase6TestSummary> {
     }
 
     // Restore DBK
-    dbkLifecycleManager.reactivateDbk(masterCtx, schoolDbkId);
+    await dbkLifecycleManager.reactivateDbk(masterCtx, schoolDbkId);
 
     if (!threw) throw new Error('Suspended DBK was allowed to ingest documents');
   });

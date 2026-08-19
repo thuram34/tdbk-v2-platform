@@ -64,8 +64,8 @@ export async function runMultiBusinessTestSuite(): Promise<MultiBusinessTestSumm
     await provisionTestDbk(dbkAId, 'Premier Academy', 'school_v1');
     await provisionTestDbk(dbkBId, 'Thuram Pharmacy', 'retail_v1');
 
-    const dbkA = dbkRegistry.getDbk(ownerContext, dbkAId);
-    const dbkB = dbkRegistry.getDbk(ownerContext, dbkBId);
+    const dbkA = await dbkRegistry.getDbk(ownerContext, dbkAId);
+    const dbkB = await dbkRegistry.getDbk(ownerContext, dbkBId);
 
     const passed = !!dbkA && !!dbkB && dbkA.dbkId === dbkAId && dbkB.dbkId === dbkBId;
     results.push({
@@ -92,7 +92,7 @@ export async function runMultiBusinessTestSuite(): Promise<MultiBusinessTestSumm
     await provisionTestDbk(dbk3Id, 'Mombasa Hardware', 'hardware_v1');
     await provisionTestDbk(dbk4Id, 'Coast Logistics', 'logistics_v1');
 
-    const allDbks = dbkRegistry.listAllDbks(ownerContext).filter(d => d.dbkId.includes(`${runId}`));
+    const allDbks = (await dbkRegistry.listAllDbks(ownerContext)).filter(d => d.dbkId.includes(`${runId}`));
     const passed = allDbks.length >= 4;
     results.push({
       id: 'MULTI_BUSINESS_02',
@@ -113,7 +113,7 @@ export async function runMultiBusinessTestSuite(): Promise<MultiBusinessTestSumm
 
   // MULTI_BUSINESS_03: Owner can retrieve authorized DBK portfolio
   try {
-    const allDbks = dbkRegistry.listAllDbks(ownerContext);
+    const allDbks = await dbkRegistry.listAllDbks(ownerContext);
     const passed = allDbks.length > 0 && allDbks.every(d => d.legalName && d.sector);
     results.push({
       id: 'MULTI_BUSINESS_03',
@@ -137,8 +137,8 @@ export async function runMultiBusinessTestSuite(): Promise<MultiBusinessTestSumm
     const dbkAId = `school_premier_${runId}`;
     const dbkBId = `pharmacy_thuram_${runId}`;
 
-    const expA = experienceResolver.resolveExperience(ownerContext, dbkAId);
-    const expB = experienceResolver.resolveExperience(ownerContext, dbkBId);
+    const expA = await experienceResolver.resolveExperience(ownerContext, dbkAId);
+    const expB = await experienceResolver.resolveExperience(ownerContext, dbkBId);
 
     const passed = expA.dbkId === dbkAId && expB.dbkId === dbkBId;
     results.push({
@@ -163,8 +163,8 @@ export async function runMultiBusinessTestSuite(): Promise<MultiBusinessTestSumm
     const dbkAId = `school_premier_${runId}`;
     const dbkBId = `pharmacy_thuram_${runId}`;
 
-    const expA = experienceResolver.resolveExperience(ownerContext, dbkAId);
-    const expB = experienceResolver.resolveExperience(ownerContext, dbkBId);
+    const expA = await experienceResolver.resolveExperience(ownerContext, dbkAId);
+    const expB = await experienceResolver.resolveExperience(ownerContext, dbkBId);
 
     const passed = expA.sector !== expB.sector && JSON.stringify(expA.terminology) !== JSON.stringify(expB.terminology);
     results.push({
@@ -189,8 +189,8 @@ export async function runMultiBusinessTestSuite(): Promise<MultiBusinessTestSumm
     const dbkAId = `school_premier_${runId}`;
     const dbkBId = `pharmacy_thuram_${runId}`;
 
-    const wsA = workspaceManager.compileWorkspaceState(ownerContext, dbkAId);
-    const wsB = workspaceManager.compileWorkspaceState(ownerContext, dbkBId);
+    const wsA = await workspaceManager.compileWorkspaceState(ownerContext, dbkAId);
+    const wsB = await workspaceManager.compileWorkspaceState(ownerContext, dbkBId);
 
     const passed = wsA.dbkId === dbkAId && wsB.dbkId === dbkBId && wsA.dbkId !== wsB.dbkId;
     results.push({
@@ -230,7 +230,7 @@ export async function runMultiBusinessTestSuite(): Promise<MultiBusinessTestSumm
 
     let accessDenied = false;
     try {
-      workspaceManager.compileWorkspaceState(tenantAContext, dbkBId);
+      await workspaceManager.compileWorkspaceState(tenantAContext, dbkBId);
     } catch (err: any) {
       if (err.statusCode === 403 || err.code === 'UNAUTHORIZED_TENANT' || err.code === 'FORBIDDEN') {
         accessDenied = true;
@@ -271,7 +271,7 @@ export async function runMultiBusinessTestSuite(): Promise<MultiBusinessTestSumm
 
     let blocked = false;
     try {
-      experienceResolver.resolveExperience(restrictedOperatorContext, dbkAId);
+      await experienceResolver.resolveExperience(restrictedOperatorContext, dbkAId);
     } catch {
       blocked = true;
     }
@@ -373,7 +373,6 @@ export async function runMultiBusinessTestSuite(): Promise<MultiBusinessTestSumm
   try {
     const dbkAId = `school_premier_${runId}`;
     const dbkBId = `pharmacy_thuram_${runId}`;
-    // Connection configs are stored per DBK tenant boundary
     const passed = dbkAId !== dbkBId;
     results.push({
       id: 'MULTI_BUSINESS_12',
@@ -394,7 +393,6 @@ export async function runMultiBusinessTestSuite(): Promise<MultiBusinessTestSumm
 
   // MULTI_BUSINESS_13: No authoritative business state is written to client storage
   try {
-    // Verified by architectural audit: authoritative state resides in Firestore / server memory stores
     const passed = true;
     results.push({
       id: 'MULTI_BUSINESS_13',
@@ -416,7 +414,7 @@ export async function runMultiBusinessTestSuite(): Promise<MultiBusinessTestSumm
   // MULTI_BUSINESS_14: Owner with zero DBKs receives correct onboarding experience
   try {
     const emptyStoreTestId = `empty_owner_${runId}`;
-    const dbksForOwner = dbkRegistry.listAllDbks(ownerContext).filter(d => d.masterOwner === emptyStoreTestId);
+    const dbksForOwner = (await dbkRegistry.listAllDbks(ownerContext)).filter(d => d.masterOwner === emptyStoreTestId);
     const passed = dbksForOwner.length === 0;
     results.push({
       id: 'MULTI_BUSINESS_14',
@@ -439,7 +437,7 @@ export async function runMultiBusinessTestSuite(): Promise<MultiBusinessTestSumm
   try {
     const dbk5Id = `clinic_med_${runId}`;
     await provisionTestDbk(dbk5Id, 'MediClinic', 'clinic_v1');
-    const dbkRecord = dbkRegistry.getDbk(ownerContext, dbk5Id);
+    const dbkRecord = await dbkRegistry.getDbk(ownerContext, dbk5Id);
     const passed = !!dbkRecord;
     results.push({
       id: 'MULTI_BUSINESS_15',
