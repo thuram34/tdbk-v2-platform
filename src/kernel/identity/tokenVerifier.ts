@@ -147,20 +147,21 @@ export class TokenVerifier {
           );
         }
 
+        const tdbk = decodedIdToken.tdbk && typeof decodedIdToken.tdbk === 'object' ? decodedIdToken.tdbk : {};
+        const isMaster = tdbk.isMaster !== undefined ? (tdbk.isMaster === true || tdbk.isMaster === 'true') : (decodedIdToken.isMaster === true || decodedIdToken.isMaster === 'true');
+        const tenantId = tdbk.tenantId !== undefined ? tdbk.tenantId : (decodedIdToken.tenantId || null);
+        const branchId = tdbk.branchId !== undefined ? tdbk.branchId : (decodedIdToken.branchId || null);
+        const roles = Array.isArray(tdbk.roles) ? tdbk.roles : (Array.isArray(decodedIdToken.roles) ? decodedIdToken.roles : []);
+        const permissions = Array.isArray(tdbk.permissions) ? tdbk.permissions : (Array.isArray(decodedIdToken.permissions) ? decodedIdToken.permissions : []);
+
         return {
           id: decodedIdToken.uid || decodedIdToken.sub!,
           email: decodedIdToken.email,
-          isMaster:
-            decodedIdToken.isMaster === true ||
-            decodedIdToken.isMaster === 'true',
-          tenantId: decodedIdToken.tenantId || null,
-          branchId: decodedIdToken.branchId || null,
-          roles: Array.isArray(decodedIdToken.roles)
-            ? decodedIdToken.roles
-            : [],
-          permissions: Array.isArray(decodedIdToken.permissions)
-            ? decodedIdToken.permissions
-            : [],
+          isMaster: Boolean(isMaster),
+          tenantId: tenantId ?? null,
+          branchId: branchId ?? null,
+          roles,
+          permissions,
           authTime: decodedIdToken.iat || now,
           tokenSource: 'JWT',
         };

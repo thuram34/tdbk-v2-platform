@@ -374,7 +374,7 @@ describe('TDBK V2 — Production Identity & Claims Management', () => {
       })
     ).toString('base64url')}.sig`;
 
-    const principal = await verifier.verifyToken(`Bearer ${mockToken}`);
+    const principal = await verifier.verifyTokenAsync(`Bearer ${mockToken}`);
     expect(principal.roles).toHaveLength(0);
     expect(() => masterAuthority.assertOwnerOrMasterAuthority(principal, 'PROVISION_DBK')).toThrow(AuthorizationError);
   });
@@ -396,7 +396,7 @@ describe('TDBK V2 — Production Identity & Claims Management', () => {
       JSON.stringify({ uid: candidateUid, ...rawClaims, exp: Math.floor(Date.now() / 1000) + 3600 })
     ).toString('base64url')}.sig`;
 
-    const p1 = await verifier.verifyToken(`Bearer ${initialToken}`);
+    const p1 = await verifier.verifyTokenAsync(`Bearer ${initialToken}`);
     expect(p1.roles).toEqual([]);
     expect(() => masterAuthority.assertOwnerOrMasterAuthority(p1, 'PROVISION_DBK')).toThrow(AuthorizationError);
 
@@ -413,7 +413,7 @@ describe('TDBK V2 — Production Identity & Claims Management', () => {
       JSON.stringify({ uid: candidateUid, ...ownerClaims, exp: Math.floor(Date.now() / 1000) + 3600 })
     ).toString('base64url')}.sig`;
 
-    const p2 = await verifier.verifyToken(`Bearer ${ownerToken}`);
+    const p2 = await verifier.verifyTokenAsync(`Bearer ${ownerToken}`);
     expect(p2.roles).toContain('BUSINESS_OWNER');
 
     // Step 5: User provisions new DBK with BUSINESS_OWNER authority -> SUCCESS!
@@ -459,7 +459,7 @@ describe('TDBK V2 — Production Identity & Claims Management', () => {
       JSON.stringify({ uid: staffUid, ...staffClaims, exp: Math.floor(Date.now() / 1000) + 3600 })
     ).toString('base64url')}.sig`;
 
-    const staffPrincipal = await verifier.verifyToken(`Bearer ${staffToken}`);
+    const staffPrincipal = await verifier.verifyTokenAsync(`Bearer ${staffToken}`);
     expect(staffPrincipal.roles).toContain('BRANCH_MANAGER');
     expect(staffPrincipal.tenantId).toBe(targetDbkId);
     expect(() => tenantIsolation.assertTenantIsolation(staffPrincipal, targetDbkId, 'OPERATE')).not.toThrow();
