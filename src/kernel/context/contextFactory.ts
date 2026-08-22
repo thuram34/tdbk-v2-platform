@@ -26,7 +26,7 @@ export class SecurityContextFactory {
 
     let principal: Principal;
     if (options.authHeader) {
-      principal = await tokenVerifier.verifyToken(options.authHeader, reqId);
+      principal = await tokenVerifier.verifyTokenAsync(options.authHeader, reqId);
     } else {
       // Unauthenticated Anonymous Principal
       principal = {
