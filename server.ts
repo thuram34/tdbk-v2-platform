@@ -55,11 +55,11 @@ async function startServer() {
   // -------------------------------------------------------------
   // HEALTH & READINESS ENDPOINTS
   // -------------------------------------------------------------
-  app.get('/api/health/live', (req: Request, res: Response) => {
+  app.get('/api/health/live', async (req: Request, res: Response) => {
     res.json(healthMonitoring.getLiveStatus());
   });
 
-  app.get('/api/health/ready', (req: Request, res: Response) => {
+  app.get('/api/health/ready', async (req: Request, res: Response) => {
     const status = healthMonitoring.getReadyStatus();
     res.status(status.status === 'HEALTHY' ? 200 : 503).json(status);
   });
@@ -67,13 +67,13 @@ async function startServer() {
   // -------------------------------------------------------------
   // KERNEL SECURITY CONTEXT & AUTHORIZATION ENDPOINTS
   // -------------------------------------------------------------
-  app.get('/api/kernel/context', (req: Request, res: Response) => {
+  app.get('/api/kernel/context', async (req: Request, res: Response) => {
     try {
       const authHeader = req.headers.authorization;
       const targetTenantId = req.query.tenantId as string;
       const targetBranchId = req.query.branchId as string;
 
-      const context = securityContextFactory.createSecurityContext({
+      const context = await securityContextFactory.createSecurityContext({
         authHeader,
         targetTenantId,
         targetBranchId,
@@ -91,12 +91,12 @@ async function startServer() {
     }
   });
 
-  app.post('/api/kernel/authorize', (req: Request, res: Response) => {
+  app.post('/api/kernel/authorize', async (req: Request, res: Response) => {
     try {
       const authHeader = req.headers.authorization;
       const { action, resource, tenantId, branchId, requiredRole, requiredPermission } = req.body;
 
-      const context = securityContextFactory.createSecurityContext({
+      const context = await securityContextFactory.createSecurityContext({
         authHeader,
         targetTenantId: tenantId,
         targetBranchId: branchId,
@@ -124,10 +124,10 @@ async function startServer() {
   // -------------------------------------------------------------
   // MASTER & TENANT VERIFICATION ENDPOINTS
   // -------------------------------------------------------------
-  app.get('/api/master/verify', (req: Request, res: Response) => {
+  app.get('/api/master/verify', async (req: Request, res: Response) => {
     try {
       const authHeader = req.headers.authorization;
-      const context = securityContextFactory.createSecurityContext({ authHeader, ipAddress: req.ip });
+      const context = await securityContextFactory.createSecurityContext({ authHeader, ipAddress: req.ip });
       masterAuthority.assertMasterAuthority(context.principal, 'VERIFY_MASTER', context.requestId);
       res.json({ status: 'SUCCESS', message: 'TDBK MASTER authority verified', principal: context.principal });
     } catch (err) {
@@ -139,11 +139,11 @@ async function startServer() {
     }
   });
 
-  app.get('/api/tenant/verify/:tenantId', (req: Request, res: Response) => {
+  app.get('/api/tenant/verify/:tenantId', async (req: Request, res: Response) => {
     try {
       const authHeader = req.headers.authorization;
       const tenantId = req.params.tenantId;
-      const context = securityContextFactory.createSecurityContext({ authHeader, targetTenantId: tenantId, ipAddress: req.ip });
+      const context = await securityContextFactory.createSecurityContext({ authHeader, targetTenantId: tenantId, ipAddress: req.ip });
       const tenantCtx = tenantIsolation.assertTenantIsolation(context.principal, tenantId, 'VERIFY_TENANT', context.requestId);
       res.json({ status: 'SUCCESS', tenantContext: tenantCtx, principal: context.principal });
     } catch (err) {
@@ -155,7 +155,7 @@ async function startServer() {
     }
   });
 
-  app.get('/api/audit/logs', (req: Request, res: Response) => {
+  app.get('/api/audit/logs', async (req: Request, res: Response) => {
     const tenantId = req.query.tenantId as string;
     const events = auditLogger.getEvents({ tenantId, limit: 50 });
     res.json({ status: 'SUCCESS', events });
@@ -164,19 +164,19 @@ async function startServer() {
   // -------------------------------------------------------------
   // PHASE 0 AUTOMATED TEST RUNNER ENDPOINT
   // -------------------------------------------------------------
-  app.post('/api/test/phase0', (req: Request, res: Response) => {
-    const testSummary = phase0TestRunner.runAllTests();
+  app.post('/api/test/phase0', async (req: Request, res: Response) => {
+    const testSummary = await phase0TestRunner.runAllTests();
     res.json({ status: 'SUCCESS', summary: testSummary });
   });
 
   // -------------------------------------------------------------
   // PHASE 1: BLUEPRINT & BUSINESS DNA ENDPOINTS
   // -------------------------------------------------------------
-  app.get('/api/blueprints', (req: Request, res: Response) => {
+  app.get('/api/blueprints', async (req: Request, res: Response) => {
     res.json({ status: 'SUCCESS', blueprints: blueprintRegistry.getAllBlueprints() });
   });
 
-  app.get('/api/blueprints/:id', (req: Request, res: Response) => {
+  app.get('/api/blueprints/:id', async (req: Request, res: Response) => {
     const version = req.query.version as string;
     const blueprint = blueprintRegistry.getBlueprint(req.params.id, version);
     if (!blueprint) {
@@ -186,10 +186,10 @@ async function startServer() {
     res.json({ status: 'SUCCESS', blueprint });
   });
 
-  app.get('/api/dna/:dbkId', (req: Request, res: Response) => {
+  app.get('/api/dna/:dbkId', async (req: Request, res: Response) => {
     try {
       const authHeader = req.headers.authorization;
-      const context = securityContextFactory.createSecurityContext({
+      const context = await securityContextFactory.createSecurityContext({
         authHeader,
         targetTenantId: req.params.dbkId,
         ipAddress: req.ip,
@@ -205,12 +205,12 @@ async function startServer() {
     }
   });
 
-  app.post('/api/dna/bind', (req: Request, res: Response) => {
+  app.post('/api/dna/bind', async (req: Request, res: Response) => {
     try {
       const authHeader = req.headers.authorization;
       const { dbkId, businessName, blueprintId, blueprintVersion, branchTopology } = req.body;
 
-      const context = securityContextFactory.createSecurityContext({
+      const context = await securityContextFactory.createSecurityContext({
         authHeader,
         targetTenantId: dbkId,
         ipAddress: req.ip,
@@ -235,12 +235,12 @@ async function startServer() {
     }
   });
 
-  app.post('/api/blueprint/compile', (req: Request, res: Response) => {
+  app.post('/api/blueprint/compile', async (req: Request, res: Response) => {
     try {
       const authHeader = req.headers.authorization;
       const { dbkId } = req.body;
 
-      const context = securityContextFactory.createSecurityContext({
+      const context = await securityContextFactory.createSecurityContext({
         authHeader,
         targetTenantId: dbkId,
         ipAddress: req.ip,
@@ -265,14 +265,14 @@ async function startServer() {
   // -------------------------------------------------------------
   // PHASE 2: CAPABILITY & ENTITLEMENT ENDPOINTS
   // -------------------------------------------------------------
-  app.get('/api/capability/catalog', (req: Request, res: Response) => {
+  app.get('/api/capability/catalog', async (req: Request, res: Response) => {
     res.json({ status: 'SUCCESS', capabilities: capabilityRegistry.getAllCapabilities() });
   });
 
-  app.get('/api/capability/discover/:dbkId', (req: Request, res: Response) => {
+  app.get('/api/capability/discover/:dbkId', async (req: Request, res: Response) => {
     try {
       const authHeader = req.headers.authorization;
-      const context = securityContextFactory.createSecurityContext({
+      const context = await securityContextFactory.createSecurityContext({
         authHeader,
         targetTenantId: req.params.dbkId,
         ipAddress: req.ip,
@@ -289,12 +289,12 @@ async function startServer() {
     }
   });
 
-  app.post('/api/capability/enable', (req: Request, res: Response) => {
+  app.post('/api/capability/enable', async (req: Request, res: Response) => {
     try {
       const authHeader = req.headers.authorization;
       const { dbkId, capabilityId } = req.body;
 
-      const context = securityContextFactory.createSecurityContext({
+      const context = await securityContextFactory.createSecurityContext({
         authHeader,
         targetTenantId: dbkId,
         ipAddress: req.ip,
@@ -325,12 +325,12 @@ async function startServer() {
     }
   });
 
-  app.post('/api/capability/configure', (req: Request, res: Response) => {
+  app.post('/api/capability/configure', async (req: Request, res: Response) => {
     try {
       const authHeader = req.headers.authorization;
       const { dbkId, capabilityId, configData } = req.body;
 
-      const context = securityContextFactory.createSecurityContext({
+      const context = await securityContextFactory.createSecurityContext({
         authHeader,
         targetTenantId: dbkId,
         ipAddress: req.ip,
@@ -347,12 +347,12 @@ async function startServer() {
     }
   });
 
-  app.post('/api/capability/disable', (req: Request, res: Response) => {
+  app.post('/api/capability/disable', async (req: Request, res: Response) => {
     try {
       const authHeader = req.headers.authorization;
       const { dbkId, capabilityId } = req.body;
 
-      const context = securityContextFactory.createSecurityContext({
+      const context = await securityContextFactory.createSecurityContext({
         authHeader,
         targetTenantId: dbkId,
         ipAddress: req.ip,
@@ -369,7 +369,7 @@ async function startServer() {
     }
   });
 
-  app.post('/api/capability/tier', (req: Request, res: Response) => {
+  app.post('/api/capability/tier', async (req: Request, res: Response) => {
     try {
       const { dbkId, tier } = req.body;
 
@@ -409,7 +409,7 @@ async function startServer() {
   app.post('/api/platform/provision', async (req: Request, res: Response) => {
     try {
       const authHeader = req.headers.authorization;
-      const context = securityContextFactory.createSecurityContext({
+      const context = await securityContextFactory.createSecurityContext({
         authHeader,
         ipAddress: req.ip,
       });
@@ -428,7 +428,7 @@ async function startServer() {
   app.get('/api/platform/dbks', async (req: Request, res: Response) => {
     try {
       const authHeader = req.headers.authorization;
-      const context = securityContextFactory.createSecurityContext({
+      const context = await securityContextFactory.createSecurityContext({
         authHeader,
         ipAddress: req.ip,
       });
@@ -448,7 +448,7 @@ async function startServer() {
     try {
       const authHeader = req.headers.authorization;
       const { dbkId } = req.params;
-      const context = securityContextFactory.createSecurityContext({
+      const context = await securityContextFactory.createSecurityContext({
         authHeader,
         targetTenantId: dbkId,
         ipAddress: req.ip,
@@ -479,7 +479,7 @@ async function startServer() {
       const { dbkId } = req.params;
       const targetBranchId = req.query.branchId as string;
 
-      const context = securityContextFactory.createSecurityContext({
+      const context = await securityContextFactory.createSecurityContext({
         authHeader,
         targetTenantId: dbkId,
         targetBranchId,
@@ -503,7 +503,7 @@ async function startServer() {
       const { commandType, targetDbkId, payload } = req.body;
       const targetBranchId = (payload && payload.branchId) as string;
 
-      const context = securityContextFactory.createSecurityContext({
+      const context = await securityContextFactory.createSecurityContext({
         authHeader,
         targetTenantId: targetDbkId,
         targetBranchId,
@@ -526,7 +526,7 @@ async function startServer() {
     }
   });
 
-  app.get('/api/experience/entities/:dbkId/:capabilityId', (req: Request, res: Response) => {
+  app.get('/api/experience/entities/:dbkId/:capabilityId', async (req: Request, res: Response) => {
     try {
       const { dbkId, capabilityId } = req.params;
       const records = entityEngine.getRecords(dbkId, capabilityId);
@@ -549,7 +549,7 @@ async function startServer() {
       const authHeader = req.headers.authorization;
       const { tenantId, branchId, fileName, mimeType, fileBufferBase64, textContent, source } = req.body;
 
-      const context = securityContextFactory.createSecurityContext({
+      const context = await securityContextFactory.createSecurityContext({
         authHeader,
         targetTenantId: tenantId,
         targetBranchId: branchId,
@@ -576,13 +576,13 @@ async function startServer() {
     }
   });
 
-  app.get('/api/documents/:dbkId', (req: Request, res: Response) => {
+  app.get('/api/documents/:dbkId', async (req: Request, res: Response) => {
     try {
       const authHeader = req.headers.authorization;
       const { dbkId } = req.params;
       const branchId = req.query.branchId as string;
 
-      const context = securityContextFactory.createSecurityContext({
+      const context = await securityContextFactory.createSecurityContext({
         authHeader,
         targetTenantId: dbkId,
         targetBranchId: branchId,
@@ -600,12 +600,12 @@ async function startServer() {
     }
   });
 
-  app.get('/api/documents/:dbkId/:documentId', (req: Request, res: Response) => {
+  app.get('/api/documents/:dbkId/:documentId', async (req: Request, res: Response) => {
     try {
       const authHeader = req.headers.authorization;
       const { dbkId, documentId } = req.params;
 
-      const context = securityContextFactory.createSecurityContext({
+      const context = await securityContextFactory.createSecurityContext({
         authHeader,
         targetTenantId: dbkId,
         ipAddress: req.ip,
@@ -630,7 +630,7 @@ async function startServer() {
       const authHeader = req.headers.authorization;
       const { dbkId, documentId } = req.params;
 
-      const context = securityContextFactory.createSecurityContext({
+      const context = await securityContextFactory.createSecurityContext({
         authHeader,
         targetTenantId: dbkId,
         ipAddress: req.ip,
@@ -686,13 +686,13 @@ async function startServer() {
     }
   });
 
-  app.delete('/api/documents/:dbkId/:documentId', (req: Request, res: Response) => {
+  app.delete('/api/documents/:dbkId/:documentId', async (req: Request, res: Response) => {
     try {
       const authHeader = req.headers.authorization;
       const { dbkId, documentId } = req.params;
       const reason = (req.body && req.body.reason) || 'Manual deletion request';
 
-      const context = securityContextFactory.createSecurityContext({
+      const context = await securityContextFactory.createSecurityContext({
         authHeader,
         targetTenantId: dbkId,
         ipAddress: req.ip,
@@ -709,13 +709,13 @@ async function startServer() {
     }
   });
 
-  app.get('/api/ai/proposals/:dbkId', (req: Request, res: Response) => {
+  app.get('/api/ai/proposals/:dbkId', async (req: Request, res: Response) => {
     try {
       const authHeader = req.headers.authorization;
       const { dbkId } = req.params;
       const status = req.query.status as any;
 
-      const context = securityContextFactory.createSecurityContext({
+      const context = await securityContextFactory.createSecurityContext({
         authHeader,
         targetTenantId: dbkId,
         ipAddress: req.ip,
@@ -738,7 +738,7 @@ async function startServer() {
       const { dbkId, proposalId } = req.params;
       const { adjustedPayload } = req.body;
 
-      const context = securityContextFactory.createSecurityContext({
+      const context = await securityContextFactory.createSecurityContext({
         authHeader,
         targetTenantId: dbkId,
         ipAddress: req.ip,
@@ -755,13 +755,13 @@ async function startServer() {
     }
   });
 
-  app.post('/api/ai/proposals/:dbkId/:proposalId/reject', (req: Request, res: Response) => {
+  app.post('/api/ai/proposals/:dbkId/:proposalId/reject', async (req: Request, res: Response) => {
     try {
       const authHeader = req.headers.authorization;
       const { dbkId, proposalId } = req.params;
       const { reason } = req.body;
 
-      const context = securityContextFactory.createSecurityContext({
+      const context = await securityContextFactory.createSecurityContext({
         authHeader,
         targetTenantId: dbkId,
         ipAddress: req.ip,
@@ -778,13 +778,13 @@ async function startServer() {
     }
   });
 
-  app.get('/api/ai/conversation/:dbkId', (req: Request, res: Response) => {
+  app.get('/api/ai/conversation/:dbkId', async (req: Request, res: Response) => {
     try {
       const authHeader = req.headers.authorization;
       const { dbkId } = req.params;
       const branchId = (req.query.branchId as string) || 'HQ';
 
-      const context = securityContextFactory.createSecurityContext({
+      const context = await securityContextFactory.createSecurityContext({
         authHeader,
         targetTenantId: dbkId,
         targetBranchId: branchId,
@@ -808,7 +808,7 @@ async function startServer() {
       const { dbkId } = req.params;
       const { message, branchId } = req.body;
 
-      const context = securityContextFactory.createSecurityContext({
+      const context = await securityContextFactory.createSecurityContext({
         authHeader,
         targetTenantId: dbkId,
         targetBranchId: branchId,
@@ -867,7 +867,7 @@ async function startServer() {
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
-    app.get('*', (req: Request, res: Response) => {
+    app.get('*', async (req: Request, res: Response) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }

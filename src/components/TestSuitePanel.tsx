@@ -17,12 +17,12 @@ export const TestSuitePanel: React.FC = () => {
       } else {
         // Client fallback if needed
         const { phase0TestRunner } = await import('../kernel/tests/phase0TestRunner');
-        const summary = phase0TestRunner.runAllTests();
+        const summary = await phase0TestRunner.runAllTests();
         setTestSummary(summary);
       }
     } catch {
       const { phase0TestRunner } = await import('../kernel/tests/phase0TestRunner');
-      const summary = phase0TestRunner.runAllTests();
+      const summary = await phase0TestRunner.runAllTests();
       setTestSummary(summary);
     } finally {
       setIsRunning(false);

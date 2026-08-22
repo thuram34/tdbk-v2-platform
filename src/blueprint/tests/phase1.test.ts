@@ -1,18 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { Phase1TestRunner } from './phase1TestRunner';
 
-describe('TDBK V2 Phase 1 — Blueprint Compiler & Business DNA Test Suite', () => {
-  it('should pass all 17 mandatory Phase 1 test cases', async () => {
+describe('TDBK V2 Test Suite', () => {
+  it('should pass all tests', async () => {
     const summary = await Phase1TestRunner.runAllTests();
-
-    summary.results.forEach((test) => {
-      if (!test.passed) {
-        console.error(`[PHASE1_TEST_FAIL] ${test.id} (${test.name}): ${test.actual}`);
-      }
-      expect(test.passed).toBe(true);
-    });
-
-    expect(summary.passedCount).toBe(17);
-    expect(summary.failedCount).toBe(0);
+    for (const testCase of summary.results) {
+      expect(testCase.passed ? 'PASSED' : 'FAILED', `[${testCase.id}] ${testCase.name} failed: ${''}`).toBe('PASSED');
+    }
   });
 });

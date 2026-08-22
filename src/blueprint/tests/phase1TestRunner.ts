@@ -77,19 +77,19 @@ export class Phase1TestRunner {
     });
 
     // Helper context generators
-    const schoolAdminCtx = securityContextFactory.createSecurityContext({
+    const schoolAdminCtx = await securityContextFactory.createSecurityContext({
       authHeader: `Bearer ${schoolToken}`,
       targetTenantId: 'tenant_school_a',
     });
-    const hardwareAdminCtx = securityContextFactory.createSecurityContext({
+    const hardwareAdminCtx = await securityContextFactory.createSecurityContext({
       authHeader: `Bearer ${hardwareToken}`,
       targetTenantId: 'tenant_hardware_b',
     });
-    const retailAdminCtx = securityContextFactory.createSecurityContext({
+    const retailAdminCtx = await securityContextFactory.createSecurityContext({
       authHeader: `Bearer ${retailToken}`,
       targetTenantId: 'tenant_retail_c',
     });
-    const logisticsAdminCtx = securityContextFactory.createSecurityContext({
+    const logisticsAdminCtx = await securityContextFactory.createSecurityContext({
       authHeader: `Bearer ${logisticsToken}`,
       targetTenantId: 'tenant_logistics_d',
     });

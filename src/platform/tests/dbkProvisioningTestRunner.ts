@@ -40,7 +40,7 @@ export async function runDbkProvisioningTestSuite(): Promise<DbkProvisioningTest
     roles: ['TDBK_MASTER_ADMIN'],
     permissions: ['*'],
   });
-  const masterContext = securityContextFactory.createSecurityContext({
+  const masterContext = await securityContextFactory.createSecurityContext({
     authHeader: `Bearer ${masterToken}`,
     ipAddress: '127.0.0.1',
   });
@@ -289,7 +289,7 @@ export async function runDbkProvisioningTestSuite(): Promise<DbkProvisioningTest
       roles: ['OPERATOR'], // Not master admin
       permissions: ['read'],
     });
-    const regularContext = securityContextFactory.createSecurityContext({
+    const regularContext = await securityContextFactory.createSecurityContext({
       authHeader: `Bearer ${regularToken}`,
       ipAddress: '127.0.0.1',
     });
@@ -338,7 +338,7 @@ export async function runDbkProvisioningTestSuite(): Promise<DbkProvisioningTest
       roles: ['TENANT_ADMIN'],
       permissions: ['*'],
     });
-    const contextA = securityContextFactory.createSecurityContext({
+    const contextA = await securityContextFactory.createSecurityContext({
       authHeader: `Bearer ${tokenA}`,
       targetTenantId: idB,
       ipAddress: '127.0.0.1',
@@ -535,7 +535,7 @@ export async function runDbkProvisioningTestSuite(): Promise<DbkProvisioningTest
       roles: ['OPERATOR'],
       permissions: ['read'],
     });
-    const regularContext = securityContextFactory.createSecurityContext({
+    const regularContext = await securityContextFactory.createSecurityContext({
       authHeader: `Bearer ${regularOwnerToken}`,
       targetTenantId: id,
       ipAddress: '127.0.0.1',

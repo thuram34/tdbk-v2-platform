@@ -34,7 +34,7 @@ export interface Phase0TestSuiteSummary {
 }
 
 export class Phase0TestRunner {
-  public runAllTests(): Phase0TestSuiteSummary {
+  public async runAllTests(): Promise<Phase0TestSuiteSummary> {
     auditLogger.clearBufferForTesting();
     const startTime = Date.now();
     const results: TestCaseResult[] = [];
@@ -95,7 +95,7 @@ export class Phase0TestRunner {
     // -------------------------------------------------------------
     const t1Start = Date.now();
     try {
-      const ctx = securityContextFactory.createSecurityContext({ requestId: 'req_t1' });
+      const ctx = await securityContextFactory.createSecurityContext({ requestId: 'req_t1' });
       rbacEngine.assertAuthorization(ctx.principal, 'read', 'tenant:data', {
         tenantId: 'tenant_school_a',
         requiredPermission: 'school:read',
@@ -127,7 +127,7 @@ export class Phase0TestRunner {
     // -------------------------------------------------------------
     const t2Start = Date.now();
     try {
-      const ctx = securityContextFactory.createSecurityContext({
+      const ctx = await securityContextFactory.createSecurityContext({
         authHeader: `Bearer ${tenantAUserToken}`,
         targetTenantId: 'tenant_school_a',
         requestId: 'req_t2',
@@ -163,7 +163,7 @@ export class Phase0TestRunner {
     // -------------------------------------------------------------
     const t3Start = Date.now();
     try {
-      const ctx = securityContextFactory.createSecurityContext({
+      const ctx = await securityContextFactory.createSecurityContext({
         authHeader: `Bearer ${tenantAAdminToken}`,
         targetTenantId: 'tenant_school_a',
         requestId: 'req_t3',
@@ -199,7 +199,7 @@ export class Phase0TestRunner {
     // -------------------------------------------------------------
     const t4Start = Date.now();
     try {
-      const ctx = securityContextFactory.createSecurityContext({
+      const ctx = await securityContextFactory.createSecurityContext({
         authHeader: `Bearer ${tenantAAdminToken}`,
         requestId: 'req_t4',
       });
@@ -235,7 +235,7 @@ export class Phase0TestRunner {
     // -------------------------------------------------------------
     const t5Start = Date.now();
     try {
-      const ctx = securityContextFactory.createSecurityContext({
+      const ctx = await securityContextFactory.createSecurityContext({
         authHeader: `Bearer ${tenantAUserToken}`,
         requestId: 'req_t5',
       });
@@ -270,7 +270,7 @@ export class Phase0TestRunner {
     // -------------------------------------------------------------
     const t6Start = Date.now();
     try {
-      const ctx = securityContextFactory.createSecurityContext({
+      const ctx = await securityContextFactory.createSecurityContext({
         authHeader: `Bearer ${tenantAUserToken}`, // Token has 'STAFF' role
         requestId: 'req_t6',
       });
@@ -305,7 +305,7 @@ export class Phase0TestRunner {
     // -------------------------------------------------------------
     const t7Start = Date.now();
     try {
-      const ctx = securityContextFactory.createSecurityContext({
+      const ctx = await securityContextFactory.createSecurityContext({
         authHeader: `Bearer ${tenantBUserToken}`, // Token permissions: hardware:read, hardware:write
         requestId: 'req_t7',
       });
@@ -340,7 +340,7 @@ export class Phase0TestRunner {
     // -------------------------------------------------------------
     const t8Start = Date.now();
     try {
-      const ctx = securityContextFactory.createSecurityContext({
+      const ctx = await securityContextFactory.createSecurityContext({
         authHeader: `Bearer ${tenantAAdminToken}`, // DBK Tenant Admin
         requestId: 'req_t8',
       });
@@ -371,7 +371,7 @@ export class Phase0TestRunner {
     // -------------------------------------------------------------
     const t9Start = Date.now();
     try {
-      const ctx = securityContextFactory.createSecurityContext({
+      const ctx = await securityContextFactory.createSecurityContext({
         authHeader: `Bearer ${tenantAUserOtherBranchToken}`, // Branch is 'branch_secondary'
         requestId: 'req_t9',
       });
@@ -407,7 +407,7 @@ export class Phase0TestRunner {
     // -------------------------------------------------------------
     const t10Start = Date.now();
     try {
-      const ctx = securityContextFactory.createSecurityContext({
+      const ctx = await securityContextFactory.createSecurityContext({
         authHeader: `Bearer ${tenantAUserToken}`, // Token branch is 'branch_hq'
         requestId: 'req_t10',
       });
@@ -444,7 +444,7 @@ export class Phase0TestRunner {
     const t11Start = Date.now();
     try {
       // Simulating direct unauthenticated API request to privileged route
-      const ctx = securityContextFactory.createSecurityContext({ requestId: 'req_t11' });
+      const ctx = await securityContextFactory.createSecurityContext({ requestId: 'req_t11' });
       rbacEngine.assertAuthorization(ctx.principal, 'admin', 'system:audit_logs', {
         requiredPermission: 'admin:read',
         requestId: 'req_t11',
@@ -477,7 +477,7 @@ export class Phase0TestRunner {
     const auditEventsBefore = auditLogger.getEvents({ eventType: 'TENANT_ISOLATION_VIOLATION' });
 
     try {
-      const ctx = securityContextFactory.createSecurityContext({
+      const ctx = await securityContextFactory.createSecurityContext({
         authHeader: `Bearer ${tenantAUserToken}`,
         requestId: 'req_t12_violation',
       });

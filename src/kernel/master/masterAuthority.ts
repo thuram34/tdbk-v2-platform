@@ -32,8 +32,6 @@ export class MasterAuthorityService {
    * Asserts Owner Portfolio or TDBK MASTER authority for DBK provisioning and management.
    */
   public assertOwnerOrMasterAuthority(principal: Principal, action: string, requestId?: string): void {
-    console.log('DEBUG PRINCIPAL:', JSON.stringify(principal));
-    console.log('roles:', principal.roles, 'isMaster:', principal.isMaster, 'includes:', (principal.roles || []).includes('TDBK_MASTER_ADMIN'));
     if (!principal || (!this.isMasterAdmin(principal) && !this.isOwnerPortfolio(principal))) {
       auditLogger.logEvent(
         'AUTHORIZATION_DENIED',

@@ -30,10 +30,9 @@ const masterCtx: SecurityContext = {
 };
 
 export async function seedDemoDbks(force: boolean = false): Promise<void> {
-  // Explicit environment guard: Seeding is permitted in development/test or when explicitly flagged
-  const isDevOrExplicit = process.env.NODE_ENV !== 'production' || process.env.SEED_DEMO_DBKS === 'true' || process.env.ENABLE_DEMO_SEEDER === 'true';
-  if (!isDevOrExplicit && !force) {
-    return; // Production safeguard: Never silently populate production clusters with demo fixtures
+  // Explicit environment guard: Seeding is NEVER permitted in production
+  if (process.env.NODE_ENV === 'production' && !force) {
+    throw new Error('FATAL: seedDemoDbks cannot be run in a production environment.');
   }
 
   const existing = await dbkRegistry.listAllDbks(masterCtx);

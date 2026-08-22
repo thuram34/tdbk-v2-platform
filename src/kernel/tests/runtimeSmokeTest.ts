@@ -20,7 +20,7 @@ export interface SmokeTestResult {
 }
 
 export class RuntimeSmokeTestRunner {
-  public runAllTests(): { total: number; passed: number; failed: number; results: SmokeTestResult[] } {
+  public async runAllTests(): Promise<{ total: number; passed: number; failed: number; results: SmokeTestResult[] } > {
     const results: SmokeTestResult[] = [];
 
     // RUNTIME_01
@@ -87,7 +87,7 @@ export class RuntimeSmokeTestRunner {
     // RUNTIME_09
     let unauthCaught = false;
     try {
-      securityContextFactory.createSecurityContext({ authHeader: 'Bearer invalid_token' });
+      await securityContextFactory.createSecurityContext({ authHeader: 'Bearer invalid_token' });
     } catch {
       unauthCaught = true;
     }

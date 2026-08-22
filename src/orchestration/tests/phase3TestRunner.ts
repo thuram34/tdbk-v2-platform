@@ -93,18 +93,18 @@ export class Phase3TestRunner {
       permissions: ['hardware:read', 'hardware:write'],
     });
 
-    const masterContext = securityContextFactory.createSecurityContext({
+    const masterContext = await securityContextFactory.createSecurityContext({
       authHeader: `Bearer ${masterAdminToken}`,
       requestId: 'req_master_p3',
     });
 
-    const tenantAContext = securityContextFactory.createSecurityContext({
+    const tenantAContext = await securityContextFactory.createSecurityContext({
       authHeader: `Bearer ${tenantAAdminToken}`,
       targetTenantId: 'tenant_school_a',
       requestId: 'req_tenantA_p3',
     });
 
-    const tenantBContext = securityContextFactory.createSecurityContext({
+    const tenantBContext = await securityContextFactory.createSecurityContext({
       authHeader: `Bearer ${tenantBAdminToken}`,
       targetTenantId: 'tenant_hardware_b',
       requestId: 'req_tenantB_p3',
@@ -895,7 +895,7 @@ export class Phase3TestRunner {
     // P3_TEST_36: Phase 0 regression
     // -----------------------------------------------------------------
     try {
-      const p0Summary = phase0TestRunner.runAllTests();
+      const p0Summary = await phase0TestRunner.runAllTests();
       results.push({
         id: 'P3_TEST_36',
         name: 'Phase 0 regression',

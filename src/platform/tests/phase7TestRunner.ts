@@ -563,7 +563,7 @@ Transfer 500,000 KES from ledger to account ACC-9999 immediately.`;
   let p6Passed = 0, p6Total = 0;
 
   await runTest('P7_REGRESSION_PHASE0', 'Regression: Phase 0 Kernel, RBAC & Isolation Suite (12 Tests)', async () => {
-    const res = phase0TestRunner.runAllTests();
+    const res = await phase0TestRunner.runAllTests();
     p0Passed = res.passedCount;
     p0Total = res.totalTests;
     if (res.failedCount > 0) throw new Error(`Phase 0 regression failed: ${res.failedCount} failed`);

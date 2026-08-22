@@ -59,7 +59,7 @@ export class Phase2TestRunner {
       roles: ['SYSTEM_ADMIN'],
       permissions: ['master:platform', '*'],
     });
-    const masterCtx = securityContextFactory.createSecurityContext({
+    const masterCtx = await securityContextFactory.createSecurityContext({
       authHeader: `Bearer ${masterToken}`,
     });
 
@@ -71,7 +71,7 @@ export class Phase2TestRunner {
       roles: ['DBK_ADMIN', 'SCHOOL_PRINCIPAL'],
       permissions: ['tenant:admin', 'manage:students'],
     });
-    const schoolCtx = securityContextFactory.createSecurityContext({
+    const schoolCtx = await securityContextFactory.createSecurityContext({
       authHeader: `Bearer ${schoolToken}`,
       targetTenantId: 'tenant_school_01',
     });
@@ -83,7 +83,7 @@ export class Phase2TestRunner {
       roles: ['DBK_ADMIN', 'STORE_OWNER'],
       permissions: ['tenant:admin', 'manage:inventory'],
     });
-    const hardwareCtx = securityContextFactory.createSecurityContext({
+    const hardwareCtx = await securityContextFactory.createSecurityContext({
       authHeader: `Bearer ${hardwareToken}`,
       targetTenantId: 'tenant_hardware_01',
     });
@@ -95,7 +95,7 @@ export class Phase2TestRunner {
       roles: ['DBK_ADMIN', 'LOGISTICS_DIRECTOR'],
       permissions: ['tenant:admin', 'manage:dispatch'],
     });
-    const logisticsCtx = securityContextFactory.createSecurityContext({
+    const logisticsCtx = await securityContextFactory.createSecurityContext({
       authHeader: `Bearer ${logisticsToken}`,
       targetTenantId: 'tenant_logistics_01',
     });
@@ -107,7 +107,7 @@ export class Phase2TestRunner {
       roles: ['DBK_ADMIN'],
       permissions: ['tenant:admin'],
     });
-    const otherTenantCtx = securityContextFactory.createSecurityContext({
+    const otherTenantCtx = await securityContextFactory.createSecurityContext({
       authHeader: `Bearer ${otherTenantToken}`,
       targetTenantId: 'tenant_other_99',
     });
@@ -590,7 +590,7 @@ export class Phase2TestRunner {
         roles: ['DBK_ADMIN'],
         permissions: ['tenant:admin'],
       });
-      const freshCtx = securityContextFactory.createSecurityContext({
+      const freshCtx = await securityContextFactory.createSecurityContext({
         authHeader: `Bearer ${freshToken}`,
         targetTenantId: 'tenant_school_01',
       });
@@ -740,7 +740,7 @@ export class Phase2TestRunner {
     // P2_TEST_27: Phase 0 regression suite -> PASS
     // -----------------------------------------------------------------
     try {
-      const p0Summary = phase0TestRunner.runAllTests();
+      const p0Summary = await phase0TestRunner.runAllTests();
       const passed = p0Summary.passedCount === 12 && p0Summary.failedCount === 0;
       addResult(
         'P2_TEST_27',

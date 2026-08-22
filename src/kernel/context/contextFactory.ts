@@ -12,7 +12,7 @@ export class SecurityContextFactory {
   /**
    * Constructs a validated SecurityContext for an incoming server request.
    */
-  public createSecurityContext(options: {
+  public async createSecurityContext(options: {
     authHeader?: string;
     targetTenantId?: string;
     targetBranchId?: string;
@@ -20,13 +20,13 @@ export class SecurityContextFactory {
     userAgent?: string;
     requestId?: string;
     correlationId?: string;
-  }): SecurityContext {
+  }): Promise<SecurityContext> {
     const reqId = options.requestId || `req_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
     const corrId = options.correlationId || reqId;
 
     let principal: Principal;
     if (options.authHeader) {
-      principal = tokenVerifier.verifyToken(options.authHeader, reqId);
+      principal = await tokenVerifier.verifyToken(options.authHeader, reqId);
     } else {
       // Unauthenticated Anonymous Principal
       principal = {

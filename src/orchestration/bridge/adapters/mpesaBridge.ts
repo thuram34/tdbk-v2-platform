@@ -11,6 +11,7 @@ import {
 } from '../types';
 import { SecurityContext } from '../../../kernel/types';
 import { auditLogger } from '../../../kernel/audit/auditLogger';
+import { configManager } from '../../../kernel/configuration/configManager';
 import { KernelError } from '../../../kernel/errors/kernelErrors';
 import { eventBus } from '../../events/eventBus';
 
@@ -48,7 +49,14 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
 
   private processedCallbacks: Set<string> = new Set();
   private pendingTransactions: Map<string, { tenantId: string; correlationId?: string }> = new Map();
-  private secretPasskey = 'safaricom_secret_passkey_123'; // Server-side secret only
+
+  private get secretPasskey(): string {
+    const secrets = configManager.getPrivateSecrets();
+    if (!secrets.mpesaPasskey && process.env.NODE_ENV === 'production') {
+      throw new KernelError('INTERNAL_ERROR', 'MPESA_PASSKEY is required in production environment', 500, 'system');
+    }
+    return secrets.mpesaPasskey || 'safaricom_secret_passkey_123_fallback'; // Fallback for testing only
+  }
 
   /**
    * Registers a pending provider reference mapping (for testing and execution tracking).

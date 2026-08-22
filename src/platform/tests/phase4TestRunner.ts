@@ -807,7 +807,7 @@ export async function runPhase4TestSuite(): Promise<Phase4TestSummary> {
 
   // P4_TEST_47: Phase 0 regression
   await runTest('P4_TEST_47', 'Phase 0 regression', async () => {
-    const p0Summary = phase0TestRunner.runAllTests();
+    const p0Summary = await phase0TestRunner.runAllTests();
     if (p0Summary.failedCount > 0) {
       throw new Error(`Phase 0 regression failure: ${p0Summary.failedCount} test(s) failed`);
     }

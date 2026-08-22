@@ -1021,7 +1021,7 @@ export async function runPhase6TestSuite(): Promise<Phase6TestSummary> {
   // REGRESSION VERIFICATION (Phases 0 - 5)
   // -------------------------------------------------------------
   await runTest('P6_TEST_55', 'Phase 0 Security & Tenant Isolation Suite Regression (12 Tests)', async () => {
-    const summary = phase0TestRunner.runAllTests();
+    const summary = await phase0TestRunner.runAllTests();
     if (summary.overallStatus !== 'PASS' || summary.failedCount > 0) {
       throw new Error(`Phase 0 regression failed: ${summary.failedCount} failed`);
     }

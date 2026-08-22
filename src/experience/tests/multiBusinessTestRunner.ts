@@ -39,7 +39,7 @@ export async function runMultiBusinessTestSuite(): Promise<MultiBusinessTestSumm
     roles: ['BUSINESS_OWNER'],
     permissions: ['*'],
   });
-  const ownerContext = securityContextFactory.createSecurityContext({
+  const ownerContext = await securityContextFactory.createSecurityContext({
     authHeader: `Bearer ${ownerToken}`,
     ipAddress: '127.0.0.1',
   });
@@ -222,7 +222,7 @@ export async function runMultiBusinessTestSuite(): Promise<MultiBusinessTestSumm
       roles: ['TENANT_ADMIN'],
       permissions: ['*'],
     });
-    const tenantAContext = securityContextFactory.createSecurityContext({
+    const tenantAContext = await securityContextFactory.createSecurityContext({
       authHeader: `Bearer ${tenantAToken}`,
       targetTenantId: dbkBId, // Attempting cross-tenant access
       ipAddress: '127.0.0.1',
@@ -263,7 +263,7 @@ export async function runMultiBusinessTestSuite(): Promise<MultiBusinessTestSumm
       roles: ['OPERATOR'],
       permissions: ['read'],
     });
-    const restrictedOperatorContext = securityContextFactory.createSecurityContext({
+    const restrictedOperatorContext = await securityContextFactory.createSecurityContext({
       authHeader: `Bearer ${ownerRegularToken}`,
       targetTenantId: dbkAId,
       ipAddress: '127.0.0.1',
