@@ -23,30 +23,30 @@ describe('Production Identity Verification Boundary', () => {
     const header = Buffer.from(JSON.stringify({ alg: 'none' })).toString('base64url');
     const payload = Buffer.from(JSON.stringify({ uid: 'hacker' })).toString('base64url');
     const token = `${header}.${payload}.`;
-    await expect(verifier.verifyToken(`Bearer ${token}`)).rejects.toThrow(AuthenticationError);
+    await expect(verifier.verifyTokenAsync(`Bearer ${token}`)).rejects.toThrow(AuthenticationError);
   });
 
   it('2. arbitrary JSON token -> DENIED', async () => {
     const arbitrary = Buffer.from(JSON.stringify({ uid: 'hacker' })).toString('base64url');
-    await expect(verifier.verifyToken(`Bearer ${arbitrary}`)).rejects.toThrow(/Malformed security token/);
+    await expect(verifier.verifyTokenAsync(`Bearer ${arbitrary}`)).rejects.toThrow(/Malformed security token/);
   });
 
   it('3. malformed Bearer header -> DENIED', async () => {
-    await expect(verifier.verifyToken('Basic token123')).rejects.toThrow(/Expected "Bearer <token>"/);
-    await expect(verifier.verifyToken('')).rejects.toThrow(/Missing Authorization header/);
-    await expect(verifier.verifyToken('Bearer ')).rejects.toThrow(/Empty authentication token/);
+    await expect(verifier.verifyTokenAsync('Basic token123')).rejects.toThrow(/Expected "Bearer <token>"/);
+    await expect(verifier.verifyTokenAsync('')).rejects.toThrow(/Missing Authorization header/);
+    await expect(verifier.verifyTokenAsync('Bearer ')).rejects.toThrow(/Empty authentication token/);
   });
 
   it('4. expired token -> DENIED', async () => {
     const expiredToken = TokenVerifier.mintTestToken({ uid: 'user1', exp: Math.floor(Date.now() / 1000) - 10000 });
-    await expect(verifier.verifyToken(`Bearer ${expiredToken}`)).rejects.toThrow(/expired/);
+    await expect(verifier.verifyTokenAsync(`Bearer ${expiredToken}`)).rejects.toThrow(/expired/);
   });
 
   it('5. invalid signature -> DENIED', async () => {
     const valid = TokenVerifier.mintTestToken({ uid: 'user1' });
     const parts = valid.split('.');
     const invalidToken = `${parts[0]}.${parts[1]}.invalidsignature123`;
-    await expect(verifier.verifyToken(`Bearer ${invalidToken}`)).rejects.toThrow(/Invalid cryptographic signature/);
+    await expect(verifier.verifyTokenAsync(`Bearer ${invalidToken}`)).rejects.toThrow(/Invalid cryptographic signature/);
   });
 
   it('6. mintTestToken() in production -> DENIED', () => {
@@ -56,8 +56,10 @@ describe('Production Identity Verification Boundary', () => {
   });
 
   it('7. TDBK MASTER identity -> ACCEPTED only through authoritative master boundary', async () => {
-    const masterSecret = configManager.getPrivateSecrets().masterAuthSecret;
-    const principal = await verifier.verifyToken(`Bearer ${masterSecret}`);
+    const masterSecret = 'tdbk-test-master-secret';
+    process.env.MASTER_AUTH_SECRET = masterSecret;
+
+    const principal = await verifier.verifyTokenAsync(`Bearer ${masterSecret}`);
     expect(principal.isMaster).toBe(true);
     expect(principal.id).toBe('MASTER_SERVICE_ACCOUNT');
   });
@@ -122,34 +124,34 @@ describe('Production Identity Verification Boundary', () => {
     });
 
     it('8. valid Firebase token -> ACCEPTED', async () => {
-      const principal = await verifier.verifyToken('Bearer valid_prod_token');
+      const principal = await verifier.verifyTokenAsync('Bearer valid_prod_token');
       expect(principal.id).toBe('prod_user1');
     });
 
     it('9. wrong issuer in production -> DENIED', async () => {
-      await expect(verifier.verifyToken('Bearer wrong_issuer')).rejects.toThrow(/incorrect "iss"/);
+      await expect(verifier.verifyTokenAsync('Bearer wrong_issuer')).rejects.toThrow(/incorrect "iss"/);
     });
 
     it('10. wrong audience in production -> DENIED', async () => {
-      await expect(verifier.verifyToken('Bearer wrong_audience')).rejects.toThrow(/incorrect "aud"/);
+      await expect(verifier.verifyTokenAsync('Bearer wrong_audience')).rejects.toThrow(/incorrect "aud"/);
     });
 
     it('11. invalid signature in production -> DENIED', async () => {
-      await expect(verifier.verifyToken('Bearer invalid_signature_prod')).rejects.toThrow(/invalid signature/);
+      await expect(verifier.verifyTokenAsync('Bearer invalid_signature_prod')).rejects.toThrow(/invalid signature/);
     });
 
     it('12. expired token in production -> DENIED', async () => {
-      await expect(verifier.verifyToken('Bearer expired_prod_token')).rejects.toThrow(/expired/);
+      await expect(verifier.verifyTokenAsync('Bearer expired_prod_token')).rejects.toThrow(/expired/);
     });
 
     it('13. verified authorized owner -> ACCEPTED by MasterAuthority', async () => {
-      const principal = await verifier.verifyToken('Bearer owner_token');
+      const principal = await verifier.verifyTokenAsync('Bearer owner_token');
       expect(principal.roles).toContain('BUSINESS_OWNER');
       expect(() => masterAuthority.assertOwnerOrMasterAuthority(principal, 'PROVISION_DBK')).not.toThrow();
     });
 
     it('14. verified user without owner authority -> REJECTED by provisioning', async () => {
-      const principal = await verifier.verifyToken('Bearer regular_user_token');
+      const principal = await verifier.verifyTokenAsync('Bearer regular_user_token');
       expect(principal.roles).not.toContain('BUSINESS_OWNER');
       expect(principal.roles).not.toContain('TDBK_MASTER_ADMIN');
       
@@ -172,7 +174,7 @@ describe('Production Identity Verification Boundary', () => {
     });
 
     it('15. tenant boundary remains strictly enforced after verification', async () => {
-      const principal = await verifier.verifyToken('Bearer unauthorized_dbk');
+      const principal = await verifier.verifyTokenAsync('Bearer unauthorized_dbk');
       expect(principal.tenantId).toBe('tenantA');
       expect(() => tenantIsolation.assertTenantIsolation(principal, 'tenantB', 'READ')).toThrow(/Cross-tenant access denied/);
     });

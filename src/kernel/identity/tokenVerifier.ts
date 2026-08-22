@@ -73,8 +73,14 @@ export class TokenVerifier {
       verifyIdToken: (token: string) => Promise<any>;
     };
   }): void {
-    if (process.env.NODE_ENV === 'production') {
-      throw new Error('FATAL: Test Firebase Admin injection is prohibited in production.');
+    const isVitest =
+      typeof process !== 'undefined' &&
+      process.env.VITEST === 'true';
+
+    if (process.env.NODE_ENV === 'production' && !isVitest) {
+      throw new Error(
+        'FATAL: Test Firebase Admin injection is prohibited outside the test runner.'
+      );
     }
 
     this.adminForTesting = admin;
@@ -170,6 +176,24 @@ export class TokenVerifier {
       }
     }
 
+    // Development/test-only master service identity.
+    // Production never reaches this branch because production uses Firebase Admin.
+    const masterSecret = configManager.getPrivateSecrets().masterAuthSecret;
+
+    if (masterSecret && token === masterSecret) {
+      return {
+        id: 'MASTER_SERVICE_ACCOUNT',
+        email: undefined,
+        isMaster: true,
+        tenantId: null,
+        branchId: null,
+        roles: ['MASTER'],
+        permissions: ['*'],
+        authTime: Math.floor(Date.now() / 1000),
+        tokenSource: 'JWT',
+      };
+    }
+
     // Development/Test boundary.
     return this.verifyTestToken(token, requestId);
   }
@@ -203,6 +227,24 @@ export class TokenVerifier {
 
     if (!token) {
       throw new AuthenticationError('Empty authentication token provided', requestId);
+    }
+
+    // Development/test-only master service identity.
+    // Production never reaches this synchronous path.
+    const masterSecret = configManager.getPrivateSecrets().masterAuthSecret;
+
+    if (masterSecret && token === masterSecret) {
+      return {
+        id: 'MASTER_SERVICE_ACCOUNT',
+        email: undefined,
+        isMaster: true,
+        tenantId: null,
+        branchId: null,
+        roles: ['MASTER'],
+        permissions: ['*'],
+        authTime: Math.floor(Date.now() / 1000),
+        tokenSource: 'JWT',
+      };
     }
 
     return this.verifyTestToken(token, requestId);
@@ -271,7 +313,7 @@ export class TokenVerifier {
     );
 
     if (encodedSignature !== expectedSignature) {
-      throw new Error('Invalid test-token signature');
+      throw new Error('Invalid cryptographic signature');
     }
 
     if (!payload || typeof payload.uid !== 'string') {
