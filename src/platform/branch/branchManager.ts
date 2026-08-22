@@ -164,7 +164,7 @@ export class BranchManagerService {
    * Asserts tenant boundary for branch operations.
    */
   private assertTenantAccess(context: SecurityContext, targetDbkId: string, action: string): void {
-    if (!masterAuthority.isMasterAdmin(context.principal) && !masterAuthority.isOwnerPortfolio(context.principal)) {
+    if (!masterAuthority.isMasterAdmin(context.principal)) {
       BlueprintValidator.assertTenantAccess(context, targetDbkId, action);
     }
   }

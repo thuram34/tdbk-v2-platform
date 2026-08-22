@@ -469,4 +469,236 @@ describe('TDBK V2 — Production Identity & Claims Management', () => {
       TenantIsolationError
     );
   });
+
+  describe('SECURITY HARDENING — TENANT-BOUND OWNER AUTHORITY REGRESSION SUITE', () => {
+    const ownerAContext: SecurityContext = {
+      requestId: 'req_test_ownerA',
+      correlationId: 'corr_test_ownerA',
+      timestamp: new Date().toISOString(),
+      principal: {
+        id: 'usr_business_owner_A',
+        email: 'ownerA@holdingcompany.co.ke',
+        isMaster: false,
+        tenantId: null,
+        branchId: null,
+        roles: ['BUSINESS_OWNER'],
+        permissions: ['PORTFOLIO_READ', 'PORTFOLIO_WRITE', 'DBK_PROVISION'],
+        authTime: Math.floor(Date.now() / 1000),
+        tokenSource: 'JWT',
+      },
+      tenantContext: null,
+      branchContext: null,
+    };
+
+    const ownerBContext: SecurityContext = {
+      requestId: 'req_test_ownerB',
+      correlationId: 'corr_test_ownerB',
+      timestamp: new Date().toISOString(),
+      principal: {
+        id: 'usr_business_owner_B',
+        email: 'ownerB@otherportfolio.co.ke',
+        isMaster: false,
+        tenantId: null,
+        branchId: null,
+        roles: ['BUSINESS_OWNER'],
+        permissions: ['PORTFOLIO_READ', 'PORTFOLIO_WRITE', 'DBK_PROVISION'],
+        authTime: Math.floor(Date.now() / 1000),
+        tokenSource: 'JWT',
+      },
+      tenantContext: null,
+      branchContext: null,
+    };
+
+    let tenantAId: string;
+    let tenantBId: string;
+
+    beforeEach(async () => {
+      tenantAId = `dbk_tenant_A_${Date.now()}`;
+      tenantBId = `dbk_tenant_B_${Date.now()}`;
+
+      // Owner A provisions Tenant A
+      await provisioningService.provisionDbk(ownerAContext, {
+        dbkId: tenantAId,
+        legalName: 'Owner A Enterprise DBK',
+        blueprintId: 'school_v1',
+        subscriptionTier: 'PRO',
+      });
+
+      // Owner B provisions Tenant B
+      await provisioningService.provisionDbk(ownerBContext, {
+        dbkId: tenantBId,
+        legalName: 'Owner B Enterprise DBK',
+        blueprintId: 'retail_v1',
+        subscriptionTier: 'ENTERPRISE',
+      });
+    });
+
+    it('1. Business Owner A can manage identities in their own Tenant A', async () => {
+      mockFirebaseStore.set('usr_staff_tenantA', {
+        uid: 'usr_staff_tenantA',
+        email: 'staffA@companyA.com',
+        customClaims: {},
+      });
+
+      // Provision identity in Tenant A by Owner A -> SUCCESS
+      const record = await tdbkIdentityService.provisionTdbkIdentity(ownerAContext, {
+        uid: 'usr_staff_tenantA',
+        email: 'staffA@companyA.com',
+        tenantId: tenantAId,
+        roles: ['STAFF'],
+      });
+
+      expect(record.tenantId).toBe(tenantAId);
+      expect(record.roles).toContain('STAFF');
+
+      // List identities in Tenant A -> SUCCESS
+      const listA = await tdbkIdentityService.listIdentities(ownerAContext, tenantAId);
+      expect(listA.some(u => u.uid === 'usr_staff_tenantA')).toBe(true);
+
+      // Get identity in Tenant A -> SUCCESS
+      const fetched = await tdbkIdentityService.getIdentity(ownerAContext, 'usr_staff_tenantA');
+      expect(fetched?.uid).toBe('usr_staff_tenantA');
+    });
+
+    it('2. Business Owner A CANNOT provision identities in Tenant B (Cross-Tenant Denial)', async () => {
+      mockFirebaseStore.set('usr_attacker_target', {
+        uid: 'usr_attacker_target',
+        email: 'target@companyB.com',
+        customClaims: {},
+      });
+
+      // Attempt to provision into Tenant B using Owner A context -> REJECTED
+      await expect(
+        tdbkIdentityService.provisionTdbkIdentity(ownerAContext, {
+          uid: 'usr_attacker_target',
+          email: 'target@companyB.com',
+          tenantId: tenantBId,
+          roles: ['BRANCH_MANAGER'],
+        })
+      ).rejects.toThrow(AuthorizationError);
+    });
+
+    it('3. Business Owner A CANNOT assign or revoke roles in Tenant B', async () => {
+      mockFirebaseStore.set('usr_staff_tenantB', {
+        uid: 'usr_staff_tenantB',
+        email: 'staffB@companyB.com',
+        customClaims: {},
+      });
+
+      // Owner B provisions legitimate user in Tenant B
+      await tdbkIdentityService.provisionTdbkIdentity(ownerBContext, {
+        uid: 'usr_staff_tenantB',
+        email: 'staffB@companyB.com',
+        tenantId: tenantBId,
+        roles: ['STAFF'],
+      });
+
+      // Owner A attempts to assign role in Tenant B -> REJECTED
+      await expect(
+        tdbkIdentityService.assignTenantRole(ownerAContext, {
+          targetUid: 'usr_staff_tenantB',
+          tenantId: tenantBId,
+          role: 'BRANCH_MANAGER',
+        })
+      ).rejects.toThrow(AuthorizationError);
+
+      // Owner A attempts to revoke role of user in Tenant B -> REJECTED
+      await expect(
+        tdbkIdentityService.revokeRole(ownerAContext, {
+          targetUid: 'usr_staff_tenantB',
+          role: 'STAFF',
+        })
+      ).rejects.toThrow(AuthorizationError);
+    });
+
+    it('4. Business Owner A CANNOT inspect identities belonging to Tenant B', async () => {
+      mockFirebaseStore.set('usr_private_tenantB', {
+        uid: 'usr_private_tenantB',
+        email: 'privateB@companyB.com',
+        customClaims: {},
+      });
+
+      await tdbkIdentityService.provisionTdbkIdentity(ownerBContext, {
+        uid: 'usr_private_tenantB',
+        email: 'privateB@companyB.com',
+        tenantId: tenantBId,
+        roles: ['STAFF'],
+      });
+
+      // Owner A attempts to list identities for Tenant B -> REJECTED
+      await expect(
+        tdbkIdentityService.listIdentities(ownerAContext, tenantBId)
+      ).rejects.toThrow(AuthorizationError);
+
+      // Owner A attempts to fetch specific identity in Tenant B -> REJECTED
+      await expect(
+        tdbkIdentityService.getIdentity(ownerAContext, 'usr_private_tenantB')
+      ).rejects.toThrow(AuthorizationError);
+    });
+
+    it('5. OWNER_OPERATOR of Tenant A cannot manage Tenant B or global identities', async () => {
+      const operatorAContext: SecurityContext = {
+        requestId: 'req_test_opA',
+        correlationId: 'corr_test_opA',
+        timestamp: new Date().toISOString(),
+        principal: {
+          id: 'usr_operator_A',
+          email: 'opA@tenantA.com',
+          isMaster: false,
+          tenantId: tenantAId,
+          branchId: 'HQ',
+          roles: ['OWNER_OPERATOR'],
+          permissions: ['TENANT_ADMIN', 'BRANCH_MANAGE', 'STAFF_MANAGE'],
+          authTime: Math.floor(Date.now() / 1000),
+          tokenSource: 'JWT',
+        },
+        tenantContext: null,
+        branchContext: null,
+      };
+
+      mockFirebaseStore.set('usr_candidate_user', {
+        uid: 'usr_candidate_user',
+        email: 'cand@example.com',
+        customClaims: {},
+      });
+
+      // Operator A can provision for Tenant A
+      const resA = await tdbkIdentityService.provisionTdbkIdentity(operatorAContext, {
+        uid: 'usr_candidate_user',
+        email: 'cand@example.com',
+        tenantId: tenantAId,
+        roles: ['STAFF'],
+      });
+      expect(resA.tenantId).toBe(tenantAId);
+
+      // Operator A CANNOT provision for Tenant B -> REJECTED
+      await expect(
+        tdbkIdentityService.provisionTdbkIdentity(operatorAContext, {
+          uid: 'usr_candidate_user_2',
+          email: 'cand2@example.com',
+          tenantId: tenantBId,
+          roles: ['STAFF'],
+        })
+      ).rejects.toThrow(AuthorizationError);
+
+      // Operator A CANNOT list all global identities -> REJECTED
+      await expect(
+        tdbkIdentityService.listIdentities(operatorAContext)
+      ).rejects.toThrow(AuthorizationError);
+    });
+
+    it('6. TDBK_MASTER_ADMIN retains authoritative global access across all tenants', async () => {
+      // Master Admin can list Tenant A
+      const listA = await tdbkIdentityService.listIdentities(masterContext, tenantAId);
+      expect(Array.isArray(listA)).toBe(true);
+
+      // Master Admin can list Tenant B
+      const listB = await tdbkIdentityService.listIdentities(masterContext, tenantBId);
+      expect(Array.isArray(listB)).toBe(true);
+
+      // Master Admin can list ALL global identities
+      const listAll = await tdbkIdentityService.listIdentities(masterContext);
+      expect(Array.isArray(listAll)).toBe(true);
+    });
+  });
 });

@@ -7,7 +7,6 @@
 import { DbkIdentity, DbkLifecycleStatus } from './types';
 import { SecurityContext } from '../kernel/types';
 import { masterAuthority } from '../kernel/master/masterAuthority';
-import { BlueprintValidator } from '../blueprint/validator';
 import { KernelError } from '../kernel/errors/kernelErrors';
 import { auditLogger } from '../kernel/audit/auditLogger';
 import { dbkRegistryRepository } from '../persistence/firestore/repositories/dbkRegistryRepository';
@@ -50,9 +49,7 @@ export class DbkRegistryService {
    * Retrieves a DBK by its unique dbkId from Firestore with tenant isolation enforcement.
    */
   public async getDbk(context: SecurityContext, dbkId: string): Promise<DbkIdentity | undefined> {
-    if (!masterAuthority.isMasterAdmin(context.principal) && !masterAuthority.isOwnerPortfolio(context.principal)) {
-      BlueprintValidator.assertTenantAccess(context, dbkId, 'getDbk');
-    }
+    await masterAuthority.assertTenantAuthority(context, dbkId, 'getDbk');
     const dbk = await dbkRegistryRepository.getDbk(dbkId);
     return dbk || undefined;
   }

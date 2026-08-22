@@ -118,7 +118,6 @@ export class BlueprintValidator {
 
   /**
    * Asserts tenant boundary for Business DNA operations.
-   * Prevents DBK-A from reading or modifying DBK-B Business DNA, while allowing authorized Business Owners to access multiple DBKs in their portfolio.
    */
   public static assertTenantAccess(securityContext: SecurityContext, targetDbkId: string, actionName: string): void {
     if (!securityContext || !securityContext.principal) {
@@ -128,11 +127,11 @@ export class BlueprintValidator {
     const { principal } = securityContext;
 
     // Master Admins or Business Owners possess portfolio/platform-wide administrative authority
-    if (principal.isMaster || (principal.roles || []).includes('BUSINESS_OWNER') || (principal.roles || []).includes('OWNER_OPERATOR') || (principal.roles || []).includes('TDBK_MASTER_ADMIN')) {
+    if (principal.isMaster || (principal.roles || []).includes('BUSINESS_OWNER') || (principal.roles || []).includes('TDBK_MASTER_ADMIN')) {
       return;
     }
 
-    // Tenant Isolation Assertion
+    // Tenant Isolation Assertion: User must belong to targetDbkId
     if (!principal.tenantId || principal.tenantId !== targetDbkId) {
       throw new Error(
         `Tenant Isolation Violation: Principal '${principal.id}' from tenant '${principal.tenantId}' cannot ${actionName} for DBK '${targetDbkId}'`

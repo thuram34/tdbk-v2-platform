@@ -18,7 +18,6 @@ import { auditLogger } from '../audit/auditLogger';
 import { AuthorizationError, KernelError } from '../errors/kernelErrors';
 import { firebaseIdentityManager } from './firebaseIdentityManager';
 import { tdbkIdentityRepository } from '../../persistence/firestore/repositories/tdbkIdentityRepository';
-import { dbkRegistry } from '../../platform/dbkRegistry';
 
 export class TdbkIdentityService {
   private static instance: TdbkIdentityService;
@@ -60,11 +59,28 @@ export class TdbkIdentityService {
       throw new AuthorizationError('Security Violation: Only TDBK MASTER ADMIN can grant master administrative authority', requestId);
     }
 
-    // If assigning a tenant-scoped identity, check that actor has authority over that tenant or is master
-    if (request.tenantId && !masterAuthority.isMasterAdmin(principal)) {
-      if (!masterAuthority.isOwnerPortfolio(principal)) {
-        throw new AuthorizationError(`Security Violation: Actor lacks authority to provision users for tenant '${request.tenantId}'`, requestId);
-      }
+    // Privilege Escalation Guard: Only TDBK_MASTER_ADMIN can provision BUSINESS_OWNER role
+    if (request.roles && request.roles.includes('BUSINESS_OWNER') && !masterAuthority.isMasterAdmin(principal)) {
+      auditLogger.logEvent(
+        'AUTHORIZATION_DENIED',
+        principal.id,
+        'IDENTITY_PROVISION_UNAUTHORIZED_OWNER_ESCALATION',
+        `user:${request.uid}`,
+        'DENIED',
+        {
+          tenantId: request.tenantId || null,
+          requestId,
+          details: { reason: 'Non-master actor attempted to provision BUSINESS_OWNER identity' },
+        }
+      );
+      throw new AuthorizationError('Security Violation: Only TDBK MASTER ADMIN can provision BUSINESS_OWNER identity', requestId);
+    }
+
+    // Tenant Authority Assertion: Verify that the caller has authority over the requested tenant
+    if (request.tenantId) {
+      await masterAuthority.assertTenantAuthority(context, request.tenantId, 'PROVISION_TDBK_IDENTITY', requestId);
+    } else if (!isRequestingMaster && !masterAuthority.isMasterAdmin(principal)) {
+      throw new AuthorizationError('Security Violation: Global identity provisioning requires TDBK MASTER ADMIN authority', requestId);
     }
 
     const now = new Date().toISOString();
@@ -211,17 +227,8 @@ export class TdbkIdentityService {
   ): Promise<TdbkIdentityRecord> {
     const { principal, requestId } = context;
 
-    // Check authority
-    if (!masterAuthority.isMasterAdmin(principal)) {
-      if (!masterAuthority.isOwnerPortfolio(principal)) {
-        throw new AuthorizationError('Security Violation: Action requires Business Owner or Master authority', requestId);
-      }
-      // Check if Business Owner owns this tenant
-      const dbk = await dbkRegistry.getDbk(context, tenantId);
-      if (dbk && dbk.masterOwner !== principal.id && !principal.roles.includes('BUSINESS_OWNER')) {
-        throw new AuthorizationError(`Security Violation: Actor is not authorized for tenant '${tenantId}'`, requestId);
-      }
-    }
+    // Check authoritative tenant authority (Master or portfolio Business Owner)
+    await masterAuthority.assertTenantAuthority(context, tenantId, 'PROMOTE_OWNER_OPERATOR', requestId);
 
     const existing = await tdbkIdentityRepository.getIdentity(targetUid);
     const existingRoles = existing?.roles || [];
@@ -356,17 +363,16 @@ export class TdbkIdentityService {
       throw new AuthorizationError('Security Violation: BUSINESS_OWNER must be granted by TDBK MASTER ADMIN', requestId);
     }
 
-    // Check authority over tenant
-    if (!masterAuthority.isMasterAdmin(principal)) {
-      if (!masterAuthority.isOwnerPortfolio(principal) && !principal.roles.includes('OWNER_OPERATOR')) {
-        throw new AuthorizationError(`Security Violation: Actor lacks authority to assign roles in tenant '${request.tenantId}'`, requestId);
-      }
-      if (principal.tenantId && principal.tenantId !== request.tenantId && !masterAuthority.isOwnerPortfolio(principal)) {
-        throw new AuthorizationError(`Security Violation: Cross-tenant role assignment denied`, requestId);
-      }
-    }
+    // Check authority over target tenant
+    await masterAuthority.assertTenantAuthority(context, request.tenantId, 'ASSIGN_TENANT_ROLE', requestId);
 
     const existing = await tdbkIdentityRepository.getIdentity(request.targetUid);
+
+    // Cross-tenant user protection: if target is assigned to a different tenant, check caller's authority over that tenant as well
+    if (existing?.tenantId && existing.tenantId !== request.tenantId && !masterAuthority.isMasterAdmin(principal)) {
+      await masterAuthority.assertTenantAuthority(context, existing.tenantId, 'REASSIGN_TENANT_USER', requestId);
+    }
+
     const existingRoles = existing?.roles || [];
     const updatedRoles = Array.from(new Set([...existingRoles, request.role]));
 
@@ -445,8 +451,12 @@ export class TdbkIdentityService {
     // If target has master admin, only Master Admin can revoke it
     if (existing.isMaster || existing.roles.includes('TDBK_MASTER_ADMIN')) {
       masterAuthority.assertMasterAuthority(principal, 'REVOKE_MASTER_ADMIN', requestId);
-    } else if (!masterAuthority.isMasterAdmin(principal) && !masterAuthority.isOwnerPortfolio(principal)) {
-      throw new AuthorizationError('Security Violation: Unauthorized role revocation attempt', requestId);
+    } else if (existing.roles.includes('BUSINESS_OWNER')) {
+      masterAuthority.assertMasterAuthority(principal, 'REVOKE_BUSINESS_OWNER', requestId);
+    } else if (existing.tenantId) {
+      await masterAuthority.assertTenantAuthority(context, existing.tenantId, 'REVOKE_TENANT_ROLE', requestId);
+    } else if (!masterAuthority.isMasterAdmin(principal)) {
+      throw new AuthorizationError('Security Violation: Unauthorized role revocation attempt on global identity', requestId);
     }
 
     let updatedRoles = existing.roles;
@@ -505,12 +515,29 @@ export class TdbkIdentityService {
   public async getIdentity(context: SecurityContext, uid: string): Promise<TdbkIdentityRecord | null> {
     const { principal, requestId } = context;
 
-    // Users can read their own identity, or Master/Owner can read any identity
-    if (principal.id !== uid && !masterAuthority.isMasterAdmin(principal) && !masterAuthority.isOwnerPortfolio(principal)) {
-      throw new AuthorizationError('Security Violation: Insufficient permissions to view identity profile', requestId);
+    // Users can read their own identity without restriction
+    if (principal.id === uid) {
+      return await tdbkIdentityRepository.getIdentity(uid);
     }
 
-    return await tdbkIdentityRepository.getIdentity(uid);
+    // TDBK_MASTER_ADMIN can read any identity
+    if (masterAuthority.isMasterAdmin(principal)) {
+      return await tdbkIdentityRepository.getIdentity(uid);
+    }
+
+    const target = await tdbkIdentityRepository.getIdentity(uid);
+    if (!target) {
+      return null;
+    }
+
+    // If target has a tenant, verify tenant authority
+    if (target.tenantId) {
+      await masterAuthority.assertTenantAuthority(context, target.tenantId, 'GET_IDENTITY', requestId);
+      return target;
+    }
+
+    // If target has no tenant and caller is not Master Admin, access is denied
+    throw new AuthorizationError('Security Violation: Insufficient permissions to view identity profile', requestId);
   }
 
   /**
@@ -519,17 +546,14 @@ export class TdbkIdentityService {
   public async listIdentities(context: SecurityContext, tenantId?: string): Promise<TdbkIdentityRecord[]> {
     const { principal, requestId } = context;
 
-    if (!masterAuthority.isMasterAdmin(principal)) {
-      if (tenantId) {
-        if (!masterAuthority.isOwnerPortfolio(principal) && principal.tenantId !== tenantId) {
-          throw new AuthorizationError(`Security Violation: Unauthorized tenant identity access for '${tenantId}'`, requestId);
-        }
-      } else {
-        throw new AuthorizationError('Security Violation: Global identity listing requires TDBK MASTER ADMIN authority', requestId);
-      }
+    if (tenantId) {
+      await masterAuthority.assertTenantAuthority(context, tenantId, 'LIST_IDENTITIES', requestId);
+      return await tdbkIdentityRepository.listIdentities(tenantId);
     }
 
-    return await tdbkIdentityRepository.listIdentities(tenantId);
+    // Global identity listing without tenantId filter requires Master Admin
+    masterAuthority.assertMasterAuthority(principal, 'LIST_ALL_IDENTITIES', requestId);
+    return await tdbkIdentityRepository.listIdentities();
   }
 }
 

@@ -38,7 +38,7 @@ export class DbkCapabilityManagerService {
    * Asserts tenant isolation access for target DBK ID using Phase 0 validator.
    */
   private assertTenant(context: SecurityContext, targetDbkId: string, action: string): void {
-    if (!masterAuthority.isMasterAdmin(context.principal) && !masterAuthority.isOwnerPortfolio(context.principal)) {
+    if (!masterAuthority.isMasterAdmin(context.principal)) {
       BlueprintValidator.assertTenantAccess(context, targetDbkId, action);
     }
   }

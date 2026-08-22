@@ -5,7 +5,6 @@ import { dbkRegistry } from '../platform/dbkRegistry';
 import { dynamicNavigationEngine } from './navigation/navigationEngine';
 import { dashboardComposer } from './dashboard/dashboardComposer';
 import { DbkExperienceResolved, ExperienceCommandRequest, ExperienceCommandResponse, ExperienceDiscoveryItem } from './types';
-import { BlueprintValidator } from '../blueprint/validator';
 import { masterAuthority } from '../kernel/master/masterAuthority';
 import { auditLogger } from '../kernel/audit/auditLogger';
 import { entityEngine } from './entity/entityEngine';
@@ -27,9 +26,7 @@ export class ExperienceResolver {
 
   public async resolveExperience(context: SecurityContext, dbkId: string, requestedBranchId?: string): Promise<DbkExperienceResolved> {
     // 1. Assert tenant access
-    if (!masterAuthority.isMasterAdmin(context.principal) && !masterAuthority.isOwnerPortfolio(context.principal)) {
-      BlueprintValidator.assertTenantAccess(context, dbkId, 'resolveExperience');
-    }
+    await masterAuthority.assertTenantAuthority(context, dbkId, 'resolveExperience');
 
     // 2. Compile workspace state
     const workspace = await workspaceManager.compileWorkspaceState(context, dbkId);
@@ -172,9 +169,7 @@ export class ExperienceResolver {
   public async dispatchCommand(context: SecurityContext, req: ExperienceCommandRequest): Promise<ExperienceCommandResponse> {
     const timestamp = new Date().toISOString();
     try {
-      if (!masterAuthority.isMasterAdmin(context.principal) && !masterAuthority.isOwnerPortfolio(context.principal)) {
-        BlueprintValidator.assertTenantAccess(context, req.targetDbkId, 'dispatchCommand');
-      }
+      await masterAuthority.assertTenantAuthority(context, req.targetDbkId, 'dispatchCommand');
 
       let updatedExperience: DbkExperienceResolved | undefined;
 

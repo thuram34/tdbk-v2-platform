@@ -7,7 +7,6 @@
 import { DbkWorkspaceState, DbkIdentity } from '../types';
 import { SecurityContext } from '../../kernel/types';
 import { masterAuthority } from '../../kernel/master/masterAuthority';
-import { BlueprintValidator } from '../../blueprint/validator';
 import { dbkRegistry } from '../dbkRegistry';
 import { branchManager } from '../branch/branchManager';
 import { blueprintRegistry } from '../../blueprint/registry';
@@ -31,9 +30,7 @@ export class WorkspaceManagerService {
    * Compiles the authoritative workspace state for a given DBK.
    */
   public async compileWorkspaceState(context: SecurityContext, dbkId: string): Promise<DbkWorkspaceState> {
-    if (!masterAuthority.isMasterAdmin(context.principal) && !masterAuthority.isOwnerPortfolio(context.principal)) {
-      BlueprintValidator.assertTenantAccess(context, dbkId, 'compileWorkspaceState');
-    }
+    await masterAuthority.assertTenantAuthority(context, dbkId, 'compileWorkspaceState');
 
     const dbk = await dbkRegistry.getDbk(context, dbkId);
     if (!dbk) {
