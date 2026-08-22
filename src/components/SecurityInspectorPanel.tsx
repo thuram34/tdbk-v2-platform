@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Shield, Lock, AlertOctagon, CheckCircle2, User, Key, Eye, ArrowRight } from 'lucide-react';
-import { TokenVerifier } from '../kernel/identity/tokenVerifier';
+import { mintTestToken } from '../kernel/identity/testToken';
 
 interface PersonaOption {
   id: string;
@@ -25,7 +25,7 @@ export const SecurityInspectorPanel: React.FC = () => {
       branchId: null,
       roles: ['TDBK_MASTER_ADMIN'],
       permissions: ['*'],
-      token: TokenVerifier.mintTestToken({
+      token: mintTestToken({
         uid: 'usr_master_01',
         email: 'master@tdbk.co.ke',
         isMaster: true,
@@ -44,7 +44,7 @@ export const SecurityInspectorPanel: React.FC = () => {
       branchId: 'branch_hq',
       roles: ['TENANT_ADMIN'],
       permissions: ['school:read', 'school:write', 'finance:read', 'finance:write'],
-      token: TokenVerifier.mintTestToken({
+      token: mintTestToken({
         uid: 'usr_schoola_admin',
         email: 'bursar@schoolA.ac.ke',
         isMaster: false,
@@ -63,7 +63,7 @@ export const SecurityInspectorPanel: React.FC = () => {
       branchId: 'branch_hq',
       roles: ['STAFF'],
       permissions: ['school:read'],
-      token: TokenVerifier.mintTestToken({
+      token: mintTestToken({
         uid: 'usr_schoola_staff',
         email: 'teacher@schoolA.ac.ke',
         isMaster: false,
@@ -82,7 +82,7 @@ export const SecurityInspectorPanel: React.FC = () => {
       branchId: 'branch_secondary',
       roles: ['STAFF'],
       permissions: ['school:read'],
-      token: TokenVerifier.mintTestToken({
+      token: mintTestToken({
         uid: 'usr_schoola_branch2',
         email: 'teacher2@schoolA.ac.ke',
         isMaster: false,
@@ -101,7 +101,7 @@ export const SecurityInspectorPanel: React.FC = () => {
       branchId: 'branch_main',
       roles: ['TENANT_ADMIN'],
       permissions: ['hardware:read', 'hardware:write'],
-      token: TokenVerifier.mintTestToken({
+      token: mintTestToken({
         uid: 'usr_hardwareb_admin',
         email: 'admin@hardwareB.co.ke',
         isMaster: false,

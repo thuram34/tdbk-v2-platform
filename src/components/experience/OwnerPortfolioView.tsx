@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { TokenVerifier } from '../../kernel/identity/tokenVerifier';
+import { mintTestToken } from '../../kernel/identity/testToken';
 import {
   Building2,
   Plus,
@@ -74,7 +74,7 @@ export const OwnerPortfolioView: React.FC<OwnerPortfolioViewProps> = ({
     setError(null);
 
     try {
-      const masterToken = TokenVerifier.mintTestToken({
+      const masterToken = mintTestToken({
         uid: 'usr_master_admin',
         tenantId: 'tdbk_master',
         roles: ['TDBK_MASTER_ADMIN'],

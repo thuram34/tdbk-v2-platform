@@ -1,6 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { Play, CheckCircle, XCircle, ShieldCheck, RefreshCw, AlertTriangle, Clock, Layers, Sparkles } from 'lucide-react';
-import { Phase5TestSummary, TestCaseResult } from '../../experience/tests/phase5TestRunner';
+interface TestCaseResult {
+  id: string;
+  name: string;
+  status: 'PASS' | 'FAIL';
+  durationMs: number;
+  error?: string;
+  details?: Record<string, unknown>;
+}
+
+interface Phase5TestSummary {
+  totalTests: number;
+  passed: number;
+  failed: number;
+  durationMs: number;
+  results: TestCaseResult[];
+}
 
 export const Phase5TestSuitePanel: React.FC = () => {
   const [testSummary, setTestSummary] = useState<Phase5TestSummary | null>(null);
@@ -15,14 +30,10 @@ export const Phase5TestSuitePanel: React.FC = () => {
         const data = await response.json();
         setTestSummary(data.summary);
       } else {
-        const { runPhase5TestSuite } = await import('../../experience/tests/phase5TestRunner');
-        const summary = await runPhase5TestSuite();
-        setTestSummary(summary);
+        throw new Error(`Phase 5 test API returned HTTP ${response.status}`);
       }
-    } catch {
-      const { runPhase5TestSuite } = await import('../../experience/tests/phase5TestRunner');
-      const summary = await runPhase5TestSuite();
-      setTestSummary(summary);
+    } catch (error) {
+      console.error('Phase 5 test suite failed:', error);
     } finally {
       setIsRunning(false);
     }

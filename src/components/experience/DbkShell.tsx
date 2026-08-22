@@ -3,7 +3,7 @@ import {
   DbkExperienceResolved,
   ExperienceNavItem,
 } from '../../experience/types';
-import { TokenVerifier } from '../../kernel/identity/tokenVerifier';
+import { mintTestToken } from '../../kernel/identity/testToken';
 import { DynamicIcon } from './IconHelper';
 import { DashboardView } from './DashboardView';
 import { EntityListView } from './EntityListView';
@@ -90,7 +90,7 @@ export const DbkShell: React.FC<DbkShellProps> = ({
 
     try {
       const activeBr = branchId || 'branch_hq';
-      const testToken = TokenVerifier.mintTestToken({
+      const testToken = mintTestToken({
         uid: `user_${role.toLowerCase()}_${dbkId}`,
         tenantId: dbkId,
         branchId: activeBr,
@@ -139,7 +139,7 @@ export const DbkShell: React.FC<DbkShellProps> = ({
 
     try {
       const activeBr = selectedBranchId || 'branch_hq';
-      const testToken = TokenVerifier.mintTestToken({
+      const testToken = mintTestToken({
         uid: `user_${selectedRole.toLowerCase()}_${selectedDbkId}`,
         tenantId: selectedDbkId,
         branchId: activeBr,

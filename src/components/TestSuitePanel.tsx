@@ -1,6 +1,26 @@
 import React, { useState, useEffect } from 'react';
 import { Play, CheckCircle, XCircle, ShieldCheck, RefreshCw, AlertTriangle, Clock, Key } from 'lucide-react';
-import { Phase0TestSuiteSummary, TestCaseResult } from '../kernel/tests/phase0TestRunner';
+interface TestCaseResult {
+  testId: string;
+  category: string;
+  name: string;
+  status: 'PASSED' | 'FAILED';
+  expectedResult: string;
+  actualResult: string;
+  traceableAuditEventId?: string;
+  durationMs: number;
+  error?: string;
+}
+
+interface Phase0TestSuiteSummary {
+  overallStatus: 'PASS' | 'FAIL';
+  totalTests: number;
+  passedCount: number;
+  failedCount: number;
+  executedAt: string;
+  results: TestCaseResult[];
+  durationMs?: number;
+}
 
 export const TestSuitePanel: React.FC = () => {
   const [testSummary, setTestSummary] = useState<Phase0TestSuiteSummary | null>(null);
@@ -15,15 +35,10 @@ export const TestSuitePanel: React.FC = () => {
         const data = await response.json();
         setTestSummary(data.summary);
       } else {
-        // Client fallback if needed
-        const { phase0TestRunner } = await import('../kernel/tests/phase0TestRunner');
-        const summary = await phase0TestRunner.runAllTests();
-        setTestSummary(summary);
+        throw new Error(`Phase 0 test API returned HTTP ${response.status}`);
       }
-    } catch {
-      const { phase0TestRunner } = await import('../kernel/tests/phase0TestRunner');
-      const summary = await phase0TestRunner.runAllTests();
-      setTestSummary(summary);
+    } catch (error) {
+      console.error('Phase 0 test suite failed:', error);
     } finally {
       setIsRunning(false);
     }

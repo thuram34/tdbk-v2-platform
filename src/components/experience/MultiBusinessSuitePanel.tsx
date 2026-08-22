@@ -1,12 +1,37 @@
 import React, { useState } from 'react';
-import {
-  runMultiBusinessTestSuite,
-  MultiBusinessTestSummary,
-} from '../../experience/tests/multiBusinessTestRunner';
-import {
-  runDbkProvisioningTestSuite,
-  DbkProvisioningTestSummary,
-} from '../../platform/tests/dbkProvisioningTestRunner';
+type MultiBusinessTestSummary = {
+  total: number;
+  passed: number;
+  failed: number;
+  timestamp: string;
+  results: Array<{
+    id: string;
+    name: string;
+    passed: boolean;
+    invariant?: string;
+    details?: string;
+    error?: string;
+    durationMs?: number;
+  }>;
+  durationMs?: number;
+};
+
+type DbkProvisioningTestSummary = {
+  total: number;
+  passed: number;
+  failed: number;
+  timestamp: string;
+  results: Array<{
+    id: string;
+    name: string;
+    passed: boolean;
+    invariant?: string;
+    details?: string;
+    error?: string;
+    durationMs?: number;
+  }>;
+  durationMs?: number;
+};
 import {
   ShieldCheck,
   CheckCircle2,
@@ -32,14 +57,28 @@ export const MultiBusinessSuitePanel: React.FC<MultiBusinessSuitePanelProps> = (
 
   const handleRunTests = async () => {
     setIsRunning(true);
+
     try {
-      if (activeTab === 'multibusiness') {
-        const res = await runMultiBusinessTestSuite();
-        setMbSummary(res);
+      if (activeTab === 'provisioning') {
+        const response = await fetch('/api/test/dbk-provisioning', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error(
+            `DBK provisioning test request failed: ${response.status}`
+          );
+        }
+
+        const data = await response.json();
+        setProvSummary(data.summary ?? data);
       } else {
-        // Call backend or direct runner for provisioning tests
-        const res = await runDbkProvisioningTestSuite();
-        setProvSummary(res);
+        throw new Error(
+          'Multi-business test suite has no server API endpoint yet.'
+        );
       }
     } catch (err) {
       console.error('Failed to run test suite:', err);

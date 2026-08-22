@@ -1,6 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { Play, CheckCircle, XCircle, ShieldCheck, RefreshCw, AlertTriangle, Clock, Layers, Sparkles, FileText, Bot, ShieldAlert } from 'lucide-react';
-import { Phase6TestSummary, TestCaseResult } from '../../document_ai/tests/phase6TestRunner';
+interface TestCaseResult {
+  id: string;
+  name: string;
+  status: 'PASS' | 'FAIL';
+  durationMs: number;
+  error?: string;
+  details?: Record<string, unknown>;
+}
+
+interface Phase6TestSummary {
+  phase: string;
+  totalTests: number;
+  passed: number;
+  failed: number;
+  durationMs: number;
+  results: TestCaseResult[];
+}
 
 export const Phase6TestSuitePanel: React.FC = () => {
   const [testSummary, setTestSummary] = useState<Phase6TestSummary | null>(null);
@@ -11,18 +27,27 @@ export const Phase6TestSuitePanel: React.FC = () => {
     setIsRunning(true);
     try {
       const response = await fetch('/api/test/phase6', { method: 'POST' });
-      if (response.ok) {
-        const data = await response.json();
-        setTestSummary(data.summary);
-      } else {
-        const { runPhase6TestSuite } = await import('../../document_ai/tests/phase6TestRunner');
-        const summary = await runPhase6TestSuite();
-        setTestSummary(summary);
+      if (!response.ok) {
+        throw new Error(`Phase 6 test API returned HTTP ${response.status}`);
       }
-    } catch {
-      const { runPhase6TestSuite } = await import('../../document_ai/tests/phase6TestRunner');
-      const summary = await runPhase6TestSuite();
-      setTestSummary(summary);
+
+      const data = await response.json();
+      setTestSummary(data.summary);
+    } catch (err) {
+      setTestSummary({
+        phase: 'Phase 6',
+        totalTests: 0,
+        passed: 0,
+        failed: 1,
+        durationMs: 0,
+        results: [{
+          id: 'P6_API_ERROR',
+          name: 'Phase 6 server test endpoint',
+          status: 'FAIL',
+          durationMs: 0,
+          error: err instanceof Error ? err.message : String(err),
+        }],
+      });
     } finally {
       setIsRunning(false);
     }

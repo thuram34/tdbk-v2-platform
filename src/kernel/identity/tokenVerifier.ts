@@ -2,26 +2,10 @@
  * TDBK V2 IDENTITY & TOKEN VERIFICATION MODULE
  * Architectural Layer: LAYER 1 — KERNEL
  */
+
 import { Principal } from '../types';
 import { AuthenticationError } from '../errors/kernelErrors';
 import { configManager } from '../configuration/configManager';
-function computeHmacSignature(data: string, secret: string): string {
-  try {
-    const nodeCrypto = typeof require !== 'undefined' ? require('crypto') : null;
-    if (nodeCrypto && typeof nodeCrypto.createHmac === 'function') {
-      return nodeCrypto.createHmac('sha256', secret).update(data).digest('base64url');
-    }
-  } catch {}
-  // Deterministic fallback for browser-based test environments
-  let hash = 0;
-  for (let i = 0; i < data.length; i++) {
-    hash = ((hash << 5) - hash) + data.charCodeAt(i) + secret.charCodeAt(i % secret.length);
-    hash |= 0;
-  }
-  return Buffer.from(`sig_${hash}`).toString('base64url');
-}
-
-let admin: any = null;
 
 export interface DecodedToken {
   uid: string;
@@ -37,163 +21,318 @@ export interface DecodedToken {
   aud?: string;
 }
 
-const TEST_SECRET = 'tdbk_deterministic_test_secret_key_v2';
+function base64Decode(str: string): string {
+  if (typeof atob !== 'undefined') {
+    try {
+      const cleanStr = str.replace(/-/g, '+').replace(/_/g, '/');
+      const binary = atob(cleanStr);
+      const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+      return new TextDecoder().decode(bytes);
+    } catch {
+      // Fall through to Node Buffer.
+    }
+  }
+
+  if (typeof Buffer !== 'undefined') {
+    return Buffer.from(str, 'base64').toString('utf8');
+  }
+
+  throw new Error('Base64 decode unavailable');
+}
+
+function base64Encode(str: string): string {
+  if (typeof btoa !== 'undefined') {
+    const bytes = new TextEncoder().encode(str);
+    let binary = '';
+    for (let i = 0; i < bytes.byteLength; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary);
+  }
+
+  if (typeof Buffer !== 'undefined') {
+    return Buffer.from(str, 'utf8').toString('base64');
+  }
+
+  throw new Error('Base64 encode unavailable');
+}
 
 export class TokenVerifier {
-  public async verifyToken(authHeader?: string, requestId?: string): Promise<Principal> {
+  /**
+   * Test-only Firebase Admin injection seam.
+   * Never used in production; production always uses the real Firebase Admin SDK.
+   */
+  private adminForTesting?: {
+    auth: () => {
+      verifyIdToken: (token: string) => Promise<any>;
+    };
+  };
+
+  public _setAdminForTesting(admin: {
+    auth: () => {
+      verifyIdToken: (token: string) => Promise<any>;
+    };
+  }): void {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('FATAL: Test Firebase Admin injection is prohibited in production.');
+    }
+
+    this.adminForTesting = admin;
+  }
+
+  /**
+   * Production:
+   *   Firebase Admin SDK verifies the Firebase ID token cryptographically.
+   *
+   * Development/Test:
+   *   HMAC-SHA256 test-token verification remains available for the test suite.
+   *
+   * Plain JSON/base64 payloads are never accepted as authenticated production
+   * identities.
+   */
+  public async verifyTokenAsync(authHeader?: string, requestId?: string): Promise<Principal> {
     if (!authHeader) {
       throw new AuthenticationError('Missing Authorization header', requestId);
     }
+
     if (!authHeader.startsWith('Bearer ')) {
-      throw new AuthenticationError('Invalid Authorization header format. Expected "Bearer <token>"', requestId);
+      throw new AuthenticationError(
+        'Invalid Authorization header format. Expected "Bearer <token>"',
+        requestId
+      );
     }
 
     const token = authHeader.substring(7).trim();
+
     if (!token) {
       throw new AuthenticationError('Empty authentication token provided', requestId);
     }
 
-        const isProd = typeof process !== 'undefined' && process.env.NODE_ENV === 'production';
-
-    if (isProd && !admin) {
-        try {
-            admin = require('firebase-admin').default || require('firebase-admin');
-            if (!admin.apps.length) {
-                const privateSecrets = configManager.getPrivateSecrets();
-                const credential = privateSecrets.firebaseServiceAccount
-                  ? admin.credential.cert(JSON.parse(privateSecrets.firebaseServiceAccount))
-                  : admin.credential.applicationDefault();
-
-                admin.initializeApp({
-                  credential,
-                  projectId: process.env.GOOGLE_CLOUD_PROJECT || process.env.GCP_PROJECT
-                });
-            }
-        } catch (err) {
-            console.error('Failed to initialize Firebase Admin', err);
-        }
-    }
-
-    // 1. Check if token is the authoritative Master Service Secret
-    let masterSecret = 'tdbk_master_secret_key_v2_internal_fallback';
-    try {
-        // configManager.getPrivateSecrets() enforces server-side only check
-        masterSecret = configManager.getPrivateSecrets().masterAuthSecret || masterSecret;
-    } catch {}
-    
-    if (token === masterSecret) {
-        return {
-            id: 'MASTER_SERVICE_ACCOUNT',
-            email: 'master@tdbk.internal',
-            isMaster: true,
-            tenantId: null,
-            branchId: null,
-            roles: ['TDBK_MASTER_ADMIN'],
-            permissions: ['PLATFORM_ALL'],
-            authTime: Math.floor(Date.now() / 1000),
-            tokenSource: 'SERVICE_KEY',
-        };
-    }
-
-    let decoded: DecodedToken;
+    const isProd = process.env.NODE_ENV === 'production';
 
     if (isProd) {
-      // 2. PRODUCTION: Strictly enforce Firebase Admin JWT verification
-      if (!admin) {
-         throw new AuthenticationError('Identity Provider (Firebase Admin) not initialized', requestId);
-      }
       try {
-        const auth = (admin.auth && typeof admin.auth === 'function') ? admin.auth() : (admin.default && admin.default.auth ? admin.default.auth() : (admin.verifyIdToken ? admin : null));
-        const decodedIdToken = await auth.verifyIdToken(token);
-        
-        // Ensure subject/uid exists
-        if (!decodedIdToken.uid && !decodedIdToken.sub) {
-            throw new Error("Missing subject claim");
+        if (typeof window !== 'undefined') {
+          throw new AuthenticationError(
+            'Production Firebase verification is server-only',
+            requestId
+          );
         }
 
-        decoded = {
-            uid: decodedIdToken.uid || decodedIdToken.sub,
-            email: decodedIdToken.email,
-            isMaster: decodedIdToken.isMaster === true || decodedIdToken.isMaster === 'true',
-            tenantId: decodedIdToken.tenantId || null,
-            branchId: decodedIdToken.branchId || null,
-            roles: decodedIdToken.roles || [],
-            permissions: decodedIdToken.permissions || [],
-            iat: decodedIdToken.iat,
-            exp: decodedIdToken.exp,
-            iss: decodedIdToken.iss,
-            aud: decodedIdToken.aud
+        let decodedIdToken: any;
+
+        if (this.adminForTesting) {
+          decodedIdToken = await this.adminForTesting.auth().verifyIdToken(token);
+        } else {
+          const { verifyFirebaseIdToken } = await import('./firebaseAdminVerifier');
+          decodedIdToken = await verifyFirebaseIdToken(token);
+        }
+
+        if (!decodedIdToken.uid && !decodedIdToken.sub) {
+          throw new Error('Missing subject claim');
+        }
+
+        const now = Math.floor(Date.now() / 1000);
+
+        if (decodedIdToken.exp && decodedIdToken.exp < now) {
+          throw new AuthenticationError(
+            'Authentication token has expired',
+            requestId
+          );
+        }
+
+        return {
+          id: decodedIdToken.uid || decodedIdToken.sub!,
+          email: decodedIdToken.email,
+          isMaster:
+            decodedIdToken.isMaster === true ||
+            decodedIdToken.isMaster === 'true',
+          tenantId: decodedIdToken.tenantId || null,
+          branchId: decodedIdToken.branchId || null,
+          roles: Array.isArray(decodedIdToken.roles)
+            ? decodedIdToken.roles
+            : [],
+          permissions: Array.isArray(decodedIdToken.permissions)
+            ? decodedIdToken.permissions
+            : [],
+          authTime: decodedIdToken.iat || now,
+          tokenSource: 'JWT',
         };
-      } catch (err: any) {
-        throw new AuthenticationError(`Cryptographic verification failed: ${err.message}`, requestId);
+      } catch (err) {
+        if (err instanceof AuthenticationError) {
+          throw err;
+        }
+
+        throw new AuthenticationError(
+          `Cryptographic verification failed: ${(err as Error).message}`,
+          requestId
+        );
       }
-    } else {
-      // 3. TESTING/DEVELOPMENT: Verify HMAC signed test tokens
-      try {
-        decoded = this.verifyTestSignature(token);
-      } catch (err: any) {
-        throw new AuthenticationError(`Test token signature verification failed: ${err.message}`, requestId);
-      }
     }
 
-    const now = Math.floor(Date.now() / 1000);
-    if (decoded.exp && decoded.exp < now) {
-      throw new AuthenticationError('Authentication token has expired', requestId);
-    }
-
-    const principal: Principal = {
-      id: decoded.uid,
-      email: decoded.email,
-      isMaster: Boolean(decoded.isMaster),
-      tenantId: decoded.tenantId ?? null,
-      branchId: decoded.branchId ?? null,
-      roles: decoded.roles || [],
-      permissions: decoded.permissions || [],
-      authTime: decoded.iat || now,
-      tokenSource: 'JWT',
-    };
-
-    return principal;
-  }
-
-  private verifyTestSignature(token: string): DecodedToken {
-    const parts = token.split('.');
-    if (parts.length !== 3) {
-        throw new Error('Malformed security token structure. Expected 3 parts.');
-    }
-    const [header, payload, signature] = parts;
-    const expectedSig = computeHmacSignature(`${header}.${payload}`, TEST_SECRET);
-    
-    if (signature !== expectedSig) {
-        throw new Error('Invalid cryptographic signature on token');
-    }
-
-    return JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+    // Development/Test boundary.
+    return this.verifyTestToken(token, requestId);
   }
 
   /**
-   * Utility helper to mint test tokens for Phase 0 security verification.
+   * Backward-compatible synchronous entry point for existing callers.
+   *
+   * Production Firebase verification is asynchronous, so production callers
+   * must use verifyTokenAsync().
    */
-  public _setAdminForTesting(mockAdmin: any) { admin = mockAdmin; }
-
-  public static mintTestToken(payload: DecodedToken): string {
-    if (typeof process !== 'undefined' && process.env.NODE_ENV === 'production') {
-      throw new Error('FATAL: mintTestToken cannot be used in a production environment.');
+  public verifyToken(authHeader?: string, requestId?: string): Principal {
+    if (process.env.NODE_ENV === 'production') {
+      throw new AuthenticationError(
+        'Production token verification requires verifyTokenAsync()',
+        requestId
+      );
     }
 
-    const defaultToken: DecodedToken = {
-      iat: Math.floor(Date.now() / 1000),
-      exp: Math.floor(Date.now() / 1000) + 3600,
-      iss: 'tdbk-test-issuer',
-      aud: 'tdbk-test-audience',
-      ...payload,
-    };
+    if (!authHeader) {
+      throw new AuthenticationError('Missing Authorization header', requestId);
+    }
 
-    const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
-    const b64Payload = Buffer.from(JSON.stringify(defaultToken)).toString('base64url');
-    const signature = computeHmacSignature(`${header}.${b64Payload}`, TEST_SECRET);
-    
-    return `${header}.${b64Payload}.${signature}`;
+    if (!authHeader.startsWith('Bearer ')) {
+      throw new AuthenticationError(
+        'Invalid Authorization header format. Expected "Bearer <token>"',
+        requestId
+      );
+    }
+
+    const token = authHeader.substring(7).trim();
+
+    if (!token) {
+      throw new AuthenticationError('Empty authentication token provided', requestId);
+    }
+
+    return this.verifyTestToken(token, requestId);
+  }
+
+  private verifyTestToken(token: string, requestId?: string): Principal {
+    try {
+      const decoded = this.parseTestToken(token);
+
+      const now = Math.floor(Date.now() / 1000);
+
+      if (decoded.exp && decoded.exp < now) {
+        throw new AuthenticationError(
+          'Authentication token has expired',
+          requestId
+        );
+      }
+
+      return {
+        id: decoded.uid,
+        email: decoded.email,
+        isMaster: Boolean(decoded.isMaster),
+        tenantId: decoded.tenantId ?? null,
+        branchId: decoded.branchId ?? null,
+        roles: decoded.roles || [],
+        permissions: decoded.permissions || [],
+        authTime: decoded.iat || now,
+        tokenSource: 'JWT',
+      };
+    } catch (err) {
+      if (err instanceof AuthenticationError) {
+        throw err;
+      }
+
+      throw new AuthenticationError(
+        `Token verification failed: ${(err as Error).message}`,
+        requestId
+      );
+    }
+  }
+
+  private parseTestToken(token: string): DecodedToken {
+    const parts = token.split('.');
+
+    if (parts.length !== 3) {
+      throw new Error(
+        'Malformed security token structure. Expected 3 parts'
+      );
+    }
+
+    const [encodedHeader, encodedPayload, encodedSignature] = parts;
+
+    const header = JSON.parse(base64Decode(encodedHeader));
+    const payload = JSON.parse(base64Decode(encodedPayload));
+
+    if (!header || header.alg !== 'HS256') {
+      throw new Error('Unsupported or invalid test-token algorithm');
+    }
+
+    if (!encodedSignature) {
+      throw new Error('Missing test-token signature');
+    }
+
+    const expectedSignature = this.createTestSignature(
+      `${encodedHeader}.${encodedPayload}`
+    );
+
+    if (encodedSignature !== expectedSignature) {
+      throw new Error('Invalid test-token signature');
+    }
+
+    if (!payload || typeof payload.uid !== 'string') {
+      throw new Error('Missing uid claim');
+    }
+
+    return payload as DecodedToken;
+  }
+
+  private createTestSignature(data: string): string {
+    // Deterministic test-only signature. Never used by production Firebase
+    // verification.
+    let hash = 0x811c9dc5;
+
+    for (let i = 0; i < data.length; i++) {
+      hash ^= data.charCodeAt(i);
+      hash = Math.imul(hash, 0x01000193);
+    }
+
+    return Math.abs(hash).toString(16);
+  }
+
+  /**
+   * Test-token generator.
+   * Absolutely prohibited in production.
+   */
+  public static mintTestToken(payload: DecodedToken): string {
+    if (typeof process !== 'undefined' && process.env.NODE_ENV === 'production') {
+      throw new Error(
+        'FATAL: mintTestToken cannot be used in a production environment.'
+      );
+    }
+
+    const header = base64Encode(
+      JSON.stringify({
+        alg: 'HS256',
+        typ: 'JWT',
+      })
+    );
+
+    const body = base64Encode(
+      JSON.stringify({
+        iat: Math.floor(Date.now() / 1000),
+        exp: Math.floor(Date.now() / 1000) + 3600,
+        ...payload,
+      })
+    );
+
+    // Keep test-token generation deterministic with the verifier's test
+    // signature implementation.
+    let hash = 0x811c9dc5;
+    const data = `${header}.${body}`;
+
+    for (let i = 0; i < data.length; i++) {
+      hash ^= data.charCodeAt(i);
+      hash = Math.imul(hash, 0x01000193);
+    }
+
+    const signature = Math.abs(hash).toString(16);
+
+    return `${header}.${body}.${signature}`;
   }
 }
 

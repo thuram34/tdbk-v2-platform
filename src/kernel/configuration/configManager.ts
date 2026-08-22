@@ -37,18 +37,17 @@ class ConfigurationManager {
     if (typeof window !== 'undefined') {
       throw new Error('SECURITY VIOLATION: Private secrets cannot be accessed in browser context!');
     }
-    
-    if (!process.env.MASTER_AUTH_SECRET && process.env.NODE_ENV === 'production') {
-      throw new Error('FATAL: MASTER_AUTH_SECRET is required in production environment.');
-    }
-    if (!process.env.MPESA_PASSKEY && process.env.NODE_ENV === 'production') {
-      throw new Error('FATAL: MPESA_PASSKEY is required in production environment.');
+
+    const masterAuthSecret = process.env.MASTER_AUTH_SECRET;
+
+    if (process.env.NODE_ENV === 'production' && !masterAuthSecret) {
+      throw new Error('FATAL: MASTER_AUTH_SECRET is required in production.');
     }
 
     return {
       geminiApiKey: process.env.GEMINI_API_KEY,
       firebaseServiceAccount: process.env.FIREBASE_SERVICE_ACCOUNT,
-      masterAuthSecret: process.env.MASTER_AUTH_SECRET || 'tdbk_master_secret_key_v2_internal_fallback',
+      masterAuthSecret,
       mpesaPasskey: process.env.MPESA_PASSKEY,
     };
   }
