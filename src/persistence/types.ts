@@ -13,6 +13,7 @@ import { ExperienceEntityRecord } from '../experience/types';
 import { DocumentMetadata, AiProposedAction, AiConversationMessage } from '../document_ai/types';
 import { WorkflowInstance } from '../orchestration/workflow/types';
 import { AuditEvent } from '../kernel/types';
+import { TdbkIdentityRecord } from '../kernel/identity/types';
 
 export interface FirestoreDocumentMetadata {
   _createdAt: string;
@@ -165,4 +166,12 @@ export interface IOutboxRepository {
 export interface IAuditRepository {
   appendAudit(tenantId: string | null, auditId: string, event: AuditEvent): Promise<void>;
   listAudits(tenantId?: string | null, limit?: number): Promise<AuditEvent[]>;
+}
+
+export interface ITdbkIdentityRepository {
+  saveIdentity(uid: string, identity: TdbkIdentityRecord): Promise<void>;
+  getIdentity(uid: string): Promise<TdbkIdentityRecord | null>;
+  listIdentities(tenantId?: string): Promise<TdbkIdentityRecord[]>;
+  hasIdentity(uid: string): Promise<boolean>;
+  deleteIdentity(uid: string): Promise<void>;
 }

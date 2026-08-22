@@ -16,3 +16,4 @@ export * from './firestore/repositories/aiConversationRepository';
 export * from './firestore/repositories/workflowInstanceRepository';
 export * from './firestore/repositories/idempotencyRepository';
 export * from './firestore/repositories/auditRepository';
+export * from './firestore/repositories/tdbkIdentityRepository';

@@ -8,6 +8,7 @@ import { masterAuthority } from './src/kernel/master/masterAuthority';
 import { tenantIsolation } from './src/kernel/tenancy/tenantIsolation';
 import { branchAuthority } from './src/kernel/branch/branchAuthority';
 import { auditLogger } from './src/kernel/audit/auditLogger';
+import { tdbkIdentityService } from './src/kernel/identity/tdbkIdentityService';
 import { phase0TestRunner } from './src/kernel/tests/phase0TestRunner';
 import { KernelError } from './src/kernel/errors/kernelErrors';
 import { blueprintRegistry } from './src/blueprint/registry';
@@ -159,6 +160,174 @@ async function startServer() {
     const tenantId = req.query.tenantId as string;
     const events = auditLogger.getEvents({ tenantId, limit: 50 });
     res.json({ status: 'SUCCESS', events });
+  });
+
+  // -------------------------------------------------------------
+  // IDENTITY & CLAIMS MANAGEMENT ENDPOINTS
+  // -------------------------------------------------------------
+  app.post('/api/kernel/identity/provision', async (req: Request, res: Response) => {
+    try {
+      const authHeader = req.headers.authorization;
+      const context = await securityContextFactory.createSecurityContext({
+        authHeader,
+        targetTenantId: req.body.tenantId,
+        targetBranchId: req.body.branchId,
+        ipAddress: req.ip,
+      });
+
+      const identity = await tdbkIdentityService.provisionTdbkIdentity(context, req.body);
+      res.json({ status: 'SUCCESS', identity });
+    } catch (err) {
+      if (err instanceof KernelError) {
+        res.status(err.statusCode).json(err.toJSON());
+      } else {
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: (err as Error).message } });
+      }
+    }
+  });
+
+  app.post('/api/kernel/identity/promote-owner', async (req: Request, res: Response) => {
+    try {
+      const authHeader = req.headers.authorization;
+      const context = await securityContextFactory.createSecurityContext({
+        authHeader,
+        ipAddress: req.ip,
+      });
+
+      const identity = await tdbkIdentityService.promoteToBusinessOwner(context, req.body);
+      res.json({ status: 'SUCCESS', identity });
+    } catch (err) {
+      if (err instanceof KernelError) {
+        res.status(err.statusCode).json(err.toJSON());
+      } else {
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: (err as Error).message } });
+      }
+    }
+  });
+
+  app.post('/api/kernel/identity/promote-operator', async (req: Request, res: Response) => {
+    try {
+      const authHeader = req.headers.authorization;
+      const { targetUid, tenantId, email } = req.body;
+      const context = await securityContextFactory.createSecurityContext({
+        authHeader,
+        targetTenantId: tenantId,
+        ipAddress: req.ip,
+      });
+
+      const identity = await tdbkIdentityService.promoteToOwnerOperator(context, targetUid, tenantId, email);
+      res.json({ status: 'SUCCESS', identity });
+    } catch (err) {
+      if (err instanceof KernelError) {
+        res.status(err.statusCode).json(err.toJSON());
+      } else {
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: (err as Error).message } });
+      }
+    }
+  });
+
+  app.post('/api/kernel/identity/grant-master', async (req: Request, res: Response) => {
+    try {
+      const authHeader = req.headers.authorization;
+      const { targetUid, email } = req.body;
+      const context = await securityContextFactory.createSecurityContext({
+        authHeader,
+        ipAddress: req.ip,
+      });
+
+      const identity = await tdbkIdentityService.grantMasterAdmin(context, targetUid, email);
+      res.json({ status: 'SUCCESS', identity });
+    } catch (err) {
+      if (err instanceof KernelError) {
+        res.status(err.statusCode).json(err.toJSON());
+      } else {
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: (err as Error).message } });
+      }
+    }
+  });
+
+  app.post('/api/kernel/identity/role', async (req: Request, res: Response) => {
+    try {
+      const authHeader = req.headers.authorization;
+      const context = await securityContextFactory.createSecurityContext({
+        authHeader,
+        targetTenantId: req.body.tenantId,
+        targetBranchId: req.body.branchId,
+        ipAddress: req.ip,
+      });
+
+      const identity = await tdbkIdentityService.assignTenantRole(context, req.body);
+      res.json({ status: 'SUCCESS', identity });
+    } catch (err) {
+      if (err instanceof KernelError) {
+        res.status(err.statusCode).json(err.toJSON());
+      } else {
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: (err as Error).message } });
+      }
+    }
+  });
+
+  app.post('/api/kernel/identity/revoke', async (req: Request, res: Response) => {
+    try {
+      const authHeader = req.headers.authorization;
+      const context = await securityContextFactory.createSecurityContext({
+        authHeader,
+        targetTenantId: req.body.tenantId,
+        ipAddress: req.ip,
+      });
+
+      const identity = await tdbkIdentityService.revokeRole(context, req.body);
+      res.json({ status: 'SUCCESS', identity });
+    } catch (err) {
+      if (err instanceof KernelError) {
+        res.status(err.statusCode).json(err.toJSON());
+      } else {
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: (err as Error).message } });
+      }
+    }
+  });
+
+  app.get('/api/kernel/identity/:uid', async (req: Request, res: Response) => {
+    try {
+      const authHeader = req.headers.authorization;
+      const context = await securityContextFactory.createSecurityContext({
+        authHeader,
+        ipAddress: req.ip,
+      });
+
+      const identity = await tdbkIdentityService.getIdentity(context, req.params.uid);
+      if (!identity) {
+        return res.status(404).json({ error: { code: 'NOT_FOUND', message: `Identity '${req.params.uid}' not found` } });
+      }
+      res.json({ status: 'SUCCESS', identity });
+    } catch (err) {
+      if (err instanceof KernelError) {
+        res.status(err.statusCode).json(err.toJSON());
+      } else {
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: (err as Error).message } });
+      }
+    }
+  });
+
+  app.get('/api/kernel/identity', async (req: Request, res: Response) => {
+    try {
+      const authHeader = req.headers.authorization;
+      const tenantId = req.query.tenantId as string;
+      const context = await securityContextFactory.createSecurityContext({
+        authHeader,
+        targetTenantId: tenantId,
+        ipAddress: req.ip,
+      });
+
+      const identities = await tdbkIdentityService.listIdentities(context, tenantId);
+      res.json({ status: 'SUCCESS', identities });
+    } catch (err) {
+      if (err instanceof KernelError) {
+        res.status(err.statusCode).json(err.toJSON());
+      } else {
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: (err as Error).message } });
+      }
+    }
   });
 
   // -------------------------------------------------------------
