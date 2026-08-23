@@ -4,7 +4,7 @@
  * Architectural Layer: LAYER 1 — KERNEL / PERSISTENCE
  */
 
-import { ITdbkIdentityRepository } from '../../types';
+import { ITdbkIdentityRepository, FirestoreTransaction } from '../../types';
 import { TdbkIdentityRecord } from '../../../kernel/identity/types';
 import { firestoreClient } from '../firestoreClient';
 

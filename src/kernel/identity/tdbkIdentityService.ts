@@ -163,7 +163,7 @@ export class TdbkIdentityService {
 
     const bootstrapUid = process.env.TDBK_BOOTSTRAP_MASTER_UID;
     if (!bootstrapUid) {
-      throw new KernelError('CONFIGURATION_ERROR', 'Bootstrap configuration missing: TDBK_BOOTSTRAP_MASTER_UID', 500, requestId);
+      throw new KernelError('INTERNAL_ERROR', 'Bootstrap configuration missing: TDBK_BOOTSTRAP_MASTER_UID', 500, requestId);
     }
 
     if (principal.id !== bootstrapUid) {
@@ -171,36 +171,24 @@ export class TdbkIdentityService {
       throw new AuthorizationError('Security Violation: Unauthorized bootstrap attempt', requestId);
     }
 
-    // Use Firestore Transaction for atomic, race-safe check and create
     return await tdbkIdentityRepository.runTransaction(async (tx) => {
       // 1. Verify master not already consumed using tx.get
-      // Since all identities are under /tenants/system/identities, I should check that collection.
-      // The current tdbkIdentityRepository.listIdentities() is not transaction-aware (it doesn't accept tx).
-      // I will have to assume for this request that checking a collection exists is sufficient or 
-      // rely on the fact that once the first Master record is created, any subsequent create will fail or 
-      // I need to add a lock document.
-      // Let's create a 'system_bootstrap_lock' document.
-      
-      const lockDoc = await tx.get<any>('/tenants/system/bootstrap_lock');
+      const lockDoc = await tx.get<any>('/tenants/system/config/bootstrap');
       if (lockDoc) {
         throw new AuthorizationError('Security Violation: Master bootstrap already consumed', requestId);
       }
       
       // Mark as consumed
-      await tx.set('/tenants/system/bootstrap_lock', { consumedAt: new Date().toISOString() });
+      await tx.set('/tenants/system/config/bootstrap', { consumedAt: new Date().toISOString(), masterUid: bootstrapUid, requestId });
 
       // 2. Verify identity exists in Firebase Auth
-      try {
-        await firebaseIdentityManager.getUserByUid(bootstrapUid);
-      } catch (err) {
-        throw new KernelError('NOT_FOUND', 'Bootstrap identity not found in Auth', 404, requestId);
-      }
+      const userRecord = await firebaseIdentityManager.getUserByUid(bootstrapUid);
 
       const now = new Date().toISOString();
       const record: TdbkIdentityRecord = {
         uid: bootstrapUid,
-        email: principal.email,
-        displayName: principal.displayName || 'System Bootstrap Master',
+        email: principal.email || userRecord.email,
+        displayName: userRecord.displayName || 'System Bootstrap Master',
         roles: ['TDBK_MASTER_ADMIN'],
         permissions: ['*'],
         tenantId: null,
@@ -209,7 +197,7 @@ export class TdbkIdentityService {
         disabled: false,
         createdAt: now,
         updatedAt: now,
-        assignedBy: 'SYSTEM_BOOTSTRAP',
+        assignedBy: bootstrapUid,
       };
 
       const claims: TdbkIdentityClaims = {
@@ -220,7 +208,7 @@ export class TdbkIdentityService {
         isMaster: true,
         metadata: {
           assignedAt: now,
-          assignedBy: 'SYSTEM_BOOTSTRAP',
+          assignedBy: bootstrapUid,
         },
       };
 
