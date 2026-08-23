@@ -33,12 +33,12 @@ export class BranchManagerService {
   /**
    * Initializes or adds an HQ primary branch for a DBK.
    */
-  public createHeadquartersBranch(
+  public async createHeadquartersBranch(
     context: SecurityContext,
     dbkId: string,
     name: string = 'Headquarters',
     location?: DbkBranch['location']
-  ): DbkBranch {
+  ): Promise<DbkBranch> {
     this.assertTenantAccess(context, dbkId, 'createHeadquartersBranch');
 
     const branchId = `${dbkId}_hq`;
@@ -49,7 +49,7 @@ export class BranchManagerService {
       type: 'HEADQUARTERS',
       status: 'ACTIVE',
       isHeadquarters: true,
-      location,
+      ...(location !== undefined ? { location } : {}),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -60,7 +60,7 @@ export class BranchManagerService {
       this.branchStore.set(dbkId, tenantBranches);
     }
     tenantBranches.set(branchId, branch);
-    void branchRepository.saveBranch(dbkId, branchId, branch);
+    await branchRepository.saveBranch(dbkId, branchId, branch);
 
     auditLogger.logEvent(
       'SECURITY_CONFIGURATION_CHANGE',
@@ -82,7 +82,7 @@ export class BranchManagerService {
   /**
    * Adds a secondary branch to a DBK topology with tenant-scoping.
    */
-  public createSecondaryBranch(
+  public async createSecondaryBranch(
     context: SecurityContext,
     dbkId: string,
     branchData: {
@@ -91,7 +91,7 @@ export class BranchManagerService {
       type: DbkBranch['type'];
       location?: DbkBranch['location'];
     }
-  ): DbkBranch {
+  ): Promise<DbkBranch> {
     this.assertTenantAccess(context, dbkId, 'createSecondaryBranch');
 
     let tenantBranches = this.branchStore.get(dbkId);
@@ -116,13 +116,13 @@ export class BranchManagerService {
       type: branchData.type,
       status: 'ACTIVE',
       isHeadquarters: false,
-      location: branchData.location,
+      ...(branchData.location !== undefined ? { location: branchData.location } : {}),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
 
     tenantBranches.set(branch.branchId, branch);
-    void branchRepository.saveBranch(dbkId, branch.branchId, branch);
+    await branchRepository.saveBranch(dbkId, branch.branchId, branch);
 
     auditLogger.logEvent(
       'SECURITY_CONFIGURATION_CHANGE',

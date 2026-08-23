@@ -319,7 +319,7 @@ Date: 2026-08-14`;
       throw new Error(`Hardware DBK provisioning failed: ${prov.error || 'Unknown'}`);
     }
 
-    const branchRes = branchManager.createSecondaryBranch(masterContext, hardwareDbkId, {
+    const branchRes = await branchManager.createSecondaryBranch(masterContext, hardwareDbkId, {
       branchId: 'MSA-01',
       name: 'Mombasa Road Branch',
       type: 'RETAIL_OUTLET',

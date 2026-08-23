@@ -225,12 +225,12 @@ export class ProvisioningService {
       const mockCtx = createStepContext(workflow, dbkId);
 
       // Create HQ branch
-      const hq = branchManager.createHeadquartersBranch(mockCtx, dbkId, primaryBranchName);
+      const hq = await branchManager.createHeadquartersBranch(mockCtx, dbkId, primaryBranchName);
       const branches = [hq];
 
       // Create secondary branches
       for (const sb of secondaryBranches) {
-        const branch = branchManager.createSecondaryBranch(mockCtx, dbkId, sb);
+        const branch = await branchManager.createSecondaryBranch(mockCtx, dbkId, sb);
         branches.push(branch);
       }
 

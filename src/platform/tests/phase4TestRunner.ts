@@ -301,7 +301,7 @@ export async function runPhase4TestSuite(): Promise<Phase4TestSummary> {
 
   // P4_TEST_12: Secondary branch topology created correctly
   await runTest('P4_TEST_12', 'Secondary branch topology created correctly', async () => {
-    const branch = branchManager.createSecondaryBranch(tenantContextSchool, 'tenant_p4_school_01', {
+    const branch = await branchManager.createSecondaryBranch(tenantContextSchool, 'tenant_p4_school_01', {
       branchId: 'tenant_p4_school_01_westlands',
       name: 'Westlands Campus',
       type: 'CAMPUS',
@@ -315,7 +315,7 @@ export async function runPhase4TestSuite(): Promise<Phase4TestSummary> {
   await runTest('P4_TEST_13', 'Cross-tenant branch creation denied', async () => {
     let denied = false;
     try {
-      branchManager.createSecondaryBranch(tenantContextHardware, 'tenant_p4_school_01', {
+      await branchManager.createSecondaryBranch(tenantContextHardware, 'tenant_p4_school_01', {
         branchId: 'tenant_p4_school_01_rogue',
         name: 'Rogue Branch',
         type: 'CAMPUS',
