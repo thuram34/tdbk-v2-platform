@@ -117,6 +117,28 @@ describe('TDBK V2 — Production Identity & Claims Management', () => {
     ).rejects.toThrow(AuthorizationError);
   });
 
+  it('TEST B0: OWNER_OPERATOR cannot provision a DBK', async () => {
+    const operatorPrincipal = {
+      id: 'usr_owner_operator_001',
+      email: 'operator@enterprise.co.ke',
+      isMaster: false,
+      tenantId: 'tenant_operator_001',
+      branchId: 'HQ',
+      roles: ['OWNER_OPERATOR'],
+      permissions: ['TENANT_ADMIN', 'BRANCH_MANAGE', 'STAFF_MANAGE'],
+      authTime: Math.floor(Date.now() / 1000),
+      tokenSource: 'JWT' as const,
+    };
+
+    expect(() =>
+      masterAuthority.assertOwnerOrMasterAuthority(
+        operatorPrincipal,
+        'PROVISION_DBK',
+        'req_test_operator_provision'
+      )
+    ).toThrow(AuthorizationError);
+  });
+
   it('TEST B: BUSINESS_OWNER passes assertOwnerOrMasterAuthority() and CAN provision a DBK', async () => {
     const ownerPrincipal = {
       id: 'usr_biz_owner_789',
