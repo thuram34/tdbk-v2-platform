@@ -7,6 +7,13 @@
 import { TdbkIdentityClaims } from './types';
 import { AuthenticationError, KernelError } from '../errors/kernelErrors';
 import { configManager } from '../configuration/configManager';
+import {
+  applicationDefault,
+  cert,
+  getApps,
+  initializeApp,
+} from 'firebase-admin/app';
+import { getAuth } from 'firebase-admin/auth';
 
 let adminInstance: any = null;
 
@@ -32,7 +39,7 @@ export class FirebaseIdentityManager {
   /**
    * Lazily initializes and returns Firebase Admin Auth instance.
    */
-  private getAuth(): any {
+  private getAuthInstance(): any {
     if (adminInstance) {
       if (typeof adminInstance.auth === 'function') {
         return adminInstance.auth();
@@ -44,30 +51,26 @@ export class FirebaseIdentityManager {
     }
 
     try {
-      const fbAdmin = require('firebase-admin');
-      const admin = fbAdmin.default || fbAdmin;
-
-      if (!admin.apps || admin.apps.length === 0) {
+      if (getApps().length === 0) {
         let credential;
         try {
           const privateSecrets = configManager.getPrivateSecrets();
           if (privateSecrets.firebaseServiceAccount) {
-            credential = admin.credential.cert(JSON.parse(privateSecrets.firebaseServiceAccount));
+            credential = cert(JSON.parse(privateSecrets.firebaseServiceAccount));
           } else {
-            credential = admin.credential.applicationDefault();
+            credential = applicationDefault();
           }
         } catch {
-          credential = admin.credential.applicationDefault();
+          credential = applicationDefault();
         }
 
-        admin.initializeApp({
+        initializeApp({
           credential,
           projectId: process.env.GOOGLE_CLOUD_PROJECT || process.env.GCP_PROJECT,
         });
       }
 
-      adminInstance = admin;
-      return admin.auth();
+      return getAuth();
     } catch (err: any) {
       // In local dev/test or when SDK is not present, provide a graceful fallback or error
       if (process.env.NODE_ENV === 'production') {
@@ -113,7 +116,7 @@ export class FirebaseIdentityManager {
     if (!uid) {
       throw new KernelError('VALIDATION_ERROR', 'Firebase UID is required', 400);
     }
-    const auth = this.getAuth();
+    const auth = this.getAuthInstance();
     try {
       return await auth.getUser(uid);
     } catch (err: any) {
@@ -128,7 +131,7 @@ export class FirebaseIdentityManager {
     if (!email) {
       throw new KernelError('VALIDATION_ERROR', 'Email address is required', 400);
     }
-    const auth = this.getAuth();
+    const auth = this.getAuthInstance();
     try {
       return await auth.getUserByEmail(email);
     } catch (err: any) {
@@ -153,7 +156,7 @@ export class FirebaseIdentityManager {
       throw new KernelError('VALIDATION_ERROR', 'Target UID is required to set claims', 400);
     }
 
-    const auth = this.getAuth();
+    const auth = this.getAuthInstance();
     const existingClaims = await this.getCustomClaims(uid);
 
     // Merge without overwriting unrelated Firebase claims
@@ -193,7 +196,7 @@ export class FirebaseIdentityManager {
       throw new KernelError('VALIDATION_ERROR', 'Target UID is required to remove claims', 400);
     }
 
-    const auth = this.getAuth();
+    const auth = this.getAuthInstance();
     const existingClaims = await this.getCustomClaims(uid);
 
     const cleanedClaims: Record<string, any> = {};
