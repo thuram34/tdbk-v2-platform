@@ -268,7 +268,7 @@ export class ProvisioningService {
 
   /**
    * Authoritative DBK Provisioning Flow.
-   * RESTRICTED: TDBK MASTER ADMIN ONLY.
+   * AUTHORIZED: TDBK MASTER ADMIN or Business Owner portfolio authority.
    */
   public async provisionDbk(context: SecurityContext, request: ProvisionDbkRequest): Promise<ProvisionDbkResult> {
     this.registerProvisioningStepHandlers();
