@@ -149,6 +149,91 @@ export class TdbkIdentityService {
   }
 
   /**
+   * Bootstrap PRODUCTION Master Admin identity.
+   * Can be called only once in production.
+   */
+  public async bootstrapProductionMaster(
+    context: SecurityContext
+  ): Promise<TdbkIdentityRecord> {
+    const { principal, requestId } = context;
+
+    if (process.env.NODE_ENV !== 'production') {
+      throw new AuthorizationError('Bootstrap forbidden: Not a production environment', requestId);
+    }
+
+    const bootstrapUid = process.env.TDBK_BOOTSTRAP_MASTER_UID;
+    if (!bootstrapUid) {
+      throw new KernelError('CONFIGURATION_ERROR', 'Bootstrap configuration missing: TDBK_BOOTSTRAP_MASTER_UID', 500, requestId);
+    }
+
+    if (principal.id !== bootstrapUid) {
+      auditLogger.logEvent('AUTHORIZATION_DENIED', principal.id, 'BOOTSTRAP_MASTER_DENIED', 'master:platform', 'DENIED', { requestId });
+      throw new AuthorizationError('Security Violation: Unauthorized bootstrap attempt', requestId);
+    }
+
+    // Use Firestore Transaction for atomic, race-safe check and create
+    return await tdbkIdentityRepository.runTransaction(async (tx) => {
+      // 1. Verify master not already consumed using tx.get
+      // Since all identities are under /tenants/system/identities, I should check that collection.
+      // The current tdbkIdentityRepository.listIdentities() is not transaction-aware (it doesn't accept tx).
+      // I will have to assume for this request that checking a collection exists is sufficient or 
+      // rely on the fact that once the first Master record is created, any subsequent create will fail or 
+      // I need to add a lock document.
+      // Let's create a 'system_bootstrap_lock' document.
+      
+      const lockDoc = await tx.get<any>('/tenants/system/bootstrap_lock');
+      if (lockDoc) {
+        throw new AuthorizationError('Security Violation: Master bootstrap already consumed', requestId);
+      }
+      
+      // Mark as consumed
+      await tx.set('/tenants/system/bootstrap_lock', { consumedAt: new Date().toISOString() });
+
+      // 2. Verify identity exists in Firebase Auth
+      try {
+        await firebaseIdentityManager.getUserByUid(bootstrapUid);
+      } catch (err) {
+        throw new KernelError('NOT_FOUND', 'Bootstrap identity not found in Auth', 404, requestId);
+      }
+
+      const now = new Date().toISOString();
+      const record: TdbkIdentityRecord = {
+        uid: bootstrapUid,
+        email: principal.email,
+        displayName: principal.displayName || 'System Bootstrap Master',
+        roles: ['TDBK_MASTER_ADMIN'],
+        permissions: ['*'],
+        tenantId: null,
+        branchId: null,
+        isMaster: true,
+        disabled: false,
+        createdAt: now,
+        updatedAt: now,
+        assignedBy: 'SYSTEM_BOOTSTRAP',
+      };
+
+      const claims: TdbkIdentityClaims = {
+        roles: record.roles,
+        permissions: record.permissions,
+        tenantId: null,
+        branchId: null,
+        isMaster: true,
+        metadata: {
+          assignedAt: now,
+          assignedBy: 'SYSTEM_BOOTSTRAP',
+        },
+      };
+
+      await firebaseIdentityManager.setTdbkClaims(bootstrapUid, claims);
+      await tx.set(`/tenants/system/identities/${bootstrapUid}`, record as unknown as Record<string, unknown>);
+      
+      auditLogger.logEvent('SECURITY_CONFIGURATION_CHANGE', 'SYSTEM', 'MASTER_BOOTSTRAPPED', `user:${bootstrapUid}`, 'ALLOWED', { requestId });
+      
+      return record;
+    });
+  }
+
+  /**
    * Promotes a Firebase user to BUSINESS_OWNER.
    * RESTRICTED: TDBK MASTER ADMIN ONLY.
    */

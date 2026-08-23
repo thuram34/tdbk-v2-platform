@@ -45,8 +45,17 @@ export class TdbkIdentityRepository implements ITdbkIdentityRepository {
     return identity !== null;
   }
 
+  public async hasMasterIdentity(): Promise<boolean> {
+    const all = await firestoreClient.listCollection<TdbkIdentityRecord>('/tenants/system/identities');
+    return all.some((rec) => rec.isMaster === true && rec.roles.includes('TDBK_MASTER_ADMIN'));
+  }
+
   public async deleteIdentity(uid: string): Promise<void> {
     await firestoreClient.delete(this.getPath(uid));
+  }
+
+  public async runTransaction<T>(updateFunction: (transaction: FirestoreTransaction) => Promise<T>): Promise<T> {
+    return await firestoreClient.runTransaction(updateFunction);
   }
 }
 

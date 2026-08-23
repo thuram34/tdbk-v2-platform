@@ -173,5 +173,7 @@ export interface ITdbkIdentityRepository {
   getIdentity(uid: string): Promise<TdbkIdentityRecord | null>;
   listIdentities(tenantId?: string): Promise<TdbkIdentityRecord[]>;
   hasIdentity(uid: string): Promise<boolean>;
+  hasMasterIdentity(): Promise<boolean>;
   deleteIdentity(uid: string): Promise<void>;
+  runTransaction<T>(updateFunction: (transaction: FirestoreTransaction) => Promise<T>): Promise<T>;
 }
