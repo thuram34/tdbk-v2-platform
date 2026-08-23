@@ -247,6 +247,44 @@ async function startServer() {
     }
   });
 
+  app.post('/api/kernel/identity/promote-business-owner', async (req: Request, res: Response) => {
+    try {
+      const authHeader = req.headers.authorization;
+      const { targetUid, email, displayName } = req.body;
+
+      const context = await securityContextFactory.createSecurityContext({
+        authHeader,
+        ipAddress: req.ip,
+      });
+
+      const identity = await tdbkIdentityService.promoteToBusinessOwner(context, {
+        targetUid,
+        email,
+        displayName,
+      });
+
+      res.json({ status: 'SUCCESS', identity });
+    } catch (err) {
+      if (err instanceof KernelError) {
+        res.status(err.statusCode).json(err.toJSON());
+      } else if (err instanceof AuthorizationError) {
+        res.status(403).json({
+          error: {
+            code: 'FORBIDDEN',
+            message: err.message,
+          },
+        });
+      } else {
+        res.status(500).json({
+          error: {
+            code: 'INTERNAL_ERROR',
+            message: (err as Error).message,
+          },
+        });
+      }
+    }
+  });
+
   app.post('/api/kernel/identity/role', async (req: Request, res: Response) => {
     try {
       const authHeader = req.headers.authorization;
