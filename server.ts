@@ -26,6 +26,7 @@ import { runPhase4TestSuite } from './src/platform/tests/phase4TestRunner';
 import { runDbkProvisioningTestSuite } from './src/platform/tests/dbkProvisioningTestRunner';
 import { provisioningService } from './src/platform/provisioning/provisioningService';
 import { dbkRegistry } from './src/platform/dbkRegistry';
+import { dbkLifecycleManager } from './src/platform/lifecycle/lifecycleManager';
 import { experienceProjection } from './src/platform/projection/experienceProjection';
 import { seedDemoDbks } from './src/platform/seeder';
 import { runPhase5TestSuite } from './src/experience/tests/phase5TestRunner';
@@ -611,6 +612,122 @@ async function startServer() {
         res.status(err.statusCode).json(err.toJSON());
       } else {
         res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: (err as Error).message } });
+      }
+    }
+  });
+
+  // -------------------------------------------------------------
+  // DBK LIFECYCLE CONTROL — TDBK MASTER AUTHORITY
+  // -------------------------------------------------------------
+
+  app.post('/api/platform/dbks/:dbkId/suspend', async (req: Request, res: Response) => {
+    try {
+      const authHeader = req.headers.authorization;
+      const { dbkId } = req.params;
+      const context = await securityContextFactory.createSecurityContext({
+        authHeader,
+        targetTenantId: dbkId,
+        ipAddress: req.ip,
+      });
+
+      const reason = req.body?.reason || 'Suspension requested via platform API';
+      const dbk = await dbkLifecycleManager.suspendDbk(context, dbkId, reason);
+
+      res.json({ status: 'SUCCESS', dbk });
+    } catch (err) {
+      if (err instanceof KernelError) {
+        res.status(err.statusCode).json(err.toJSON());
+      } else {
+        res.status(500).json({
+          error: {
+            code: 'INTERNAL_ERROR',
+            message: (err as Error).message,
+          },
+        });
+      }
+    }
+  });
+
+  app.post('/api/platform/dbks/:dbkId/reactivate', async (req: Request, res: Response) => {
+    try {
+      const authHeader = req.headers.authorization;
+      const { dbkId } = req.params;
+      const context = await securityContextFactory.createSecurityContext({
+        authHeader,
+        targetTenantId: dbkId,
+        ipAddress: req.ip,
+      });
+
+      const reason = req.body?.reason || 'Reactivation requested via platform API';
+      const dbk = await dbkLifecycleManager.reactivateDbk(context, dbkId, reason);
+
+      res.json({ status: 'SUCCESS', dbk });
+    } catch (err) {
+      if (err instanceof KernelError) {
+        res.status(err.statusCode).json(err.toJSON());
+      } else {
+        res.status(500).json({
+          error: {
+            code: 'INTERNAL_ERROR',
+            message: (err as Error).message,
+          },
+        });
+      }
+    }
+  });
+
+  app.post('/api/platform/dbks/:dbkId/archive', async (req: Request, res: Response) => {
+    try {
+      const authHeader = req.headers.authorization;
+      const { dbkId } = req.params;
+      const context = await securityContextFactory.createSecurityContext({
+        authHeader,
+        targetTenantId: dbkId,
+        ipAddress: req.ip,
+      });
+
+      const reason = req.body?.reason || 'Archive requested via platform API';
+      const dbk = await dbkLifecycleManager.archiveDbk(context, dbkId, reason);
+
+      res.json({ status: 'SUCCESS', dbk });
+    } catch (err) {
+      if (err instanceof KernelError) {
+        res.status(err.statusCode).json(err.toJSON());
+      } else {
+        res.status(500).json({
+          error: {
+            code: 'INTERNAL_ERROR',
+            message: (err as Error).message,
+          },
+        });
+      }
+    }
+  });
+
+  app.post('/api/platform/dbks/:dbkId/restore', async (req: Request, res: Response) => {
+    try {
+      const authHeader = req.headers.authorization;
+      const { dbkId } = req.params;
+      const context = await securityContextFactory.createSecurityContext({
+        authHeader,
+        targetTenantId: dbkId,
+        ipAddress: req.ip,
+      });
+
+      const reason = req.body?.reason || 'Restore requested via platform API';
+      const dbk = await dbkLifecycleManager.restoreDbk(context, dbkId, reason);
+
+      res.json({ status: 'SUCCESS', dbk });
+    } catch (err) {
+      if (err instanceof KernelError) {
+        res.status(err.statusCode).json(err.toJSON());
+      } else {
+        res.status(500).json({
+          error: {
+            code: 'INTERNAL_ERROR',
+            message: (err as Error).message,
+          },
+        });
       }
     }
   });
