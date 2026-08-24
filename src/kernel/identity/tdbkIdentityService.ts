@@ -246,7 +246,9 @@ export class TdbkIdentityService {
     const record: TdbkIdentityRecord = {
       uid: request.targetUid,
       email: request.email || existing?.email,
-      displayName: request.displayName || existing?.displayName,
+      ...(request.displayName || existing?.displayName
+        ? { displayName: request.displayName || existing?.displayName }
+        : {}),
       roles: updatedRoles,
       permissions: updatedPerms,
       tenantId: existing?.tenantId ?? null,
