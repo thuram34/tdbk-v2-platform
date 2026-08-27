@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { mintTestToken } from '../../kernel/identity/testToken';
+import { useAuth } from '../../client/AuthContext';
 import {
   Building2,
   Plus,
@@ -44,6 +44,7 @@ export const OwnerPortfolioView: React.FC<OwnerPortfolioViewProps> = ({
   onRefreshDbks,
   onOpenTestSuite,
 }) => {
+  const { getIdToken } = useAuth();
   const [isRegisterOpen, setIsRegisterOpen] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -74,18 +75,17 @@ export const OwnerPortfolioView: React.FC<OwnerPortfolioViewProps> = ({
     setError(null);
 
     try {
-      const masterToken = mintTestToken({
-        uid: 'usr_master_admin',
-        tenantId: 'tdbk_master',
-        roles: ['TDBK_MASTER_ADMIN'],
-        permissions: ['*'],
-      });
+      const idToken = await getIdToken(true);
+
+      if (!idToken) {
+        throw new Error('Your session has expired. Please sign in again.');
+      }
 
       const res = await fetch('/api/platform/provision', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${masterToken}`,
+          'Authorization': `Bearer ${idToken}`,
         },
         body: JSON.stringify({
           dbkId: dbkId.trim().toLowerCase().replace(/\s+/g, '_'),

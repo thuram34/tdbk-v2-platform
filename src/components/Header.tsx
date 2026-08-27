@@ -1,5 +1,5 @@
 import React from 'react';
-import { Shield, ShieldAlert, CheckCircle2, Server, Lock, Database } from 'lucide-react';
+import { Shield, CheckCircle2, Server, Lock, Database } from 'lucide-react';
 
 interface HeaderProps {
   activeTab: string;
@@ -49,7 +49,6 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab, healthS
         <div className="flex space-x-1 mt-4 border-t border-neutral-800/80 pt-2 overflow-x-auto">
           {[
             { id: 'test-suite', label: 'Phase 0 Security Test Runner (12 Tests)', icon: Lock },
-            { id: 'security-inspector', label: 'Security Context & Tenant Inspector', icon: ShieldAlert },
             { id: 'audit-stream', label: 'Real-Time Audit Event Stream', icon: Server },
             { id: 'definition-of-done', label: 'Phase 0 Definition of Done & Rules', icon: CheckCircle2 },
           ].map((tab) => {
