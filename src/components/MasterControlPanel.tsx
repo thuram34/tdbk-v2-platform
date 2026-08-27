@@ -14,16 +14,22 @@ import {
   Sparkles,
   Zap,
 } from 'lucide-react';
-import { dbkRegistry } from '../platform/dbkRegistry';
-import { provisioningService } from '../platform/provisioning/provisioningService';
-import { dbkLifecycleManager } from '../platform/lifecycle/lifecycleManager';
-import { experienceProjection } from '../platform/projection/experienceProjection';
 import { blueprintRegistry } from '../blueprint/registry';
 import { DbkIdentity, DbkExperienceProjection } from '../platform/types';
 import { SubscriptionTier } from '../capability/types';
-import { SecurityContext } from '../kernel/types';
+import { useAuth } from '../client/AuthContext';
+import {
+  listDbks,
+  getExperienceProjection,
+  provisionDbk,
+  suspendDbk,
+  reactivateDbk,
+  archiveDbk,
+  restoreDbk,
+} from '../client/masterControlApi';
 
 export const MasterControlPanel: React.FC = () => {
+  const { getIdToken } = useAuth();
   const [dbks, setDbks] = useState<DbkIdentity[]>([]);
   const [selectedDbkId, setSelectedDbkId] = useState<string>('');
   const [projection, setProjection] = useState<DbkExperienceProjection | null>(null);
@@ -36,33 +42,27 @@ export const MasterControlPanel: React.FC = () => {
   const [newBlueprintId, setNewBlueprintId] = useState('school_v1');
   const [newTier, setNewTier] = useState<SubscriptionTier>('PRO');
 
-  const masterContext: SecurityContext = {
-    requestId: `req_ui_${Date.now()}`,
-    timestamp: new Date().toISOString(),
-    principal: {
-      id: 'usr_master_admin_console',
-      tenantId: 'master',
-      branchId: null,
-      roles: ['TDBK_MASTER_ADMIN'],
-      permissions: ['*'],
-      authTime: Date.now(),
-      tokenSource: 'SESSION',
-      isMaster: true,
-    },
-    tenantContext: null,
-    branchContext: null,
-    correlationId: `corr_ui_${Date.now()}`,
-  };
-
   const reloadDbks = async () => {
     try {
-      const allDbks = await dbkRegistry.listAllDbks(masterContext);
+      const idToken = await getIdToken();
+
+      if (!idToken) {
+        throw new Error('Your session has expired. Please sign in again.');
+      }
+
+      const allDbks = await listDbks(idToken);
+
       setDbks(allDbks);
+
       if (allDbks.length > 0 && !selectedDbkId) {
         setSelectedDbkId(allDbks[0].dbkId);
       }
-    } catch {
+    } catch (err: any) {
       setDbks([]);
+      setActionMessage({
+        type: 'error',
+        text: err.message || 'Unable to load DBK registry.',
+      });
     }
   };
 
@@ -73,7 +73,14 @@ export const MasterControlPanel: React.FC = () => {
   useEffect(() => {
     let mounted = true;
     if (selectedDbkId) {
-      experienceProjection.getExperienceProjection(masterContext, selectedDbkId)
+      getIdToken()
+        .then((idToken) => {
+          if (!idToken) {
+            throw new Error('Your session has expired.');
+          }
+
+          return getExperienceProjection(idToken, selectedDbkId);
+        })
         .then((proj) => {
           if (mounted) setProjection(proj);
         })
@@ -90,7 +97,13 @@ export const MasterControlPanel: React.FC = () => {
     setProvisionLoading(true);
     setActionMessage(null);
     try {
-      const result = await provisioningService.provisionDbk(masterContext, {
+      const idToken = await getIdToken();
+
+      if (!idToken) {
+        throw new Error('Your session has expired. Please sign in again.');
+      }
+
+      const result = await provisionDbk(idToken, {
         dbkId: newDbkId,
         legalName: newLegalName,
         displayName: newLegalName,
@@ -131,7 +144,9 @@ export const MasterControlPanel: React.FC = () => {
 
   const handleSuspend = async (dbkId: string) => {
     try {
-      await dbkLifecycleManager.suspendDbk(masterContext, dbkId, 'Suspension requested via Master Console');
+      const idToken = await getIdToken();
+      if (!idToken) throw new Error('Your session has expired.');
+      await suspendDbk(idToken, dbkId, 'Suspension requested via Master Console');
       setActionMessage({ type: 'success', text: `DBK '${dbkId}' is now SUSPENDED.` });
       await reloadDbks();
     } catch (err: any) {
@@ -141,7 +156,9 @@ export const MasterControlPanel: React.FC = () => {
 
   const handleReactivate = async (dbkId: string) => {
     try {
-      await dbkLifecycleManager.reactivateDbk(masterContext, dbkId, 'Reactivation requested via Master Console');
+      const idToken = await getIdToken();
+      if (!idToken) throw new Error('Your session has expired.');
+      await reactivateDbk(idToken, dbkId, 'Reactivation requested via Master Console');
       setActionMessage({ type: 'success', text: `DBK '${dbkId}' is now ACTIVE.` });
       await reloadDbks();
     } catch (err: any) {
@@ -151,7 +168,9 @@ export const MasterControlPanel: React.FC = () => {
 
   const handleArchive = async (dbkId: string) => {
     try {
-      await dbkLifecycleManager.archiveDbk(masterContext, dbkId, 'Archived via Master Console');
+      const idToken = await getIdToken();
+      if (!idToken) throw new Error('Your session has expired.');
+      await archiveDbk(idToken, dbkId, 'Archived via Master Console');
       setActionMessage({ type: 'success', text: `DBK '${dbkId}' is now ARCHIVED (historical records preserved).` });
       await reloadDbks();
     } catch (err: any) {
@@ -161,7 +180,9 @@ export const MasterControlPanel: React.FC = () => {
 
   const handleRestore = async (dbkId: string) => {
     try {
-      await dbkLifecycleManager.restoreDbk(masterContext, dbkId, 'Restored from archive via Master Console');
+      const idToken = await getIdToken();
+      if (!idToken) throw new Error('Your session has expired.');
+      await restoreDbk(idToken, dbkId, 'Restored from archive via Master Console');
       setActionMessage({ type: 'success', text: `DBK '${dbkId}' is now RESTORED to ACTIVE.` });
       await reloadDbks();
     } catch (err: any) {

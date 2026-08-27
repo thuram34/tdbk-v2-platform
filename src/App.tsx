@@ -25,7 +25,6 @@ import {
 } from 'lucide-react';
 import { ALL_TDBK_V2_DOCS } from './docs';
 import { TestSuitePanel } from './components/TestSuitePanel';
-import { SecurityInspectorPanel } from './components/SecurityInspectorPanel';
 import { AuditStreamPanel } from './components/AuditStreamPanel';
 import { DefinitionOfDonePanel } from './components/DefinitionOfDonePanel';
 import { MasterControlPanel } from './components/MasterControlPanel';
@@ -33,14 +32,49 @@ import { Phase5TestSuitePanel } from './components/experience/Phase5TestSuitePan
 import { Phase6TestSuitePanel } from './components/document_ai/Phase6TestSuitePanel';
 import { DocumentAiShellPanel } from './components/document_ai/DocumentAiShellPanel';
 import { DbkShell } from './components/experience/DbkShell';
+import { LoginScreen } from './components/auth/LoginScreen';
+import { useAuth } from './client/AuthContext';
+import { verifyMasterAuthority } from './client/masterApi';
 
 export default function App() {
+  const { user, loading, getIdToken } = useAuth();
   const [appMode, setAppMode] = useState<'WORKSPACE' | 'MASTER'>('WORKSPACE');
   const [activeTab, setActiveTab] = useState<string>('phase6-verifier');
   const [selectedDocId, setSelectedDocId] = useState<string>('constitution');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [healthStatus, setHealthStatus] = useState<string>('OPERATIONAL');
+  const [masterAccessError, setMasterAccessError] = useState<string | null>(null);
+  const [masterVerifying, setMasterVerifying] = useState(false);
+
+  const handleSwitchToMaster = async () => {
+    setMasterAccessError(null);
+    setMasterVerifying(true);
+
+    try {
+      const idToken = await getIdToken();
+
+      if (!idToken) {
+        setMasterAccessError('Your session has expired. Please sign in again.');
+        return;
+      }
+
+      const verification = await verifyMasterAuthority(idToken);
+
+      if (!verification.isMaster) {
+        setMasterAccessError('Master authority is required to access this console.');
+        return;
+      }
+
+      setAppMode('MASTER');
+    } catch {
+      setMasterAccessError(
+        'Unable to verify Master authority. Access has been denied.'
+      );
+    } finally {
+      setMasterVerifying(false);
+    }
+  };
 
   useEffect(() => {
     const fetchHealth = async () => {
@@ -57,8 +91,31 @@ export default function App() {
     fetchHealth();
   }, []);
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#141414] text-white flex items-center justify-center">
+        <div className="text-sm text-neutral-400">
+          Loading TDBK...
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <LoginScreen />;
+  }
+
   if (appMode === 'WORKSPACE') {
-    return <DbkShell onSwitchToMaster={() => setAppMode('MASTER')} />;
+    return (
+      <>
+        <DbkShell onSwitchToMaster={handleSwitchToMaster} />
+        {masterAccessError && (
+          <div className="fixed bottom-4 right-4 z-50 bg-red-950 border border-red-700 text-red-200 px-4 py-3 rounded-lg text-sm shadow-xl">
+            {masterAccessError}
+          </div>
+        )}
+      </>
+    );
   }
 
   const selectedDoc = ALL_TDBK_V2_DOCS.find((d) => d.id === selectedDocId) || ALL_TDBK_V2_DOCS[0];
@@ -274,7 +331,6 @@ export default function App() {
         {activeTab === 'doc-ai-workspace' && <DocumentAiShellPanel />}
         {activeTab === 'phase5-verifier' && <Phase5TestSuitePanel />}
         {activeTab === 'test-runner' && <TestSuitePanel />}
-        {activeTab === 'security-inspector' && <SecurityInspectorPanel />}
         {activeTab === 'audit-stream' && <AuditStreamPanel />}
         {activeTab === 'dod' && <DefinitionOfDonePanel />}
         {activeTab === 'master-control' && <MasterControlPanel />}

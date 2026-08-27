@@ -3,7 +3,7 @@ import {
   DbkExperienceResolved,
   ExperienceNavItem,
 } from '../../experience/types';
-import { mintTestToken } from '../../kernel/identity/testToken';
+import { useAuth } from '../../client/AuthContext';
 import { DynamicIcon } from './IconHelper';
 import { DashboardView } from './DashboardView';
 import { EntityListView } from './EntityListView';
@@ -20,6 +20,7 @@ import {
   GitBranch,
   User,
   ShieldCheck,
+  Shield,
   Sparkles,
   AlertTriangle,
   Menu,
@@ -45,6 +46,7 @@ export const DbkShell: React.FC<DbkShellProps> = ({
   initialDbkId,
   onSwitchToMaster,
 }) => {
+  const { getIdToken } = useAuth();
   const [dbkList, setDbkList] = useState<Array<any>>([]);
   const [selectedDbkId, setSelectedDbkId] = useState<string>(initialDbkId || '');
   const [selectedBranchId, setSelectedBranchId] = useState<string>('');
@@ -59,7 +61,17 @@ export const DbkShell: React.FC<DbkShellProps> = ({
   // 1. Fetch available DBKs
   const loadDbkList = async () => {
     try {
-      const res = await fetch('/api/platform/dbks');
+      const idToken = await getIdToken();
+
+      if (!idToken) {
+        throw new Error('Your session has expired. Please sign in again.');
+      }
+
+      const res = await fetch('/api/platform/dbks', {
+        headers: {
+          'Authorization': `Bearer ${idToken}`,
+        },
+      });
       if (res.ok) {
         const data = await res.json();
         const list = (data.dbks || []).map((d: any) => ({
@@ -89,20 +101,16 @@ export const DbkShell: React.FC<DbkShellProps> = ({
     setError(null);
 
     try {
-      const activeBr = branchId || 'branch_hq';
-      const testToken = mintTestToken({
-        uid: `user_${role.toLowerCase()}_${dbkId}`,
-        tenantId: dbkId,
-        branchId: activeBr,
-        roles: [role, 'TENANT_ADMIN'],
-        permissions: ['*'],
-      });
+      const idToken = await getIdToken();
+
+      if (!idToken) {
+        throw new Error('Your session has expired. Please sign in again.');
+      }
 
       const branchQuery = branchId ? `?branchId=${branchId}` : '';
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${testToken}`,
-        'x-test-role': role,
+        'Authorization': `Bearer ${idToken}`,
       };
 
       const res = await fetch(`/api/experience/resolve/${dbkId}${branchQuery}`, { headers });
@@ -138,20 +146,17 @@ export const DbkShell: React.FC<DbkShellProps> = ({
     if (!selectedDbkId) return;
 
     try {
-      const activeBr = selectedBranchId || 'branch_hq';
-      const testToken = mintTestToken({
-        uid: `user_${selectedRole.toLowerCase()}_${selectedDbkId}`,
-        tenantId: selectedDbkId,
-        branchId: activeBr,
-        roles: [selectedRole, 'TENANT_ADMIN'],
-        permissions: ['*'],
-      });
+      const idToken = await getIdToken();
+
+      if (!idToken) {
+        throw new Error('Your session has expired. Please sign in again.');
+      }
 
       const res = await fetch('/api/experience/command', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${testToken}`,
+          'Authorization': `Bearer ${idToken}`,
         },
         body: JSON.stringify({
           commandType,
@@ -313,6 +318,16 @@ export const DbkShell: React.FC<DbkShellProps> = ({
             >
               <Sparkles className="w-3 h-3 text-amber-400" />
               <span className="hidden sm:inline">P6 (60 Tests)</span>
+            </button>
+
+            {/* Master Console */}
+            <button
+              onClick={onSwitchToMaster}
+              className="hidden md:flex items-center space-x-1.5 px-2.5 py-1 text-xs font-semibold rounded border bg-amber-950/40 border-amber-700 text-amber-300 hover:bg-amber-900/50 transition cursor-pointer"
+              title="Master authority verification required"
+            >
+              <Shield className="w-3 h-3" />
+              <span>Master Console</span>
             </button>
 
             {/* Mobile Menu Toggle */}
