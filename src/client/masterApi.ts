@@ -33,3 +33,27 @@ export async function verifyMasterAuthority(
     principal: data.principal,
   };
 }
+
+export async function bootstrapMaster(
+  idToken: string,
+): Promise<void> {
+  const response = await fetch(
+    '/api/kernel/identity/bootstrap-master',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${idToken}`,
+      },
+    },
+  );
+
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    throw new Error(
+      data?.error?.message ||
+      `Bootstrap failed with status ${response.status}`,
+    );
+  }
+}

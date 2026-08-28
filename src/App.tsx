@@ -34,7 +34,7 @@ import { DocumentAiShellPanel } from './components/document_ai/DocumentAiShellPa
 import { DbkShell } from './components/experience/DbkShell';
 import { LoginScreen } from './components/auth/LoginScreen';
 import { useAuth } from './client/AuthContext';
-import { verifyMasterAuthority } from './client/masterApi';
+import { verifyMasterAuthority, bootstrapMaster } from './client/masterApi';
 
 export default function App() {
   const { user, loading, getIdToken } = useAuth();
@@ -59,10 +59,36 @@ export default function App() {
         return;
       }
 
-      const verification = await verifyMasterAuthority(idToken);
+      let verification = await verifyMasterAuthority(idToken);
+
+      // Production one-time bootstrap.
+      // The server independently verifies that this Firebase UID matches
+      // TDBK_BOOTSTRAP_MASTER_UID before granting Master authority.
+      if (!verification.isMaster) {
+        try {
+          await bootstrapMaster(idToken);
+
+          // Firebase custom claims only appear in a newly issued token.
+          const refreshedToken = await getIdToken(true);
+
+          if (!refreshedToken) {
+            throw new Error('Unable to refresh your security token.');
+          }
+
+          verification = await verifyMasterAuthority(refreshedToken);
+        } catch (bootstrapError: any) {
+          setMasterAccessError(
+            bootstrapError?.message ||
+            'Master authority is required to access this console.'
+          );
+          return;
+        }
+      }
 
       if (!verification.isMaster) {
-        setMasterAccessError('Master authority is required to access this console.');
+        setMasterAccessError(
+          'Master authority could not be established. Access has been denied.'
+        );
         return;
       }
 
