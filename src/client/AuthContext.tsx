@@ -14,11 +14,12 @@ import {
   type User,
 } from 'firebase/auth';
 
-import { firebaseAuth } from './firebase';
+import { firebaseAuth, isFirebaseConfigured } from './firebase';
 
 interface AuthContextValue {
   user: User | null;
   loading: boolean;
+  isFirebaseConfigured: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
   signOutUser: () => Promise<void>;
@@ -32,15 +33,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(firebaseAuth, (nextUser) => {
-      setUser(nextUser);
+    if (isFirebaseConfigured && firebaseAuth) {
+      try {
+        const unsubscribe = onAuthStateChanged(firebaseAuth, (nextUser) => {
+          setUser(nextUser);
+          setLoading(false);
+        });
+        return unsubscribe;
+      } catch (err) {
+        console.warn('[TDBK Auth] onAuthStateChanged error:', err);
+        setUser(null);
+        setLoading(false);
+      }
+    } else {
+      setUser(null);
       setLoading(false);
-    });
-
-    return unsubscribe;
+    }
   }, []);
 
   const signIn = async (email: string, password: string) => {
+    if (!isFirebaseConfigured || !firebaseAuth) {
+      throw new Error('Firebase Authentication is not configured in this environment.');
+    }
     await signInWithEmailAndPassword(
       firebaseAuth,
       email.trim(),
@@ -49,6 +63,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signUp = async (email: string, password: string) => {
+    if (!isFirebaseConfigured || !firebaseAuth) {
+      throw new Error('Firebase Authentication is not configured in this environment.');
+    }
     await createUserWithEmailAndPassword(
       firebaseAuth,
       email.trim(),
@@ -57,20 +74,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOutUser = async () => {
-    await signOut(firebaseAuth);
+    if (isFirebaseConfigured && firebaseAuth) {
+      await signOut(firebaseAuth);
+    }
+    setUser(null);
   };
 
-  const getIdToken = async (forceRefresh = false) => {
-    if (!firebaseAuth.currentUser) {
-      return null;
+  const getIdToken = async (forceRefresh = false): Promise<string | null> => {
+    if (isFirebaseConfigured && firebaseAuth?.currentUser) {
+      return firebaseAuth.currentUser.getIdToken(forceRefresh);
     }
-
-    return firebaseAuth.currentUser.getIdToken(forceRefresh);
+    return null;
   };
 
   const value: AuthContextValue = {
     user,
     loading,
+    isFirebaseConfigured,
     signIn,
     signUp,
     signOutUser,
