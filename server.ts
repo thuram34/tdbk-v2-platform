@@ -247,6 +247,51 @@ async function startServer() {
     }
   });
 
+  /**
+   * FIRST-TIME CLIENT ONBOARDING
+   *
+   * Authenticated Firebase users can initialize only their own
+   * first TDBK Business Owner identity.
+   */
+  app.post('/api/kernel/identity/initialize-owner', async (req: Request, res: Response) => {
+    try {
+      const authHeader = req.headers.authorization;
+
+      const context = await securityContextFactory.createSecurityContext({
+        authHeader,
+        ipAddress: req.ip,
+      });
+
+      const identity =
+        await tdbkIdentityService.initializeOwnerIdentity(
+          context
+        );
+
+      res.json({
+        status: 'SUCCESS',
+        identity,
+      });
+    } catch (err) {
+      if (err instanceof KernelError) {
+        res.status(err.statusCode).json(err.toJSON());
+      } else if (err instanceof AuthorizationError) {
+        res.status(403).json({
+          error: {
+            code: 'FORBIDDEN',
+            message: err.message,
+          },
+        });
+      } else {
+        res.status(500).json({
+          error: {
+            code: 'INTERNAL_ERROR',
+            message: (err as Error).message,
+          },
+        });
+      }
+    }
+  });
+
   app.post('/api/kernel/identity/promote-business-owner', async (req: Request, res: Response) => {
     try {
       const authHeader = req.headers.authorization;

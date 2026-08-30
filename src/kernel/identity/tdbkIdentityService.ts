@@ -222,6 +222,99 @@ export class TdbkIdentityService {
   }
 
   /**
+   * Initializes the authenticated user's first TDBK identity.
+   *
+   * This is intentionally separate from master-authorized promotion.
+   * The authenticated principal can initialize ONLY itself as a
+   * BUSINESS_OWNER for the purpose of starting a business portfolio.
+   *
+   * Idempotent: existing identities are returned unchanged.
+   */
+  public async initializeOwnerIdentity(
+    context: SecurityContext
+  ): Promise<TdbkIdentityRecord> {
+    const { principal, requestId } = context;
+
+    const existing = await tdbkIdentityRepository.getIdentity(principal.id);
+
+    if (existing) {
+      return existing;
+    }
+
+    const userRecord = await firebaseIdentityManager.getUserByUid(
+      principal.id
+    );
+
+    const now = new Date().toISOString();
+
+    const record: TdbkIdentityRecord = {
+      uid: principal.id,
+      email: principal.email || userRecord.email,
+      displayName:
+        userRecord.displayName ||
+        principal.email ||
+        'TDBK Business Owner',
+      roles: ['BUSINESS_OWNER'],
+      permissions: [
+        'PORTFOLIO_READ',
+        'PORTFOLIO_WRITE',
+        'DBK_PROVISION',
+        'DBK_MANAGE',
+        'FINANCE_READ',
+        'REPORTS_VIEW',
+      ],
+      tenantId: null,
+      branchId: null,
+      isMaster: false,
+      disabled: false,
+      createdAt: now,
+      updatedAt: now,
+      assignedBy: principal.id,
+    };
+
+    const claims: TdbkIdentityClaims = {
+      roles: record.roles,
+      permissions: record.permissions,
+      tenantId: null,
+      branchId: null,
+      isMaster: false,
+      metadata: {
+        assignedAt: now,
+        assignedBy: principal.id,
+      },
+    };
+
+    await firebaseIdentityManager.setTdbkClaims(
+      principal.id,
+      claims
+    );
+
+    await tdbkIdentityRepository.saveIdentity(
+      principal.id,
+      record
+    );
+
+    auditLogger.logEvent(
+      'SECURITY_CONFIGURATION_CHANGE',
+      principal.id,
+      'OWNER_IDENTITY_INITIALIZED',
+      `user:${principal.id}`,
+      'ALLOWED',
+      {
+        requestId,
+        details: {
+          selfInitialized: true,
+          roles: record.roles,
+          permissions: record.permissions,
+          isMaster: false,
+        },
+      }
+    );
+
+    return record;
+  }
+
+  /**
    * Promotes a Firebase user to BUSINESS_OWNER.
    * RESTRICTED: TDBK MASTER ADMIN ONLY.
    */
