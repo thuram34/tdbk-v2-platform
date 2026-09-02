@@ -42,6 +42,12 @@ import { aiProvider } from './src/document_ai/ai/aiProvider';
 import { aiSecurityGuard } from './src/document_ai/ai/aiSecurityGuard';
 import { aiCommandBoundary } from './src/document_ai/ai/aiCommandBoundary';
 import { aiMemoryManager } from './src/document_ai/memory/aiMemoryManager';
+import { roleBasedCoherenceEngine } from './src/coherence/roleBasedCoherenceEngine';
+import { contributionDispatcher } from './src/coherence/contributionDispatcher';
+import { capabilityAccessStore } from './src/coherence/approvalWorkflow';
+import { multiSurfaceRenderer } from './src/coherence/multiSurfaceRenderer';
+import { runCoherenceTestSuite } from './src/coherence/tests/coherenceTestRunner';
+import { SurfaceType } from './src/coherence/types';
 
 async function startServer() {
   // Explicit bootstrap boundary: Seed demo DBKs only in development, preview, or explicit flag
@@ -921,6 +927,183 @@ async function startServer() {
       const { dbkId, capabilityId } = req.params;
       const records = entityEngine.getRecords(dbkId, capabilityId);
       res.json({ status: 'SUCCESS', records });
+    } catch (err) {
+      res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: (err as Error).message } });
+    }
+  });
+
+  // -------------------------------------------------------------
+  // ROLE-BASED COHERENCE ENGINE (RBCE) ENDPOINTS
+  // CORE: ONE BUSINESS. ONE SHARED REALITY. DIFFERENT ROLES. DIFFERENT EXPERIENCES.
+  // -------------------------------------------------------------
+  app.post('/api/test/coherence', async (req: Request, res: Response) => {
+    const summary = await runCoherenceTestSuite();
+    res.json({ status: 'SUCCESS', summary });
+  });
+
+  app.get('/api/coherence/resolve/:dbkId', async (req: Request, res: Response) => {
+    try {
+      const authHeader = req.headers.authorization;
+      const { dbkId } = req.params;
+      const targetSpaceId = req.query.spaceId as string | undefined;
+      const activeRoleOverride = req.query.roleOverride as string | undefined;
+
+      const context = await securityContextFactory.createSecurityContext({
+        authHeader,
+        targetTenantId: dbkId,
+        ipAddress: req.ip,
+      });
+
+      const resolution = await roleBasedCoherenceEngine.resolveCoherentExperience(context, dbkId, {
+        targetSpaceId,
+        activeRoleOverride,
+      });
+
+      res.json({ status: 'SUCCESS', resolution });
+    } catch (err) {
+      if (err instanceof KernelError) {
+        res.status(err.statusCode).json(err.toJSON());
+      } else {
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: (err as Error).message } });
+      }
+    }
+  });
+
+  app.get('/api/coherence/spaces/:dbkId', async (req: Request, res: Response) => {
+    try {
+      const authHeader = req.headers.authorization;
+      const { dbkId } = req.params;
+
+      const context = await securityContextFactory.createSecurityContext({
+        authHeader,
+        targetTenantId: dbkId,
+        ipAddress: req.ip,
+      });
+
+      const spaces = roleBasedCoherenceEngine.getUserSpaces(context.principal.id, dbkId);
+      res.json({ status: 'SUCCESS', spaces });
+    } catch (err) {
+      if (err instanceof KernelError) {
+        res.status(err.statusCode).json(err.toJSON());
+      } else {
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: (err as Error).message } });
+      }
+    }
+  });
+
+  app.post('/api/coherence/contribute', async (req: Request, res: Response) => {
+    try {
+      const authHeader = req.headers.authorization;
+      const { tenantId, spaceId, contributionType, data, roleTitle } = req.body;
+
+      const context = await securityContextFactory.createSecurityContext({
+        authHeader,
+        targetTenantId: tenantId,
+        ipAddress: req.ip,
+      });
+
+      const outcome = await contributionDispatcher.dispatchContribution(
+        context,
+        {
+          contributionType,
+          tenantId,
+          spaceId,
+          data,
+        },
+        roleTitle
+      );
+
+      res.json({ status: 'SUCCESS', outcome });
+    } catch (err) {
+      if (err instanceof KernelError) {
+        res.status(err.statusCode).json(err.toJSON());
+      } else {
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: (err as Error).message } });
+      }
+    }
+  });
+
+  app.post('/api/coherence/requests', async (req: Request, res: Response) => {
+    try {
+      const authHeader = req.headers.authorization;
+      const { tenantId, spaceId, capabilityId, capabilityName, justification } = req.body;
+
+      const context = await securityContextFactory.createSecurityContext({
+        authHeader,
+        targetTenantId: tenantId,
+        ipAddress: req.ip,
+      });
+
+      const request = capabilityAccessStore.createRequest({
+        tenantId,
+        spaceId,
+        requesterId: context.principal.id,
+        requesterName: context.principal.id,
+        requesterRole: context.principal.roles[0] || 'STAFF',
+        capabilityId,
+        capabilityName,
+        justification,
+      });
+
+      res.json({ status: 'SUCCESS', request });
+    } catch (err) {
+      if (err instanceof KernelError) {
+        res.status(err.statusCode).json(err.toJSON());
+      } else {
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: (err as Error).message } });
+      }
+    }
+  });
+
+  app.post('/api/coherence/requests/:requestId/approve', async (req: Request, res: Response) => {
+    try {
+      const authHeader = req.headers.authorization;
+      const { requestId } = req.params;
+      const { reviewNotes } = req.body;
+
+      const context = await securityContextFactory.createSecurityContext({
+        authHeader,
+        ipAddress: req.ip,
+      });
+
+      const approved = capabilityAccessStore.approveRequest(requestId, context.principal.id, reviewNotes);
+      res.json({ status: 'SUCCESS', request: approved });
+    } catch (err) {
+      res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: (err as Error).message } });
+    }
+  });
+
+  app.post('/api/coherence/requests/:requestId/reject', async (req: Request, res: Response) => {
+    try {
+      const authHeader = req.headers.authorization;
+      const { requestId } = req.params;
+      const { reason } = req.body;
+
+      const context = await securityContextFactory.createSecurityContext({
+        authHeader,
+        ipAddress: req.ip,
+      });
+
+      const rejected = capabilityAccessStore.rejectRequest(requestId, context.principal.id, reason);
+      res.json({ status: 'SUCCESS', request: rejected });
+    } catch (err) {
+      res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: (err as Error).message } });
+    }
+  });
+
+  app.get('/api/coherence/display/:spaceId/:surfaceType', async (req: Request, res: Response) => {
+    try {
+      const { spaceId, surfaceType } = req.params;
+      const { title, sourceEvent, message, details } = req.query;
+
+      const rendered = multiSurfaceRenderer.renderToSurface(surfaceType as SurfaceType, spaceId, {
+        title: (title as string) || 'Digital Screen Notice',
+        sourceEvent: (sourceEvent as string) || 'display.broadcast.v1',
+        primaryMessage: (message as string) || 'Active Business Operation Nominal',
+        secondaryDetails: details as string | undefined,
+      });
+
+      res.json({ status: 'SUCCESS', rendered });
     } catch (err) {
       res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: (err as Error).message } });
     }

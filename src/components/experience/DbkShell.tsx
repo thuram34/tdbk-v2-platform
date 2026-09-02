@@ -15,6 +15,7 @@ import { Phase6TestSuitePanel } from '../document_ai/Phase6TestSuitePanel';
 import { DocumentAiShellPanel } from '../document_ai/DocumentAiShellPanel';
 import { OwnerPortfolioView } from './OwnerPortfolioView';
 import { MultiBusinessSuitePanel } from './MultiBusinessSuitePanel';
+import { CoherenceEnginePanel } from './CoherenceEnginePanel';
 import {
   Building2,
   GitBranch,
@@ -56,7 +57,7 @@ export const DbkShell: React.FC<DbkShellProps> = ({
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
-  const [viewMode, setViewMode] = useState<'PORTFOLIO' | 'WORKSPACE' | 'MULTI_BUSINESS_TESTS'>('PORTFOLIO');
+  const [viewMode, setViewMode] = useState<'PORTFOLIO' | 'WORKSPACE' | 'MULTI_BUSINESS_TESTS' | 'COHERENCE_ENGINE'>('PORTFOLIO');
 
   // 1. Fetch available DBKs
   const loadDbkList = async () => {
@@ -206,6 +207,7 @@ export const DbkShell: React.FC<DbkShellProps> = ({
         }}
         onRefreshDbks={loadDbkList}
         onOpenTestSuite={() => setViewMode('MULTI_BUSINESS_TESTS')}
+        onOpenCoherenceEngine={() => setViewMode('COHERENCE_ENGINE')}
       />
     );
   }
@@ -214,6 +216,15 @@ export const DbkShell: React.FC<DbkShellProps> = ({
     return (
       <MultiBusinessSuitePanel
         onBackToPortfolio={() => setViewMode('PORTFOLIO')}
+      />
+    );
+  }
+
+  if (viewMode === 'COHERENCE_ENGINE') {
+    return (
+      <CoherenceEnginePanel
+        defaultDbkId={selectedDbkId || 'tenant_school_01'}
+        onBack={() => setViewMode(selectedDbkId ? 'WORKSPACE' : 'PORTFOLIO')}
       />
     );
   }
@@ -318,6 +329,15 @@ export const DbkShell: React.FC<DbkShellProps> = ({
             >
               <Sparkles className="w-3 h-3 text-amber-400" />
               <span className="hidden sm:inline">P6 (60 Tests)</span>
+            </button>
+
+            {/* Role-Based Coherence Engine Trigger */}
+            <button
+              onClick={() => setViewMode('COHERENCE_ENGINE')}
+              className="flex items-center space-x-1.5 px-2.5 py-1 text-xs font-semibold rounded border bg-indigo-950/60 border-indigo-500/40 text-indigo-300 hover:bg-indigo-900/60 transition cursor-pointer shadow-2xs"
+            >
+              <Layers className="w-3 h-3 text-indigo-400" />
+              <span className="hidden sm:inline">Role Coherence</span>
             </button>
 
             {/* Master Console */}

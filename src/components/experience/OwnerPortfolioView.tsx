@@ -36,6 +36,7 @@ interface OwnerPortfolioViewProps {
   onSelectDbk: (dbkId: string) => void;
   onRefreshDbks: () => void;
   onOpenTestSuite: () => void;
+  onOpenCoherenceEngine?: () => void;
 }
 
 export const OwnerPortfolioView: React.FC<OwnerPortfolioViewProps> = ({
@@ -43,6 +44,7 @@ export const OwnerPortfolioView: React.FC<OwnerPortfolioViewProps> = ({
   onSelectDbk,
   onRefreshDbks,
   onOpenTestSuite,
+  onOpenCoherenceEngine,
 }) => {
   const { getIdToken } = useAuth();
   const [isRegisterOpen, setIsRegisterOpen] = useState<boolean>(false);
@@ -148,16 +150,25 @@ export const OwnerPortfolioView: React.FC<OwnerPortfolioViewProps> = ({
         </div>
 
         <div className="flex items-center space-x-3">
+          {onOpenCoherenceEngine && (
+            <button
+              onClick={onOpenCoherenceEngine}
+              className="px-3.5 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 rounded-lg transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
+            >
+              <Layers className="w-4 h-4 text-indigo-200" />
+              Role-Based Coherence Engine
+            </button>
+          )}
           <button
             onClick={onOpenTestSuite}
-            className="px-3.5 py-2 text-xs font-semibold text-neutral-700 bg-neutral-100 hover:bg-neutral-200 rounded-lg transition-colors flex items-center gap-1.5"
+            className="px-3.5 py-2 text-xs font-semibold text-neutral-700 bg-neutral-100 hover:bg-neutral-200 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
           >
             <Cpu className="w-4 h-4 text-neutral-600" />
             Multi-Business Test Suite
           </button>
           <button
             onClick={() => setIsRegisterOpen(true)}
-            className="px-4 py-2 text-xs font-semibold text-white bg-neutral-900 hover:bg-neutral-800 rounded-lg shadow-sm transition-colors flex items-center gap-2"
+            className="px-4 py-2 text-xs font-semibold text-white bg-neutral-900 hover:bg-neutral-800 rounded-lg shadow-sm transition-colors flex items-center gap-2 cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             Register Business

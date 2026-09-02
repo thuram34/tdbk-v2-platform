@@ -63,6 +63,14 @@ class EventBusService {
       // Phase 6 Document and AI Events
       { eventType: 'document.ingested.v1', version: 'v1', description: 'Document ingested and validated' },
       { eventType: 'ai.proposal_generated.v1', version: 'v1', description: 'AI proposal created and pending review' },
+      // Role-Based Coherence & Shared Contribution Events
+      { eventType: 'attendance.recorded.v1', version: 'v1', description: 'Learner attendance recorded' },
+      { eventType: 'pos.sale.completed.v1', version: 'v1', description: 'Counter POS sale completed' },
+      { eventType: 'patient.triaged.v1', version: 'v1', description: 'Clinical patient triaged' },
+      { eventType: 'display.broadcast.v1', version: 'v1', description: 'Digital screen broadcast notice' },
+      { eventType: 'contribution.recorded.v1', version: 'v1', description: 'Shared contribution recorded' },
+      { eventType: 'capability.access_requested.v1', version: 'v1', description: 'Capability access requested' },
+      { eventType: 'capability.access_approved.v1', version: 'v1', description: 'Capability access approved' },
     ];
 
     for (const item of defaultTypes) {
