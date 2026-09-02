@@ -52,16 +52,16 @@ export const OwnerPortfolioView: React.FC<OwnerPortfolioViewProps> = ({
   // Form state for registration
   const [legalName, setLegalName] = useState<string>('');
   const [dbkId, setDbkId] = useState<string>('');
-  const [blueprintId, setBlueprintId] = useState<string>('school_fee_structure');
+  const [blueprintId, setBlueprintId] = useState<string>('school_v1');
   const [subscriptionTier, setSubscriptionTier] = useState<string>('PROFESSIONAL');
   const [branchName, setBranchName] = useState<string>('Headquarters');
 
   const blueprints = [
-    { id: 'school_fee_structure', label: 'School / Academy', icon: GraduationCap, sector: 'EDUCATION' },
-    { id: 'pos_register', label: 'Pharmacy / Retail POS', icon: Pill, sector: 'RETAIL' },
-    { id: 'inventory_catalog', label: 'Hardware / Inventory', icon: Store, sector: 'COMMERCE' },
-    { id: 'logistics_fleet', label: 'Logistics & Fleet Dispatch', icon: Truck, sector: 'LOGISTICS' },
-    { id: 'clinic_patients', label: 'Clinic / Medical Practice', icon: Stethoscope, sector: 'HEALTHCARE' },
+    { id: 'school_v1', label: 'School / Academy', icon: GraduationCap, sector: 'EDUCATION' },
+    { id: 'retail_v1', label: 'Pharmacy / Retail POS', icon: Pill, sector: 'RETAIL' },
+    { id: 'hardware_v1', label: 'Hardware / Inventory', icon: Store, sector: 'COMMERCE' },
+    { id: 'logistics_v1', label: 'Logistics & Fleet Dispatch', icon: Truck, sector: 'LOGISTICS' },
+    { id: 'clinic_v1', label: 'Clinic / Medical Practice', icon: Stethoscope, sector: 'HEALTHCARE' },
   ];
 
   const handleRegister = async (e: React.FormEvent) => {
