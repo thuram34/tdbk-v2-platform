@@ -114,9 +114,11 @@ export class ContributionDispatcher {
         eventVersion: 'v1',
         source: 'RoleBasedCoherenceEngine:ContributionDispatcher',
         tenantId,
+        branchId: null,
+        principalId: principal.id,
         correlationId: context.correlationId || requestId,
         causationId: contributionId,
-        timestamp: new Date().toISOString(),
+        occurredAt: new Date().toISOString(),
         payload: {
           contributionId,
           contributionType,
@@ -124,6 +126,10 @@ export class ContributionDispatcher {
           contributorId: principal.id,
           contributorRole: roleTitle,
           data,
+        },
+        metadata: {
+          spaceId,
+          role: roleTitle,
         },
       });
     } catch {
@@ -134,7 +140,7 @@ export class ContributionDispatcher {
     try {
       const existingDna = businessDnaManager.getBusinessDna(context, tenantId);
       if (existingDna) {
-        businessDnaManager.saveBusinessDna(context, tenantId, {
+        businessDnaManager.saveBusinessDna(context, {
           ...existingDna,
           updatedAt: new Date().toISOString(),
         });
@@ -145,9 +151,9 @@ export class ContributionDispatcher {
 
     // 4. Audit Log (WHO, DID WHAT, IN WHICH TENANT, IN WHICH SPACE, UNDER WHICH ROLE, WHEN, RESULT)
     auditLogger.logEvent(
-      'SHARED_CONTRIBUTION_RECORDED',
+      'WORKFLOW_EXECUTION',
       principal.id,
-      contributionType,
+      'SHARED_CONTRIBUTION_RECORDED',
       `space:${spaceId}`,
       'ALLOWED',
       {

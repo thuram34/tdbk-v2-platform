@@ -265,7 +265,7 @@ export class RoleBasedCoherenceEngine {
       organizationName: isSchool ? 'Premier Academy Ltd' : isHardware ? 'National Hardware Store' : isClinic ? 'Apex Community Health' : 'TDBK Business Enterprise',
       spaceName: isSchool ? 'Main Academy Campus' : isHardware ? 'Main Store & Counter' : isClinic ? 'Primary Care Clinic' : 'Main Business Space',
       spaceType: 'HEADQUARTERS',
-      sector: isSchool ? 'EDUCATION' : isHardware ? 'HARDWARE' : isClinic ? 'HEALTHCARE' : 'SERVICES',
+      sector: isSchool ? 'EDUCATION' : isHardware ? 'HARDWARE' : isClinic ? 'HEALTHCARE' : 'PROFESSIONAL_SERVICES',
       isHeadquarters: true,
       status: 'ACTIVE',
       city: 'Nairobi',
@@ -739,7 +739,7 @@ export class RoleBasedCoherenceEngine {
 
     // 3. Explore More (Advanced / Growth capabilities)
     const exploreMore: ExploreMoreOfferingItem[] = FORMAL_CAPABILITY_DEFINITIONS
-      .filter((cap) => cap.minimumTier === 'GROWTH' || cap.minimumTier === 'SCALE')
+      .filter((cap) => cap.minimumTier === 'GROWTH' || cap.minimumTier === 'ENTERPRISE')
       .map((cap) => ({
         capabilityId: cap.capabilityId,
         name: cap.name,

@@ -72,9 +72,9 @@ export class CapabilityAccessStore {
     this.requests.set(requestId, newReq);
 
     auditLogger.logEvent(
-      'CAPABILITY_ACCESS_REQUESTED',
+      'SECURITY_CONFIGURATION_CHANGE',
       params.requesterId,
-      'CREATE_REQUEST',
+      'CAPABILITY_ACCESS_REQUESTED',
       `capability:${params.capabilityId}`,
       'ALLOWED',
       {
@@ -106,9 +106,9 @@ export class CapabilityAccessStore {
     this.requests.set(requestId, req);
 
     auditLogger.logEvent(
-      'CAPABILITY_ACCESS_APPROVED',
+      'SECURITY_CONFIGURATION_CHANGE',
       reviewerId,
-      'APPROVE_REQUEST',
+      'CAPABILITY_ACCESS_APPROVED',
       `request:${requestId}`,
       'ALLOWED',
       {
@@ -141,9 +141,9 @@ export class CapabilityAccessStore {
     this.requests.set(requestId, req);
 
     auditLogger.logEvent(
-      'CAPABILITY_ACCESS_REJECTED',
+      'AUTHORIZATION_DENIED',
       reviewerId,
-      'REJECT_REQUEST',
+      'CAPABILITY_ACCESS_REJECTED',
       `request:${requestId}`,
       'DENIED',
       {

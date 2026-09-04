@@ -45,7 +45,7 @@ export const FORMAL_CAPABILITY_DEFINITIONS: FormalCapabilityDefinition[] = [
     description: 'Track stock balances, unit costs, reorder thresholds, and warehouse dispatch.',
     businessPurpose: 'Prevent stock-outs, minimize shrinkage, and calculate accurate cost-of-goods-sold.',
     minimumTier: 'FOUNDATION',
-    applicableSectors: ['RETAIL', 'HARDWARE', 'PHARMACY', 'HEALTHCARE', 'HOSPITALITY'],
+    applicableSectors: ['RETAIL', 'HARDWARE', 'HEALTHCARE', 'HOSPITALITY'],
     maturityLevels: [
       { level: 1, name: 'BASIC', features: ['Stock SKU registry', 'Manual adjustments'] },
       { level: 2, name: 'INTERMEDIATE', features: ['Automated reorder point alerts', 'Batch and expiry date tracking'] },
@@ -60,7 +60,7 @@ export const FORMAL_CAPABILITY_DEFINITIONS: FormalCapabilityDefinition[] = [
     description: 'Allocate rooms, equipment, staff shifts, and calendar slots.',
     businessPurpose: 'Prevent double-booking, maximize asset utilization, and streamline daily operational cadences.',
     minimumTier: 'GROWTH',
-    applicableSectors: ['EDUCATION', 'HEALTHCARE', 'HOSPITALITY', 'SERVICES'],
+    applicableSectors: ['EDUCATION', 'HEALTHCARE', 'HOSPITALITY', 'PROFESSIONAL_SERVICES'],
     maturityLevels: [
       { level: 1, name: 'BASIC', features: ['Class/Room timetable matrix', 'Daily shift rosters'] },
       { level: 2, name: 'INTERMEDIATE', features: ['Conflict detection', 'Staff substitute assignment'] },
@@ -75,7 +75,7 @@ export const FORMAL_CAPABILITY_DEFINITIONS: FormalCapabilityDefinition[] = [
     description: 'Log and verify the presence of learners, staff, visitors, and members.',
     businessPurpose: 'Ensure accountability, regulatory compliance, child safety, and accurate payroll calculation.',
     minimumTier: 'FOUNDATION',
-    applicableSectors: ['EDUCATION', 'HEALTHCARE', 'LOGISTICS', 'ENTERPRISE'],
+    applicableSectors: ['EDUCATION', 'HEALTHCARE', 'LOGISTICS', 'PROFESSIONAL_SERVICES'],
     maturityLevels: [
       { level: 1, name: 'BASIC', features: ['Single-tap mobile attendance roll call', 'Absence recording'] },
       { level: 2, name: 'INTERMEDIATE', features: ['Automated parent absence notification', 'Weekly percentage calculation'] },
@@ -134,7 +134,7 @@ export const FORMAL_CAPABILITY_DEFINITIONS: FormalCapabilityDefinition[] = [
     category: 'AI_INTELLIGENCE',
     description: 'Analyze operational logs to generate proposals, draft communications, and suggest actions.',
     businessPurpose: 'Assist human workers with intelligent recommendations strictly bounded by their role and tenant authority.',
-    minimumTier: 'SCALE',
+    minimumTier: 'ENTERPRISE',
     applicableSectors: ['ALL'],
     maturityLevels: [
       { level: 1, name: 'BASIC', features: ['Automated report summarization', 'Draft message templates'] },
