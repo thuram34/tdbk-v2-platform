@@ -9,6 +9,7 @@ import { outboxRepository } from '../../persistence/firestore/repositories/outbo
 import { idempotencyRepository } from '../../persistence/firestore/repositories/idempotencyRepository';
 import { auditLogger } from '../../kernel/audit/auditLogger';
 import { FirestoreTransaction } from '../../persistence/types';
+import { pubSubTransport } from '../events/pubsubTransport';
 
 export class OutboxEngine {
   private static instance: OutboxEngine;
@@ -144,9 +145,10 @@ export class OutboxEngine {
           metadata: {},
         };
 
-        if (deliverHandler) {
-          await deliverHandler(envelope);
-        }
+        const handler =
+          deliverHandler ?? ((event: EventEnvelope) => pubSubTransport.publish(event));
+
+        await handler(envelope);
 
         await idempotencyRepository.saveIdempotencyRecord(record.tenantId, idempotencyKey, {
           idempotencyKey,
