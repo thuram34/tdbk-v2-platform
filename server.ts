@@ -63,6 +63,10 @@ async function startServer() {
   // -------------------------------------------------------------
   // HEALTH & READINESS ENDPOINTS
   // -------------------------------------------------------------
+  app.get('/api/health', async (req: Request, res: Response) => {
+    res.json(healthMonitoring.getLiveStatus());
+  });
+
   app.get('/api/health/live', async (req: Request, res: Response) => {
     res.json(healthMonitoring.getLiveStatus());
   });
