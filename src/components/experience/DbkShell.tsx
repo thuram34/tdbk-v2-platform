@@ -16,6 +16,7 @@ import { DocumentAiShellPanel } from '../document_ai/DocumentAiShellPanel';
 import { OwnerPortfolioView } from './OwnerPortfolioView';
 import { MultiBusinessSuitePanel } from './MultiBusinessSuitePanel';
 import { CoherenceEnginePanel } from './CoherenceEnginePanel';
+import { SmartClassroomView } from '../classroom/SmartClassroomView';
 import {
   Building2,
   GitBranch,
@@ -47,7 +48,7 @@ export const DbkShell: React.FC<DbkShellProps> = ({
   initialDbkId,
   onSwitchToMaster,
 }) => {
-  const { getIdToken } = useAuth();
+  const { getIdToken, user } = useAuth();
   const [dbkList, setDbkList] = useState<Array<any>>([]);
   const [selectedDbkId, setSelectedDbkId] = useState<string>(initialDbkId || '');
   const [selectedBranchId, setSelectedBranchId] = useState<string>('');
@@ -500,6 +501,12 @@ export const DbkShell: React.FC<DbkShellProps> = ({
                 />
               ) : activeViewId === 'nav_settings' || activeViewId === 'settings' ? (
                 <SettingsView experience={experience} onDispatchCommand={handleDispatchCommand} />
+              ) : currentNav?.viewType === 'CUSTOM_CLASSROOM' || activeViewId === 'smart_classroom' ? (
+                <SmartClassroomView
+                  tenantId={selectedDbkId}
+                  userId={experience.currentPrincipal.userId}
+                  userName={user?.email || "bethuelthuram@gmail.com"}
+                />
               ) : currentNav?.viewType === 'OPERATIONAL_FLOW' ? (
                 <OperationalFlowView
                   experience={experience}

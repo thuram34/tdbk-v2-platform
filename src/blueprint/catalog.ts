@@ -26,7 +26,7 @@ export const INITIAL_BLUEPRINT_CATALOG: Blueprint[] = [
     domains: [
       { id: 'executive', name: 'Executive Overview', description: 'Institutional health, enrollment & financial summary', displayOrder: 1, supportedCapabilityIds: ['enrollment_summary', 'financial_health'] },
       { id: 'students', name: 'Student Management', description: 'Student records, guardians & admission tracking', displayOrder: 2, supportedCapabilityIds: ['student_records', 'parent_portal'] },
-      { id: 'academics', name: 'Academics & Examination', description: 'Curriculum, CBC assessment, grades & timetable', displayOrder: 3, supportedCapabilityIds: ['cbc_grading', 'timetabling'] },
+      { id: 'academics', name: 'Academics & Examination', description: 'Curriculum, CBC assessment, grades & timetable', displayOrder: 3, supportedCapabilityIds: ['cbc_grading', 'timetabling', 'smart_classroom'] },
       { id: 'finance', name: 'Fee & Finance Management', description: 'Fee structures, invoices, M-Pesa receipts & arrears', displayOrder: 4, supportedCapabilityIds: ['fee_management', 'mpesa_reconciliation'] },
       { id: 'operations', name: 'Campus Operations', description: 'Transport, hostels, library & health clinic', displayOrder: 5, supportedCapabilityIds: ['transport_tracking', 'hostel_management', 'library_sys'] },
       { id: 'settings', name: 'Settings & Compliance', description: 'Ministry rules, roles & branch permissions', displayOrder: 6, supportedCapabilityIds: ['system_config'] },
@@ -40,6 +40,7 @@ export const INITIAL_BLUEPRINT_CATALOG: Blueprint[] = [
       { id: 'transport_tracking', name: 'School Bus & Transport', category: 'OPERATIONS', isDefault: false, description: 'Route planning and bus fee tracking' },
       { id: 'hostel_management', name: 'Boarding & Hostel Allocation', category: 'OPERATIONS', isDefault: false, description: 'Bed spaces and hostel boarding logs' },
       { id: 'library_sys', name: 'Library & Textbook Tracking', category: 'OPERATIONS', isDefault: false, description: 'Book issuing and return tracking' },
+      { id: 'smart_classroom', name: 'TDBK Smart Classroom', category: 'ACADEMICS', isDefault: true, description: 'Unified platform-native digital interactive classroom runtime' },
     ],
     defaultRoles: ['SCHOOL_PRINCIPAL', 'BURSAR', 'TEACHER', 'ADMINISTRATOR'],
     supportedDocumentTypes: ['FEE_INVOICE', 'OFFICIAL_RECEIPT', 'ACADEMIC_REPORT', 'ADMISSION_FORM'],
