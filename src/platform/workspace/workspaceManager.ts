@@ -50,7 +50,8 @@ export class WorkspaceManagerService {
     try {
       const discoverySurface = discoveryEngine.discoverCapabilitiesForDbk(context, dbkId);
       discoverableCapabilities = discoverySurface.availableCapabilities.map((c) => c.capabilityId);
-    } catch {
+    } catch (error) {
+      console.error('[WORKSPACE_CAPABILITY_DISCOVERY_FAILED]', error);
       // Fallback if DNA not yet bound
       discoverableCapabilities = [];
     }

@@ -102,7 +102,8 @@ export class ExperienceResolver {
           iconName: cap.category === 'FINANCE' ? 'DollarSign' : cap.category === 'INVENTORY' ? 'Package' : 'Sparkles',
         };
       });
-    } catch {
+    } catch (error) {
+      console.error('[CAPABILITY_DISCOVERY_FAILED]', error);
       discoveryItems = workspace.discoverableCapabilities.map((c) => ({
         capabilityId: c,
         name: c.split('_').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
