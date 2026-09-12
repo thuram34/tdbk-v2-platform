@@ -82,12 +82,18 @@ class PubSubConsumerService {
   }
 
   private processingDocument(event: EventEnvelope): DocumentReference {
-    const tenantKey = event.tenantId || '__system__';
-    const key = createHash('sha256')
-      .update(`${tenantKey}:${event.eventId}`)
+    const tenantKey = event.tenantId
+      ? Buffer.from(event.tenantId, 'utf8').toString('base64url')
+      : '__system__';
+    const eventKey = createHash('sha256')
+      .update(event.eventId)
       .digest('hex');
 
-    return this.firestore.collection('eventProcessing').doc(key);
+    return this.firestore
+      .collection('eventProcessingTenants')
+      .doc(tenantKey)
+      .collection('events')
+      .doc(eventKey);
   }
 
   private async claimEvent(event: EventEnvelope): Promise<'CLAIMED' | 'COMPLETED' | 'IN_FLIGHT'> {
