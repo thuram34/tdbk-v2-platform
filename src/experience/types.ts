@@ -16,7 +16,8 @@ export type ExperienceViewType =
   | 'OPERATIONAL_FLOW'
   | 'DISCOVERY'
   | 'SETTINGS'
-  | 'REPORTS';
+  | 'REPORTS'
+  | 'CUSTOM_CLASSROOM';
 
 export type ExperienceNavCategory =
   | 'OVERVIEW'

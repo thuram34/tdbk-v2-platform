@@ -1,6 +1,6 @@
 {
   "name": "TDBK V2 Platform Foundation",
-  "description": "Thuram Digital Bridge Kenya V2 — Master System Integration, Multi-Tenant Kernel, Document Ingestion, Dynamic Experience Layer & Production Handover",
+  "description": "Bring your business into the digital space with DBK — connected tools, services and experiences built for Kenyan businesses and organisations.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
