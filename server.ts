@@ -48,7 +48,7 @@ import { capabilityAccessStore } from './src/coherence/approvalWorkflow';
 import { multiSurfaceRenderer } from './src/coherence/multiSurfaceRenderer';
 import { runCoherenceTestSuite } from './src/coherence/tests/coherenceTestRunner';
 import { SurfaceType } from './src/coherence/types';
-import { eventBus } from './src/orchestration/events/eventBus';
+import { pubSubConsumer } from './src/orchestration/events/pubsubConsumer';
 
 async function startServer() {
   // Explicit bootstrap boundary: Seed demo DBKs only in development, preview, or explicit flag
@@ -61,25 +61,7 @@ async function startServer() {
 
   app.use(express.json());
 
-  app.post('/api/events/pubsub', async (req: Request, res: Response) => {
-    try {
-      const message = req.body?.message;
-      const encodedData = message?.data;
-
-      if (typeof encodedData !== 'string') {
-        return res.status(400).json({ error: { code: 'INVALID_PUBSUB_MESSAGE', message: 'Missing Pub/Sub message.data' } });
-      }
-
-      const envelope = JSON.parse(Buffer.from(encodedData, 'base64').toString('utf8'));
-      const result = await eventBus.publish(envelope);
-
-      console.log('[TDBK_PUBSUB_CONSUMER]', JSON.stringify({ eventId: envelope.eventId, eventType: envelope.eventType, tenantId: envelope.tenantId, result }));
-      return res.status(204).send();
-    } catch (error) {
-      console.error('[TDBK_PUBSUB_CONSUMER_ERROR]', error);
-      return res.status(500).json({ error: { code: 'PUBSUB_CONSUMER_ERROR', message: error instanceof Error ? error.message : String(error) } });
-    }
-  });
+  pubSubConsumer.register(app);
 
   // -------------------------------------------------------------
   // HEALTH & READINESS ENDPOINTS
