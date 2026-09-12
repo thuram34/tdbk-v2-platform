@@ -1,4 +1,4 @@
-import { Firestore } from '@google-cloud/firestore';
+import { Firestore, type DocumentReference } from '@google-cloud/firestore';
 import { OAuth2Client } from 'google-auth-library';
 import type { Application, Request, Response } from 'express';
 import { createHash } from 'node:crypto';
@@ -28,10 +28,10 @@ interface ProcessingRecord {
   eventId: string;
   tenantId: string | null;
   status: 'PROCESSING' | 'COMPLETED' | 'FAILED';
-  leaseUntil?: number;
+  leaseUntil?: number | null;
   completedAt?: string;
   failedAt?: string;
-  lastError?: string;
+  lastError?: string | null;
   updatedAt: string;
 }
 
@@ -81,7 +81,7 @@ class PubSubConsumerService {
     }
   }
 
-  private processingDocument(event: EventEnvelope): FirebaseFirestore.DocumentReference {
+  private processingDocument(event: EventEnvelope): DocumentReference {
     const tenantKey = event.tenantId || '__system__';
     const key = createHash('sha256')
       .update(`${tenantKey}:${event.eventId}`)
@@ -121,11 +121,12 @@ class PubSubConsumerService {
   }
 
   private async completeEvent(event: EventEnvelope): Promise<void> {
+    const now = new Date().toISOString();
     await this.processingDocument(event).set(
       {
         status: 'COMPLETED',
-        completedAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        completedAt: now,
+        updatedAt: now,
         leaseUntil: null,
         lastError: null,
       },
@@ -135,12 +136,13 @@ class PubSubConsumerService {
 
   private async failEvent(event: EventEnvelope, error: unknown): Promise<void> {
     const safeMessage = error instanceof Error ? error.message : 'Unknown consumer failure';
+    const now = new Date().toISOString();
 
     await this.processingDocument(event).set(
       {
         status: 'FAILED',
-        failedAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        failedAt: now,
+        updatedAt: now,
         leaseUntil: null,
         lastError: safeMessage.slice(0, 1000),
       },
@@ -197,11 +199,12 @@ class PubSubConsumerService {
   }
 
   public async handle(req: Request, res: Response): Promise<void> {
+    let claimedEnvelope: EventEnvelope | null = null;
+
     try {
       await this.verifyPushAuthorization(req);
 
-      const body = req.body as PubSubPushRequest;
-      const envelope = this.parseEnvelope(body);
+      const envelope = this.parseEnvelope(req.body as PubSubPushRequest);
       const claim = await this.claimEvent(envelope);
 
       if (claim === 'COMPLETED') {
@@ -218,6 +221,8 @@ class PubSubConsumerService {
         res.status(409).json({ error: { code: 'EVENT_IN_FLIGHT', message: 'Event is currently being processed' } });
         return;
       }
+
+      claimedEnvelope = envelope;
 
       const result = await eventBus.publish(
         envelope,
@@ -237,9 +242,23 @@ class PubSubConsumerService {
 
       res.status(204).send();
     } catch (error) {
+      if (claimedEnvelope) {
+        try {
+          await this.failEvent(claimedEnvelope, error);
+        } catch (stateError) {
+          console.error('[TDBK_PUBSUB_CONSUMER_STATE_ERROR]', stateError);
+        }
+      }
+
       const message = error instanceof Error ? error.message : 'Unknown Pub/Sub consumer failure';
+      const authenticationFailure =
+        message.includes('authentication') ||
+        message.includes('bearer token') ||
+        message.includes('token') ||
+        message.includes('service identity');
+
       console.error('[TDBK_PUBSUB_CONSUMER_ERROR]', message);
-      res.status(message.includes('authentication') || message.includes('token') || message.includes('service identity') ? 401 : 500).json({
+      res.status(authenticationFailure ? 401 : 500).json({
         error: {
           code: 'PUBSUB_CONSUMER_ERROR',
           message: 'Pub/Sub message was not accepted',
