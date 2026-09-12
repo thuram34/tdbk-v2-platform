@@ -33,7 +33,7 @@ export function LoginScreen({ onBackToGateway }: LoginScreenProps) {
     setInfo(null);
 
     if (!isFirebaseConfigured) {
-      setError('Firebase Authentication is not configured in this environment.');
+      setError('Authentication is not configured in this environment.');
       return;
     }
 
@@ -54,7 +54,7 @@ export function LoginScreen({ onBackToGateway }: LoginScreenProps) {
         await signIn(email, password);
       } else {
         await signUp(email, password);
-        setInfo('Account created successfully. Authenticating session...');
+        setInfo('Account created successfully. Authenticating your Digital Space...');
       }
     } catch (err: any) {
       const code = err?.code || '';
@@ -78,26 +78,31 @@ export function LoginScreen({ onBackToGateway }: LoginScreenProps) {
     <div className="min-h-[calc(100vh-4rem)] bg-[#FBFBF9] text-neutral-900 flex items-center justify-center p-4 sm:p-6 antialiased">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-neutral-950 text-white shadow-sm mb-4">
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-neutral-950 text-white shadow-xs mb-3">
             <Building2 className="w-6 h-6" />
+          </div>
+          <div className="text-xs font-semibold uppercase tracking-wider text-neutral-500 mb-1.5">
+            Digital Bridge Kenya
           </div>
           <h1 className="text-2xl sm:text-3xl font-serif font-bold tracking-tight text-neutral-950">
             Your Digital Space
           </h1>
           <p className="mt-2 text-sm text-neutral-600">
-            Sign in to access your business tools, records, and operations.
+            {mode === 'SIGN_IN'
+              ? 'Sign in to continue to your business.'
+              : 'Create your account and start your digital journey.'}
           </p>
         </div>
 
-        <div className="border border-neutral-200/90 bg-white shadow-md rounded-2xl p-6 sm:p-8">
+        <div className="border border-neutral-200/90 bg-white shadow-sm sm:shadow-md rounded-2xl p-6 sm:p-8">
           {!isFirebaseConfigured && (
             <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-900">
-              <div className="flex items-center gap-2 mb-1.5 font-bold uppercase tracking-wider text-amber-800">
+              <div className="flex items-center gap-2 mb-1 font-bold uppercase tracking-wider text-amber-800">
                 <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0" />
                 <span>Configuration Required</span>
               </div>
               <p className="text-neutral-700 leading-relaxed">
-                Firebase Web Client credentials are not configured in this environment. User authentication and workspace access require configuration.
+                Authentication is not configured in this environment.
               </p>
             </div>
           )}
@@ -152,7 +157,7 @@ export function LoginScreen({ onBackToGateway }: LoginScreenProps) {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wider text-neutral-600 mb-1.5">
-                Business Email Address
+                Email Address
               </label>
               <div className="relative">
                 <Mail className="w-4 h-4 text-neutral-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -161,7 +166,7 @@ export function LoginScreen({ onBackToGateway }: LoginScreenProps) {
                   value={email}
                   disabled={!isFirebaseConfigured || isSubmitting}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="name@business.ke"
+                  placeholder="name@company.com"
                   className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3.5 py-2.5 pl-10 text-sm text-neutral-900 placeholder-neutral-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-neutral-950 disabled:opacity-50 disabled:cursor-not-allowed transition"
                   required
                 />
@@ -212,16 +217,16 @@ export function LoginScreen({ onBackToGateway }: LoginScreenProps) {
               className="w-full py-3 px-4 rounded-xl bg-neutral-950 hover:bg-neutral-800 text-white text-sm font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-6 cursor-pointer shadow-sm"
             >
               {isSubmitting ? (
-                <span>Authenticating...</span>
+                <span>Connecting...</span>
               ) : mode === 'SIGN_IN' ? (
                 <>
                   <LogIn className="w-4 h-4" />
-                  <span>Sign In to Workspace</span>
+                  <span>Enter My Digital Space</span>
                 </>
               ) : (
                 <>
                   <UserPlus className="w-4 h-4" />
-                  <span>Create Business Account</span>
+                  <span>Create My Account</span>
                 </>
               )}
             </button>
@@ -242,9 +247,13 @@ export function LoginScreen({ onBackToGateway }: LoginScreenProps) {
           <div className="mt-6 pt-5 border-t border-neutral-100 flex items-start gap-2.5 text-xs text-neutral-500">
             <ShieldCheck className="w-4 h-4 shrink-0 text-emerald-600 mt-0.5" />
             <span className="leading-relaxed">
-              Protected by encrypted Kenyan business authentication and verified tenant data isolation.
+              Your account and business data are protected with secure identity and access controls.
             </span>
           </div>
+        </div>
+
+        <div className="mt-8 text-center text-xs text-neutral-500 font-medium">
+          Built in Kenya. For Kenya. For a Brighter Tomorrow.
         </div>
       </div>
     </div>
