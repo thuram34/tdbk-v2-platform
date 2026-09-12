@@ -19,10 +19,10 @@ import {
   FileText,
   Activity,
   Compass,
-  Check,
   X,
   Menu,
 } from 'lucide-react';
+import { CommercialBridge } from './CommercialBridge';
 
 export type BusinessSector =
   | 'EDUCATION'
@@ -295,7 +295,7 @@ export function PublicGateway({ onSelectSector, onSignIn, onLaunchWorkspace }: P
             <a href="#business-spaces" className="hover:text-neutral-950 focus:outline-none focus:ring-2 focus:ring-neutral-950 rounded-md px-1 transition">Your Space</a>
             <a href="#digital-space-showcase" className="hover:text-neutral-950 focus:outline-none focus:ring-2 focus:ring-neutral-950 rounded-md px-1 transition">Workspace Showcase</a>
             <a href="#how-it-works" className="hover:text-neutral-950 focus:outline-none focus:ring-2 focus:ring-neutral-950 rounded-md px-1 transition">How It Works</a>
-            <a href="#services" className="hover:text-neutral-950 focus:outline-none focus:ring-2 focus:ring-neutral-950 rounded-md px-1 transition">Services</a>
+            <a href="#services" className="hover:text-neutral-950 focus:outline-none focus:ring-2 focus:ring-neutral-950 rounded-md px-1 transition">Sale & Services</a>
             <a href="#gazette" className="hover:text-neutral-950 focus:outline-none focus:ring-2 focus:ring-neutral-950 rounded-md px-1 transition">Gazette</a>
           </nav>
 
@@ -377,7 +377,7 @@ export function PublicGateway({ onSelectSector, onSignIn, onLaunchWorkspace }: P
                 onClick={() => setMobileMenuOpen(false)}
                 className="px-3 py-2.5 rounded-xl hover:bg-neutral-50 hover:text-neutral-950 transition"
               >
-                Services
+                Sale & Services
               </a>
               <a
                 href="#gazette"
@@ -827,100 +827,12 @@ export function PublicGateway({ onSelectSector, onSignIn, onLaunchWorkspace }: P
           </div>
         </section>
 
-        {/* 6. TDBK SALE / SERVICES */}
+        {/* 6. TDBK SALE, SERVICES & COMMERCIAL BRIDGE */}
         <section id="services" className="py-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto scroll-mt-24">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-            <div>
-              <span className="text-xs font-bold uppercase tracking-widest text-neutral-500 block mb-3">
-                Complete Business Solution
-              </span>
-              <h2 className="text-3xl sm:text-4xl font-serif font-bold text-neutral-950 tracking-tight mb-6 leading-tight">
-                Get the technology you need, installed and supported nationwide.
-              </h2>
-              <p className="text-base text-neutral-600 leading-relaxed mb-8">
-                TDBK delivers both commercial-grade hardware and on-the-ground support across Kenya, ensuring your business runs smoothly from day one.
-              </p>
-
-              <div className="space-y-4 mb-8">
-                <div className="p-5 rounded-2xl bg-white border border-neutral-200 shadow-xs">
-                  <div className="flex items-center space-x-2 text-xs font-bold text-neutral-900 uppercase tracking-wider mb-1.5">
-                    <span className="w-2 h-2 rounded-full bg-neutral-900"></span>
-                    <span>TDBK Sale — Commercial Hardware</span>
-                  </div>
-                  <p className="text-sm text-neutral-600 leading-relaxed">
-                    Heavy-duty commercial touchscreen terminals, rapid optical barcode scanners, thermal receipt printers, and cash drawer assemblies engineered for reliable high-volume operation.
-                  </p>
-                </div>
-
-                <div className="p-5 rounded-2xl bg-white border border-neutral-200 shadow-xs">
-                  <div className="flex items-center space-x-2 text-xs font-bold text-neutral-900 uppercase tracking-wider mb-1.5">
-                    <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
-                    <span>TDBK Services — Setup & Support</span>
-                  </div>
-                  <p className="text-sm text-neutral-600 leading-relaxed">
-                    Nationwide on-site deployment across all 47 counties, hands-on staff training, instant Lipa Na M-Pesa activation, eTIMS compliance assistance, and dedicated local telephone/WhatsApp support.
-                  </p>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                {[
-                  'Turnkey Hardware Kits: Heavy-duty barcode scanners, receipt printers, and till stands',
-                  'On-Site Setup & Training: Expert staff deployment in all major towns across Kenya',
-                  'Regulatory Alignment: Certified eTIMS fiscalization & Kenyan data protection compliance',
-                  'Direct WhatsApp & Phone Support: Dedicated local Kenya support specialists',
-                ].map((item, idx) => (
-                  <div key={idx} className="flex items-start space-x-3">
-                    <div className="w-5 h-5 rounded-full bg-emerald-500/10 text-emerald-700 flex items-center justify-center shrink-0 mt-0.5">
-                      <Check className="w-3.5 h-3.5" />
-                    </div>
-                    <span className="text-sm font-medium text-neutral-800">{item}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="bg-neutral-900 text-white rounded-3xl p-8 sm:p-10 shadow-lg border border-neutral-800">
-              <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-neutral-800 text-xs font-mono text-emerald-400 mb-6">
-                <span>Enterprise Service Guarantee</span>
-              </div>
-              <h3 className="text-2xl font-serif font-bold mb-4">Request a Workspace Consultation</h3>
-              <p className="text-sm text-neutral-400 mb-8 leading-relaxed">
-                Speak directly with our digital business specialists to design a deployment plan matching your enterprise
-                branches and operational targets.
-              </p>
-
-              <div className="space-y-4 mb-6">
-                <div>
-                  <label className="block text-xs font-semibold text-neutral-300 uppercase tracking-wider mb-1.5">
-                    Your Business Name
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Nairobi Star Merchants"
-                    className="w-full px-4 py-3 rounded-xl bg-neutral-800 border border-neutral-700 text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-white"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-neutral-300 uppercase tracking-wider mb-1.5">
-                    Phone / M-Pesa Number
-                  </label>
-                  <input
-                    type="tel"
-                    placeholder="e.g. +254 712 345 678"
-                    className="w-full px-4 py-3 rounded-xl bg-neutral-800 border border-neutral-700 text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-white"
-                  />
-                </div>
-              </div>
-
-              <button
-                onClick={() => alert('Consultation request registered. A TDBK specialist will reach out shortly.')}
-                className="w-full py-3.5 rounded-xl bg-white text-neutral-950 font-bold text-sm hover:bg-neutral-100 transition shadow-sm cursor-pointer"
-              >
-                Schedule Consultation
-              </button>
-            </div>
-          </div>
+          <CommercialBridge
+            onSelectSector={handleCreateSpace}
+            onBuildDigitalSpace={(sector) => handleCreateSpace(sector || 'EDUCATION')}
+          />
         </section>
 
         {/* 7. GAZETTE */}
@@ -1016,13 +928,13 @@ export function PublicGateway({ onSelectSector, onSignIn, onLaunchWorkspace }: P
             </div>
 
             <div>
-              <h5 className="font-bold text-xs uppercase tracking-wider text-neutral-400 mb-4">Services</h5>
+              <h5 className="font-bold text-xs uppercase tracking-wider text-neutral-400 mb-4">Sale & Services</h5>
               <ul className="space-y-2.5 text-xs text-neutral-400">
-                <li>Point-of-Sale Hardware Kits</li>
-                <li>Lipa Na M-Pesa Integration</li>
-                <li>KRA eTIMS Certification</li>
-                <li>Staff Onboarding & Training</li>
-                <li>Dedicated Technical Support</li>
+                <li><a href="#sale-catalog" className="hover:text-white transition">Business Hardware & POS</a></li>
+                <li><a href="#services-catalog" className="hover:text-white transition">Nationwide Setup & Installation</a></li>
+                <li><a href="#sale-catalog" className="hover:text-white transition">Wi-Fi, Networking & Starlink</a></li>
+                <li><a href="#services-catalog" className="hover:text-white transition">Lipa Na M-Pesa & eTIMS Compliance</a></li>
+                <li><a href="#consultation-section" className="hover:text-white transition">Managed IT & Support Retainers</a></li>
               </ul>
             </div>
 
