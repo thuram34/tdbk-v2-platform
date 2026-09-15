@@ -62,7 +62,7 @@ export function BusinessDiscovery({ onProvisioned }: BusinessDiscoveryProps) {
   useEffect(() => {
     const load = async () => {
       try {
-        const token = await getIdToken();
+        let token = await getIdToken();
         if (!token) throw new Error('Your session has expired. Please sign in again.');
         const headers = { Authorization: `Bearer ${token}` };
 
@@ -130,7 +130,7 @@ export function BusinessDiscovery({ onProvisioned }: BusinessDiscoveryProps) {
     setError(null);
 
     try {
-      const token = await getIdToken();
+      let token = await getIdToken();
       if (!token) throw new Error('Your session has expired. Please sign in again.');
 
       const identityResponse = await fetch('/api/kernel/identity/initialize-owner', {
@@ -141,6 +141,9 @@ export function BusinessDiscovery({ onProvisioned }: BusinessDiscoveryProps) {
       if (!identityResponse.ok) {
         throw new Error(identityData.error?.message || 'Unable to initialize business-owner identity.');
       }
+
+      token = await getIdToken(true);
+      if (!token) throw new Error('Unable to refresh your authenticated session.');
 
       const dbkId = `dbk-${slugify(businessName)}-${Date.now().toString(36)}`;
       const provisionResponse = await fetch('/api/platform/provision', {
