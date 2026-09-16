@@ -132,7 +132,7 @@ export default function App() {
     );
   }
 
-  if (dbks.length > 1 && dbkId) {
+  if (dbks.length > 1) {
     const selected = dbks.find((dbk) => dbk.dbkId === dbkId);
 
     return (
