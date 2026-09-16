@@ -78,5 +78,5 @@ export default function App() {
     );
   }
 
-  return <DbkShell initialDbkId={dbkId} onSwitchToMaster={() => setEngineeringMode(true)} />;
+  return <DbkShell initialDbkId={dbkId} initialViewMode="WORKSPACE" onSwitchToMaster={() => setEngineeringMode(true)} />;
 }
