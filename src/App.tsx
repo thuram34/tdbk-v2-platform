@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Settings2 } from 'lucide-react';
-import { DbkShell } from './components/experience/DbkShell';
+import { DbkApp } from './components/experience/DbkApp';
 import { BusinessDiscovery } from './components/onboarding/BusinessDiscovery';
 import { LoginScreen } from './components/auth/LoginScreen';
 import { PublicGateway } from './public/PublicGateway';
@@ -78,5 +78,5 @@ export default function App() {
     );
   }
 
-  return <DbkShell initialDbkId={dbkId} initialViewMode="WORKSPACE" onSwitchToMaster={() => setEngineeringMode(true)} />;
+  return <DbkApp dbkId={dbkId} />;
 }
