@@ -13,7 +13,7 @@ export default function App() {
   const [publicView, setPublicView] = useState<'GATEWAY' | 'LOGIN'>('GATEWAY');
   const [showGateway, setShowGateway] = useState(true);
   const [dbkId, setDbkId] = useState<string | null>(null);
-  const [dbksLoading, setDbksLoading] = useState(false);
+  const [dbksLoading, setDbksLoading] = useState(true);
   const [dbks, setDbks] = useState<any[]>([]);
   const [engineeringMode, setEngineeringMode] = useState(false);
 
