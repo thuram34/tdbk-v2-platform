@@ -140,7 +140,7 @@ export class ContributionDispatcher {
     try {
       const existingDna = await businessDnaManager.getPersistentBusinessDna(context, tenantId);
       if (existingDna) {
-        businessDnaManager.saveBusinessDna(context, {
+        await businessDnaManager.savePersistentBusinessDna(context, {
           ...existingDna,
           updatedAt: new Date().toISOString(),
         });
