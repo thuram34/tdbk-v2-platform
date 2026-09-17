@@ -95,8 +95,8 @@ async function startServer() {
     res.json(healthMonitoring.getLiveStatus());
   });
 
-  app.get('/api/health/ready', async (req: Request, res: Response) => {
-    const status = healthMonitoring.getReadyStatus();
+  app.get('/api/health/ready', async (_req: Request, res: Response) => {
+    const status = await healthMonitoring.getReadyStatus();
     res.status(status.status === 'HEALTHY' ? 200 : 503).json(status);
   });
 
