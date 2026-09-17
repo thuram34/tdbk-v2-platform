@@ -49,10 +49,9 @@ service cloud.firestore {
         allow write: if false; // Audit logs can only be created by authoritative server runtime
       }
 
-      // Catch-all for any future DBK operational subcollection
-      match /{allSubcollections=**} {
-        allow read, write: if isTenantMember(tenantId);
-      }
+      // No client catch-all. Operational state is server-authoritative and is
+      // accessed through authenticated TDBK APIs/Admin SDK. New collections
+      // must receive an explicit least-privilege rule before client access.
     }
   }
 }
