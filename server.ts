@@ -1327,7 +1327,7 @@ async function startServer() {
       // Transition to PROCESSING
       await documentLifecycleManager.transitionPersistentStatus(context, dbkId, documentId, 'PROCESSING');
 
-      const raw = documentStore.getRawContent(context, doc) || doc.contentSnippet || '';
+      const raw = (await documentStore.getRawContent(context, doc)) || doc.contentSnippet || '';
       const classification = documentClassifier.classifyDocument(raw, doc.fileName);
       const extraction = documentExtractor.extractStructuredData(raw, classification.type);
 
