@@ -55,7 +55,7 @@ export class ContributionDispatcher {
       workflowsTriggered = ['wf_record_attendance', 'wf_parent_absence_alert'];
 
       // Update state in entity engine
-      entityEngine.createRecord(context, tenantId, 'student_records', {
+      await entityEngine.createPersistentRecord(context, tenantId, 'student_records', {
         id: entityId,
         studentName: (data.studentName as string) || 'Class 4 Roster Attendance',
         grade: (data.className as string) || 'Grade 4',
@@ -70,7 +70,7 @@ export class ContributionDispatcher {
       notifiedRoles = ['BURSAR', 'SCHOOL_PRINCIPAL', 'FINANCE_VIEWER'];
       workflowsTriggered = ['wf_collect_fees', 'wf_fiscalize_etims'];
 
-      entityEngine.createRecord(context, tenantId, 'fee_management', {
+      await entityEngine.createPersistentRecord(context, tenantId, 'fee_management', {
         id: entityId,
         amount: Number(data.amount || 0),
         payer: (data.payerName as string) || 'Parent Account',
@@ -85,7 +85,7 @@ export class ContributionDispatcher {
       notifiedRoles = ['STORE_OWNER', 'SHOP_MANAGER', 'CASHIER'];
       workflowsTriggered = ['wf_execute_checkout', 'wf_fiscalize_etims'];
 
-      entityEngine.createRecord(context, tenantId, 'stock_control', {
+      await entityEngine.createPersistentRecord(context, tenantId, 'stock_control', {
         id: entityId,
         itemsSold: data.items || [],
         total: Number(data.totalAmount || 0),
@@ -98,7 +98,7 @@ export class ContributionDispatcher {
       notifiedRoles = ['CLINICIAN', 'MEDICAL_DIRECTOR'];
       workflowsTriggered = ['wf_triage_patient'];
 
-      entityEngine.createRecord(context, tenantId, 'patient_queue', {
+      await entityEngine.createPersistentRecord(context, tenantId, 'patient_queue', {
         id: entityId,
         patientName: (data.patientName as string) || 'Outpatient Visitor',
         priority: (data.priority as string) || 'ROUTINE',
