@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { DbkExperienceResolved, ExperienceEntityRecord, ExperienceEntityField } from '../../experience/types';
 import { capabilityViewRegistry } from '../../experience/registry/viewRegistry';
+import { useAuth } from '../../client/AuthContext';
 import { Plus, Search, Filter, RefreshCw, CheckCircle2, FileText, Download } from 'lucide-react';
 
 interface EntityListViewProps {
@@ -19,6 +20,8 @@ export const EntityListView: React.FC<EntityListViewProps> = ({
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [isLoading, setIsLoading] = useState(false);
+  const { getIdToken } = useAuth();
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const viewDef = capabilityViewRegistry.getViewDefinition(capabilityId);
   const termKey = viewDef?.terminologyKey;
@@ -36,14 +39,23 @@ export const EntityListView: React.FC<EntityListViewProps> = ({
 
   const loadRecords = async () => {
     setIsLoading(true);
+    setLoadError(null);
     try {
-      const res = await fetch(`/api/experience/entities/${experience.dbkId}/${capabilityId}`);
+      const idToken = await getIdToken();
+      if (!idToken) throw new Error('Your session has expired. Please sign in again.');
+      const res = await fetch(`/api/experience/entities/${experience.dbkId}/${capabilityId}`, {
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
       if (res.ok) {
         const data = await res.json();
         setRecords(data.records || []);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error?.message || 'Unable to load records');
       }
-    } catch {
-      // Fallback
+    } catch (err: any) {
+      setRecords([]);
+      setLoadError(err?.message || 'Unable to load records');
     } finally {
       setIsLoading(false);
     }
@@ -140,6 +152,12 @@ export const EntityListView: React.FC<EntityListViewProps> = ({
           />
         </div>
       </div>
+
+      {loadError && (
+        <div className="bg-red-950/30 border border-red-900 rounded-lg p-3 text-xs text-red-300" role="alert">
+          {loadError}
+        </div>
+      )}
 
       {/* Entity Table */}
       <div className="bg-neutral-900 border border-neutral-800 rounded-lg overflow-hidden">
