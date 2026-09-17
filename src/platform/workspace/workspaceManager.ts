@@ -38,7 +38,7 @@ export class WorkspaceManagerService {
     }
 
     const blueprint = blueprintRegistry.getBlueprint(dbk.blueprintId, dbk.blueprintVersion);
-    const branches = branchManager.getBranchesForDbk(context, dbkId);
+    const branches = await branchManager.listPersistentBranches(context, dbkId);
 
     // Get enabled and discoverable capabilities
     const capabilityRecords = dbkCapabilityManager.getDbkCapabilityRecords(context, dbkId);
