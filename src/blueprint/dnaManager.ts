@@ -6,6 +6,7 @@
 
 import { BusinessDNA, BusinessIdentity, BranchTopology } from './types';
 import { SecurityContext } from '../kernel/types';
+import { KernelError } from '../kernel/errors/kernelErrors';
 import { BlueprintValidator } from './validator';
 import { blueprintRegistry } from './registry';
 import { auditLogger } from '../kernel/audit/auditLogger';
@@ -167,6 +168,22 @@ export class BusinessDnaManager {
     }
 
     return JSON.parse(JSON.stringify(dna)); // Return immutable deep copy
+  }
+
+  /**
+   * Authoritative Firestore read for production callers.
+   * The synchronous cache-backed method is retained for deterministic tests.
+   */
+  public async getPersistentBusinessDna(
+    securityContext: SecurityContext,
+    targetDbkId: string
+  ): Promise<BusinessDNA> {
+    BlueprintValidator.assertTenantAccess(securityContext, targetDbkId, 'read Business DNA');
+    const dna = await businessDnaRepository.getDna(targetDbkId);
+    if (!dna) {
+      throw new KernelError('NOT_FOUND', 'Business DNA not found', 404, securityContext.requestId);
+    }
+    return JSON.parse(JSON.stringify(dna));
   }
 
   /**
