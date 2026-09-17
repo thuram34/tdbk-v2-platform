@@ -30,12 +30,17 @@ export const OperationalFlowView: React.FC<OperationalFlowViewProps> = ({
         payload: { phoneNumber, amount, reference },
       });
 
+      const result = res?.result || {};
+      const succeeded = res?.success === true;
       setTransactionResult({
-        status: 'SUCCESS',
-        mpesaReceipt: `QKW${Math.floor(100000 + Math.random() * 900000)}KZ`,
+        status: succeeded ? 'SUCCESS' : 'FAILED',
+        message: succeeded
+          ? 'Command accepted by the TDBK runtime.'
+          : (res?.error?.message || 'Command was not accepted'),
+        providerReference: result.providerReference || result.receipt || result.transactionId,
         amount,
         reference,
-        timestamp: new Date().toLocaleTimeString(),
+        timestamp: res?.serverTimestamp || new Date().toISOString(),
       });
     } catch {
       setTransactionResult({ status: 'FAILED', message: 'Transaction could not be authorized' });
@@ -145,10 +150,11 @@ export const OperationalFlowView: React.FC<OperationalFlowViewProps> = ({
               <div className="p-3.5 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs">
                 <div className="flex items-center space-x-1.5 font-bold">
                   <CheckCircle className="w-4 h-4" />
-                  <span>Payment Authorized & Confirmed</span>
+                  <span>{transactionResult.status === 'SUCCESS' ? 'Command Accepted' : 'Command Failed'}</span>
                 </div>
                 <div className="mt-2 space-y-1 font-mono text-[11px]">
-                  <div>Receipt: {transactionResult.mpesaReceipt}</div>
+                  {transactionResult.providerReference && <div>Provider Ref: {transactionResult.providerReference}</div>}
+                  <div>Status: {transactionResult.message}</div>
                   <div>Amount: KES {transactionResult.amount}</div>
                   <div>Ref: {transactionResult.reference}</div>
                   <div>Time: {transactionResult.timestamp}</div>
