@@ -208,7 +208,7 @@ export class AiCommandBoundary {
         if (!rbacEngine.hasPermission(ctx.principal, 'school:write') && !ctx.principal.isMaster) {
           throw new KernelError('AUTHORIZATION_ERROR', 'Permission school:write required', 403, ctx.requestId);
         }
-        const student = entityEngine.createRecord(ctx, tenantId, 'student_records', {
+        const student = await entityEngine.createPersistentRecord(ctx, tenantId, 'student_records', {
           admissionNo: finalPayload.admissionNumber || `ADM-${Date.now()}`,
           fullName: finalPayload.studentName || 'Student Name',
           grade: finalPayload.gradeLevel || 'Grade 1',
@@ -223,7 +223,7 @@ export class AiCommandBoundary {
         if (!rbacEngine.hasPermission(ctx.principal, 'waybill:write') && !ctx.principal.isMaster) {
           throw new KernelError('AUTHORIZATION_ERROR', 'Permission waybill:write required', 403, ctx.requestId);
         }
-        const wb = entityEngine.createRecord(ctx, tenantId, 'waybill_booking', {
+        const wb = await entityEngine.createPersistentRecord(ctx, tenantId, 'waybill_booking', {
           waybillNo: finalPayload.waybillNumber || `WB-${Date.now()}`,
           consignor: finalPayload.consignor || 'Consignor',
           consignee: finalPayload.consignee || 'Consignee',
@@ -240,7 +240,7 @@ export class AiCommandBoundary {
       case 'PROPOSE_RECONCILE_TRANSACTION':
       default: {
         // Generic entity recording or ledger dispatch
-        const record = entityEngine.createRecord(ctx, tenantId, 'pos_register', {
+        const record = await entityEngine.createPersistentRecord(ctx, tenantId, 'pos_register', {
           ...finalPayload,
           approvedBy: ctx.principal.id,
           sourceProposalId: proposalId,
