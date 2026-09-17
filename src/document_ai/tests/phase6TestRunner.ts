@@ -627,7 +627,7 @@ export async function runPhase6TestSuite(): Promise<Phase6TestSummary> {
       summary: 'Low quality admission proposal',
     });
 
-    const rejected = aiCommandBoundary.rejectProposal(schoolAdminCtx, schoolDbkId, prop.proposalId, 'Unverified document signature');
+    const rejected = await aiCommandBoundary.rejectProposal(schoolAdminCtx, schoolDbkId, prop.proposalId, 'Unverified document signature');
     if (rejected.status !== 'REJECTED') {
       throw new Error(`Expected status REJECTED, got: ${rejected.status}`);
     }
