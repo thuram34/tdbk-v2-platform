@@ -188,14 +188,15 @@ export class ExperienceResolver {
         if (!capabilityId || !record) {
           throw new KernelError('VALIDATION_ERROR', 'Missing capabilityId or record payload', 400, context.requestId);
         }
-        entityEngine.saveRecord(req.targetDbkId, String(capabilityId), record as any);
+        await entityEngine.savePersistentRecord(context, req.targetDbkId, String(capabilityId), record as any);
         updatedExperience = await this.resolveExperience(context, req.targetDbkId);
       } else if (req.commandType === 'ENABLE_CAPABILITY') {
         const { capabilityId } = req.payload || {};
         if (!capabilityId) {
           throw new KernelError('VALIDATION_ERROR', 'Missing capabilityId', 400, context.requestId);
         }
-        dbkCapabilityManager.enableCapability(context, req.targetDbkId, String(capabilityId), 'ENTITLED', false);
+        const enabled = dbkCapabilityManager.enableCapability(context, req.targetDbkId, String(capabilityId), 'ENTITLED', false);
+        await dbkCapabilityManager.persistCapabilityRecord(context, enabled);
         await workspaceManager.incrementWorkspaceVersion(context, req.targetDbkId);
         updatedExperience = await this.resolveExperience(context, req.targetDbkId);
       } else if (req.commandType === 'CONFIGURE_CAPABILITY') {
@@ -203,7 +204,8 @@ export class ExperienceResolver {
         if (!capabilityId) {
           throw new KernelError('VALIDATION_ERROR', 'Missing capabilityId', 400, context.requestId);
         }
-        dbkCapabilityManager.configureCapability(context, req.targetDbkId, String(capabilityId), (configData as Record<string, unknown>) || {});
+        const configured = dbkCapabilityManager.configureCapability(context, req.targetDbkId, String(capabilityId), (configData as Record<string, unknown>) || {});
+        await dbkCapabilityManager.persistCapabilityRecord(context, configured);
         await workspaceManager.incrementWorkspaceVersion(context, req.targetDbkId);
         updatedExperience = await this.resolveExperience(context, req.targetDbkId);
       } else if (req.commandType === 'EXECUTE_SALE') {
