@@ -93,8 +93,9 @@ export const DbkShell: React.FC<DbkShellProps> = ({
           setSelectedDbkId(list[0].dbkId);
         }
       }
-    } catch {
-      // Fallback
+    } catch (err: any) {
+      setDbkList([]);
+      setError(err?.message || 'Unable to load your businesses');
     }
   };
 
