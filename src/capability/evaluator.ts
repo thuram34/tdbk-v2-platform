@@ -20,7 +20,8 @@ export class ActivationEvaluatorService {
   public evaluateActivation(
     securityContext: SecurityContext,
     dbkId: string,
-    capabilityId: string
+    capabilityId: string,
+    dnaOverride?: import('../blueprint/types').BusinessDNA
   ): ActivationDecision {
     const cap = capabilityRegistry.getCapability(capabilityId);
     if (!cap) {
@@ -57,7 +58,7 @@ export class ActivationEvaluatorService {
     }
 
     // 2. Check Blueprint Sector Compatibility
-    const dna = businessDnaManager.getBusinessDna(securityContext, dbkId);
+    const dna = dnaOverride || businessDnaManager.getBusinessDna(securityContext, dbkId);
     const sector = dna.identity.businessType as any;
 
     const isBlueprintSupported =
