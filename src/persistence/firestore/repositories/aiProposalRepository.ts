@@ -51,6 +51,34 @@ export class AiProposalRepository implements IAiProposalRepository {
   public async deleteProposal(tenantId: string, proposalId: string): Promise<void> {
     await firestoreClient.delete(this.getPath(tenantId, proposalId));
   }
+
+  public async transitionProposal(
+    tenantId: string,
+    proposalId: string,
+    expectedStatus: import('../../../document_ai/types').ProposalStatus,
+    nextStatus: import('../../../document_ai/types').ProposalStatus,
+    reviewedBy: string,
+    adjustedPayload?: Record<string, any>
+  ): Promise<AiProposedAction> {
+    return await firestoreClient.runTransaction(async (transaction) => {
+      const path = this.getPath(tenantId, proposalId);
+      const proposal = await transaction.get<AiProposedAction>(path);
+      if (!proposal) throw new Error(`Proposal '${proposalId}' not found.`);
+      if (proposal.tenantId !== tenantId) throw new Error('AI proposal tenant boundary violation.');
+      if (proposal.status !== expectedStatus) {
+        throw new Error(`Proposal '${proposalId}' is already ${proposal.status}; expected ${expectedStatus}.`);
+      }
+      const updated: AiProposedAction = {
+        ...proposal,
+        status: nextStatus,
+        reviewedBy,
+        reviewedAt: new Date().toISOString(),
+        ...(adjustedPayload !== undefined ? { suggestedPayload: adjustedPayload } : {}),
+      };
+      await transaction.set(path, updated as unknown as Record<string, unknown>);
+      return updated;
+    });
+  }
 }
 
 export const aiProposalRepository = AiProposalRepository.getInstance();
