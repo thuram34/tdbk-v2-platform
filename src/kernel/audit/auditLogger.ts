@@ -4,6 +4,7 @@
  */
 
 import { AuditEvent, SecurityEventType, SecurityContext } from '../types';
+import { auditRepository } from '../../persistence/firestore/repositories/auditRepository';
 
 class AuditLoggerService {
   private auditLogBuffer: AuditEvent[] = [];
@@ -46,6 +47,12 @@ class AuditLoggerService {
     if (this.auditLogBuffer.length > this.maxBufferSize) {
       this.auditLogBuffer.pop();
     }
+
+    // Durable server-side audit persistence. The bounded memory buffer remains a
+    // synchronous hot cache for tests/UI, while Firestore is the restart-safe record.
+    void auditRepository.appendAudit(event.tenantId, event.id, event).catch((error) => {
+      console.error('[AUDIT_PERSISTENCE_ERROR]', error);
+    });
 
     // Output structured JSON log to stdout/stderr
     const logLevel = result === 'DENIED' || result === 'ERROR' ? 'WARN' : 'INFO';
