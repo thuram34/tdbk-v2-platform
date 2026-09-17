@@ -469,8 +469,11 @@ async function startServer() {
     }
   });
 
-  // -------------------------------------------------------------
-  // PHASE 0 AUTOMATED TEST RUNNER ENDPOINT
+  // Test runners are development-only. They must never be remotely executable in production.
+  if (process.env.NODE_ENV !== 'production' && process.env.ENABLE_TEST_API === 'true') {
+      // -------------------------------------------------------------
+      // PHASE 0 AUTOMATED TEST RUNNER ENDPOINT
+      }
   // -------------------------------------------------------------
   app.post('/api/test/phase0', async (req: Request, res: Response) => {
     const testSummary = await phase0TestRunner.runAllTests();
