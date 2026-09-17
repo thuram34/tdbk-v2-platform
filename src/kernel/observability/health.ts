@@ -4,41 +4,27 @@
  */
 
 import { HealthStatus } from '../types';
+import { firestoreClient } from '../../persistence/firestore/firestoreClient';
 
 export class HealthMonitoringService {
-  private readonly startTime = Date.now();
-
   public getLiveStatus(): HealthStatus {
     return {
-      status: 'HEALTHY',
-      timestamp: new Date().toISOString(),
-      version: '2.0.0-phase0',
+      status: 'HEALTHY', timestamp: new Date().toISOString(), version: '2.0.0',
       environment: process.env.NODE_ENV || 'development',
-      components: {
-        kernel: true,
-        tenancy: true,
-        auth: true,
-        audit: true,
-      },
+      components: { kernel: true, tenancy: true, auth: true, audit: true },
     };
   }
 
-  public getReadyStatus(): HealthStatus {
-    const uptime = Date.now() - this.startTime;
-    const isReady = uptime > 500; // Ready after initial cold start warm-up
-
-    return {
-      status: isReady ? 'HEALTHY' : 'DEGRADED',
-      timestamp: new Date().toISOString(),
-      version: '2.0.0-phase0',
-      environment: process.env.NODE_ENV || 'development',
-      components: {
-        kernel: true,
-        tenancy: true,
-        auth: true,
-        audit: true,
-      },
-    };
+  /** Readiness checks the authoritative persistence path, not merely process uptime. */
+  public async getReadyStatus(): Promise<HealthStatus> {
+    const components: Record<string, boolean> = { kernel: true, tenancy: true, auth: true, audit: true, firestore: false };
+    try {
+      await firestoreClient.get('/system/readiness');
+      components.firestore = true;
+    } catch {
+      return { status: 'DEGRADED', timestamp: new Date().toISOString(), version: '2.0.0', environment: process.env.NODE_ENV || 'development', components };
+    }
+    return { status: 'HEALTHY', timestamp: new Date().toISOString(), version: '2.0.0', environment: process.env.NODE_ENV || 'development', components };
   }
 }
 
