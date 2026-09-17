@@ -470,7 +470,7 @@ export class ProvisioningService {
       correlationId,
     };
 
-    const workflowInstance = workflowEngine.createWorkflow(
+    const workflowInstance = await workflowEngine.createPersistentWorkflow(
       workflowCtx,
       'DBK_PROVISIONING',
       'v1.0',
