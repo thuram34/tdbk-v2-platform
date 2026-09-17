@@ -1412,6 +1412,7 @@ async function startServer() {
       const authHeader = req.headers.authorization;
       const { dbkId } = req.params;
       const status = req.query.status as any;
+      const branchId = req.query.branchId as string | undefined;
 
       const context = await securityContextFactory.createSecurityContext({
         authHeader,
@@ -1419,7 +1420,7 @@ async function startServer() {
         ipAddress: req.ip,
       });
 
-      const proposals = await aiCommandBoundary.listPersistentProposals(context, dbkId, status, context.principal.branchId);
+      const proposals = await aiCommandBoundary.listPersistentProposals(context, dbkId, status, branchId);
       res.json({ status: 'SUCCESS', proposals });
     } catch (err) {
       if (err instanceof KernelError) {
