@@ -7,7 +7,7 @@
  */
 
 import { IAccessRequestRepository } from '../../types';
-import { CapabilityAccessRequest } from '../../../coherence/types';
+import { CapabilityAccessRequest, AccessRequestStatus } from '../../../coherence/types';
 import { firestoreClient } from '../firestoreClient';
 
 export class AccessRequestRepository implements IAccessRequestRepository {
@@ -78,5 +78,4 @@ export class AccessRequestRepository implements IAccessRequestRepository {
   }
 }
 
-export type AccessRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
 export const accessRequestRepository = AccessRequestRepository.getInstance();
