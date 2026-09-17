@@ -35,7 +35,7 @@ export class DiscoveryEngineService {
     );
 
     // Get current DBK capability records
-    const records = await dbkCapabilityManager.hydratePersistentCapabilities(securityContext, dbkId);
+    const records = dbkCapabilityManager.getDbkCapabilityRecords(securityContext, dbkId);
     const recordMap = new Map(records.map((r) => [r.capabilityId, r]));
 
     const enabledCapIds = records
@@ -147,7 +147,7 @@ export class DiscoveryEngineService {
       (cap.supportedBlueprints as string[]).includes(sector as string) ||
       (cap.supportedBlueprints as string[]).includes(rawSector)
     );
-    const records = dbkCapabilityManager.getDbkCapabilityRecords(securityContext, dbkId);
+    const records = await dbkCapabilityManager.hydratePersistentCapabilities(securityContext, dbkId);
     const recordMap = new Map(records.map((record) => [record.capabilityId, record]));
     const enabledCapIds = records
       .filter((record) => record.state === 'ENABLED' || record.state === 'CONFIGURED')
