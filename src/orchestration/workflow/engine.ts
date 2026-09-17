@@ -15,6 +15,7 @@ import { KernelError } from '../../kernel/errors/kernelErrors';
 import { eventBus } from '../events/eventBus';
 import { EventEnvelope } from '../events/types';
 import { workflowInstanceRepository } from '../../persistence/firestore/repositories/workflowInstanceRepository';
+import { outboxEngine } from '../outbox/outboxEngine';
 
 class WorkflowEngineService {
   private workflows: Map<string, WorkflowInstance> = new Map();
@@ -47,7 +48,8 @@ class WorkflowEngineService {
       };
       compensationStepId?: string;
     }>,
-    metadata: Record<string, unknown> = {}
+    metadata: Record<string, unknown> = {},
+    publishLifecycleEvent: boolean = true
   ): WorkflowInstance {
     const tenantId = context.tenantContext?.tenantId || context.principal.tenantId;
     if (!tenantId) {
@@ -132,7 +134,9 @@ class WorkflowEngineService {
       metadata,
     };
 
-    eventBus.publish(eventEnvelope);
+    if (publishLifecycleEvent) {
+      void eventBus.publish(eventEnvelope);
+    }
 
     return workflow;
   }
@@ -151,8 +155,27 @@ class WorkflowEngineService {
     }>,
     metadata: Record<string, unknown> = {}
   ): Promise<WorkflowInstance> {
-    const workflow = this.createWorkflow(context, workflowType, workflowVersion, stepDefinitions, metadata);
+    // Durable creation must commit business state before publishing its lifecycle signal.
+    const workflow = this.createWorkflow(context, workflowType, workflowVersion, stepDefinitions, metadata, false);
     await workflowInstanceRepository.saveWorkflow(workflow.tenantId, workflow.workflowId, workflow);
+
+    const startedEnvelope: EventEnvelope = {
+      eventId: `evt_${workflow.workflowId}_started`,
+      eventType: 'workflow.started.v1',
+      eventVersion: 'v1',
+      occurredAt: workflow.startedAt,
+      tenantId: workflow.tenantId,
+      branchId: workflow.branchId,
+      principalId: context.principal.id,
+      correlationId: workflow.correlationId,
+      causationId: null,
+      source: 'WorkflowEngine',
+      payload: { workflowId: workflow.workflowId, workflowType, workflowVersion },
+      metadata: workflow.metadata,
+    };
+
+    await outboxEngine.enqueueEvent(workflow.tenantId, startedEnvelope, undefined, context.principal.id);
+    await eventBus.publish(startedEnvelope);
     return workflow;
   }
 
@@ -333,6 +356,23 @@ class WorkflowEngineService {
           });
 
           await workflowInstanceRepository.saveWorkflow(workflow.tenantId, workflow.workflowId, workflow);
+
+          const failedEnvelope: EventEnvelope = {
+            eventId: `evt_${workflowId}_failed`,
+            eventType: 'workflow.failed.v1',
+            eventVersion: 'v1',
+            occurredAt: workflow.completedAt!,
+            tenantId: workflow.tenantId,
+            branchId: workflow.branchId,
+            principalId: context.principal.id,
+            correlationId: workflow.correlationId,
+            causationId: step.stepId,
+            source: 'WorkflowEngine',
+            payload: { workflowId, failedStepId: step.stepId, reason: step.error },
+            metadata: workflow.metadata,
+          };
+          await outboxEngine.enqueueEvent(workflow.tenantId, failedEnvelope, undefined, context.principal.id);
+          await eventBus.publish(failedEnvelope);
           return workflow;
         }
       } else {
@@ -358,8 +398,8 @@ class WorkflowEngineService {
       }
     );
 
-    // Publish completed event
-    eventBus.publish({
+    // Publish completed event only after durable workflow state has committed.
+    const completedEnvelope: EventEnvelope = {
       eventId: `evt_${workflowId}_completed`,
       eventType: 'workflow.completed.v1',
       eventVersion: 'v1',
@@ -372,7 +412,9 @@ class WorkflowEngineService {
       source: 'WorkflowEngine',
       payload: { workflowId, status: 'COMPLETED' },
       metadata: workflow.metadata,
-    });
+    };
+    await outboxEngine.enqueueEvent(workflow.tenantId, completedEnvelope, undefined, context.principal.id);
+    await eventBus.publish(completedEnvelope);
 
     return workflow;
   }
