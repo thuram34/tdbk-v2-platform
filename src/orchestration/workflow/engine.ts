@@ -339,22 +339,6 @@ class WorkflowEngineService {
             }
           );
 
-          // Publish failed event
-          eventBus.publish({
-            eventId: `evt_${workflowId}_failed`,
-            eventType: 'workflow.failed.v1',
-            eventVersion: 'v1',
-            occurredAt: workflow.completedAt,
-            tenantId: workflow.tenantId,
-            branchId: workflow.branchId,
-            principalId: context.principal.id,
-            correlationId: workflow.correlationId,
-            causationId: step.stepId,
-            source: 'WorkflowEngine',
-            payload: { workflowId, failedStepId: step.stepId, reason: step.error },
-            metadata: workflow.metadata,
-          });
-
           await workflowInstanceRepository.saveWorkflow(workflow.tenantId, workflow.workflowId, workflow);
 
           const failedEnvelope: EventEnvelope = {
