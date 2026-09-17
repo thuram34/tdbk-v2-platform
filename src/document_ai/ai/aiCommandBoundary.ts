@@ -55,7 +55,7 @@ export class AiCommandBoundary {
       sourceEvidence?: Record<string, any>;
       causationId?: string;
     }
-  ): AiProposedAction {
+  ): Promise<AiProposedAction> {
     tenantIsolation.assertTenantIsolation(ctx.principal, params.tenantId);
 
     // Validate branch existence
