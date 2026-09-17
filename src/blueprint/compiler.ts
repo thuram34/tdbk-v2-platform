@@ -72,6 +72,23 @@ export class BlueprintCompiler {
     return workspace;
   }
 
+  /** Authoritative variant used by production request paths. */
+  public async compilePersistentWorkspace(
+    securityContext: SecurityContext,
+    dbkId: string
+  ): Promise<CompiledWorkspace> {
+    const dna = await businessDnaManager.getPersistentBusinessDna(securityContext, dbkId);
+    const blueprint = blueprintRegistry.getBlueprint(dna.identity.blueprintId, dna.identity.blueprintVersion);
+    if (!blueprint) {
+      throw new Error('Blueprint not found for Business DNA');
+    }
+    const workspace = this.compileFromBlueprintAndDna(blueprint, dna);
+    auditLogger.logEvent('AUTHORIZATION_ALLOWED', securityContext.principal.id, 'compilePersistentWorkspace',
+      `dbk:${dbkId}`, 'ALLOWED', { tenantId: dbkId, requestId: securityContext.requestId,
+      details: { blueprintId: blueprint.id, hash: workspace.hash } });
+    return workspace;
+  }
+
   /**
    * Deterministic core compilation logic.
    * Given the same Blueprint and Business DNA, produces the exact same workspace definition.
