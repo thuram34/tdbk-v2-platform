@@ -1334,7 +1334,7 @@ async function startServer() {
         ipAddress: req.ip,
       });
 
-      const doc = documentStore.getDocument(context, dbkId, documentId);
+      const doc = await documentStore.getPersistentDocument(context, dbkId, documentId);
       if (!doc) {
         return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Document not found' } });
       }
@@ -1363,7 +1363,7 @@ async function startServer() {
       if (classification.type === 'invoice') {
         const amt = extraction.extractedFields.totalAmount?.value || 0;
         const ref = extraction.extractedFields.referenceNumber?.value || 'INV-TEMP';
-        aiCommandBoundary.createProposal(context, {
+        await aiCommandBoundary.createPersistentProposal(context, {
           tenantId: dbkId,
           branchId: doc.branchId,
           documentId,
