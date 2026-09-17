@@ -161,6 +161,24 @@ export class BranchManagerService {
   }
 
   /**
+   * Authoritative Firestore read for production callers.
+   * The synchronous cache methods above are retained for deterministic test isolation.
+   */
+  public async listPersistentBranches(context: SecurityContext, dbkId: string): Promise<DbkBranch[]> {
+    this.assertTenantAccess(context, dbkId, 'listPersistentBranches');
+    return await branchRepository.listBranches(dbkId);
+  }
+
+  public async getPersistentBranch(
+    context: SecurityContext,
+    dbkId: string,
+    branchId: string
+  ): Promise<DbkBranch | null> {
+    this.assertTenantAccess(context, dbkId, 'getPersistentBranch');
+    return await branchRepository.getBranch(dbkId, branchId);
+  }
+
+  /**
    * Asserts tenant boundary for branch operations.
    */
   private assertTenantAccess(context: SecurityContext, targetDbkId: string, action: string): void {
