@@ -32,7 +32,6 @@ import { seedDemoDbks } from './src/platform/seeder';
 import { runPhase5TestSuite } from './src/experience/tests/phase5TestRunner';
 import { experienceResolver } from './src/experience/experienceResolver';
 import { entityEngine } from './src/experience/entity/entityEngine';
-import { entityRecordRepository } from './src/persistence/firestore/repositories/entityRecordRepository';
 import { runPhase6TestSuite } from './src/document_ai/tests/phase6TestRunner';
 import { documentIngestionService } from './src/document_ai/ingestion/documentIngestionService';
 import { documentStore } from './src/document_ai/storage/documentStore';
