@@ -60,7 +60,7 @@ export class AiCommandBoundary {
 
     // Validate branch existence
     if (params.branchId) {
-      const branch = branchManager.getBranch(ctx, params.tenantId, params.branchId);
+      const branch = await branchManager.getPersistentBranch(ctx, params.tenantId, params.branchId);
       if (!branch) {
         throw new KernelError(
           'VALIDATION_ERROR',
@@ -158,6 +158,30 @@ export class AiCommandBoundary {
     return list;
   }
 
+  public async getPersistentProposal(
+    ctx: SecurityContext,
+    tenantId: string,
+    proposalId: string
+  ): Promise<AiProposedAction | null> {
+    tenantIsolation.assertTenantIsolation(ctx.principal, tenantId);
+    const proposal = await aiProposalRepository.getProposal(tenantId, proposalId);
+    if (proposal && proposal.tenantId !== tenantId) {
+      throw new KernelError('FORBIDDEN_OPERATION' as any, 'AI proposal tenant boundary violation', 403, ctx.requestId);
+    }
+    return proposal;
+  }
+
+  public async listPersistentProposals(
+    ctx: SecurityContext,
+    tenantId: string,
+    status?: ProposalStatus,
+    branchId?: string
+  ): Promise<AiProposedAction[]> {
+    tenantIsolation.assertTenantIsolation(ctx.principal, tenantId);
+    const proposals = await aiProposalRepository.listProposals(tenantId, branchId);
+    return status ? proposals.filter((proposal) => proposal.status === status) : proposals;
+  }
+
   /**
    * Approve and execute proposal through authoritative TDBK command execution
    */
@@ -185,7 +209,7 @@ export class AiCommandBoundary {
       );
     }
 
-    const proposal = this.getProposal(ctx, tenantId, proposalId);
+    const proposal = await this.getPersistentProposal(ctx, tenantId, proposalId);
     if (!proposal) {
       throw new KernelError('NOT_FOUND', `Proposal ${proposalId} not found`, 404, ctx.requestId);
     }
@@ -200,6 +224,21 @@ export class AiCommandBoundary {
     }
 
     const finalPayload = adjustedPayload || proposal.suggestedPayload;
+
+    // Atomically reserve the proposal before executing the authoritative command.
+    // This prevents two reviewers/processes from executing the same proposal concurrently.
+    const executingProposal = await aiProposalRepository.transitionProposal(
+      tenantId,
+      proposalId,
+      'PENDING_REVIEW',
+      'EXECUTING',
+      ctx.principal.id,
+      finalPayload,
+    );
+    proposal.status = executingProposal.status;
+    proposal.reviewedBy = executingProposal.reviewedBy;
+    proposal.reviewedAt = executingProposal.reviewedAt;
+    proposal.suggestedPayload = executingProposal.suggestedPayload;
     let executedRecordId: string | undefined;
 
     // Route to authoritative engine based on proposal type and verify permissions
@@ -260,7 +299,7 @@ export class AiCommandBoundary {
       recordId: executedRecordId,
       executedAt: new Date().toISOString(),
     };
-    void aiProposalRepository.saveProposal(tenantId, proposalId, proposal);
+    await aiProposalRepository.saveProposal(tenantId, proposalId, proposal);
 
     auditLogger.logAuditEvent(ctx, {
       action: 'AI_PROPOSAL_APPROVED',
@@ -280,15 +319,15 @@ export class AiCommandBoundary {
     };
   }
 
-  public rejectProposal(
+  public async rejectProposal(
     ctx: SecurityContext,
     tenantId: string,
     proposalId: string,
     reason: string
-  ): AiProposedAction {
+  ): Promise<AiProposedAction> {
     tenantIsolation.assertTenantIsolation(ctx.principal, tenantId);
 
-    const proposal = this.getProposal(ctx, tenantId, proposalId);
+    const proposal = await this.getPersistentProposal(ctx, tenantId, proposalId);
     if (!proposal) {
       throw new KernelError('NOT_FOUND', `Proposal ${proposalId} not found`, 404, ctx.requestId);
     }
@@ -306,6 +345,7 @@ export class AiCommandBoundary {
     proposal.reviewedBy = ctx.principal.id;
     proposal.reviewedAt = new Date().toISOString();
     proposal.rejectionReason = reason;
+    await aiProposalRepository.saveProposal(tenantId, proposalId, proposal);
 
     auditLogger.logAuditEvent(ctx, {
       action: 'AI_PROPOSAL_REJECTED',
