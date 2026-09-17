@@ -698,6 +698,18 @@ async function startServer() {
         context.requestId,
       );
 
+      const validTiers = ['FREE', 'FOUNDATION', 'GROWTH', 'PRO', 'ENTERPRISE'] as const;
+      if (!validTiers.includes(tier)) {
+        return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid subscription tier' } });
+      }
+
+      const dbk = await dbkRegistry.getDbk(context, dbkId);
+      if (!dbk) {
+        return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'DBK not found' } });
+      }
+
+      dbk.subscriptionTier = tier;
+      await dbkRegistry.saveDbk(context, dbk);
       entitlementEngine.setDbkSubscriptionTier(dbkId, tier);
       res.json({ status: 'SUCCESS', dbkId, currentTier: tier });
     } catch (err) {
