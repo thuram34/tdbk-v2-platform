@@ -675,12 +675,29 @@ async function startServer() {
 
   app.post('/api/capability/tier', async (req: Request, res: Response) => {
     try {
+      const authHeader = req.headers.authorization;
       const { dbkId, tier } = req.body;
+      if (!dbkId || !tier) {
+        return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'dbkId and tier are required' } });
+      }
+
+      const context = await securityContextFactory.createSecurityContext({
+        authHeader,
+        targetTenantId: dbkId,
+        ipAddress: req.ip,
+      });
+      tenantIsolation.assertTenantIsolation(
+        context.principal,
+        dbkId,
+        'CHANGE_SUBSCRIPTION_TIER',
+        context.requestId,
+      );
 
       entitlementEngine.setDbkSubscriptionTier(dbkId, tier);
       res.json({ status: 'SUCCESS', dbkId, currentTier: tier });
     } catch (err) {
-      res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: (err as Error).message } });
+      if (err instanceof KernelError) return res.status(err.statusCode).json(err.toJSON());
+      res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Unable to change subscription tier' } });
     }
   });
 
