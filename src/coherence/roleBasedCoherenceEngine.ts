@@ -362,7 +362,7 @@ export class RoleBasedCoherenceEngine {
     const dashboardWidgets = dashboardComposer.composeDashboard(workspace);
 
     // 11. Active Access Requests for this Space
-    const activeRequests = capabilityAccessStore.getRequestsForSpace(currentSpace.spaceId);
+    const activeRequests = await capabilityAccessStore.listPersistentRequestsForSpace(context, targetDbkId, currentSpace.spaceId);
 
     // 12. Coherent Notifications (Role-Targeted)
     const notifications = this.composeCoherentNotifications(activeRole, currentSpace);
