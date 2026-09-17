@@ -587,7 +587,7 @@ async function startServer() {
         ipAddress: req.ip,
       });
 
-      const surface = discoveryEngine.discoverCapabilitiesForDbk(context, req.params.dbkId);
+      const surface = await discoveryEngine.discoverPersistentCapabilitiesForDbk(context, req.params.dbkId);
       res.json({ status: 'SUCCESS', discoverySurface: surface });
     } catch (err) {
       if (err instanceof KernelError) {
