@@ -11,6 +11,7 @@ import { entityEngine } from './entity/entityEngine';
 import { dbkCapabilityManager } from '../capability/dbkCapabilityManager';
 import { discoveryEngine } from '../capability/discovery';
 import { KernelError } from '../kernel/errors/kernelErrors';
+import { saleTransactionService } from '../business/sales/saleTransactionService';
 
 export class ExperienceResolver {
   private static instance: ExperienceResolver;
@@ -102,7 +103,8 @@ export class ExperienceResolver {
           iconName: cap.category === 'FINANCE' ? 'DollarSign' : cap.category === 'INVENTORY' ? 'Package' : 'Sparkles',
         };
       });
-    } catch {
+    } catch (error) {
+      console.error('[CAPABILITY_DISCOVERY_FAILED]', error);
       discoveryItems = workspace.discoverableCapabilities.map((c) => ({
         capabilityId: c,
         name: c.split('_').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
@@ -204,6 +206,32 @@ export class ExperienceResolver {
         dbkCapabilityManager.configureCapability(context, req.targetDbkId, String(capabilityId), (configData as Record<string, unknown>) || {});
         await workspaceManager.incrementWorkspaceVersion(context, req.targetDbkId);
         updatedExperience = await this.resolveExperience(context, req.targetDbkId);
+      } else if (req.commandType === 'EXECUTE_SALE') {
+        const saleResult = await saleTransactionService.executeSale(
+          context,
+          req.targetDbkId,
+          req.payload as any,
+        );
+
+        auditLogger.logAuditEvent(context, {
+          action: 'SALE_EXECUTED',
+          targetResource: `dbk:${req.targetDbkId}`,
+          outcome: 'ALLOWED',
+          details: {
+            saleId: saleResult.saleId,
+            totalAmountKes: saleResult.totalAmountKes,
+            eventId: saleResult.eventId,
+            idempotent: saleResult.idempotent,
+          },
+        });
+
+        return {
+          success: true,
+          commandType: req.commandType,
+          targetDbkId: req.targetDbkId,
+          result: { ...saleResult },
+          serverTimestamp: timestamp,
+        };
       } else {
         throw new KernelError('VALIDATION_ERROR', `Unknown commandType: '${req.commandType}'`, 400, context.requestId);
       }

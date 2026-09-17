@@ -201,7 +201,8 @@ export interface DbkExperienceResolved {
 export interface ExperienceCommandRequest {
   commandType:
     | 'SWITCH_BRANCH'
-    | 'INVOKE_ACTION'
+    | 'EXECUTE_SALE'
+  | 'INVOKE_ACTION'
     | 'SUBMIT_ENTITY'
     | 'ENABLE_CAPABILITY'
     | 'CONFIGURE_CAPABILITY';

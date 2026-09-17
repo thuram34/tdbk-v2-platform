@@ -49,6 +49,7 @@ import { multiSurfaceRenderer } from './src/coherence/multiSurfaceRenderer';
 import { runCoherenceTestSuite } from './src/coherence/tests/coherenceTestRunner';
 import { SurfaceType } from './src/coherence/types';
 import { eventBus } from './src/orchestration/events/eventBus';
+import { pubSubConsumer } from './src/orchestration/events/pubsubConsumer';
 
 async function startServer() {
   // Explicit bootstrap boundary: Seed demo DBKs only in development, preview, or explicit flag
@@ -80,6 +81,8 @@ async function startServer() {
       return res.status(500).json({ error: { code: 'PUBSUB_CONSUMER_ERROR', message: error instanceof Error ? error.message : String(error) } });
     }
   });
+
+  pubSubConsumer.register(app);
 
   // -------------------------------------------------------------
   // HEALTH & READINESS ENDPOINTS

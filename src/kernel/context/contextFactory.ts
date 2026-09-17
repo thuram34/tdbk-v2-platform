@@ -7,6 +7,7 @@ import { SecurityContext, Principal } from '../types';
 import { tokenVerifier } from '../identity/tokenVerifier';
 import { tenantIsolation } from '../tenancy/tenantIsolation';
 import { branchAuthority } from '../branch/branchAuthority';
+import { masterAuthority } from '../master/masterAuthority';
 
 export class SecurityContextFactory {
   /**
@@ -41,11 +42,29 @@ export class SecurityContextFactory {
       };
     }
 
-    const tenantCtx = options.targetTenantId
-      ? tenantIsolation.assertTenantIsolation(principal, options.targetTenantId, 'CONTEXT_RESOLVE', reqId)
-      : principal.tenantId
-      ? tenantIsolation.resolveTenantContext(principal.tenantId)
-      : null;
+    let tenantCtx = null;
+    if (options.targetTenantId) {
+      if (masterAuthority.isMasterAdmin(principal)) {
+        tenantCtx = tenantIsolation.resolveTenantContext(options.targetTenantId);
+      } else if (masterAuthority.isBusinessOwner(principal)) {
+        await masterAuthority.assertTenantAuthority(
+          principal,
+          options.targetTenantId,
+          'CONTEXT_RESOLVE',
+          reqId
+        );
+        tenantCtx = tenantIsolation.resolveTenantContext(options.targetTenantId);
+      } else {
+        tenantCtx = tenantIsolation.assertTenantIsolation(
+          principal,
+          options.targetTenantId,
+          'CONTEXT_RESOLVE',
+          reqId
+        );
+      }
+    } else if (principal.tenantId) {
+      tenantCtx = tenantIsolation.resolveTenantContext(principal.tenantId);
+    }
 
     const branchCtx = options.targetBranchId
       ? branchAuthority.assertBranchContext(principal, options.targetBranchId, 'CONTEXT_RESOLVE', reqId)

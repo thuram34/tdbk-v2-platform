@@ -136,6 +136,14 @@ class EventBusService {
       }
     }
 
+    // Verify event version type before using string methods.
+    if (typeof event.eventVersion !== 'string') {
+      return {
+        valid: false,
+        error: `Invalid eventVersion type: expected string, received '${typeof event.eventVersion}'`,
+      };
+    }
+
     // Verify version contract in registry
     const registryKey = `${event.eventType}:${event.eventVersion}`;
     const baseVersion = event.eventVersion.startsWith('v') ? event.eventVersion.substring(1) : event.eventVersion;
@@ -194,12 +202,10 @@ class EventBusService {
       };
     }
 
-    // Mark processed
-    this.processedEventIds.add(event.eventId);
-    this.processedIdempotencyKeys.set(key, event as unknown as EventEnvelope);
-    this.eventHistory.push(event as unknown as EventEnvelope);
-
     // Notify Subscribers
+    // A publish is only considered successful after every registered
+    // subscriber completes successfully. This preserves at-least-once
+    // delivery semantics for durable transports such as Pub/Sub.
     const handlers = this.subscribers.get(event.eventType) || new Set();
     let notifiedCount = 0;
 
@@ -209,8 +215,14 @@ class EventBusService {
         notifiedCount++;
       } catch (err: any) {
         console.error(`Error executing subscriber for event '${event.eventType}':`, err);
+        throw err;
       }
     }
+
+    // Mark processed only after all subscribers have completed successfully.
+    this.processedEventIds.add(event.eventId);
+    this.processedIdempotencyKeys.set(key, event as unknown as EventEnvelope);
+    this.eventHistory.push(event as unknown as EventEnvelope);
 
     return {
       published: true,

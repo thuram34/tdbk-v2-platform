@@ -41,11 +41,13 @@ import {
 
 interface DbkShellProps {
   initialDbkId?: string;
+  initialViewMode?: 'PORTFOLIO' | 'WORKSPACE';
   onSwitchToMaster: () => void;
 }
 
 export const DbkShell: React.FC<DbkShellProps> = ({
   initialDbkId,
+  initialViewMode = 'PORTFOLIO',
   onSwitchToMaster,
 }) => {
   const { getIdToken, user } = useAuth();
@@ -58,7 +60,7 @@ export const DbkShell: React.FC<DbkShellProps> = ({
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
-  const [viewMode, setViewMode] = useState<'PORTFOLIO' | 'WORKSPACE' | 'MULTI_BUSINESS_TESTS' | 'COHERENCE_ENGINE'>('PORTFOLIO');
+  const [viewMode, setViewMode] = useState<'PORTFOLIO' | 'WORKSPACE' | 'MULTI_BUSINESS_TESTS' | 'COHERENCE_ENGINE'>(initialViewMode);
 
   // 1. Fetch available DBKs
   const loadDbkList = async () => {
