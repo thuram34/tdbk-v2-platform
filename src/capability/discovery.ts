@@ -130,6 +130,78 @@ export class DiscoveryEngineService {
       evaluatedAt: new Date().toISOString(),
     };
   }
+  /** Authoritative variant used by production request paths. */
+  public async discoverPersistentCapabilitiesForDbk(
+    securityContext: SecurityContext,
+    dbkId: string
+  ): Promise<DiscoverySurface> {
+    const dna = await businessDnaManager.getPersistentBusinessDna(securityContext, dbkId);
+    const rawSector = dna.identity.businessType as string;
+    const sector = (rawSector === 'SCHOOL' ? 'EDUCATION' : rawSector) as any;
+    const dbk = await import('../platform/dbkRegistry').then((m) => m.dbkRegistry.getDbk(securityContext, dbkId));
+    const subscriptionTier = dbk?.subscriptionTier || 'FOUNDATION';
+    const allCaps = capabilityRegistry.getAllCapabilities();
+    const compatibleCaps = allCaps.filter((cap) =>
+      (cap.supportedBlueprints as string[]).includes('ALL') ||
+      (cap.supportedBlueprints as string[]).includes(sector as string) ||
+      (cap.supportedBlueprints as string[]).includes(rawSector)
+    );
+    const records = dbkCapabilityManager.getDbkCapabilityRecords(securityContext, dbkId);
+    const recordMap = new Map(records.map((record) => [record.capabilityId, record]));
+    const enabledCapIds = records
+      .filter((record) => record.state === 'ENABLED' || record.state === 'CONFIGURED')
+      .map((record) => record.capabilityId);
+    const items: DiscoveryResultItem[] = compatibleCaps.map((cap) => {
+      const rec = recordMap.get(cap.capabilityId);
+      const entitlementStatus: EntitlementStatus =
+        entitlementEngine.isTierSatisfied(subscriptionTier, cap.entitlementRequirements.minimumTier)
+          ? 'ENTITLED'
+          : 'UPGRADE_REQUIRED';
+      const depEval = dependencyEngine.evaluateDependencies(cap, enabledCapIds);
+      let currentState: CapabilityLifecycleState = 'DISCOVERABLE';
+      let rejectionReason: DiscoveryResultItem['rejectionReason'] = null;
+      let isEligible = false;
+      let explanation = '';
+      if (cap.lifecycleStatus === 'SUSPENDED') {
+        currentState = 'SUSPENDED'; rejectionReason = 'SUSPENDED';
+        explanation = `Capability '${cap.name}' is suspended platform-wide.`;
+      } else if (rec?.state === 'SUSPENDED') {
+        currentState = 'SUSPENDED'; rejectionReason = 'SUSPENDED';
+        explanation = `Capability '${cap.name}' is suspended for this DBK.`;
+      } else if (rec?.state === 'CONFIGURED') {
+        currentState = 'CONFIGURED'; isEligible = true;
+        explanation = `Capability '${cap.name}' is fully operational.`;
+      } else if (rec?.state === 'ENABLED') {
+        if (cap.configurationSchema.requiresConfiguration && !rec.configurationState.isConfigured) {
+          rejectionReason = 'CONFIGURATION_REQUIRED';
+          explanation = `Capability '${cap.name}' is enabled but requires setup configuration.`;
+        } else {
+          currentState = 'CONFIGURED'; isEligible = true;
+          explanation = `Capability '${cap.name}' is fully operational.`;
+        }
+      } else if (rec?.state === 'DISABLED') {
+        currentState = 'DISABLED'; explanation = `Capability '${cap.name}' was disabled by DBK Admin.`;
+      } else if (entitlementStatus === 'UPGRADE_REQUIRED') {
+        rejectionReason = 'UPGRADE_REQUIRED';
+        explanation = `Requires subscription tier '${cap.entitlementRequirements.minimumTier}' or higher.`;
+      } else if (!depEval.valid) {
+        rejectionReason = 'DEPENDENCY_REQUIRED';
+        explanation = `Requires missing prerequisite capabilities: [${depEval.missingDependencies.join(', ')}].`;
+      } else {
+        currentState = 'ENTITLED'; isEligible = true;
+        explanation = `Capability '${cap.name}' is eligible for activation.`;
+      }
+      return { capability: cap, currentState, entitlementStatus, isEligibleForActivation: isEligible,
+        rejectionReason, missingDependencies: depEval.missingDependencies, explanation };
+    });
+    auditLogger.logEvent('AUTHORIZATION_ALLOWED', securityContext.principal.id, 'CAPABILITY_DISCOVERED',
+      `dbk:${dbkId}`, 'ALLOWED', { tenantId: dbkId, requestId: securityContext.requestId,
+      details: { totalDiscovered: items.length, sector, subscriptionTier } });
+    return { dbkId, blueprintId: dna.identity.blueprintId, blueprintSector: sector,
+      subscriptionTier, items, availableCapabilities: items.map((i) => i.capability),
+      evaluatedAt: new Date().toISOString() };
+  }
+
 }
 
 export const discoveryEngine = new DiscoveryEngineService();
