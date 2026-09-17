@@ -32,7 +32,7 @@ class BridgeRegistryService {
         supportedOperations: ['STK_PUSH', 'C2B_SIMULATION', 'QUERY_TRANSACTION', 'RECONCILE'],
         status: 'MOCK',
         configurationRequirements: ['MPESA_CONSUMER_KEY', 'MPESA_CONSUMER_SECRET', 'MPESA_PASSKEY', 'MPESA_SHORTCODE'],
-        healthStatus: 'HEALTHY',
+        healthStatus: 'UNAVAILABLE',
         registeredAt: new Date().toISOString(),
       },
       {
@@ -43,7 +43,7 @@ class BridgeRegistryService {
         supportedOperations: ['SUBMIT_INVOICE', 'CANCEL_INVOICE', 'QUERY_INVOICE_STATUS'],
         status: 'MOCK',
         configurationRequirements: ['ETIMS_PIN', 'ETIMS_DEVICE_SERIAL', 'ETIMS_BRANCH_CODE'],
-        healthStatus: 'HEALTHY',
+        healthStatus: 'UNAVAILABLE',
         registeredAt: new Date().toISOString(),
       },
       {
@@ -54,7 +54,7 @@ class BridgeRegistryService {
         supportedOperations: ['SEND_TEMPLATE', 'SEND_TEXT', 'VERIFY_DELIVERY'],
         status: 'MOCK',
         configurationRequirements: ['WHATSAPP_PHONE_NUMBER_ID', 'WHATSAPP_ACCESS_TOKEN'],
-        healthStatus: 'HEALTHY',
+        healthStatus: 'UNAVAILABLE',
         registeredAt: new Date().toISOString(),
       },
       {
@@ -65,7 +65,7 @@ class BridgeRegistryService {
         supportedOperations: ['SEND_EMAIL', 'SEND_TEMPLATE_EMAIL'],
         status: 'MOCK',
         configurationRequirements: ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASSWORD'],
-        healthStatus: 'HEALTHY',
+        healthStatus: 'UNAVAILABLE',
         registeredAt: new Date().toISOString(),
       },
       {
@@ -76,7 +76,7 @@ class BridgeRegistryService {
         supportedOperations: ['SEND_SMS', 'BULK_SMS'],
         status: 'MOCK',
         configurationRequirements: ['SMS_API_KEY', 'SMS_USERNAME', 'SMS_SENDER_ID'],
-        healthStatus: 'HEALTHY',
+        healthStatus: 'UNAVAILABLE',
         registeredAt: new Date().toISOString(),
       },
       {
@@ -87,7 +87,7 @@ class BridgeRegistryService {
         supportedOperations: ['INITIATE_TRANSFER', 'VERIFY_ACCOUNT', 'QUERY_STATUS'],
         status: 'MOCK',
         configurationRequirements: ['BANK_API_KEY', 'BANK_CLIENT_ID', 'BANK_ACCOUNT_NO'],
-        healthStatus: 'HEALTHY',
+        healthStatus: 'UNAVAILABLE',
         registeredAt: new Date().toISOString(),
       },
     ];
