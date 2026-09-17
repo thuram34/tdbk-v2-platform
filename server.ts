@@ -525,7 +525,7 @@ async function startServer() {
         ipAddress: req.ip,
       });
 
-      const dna = businessDnaManager.bindBlueprintToDbk(
+      const dna = await businessDnaManager.bindBlueprintToDbkPersistent(
         context,
         dbkId,
         businessName,
