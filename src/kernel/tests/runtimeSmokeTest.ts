@@ -49,7 +49,7 @@ export class RuntimeSmokeTestRunner {
     });
 
     // RUNTIME_04
-    const ready = healthMonitoring.getReadyStatus();
+    const ready = await healthMonitoring.getReadyStatus();
     results.push({
       testId: 'RUNTIME_04',
       name: 'Readiness correctly detects dependency availability',
