@@ -148,6 +148,12 @@ export class AiCommandBoundary {
     }
   ): AiProposedAction {
     tenantIsolation.assertTenantIsolation(ctx.principal, params.tenantId);
+    if (params.branchId) {
+      const branch = branchManager.getBranch(ctx, params.tenantId, params.branchId);
+      if (!branch) {
+        throw new KernelError('VALIDATION_ERROR', `Branch '${params.branchId}' does not exist for tenant '${params.tenantId}'`, 400, ctx.requestId);
+      }
+    }
     const proposalId = `prop_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     const proposal: AiProposedAction = {
       proposalId, documentId: params.documentId, tenantId: params.tenantId, branchId: params.branchId,
