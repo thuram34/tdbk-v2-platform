@@ -11,6 +11,7 @@ import { capabilityRegistry } from './registry';
 import { entitlementEngine } from './entitlement';
 import { dependencyEngine } from './dependencyEngine';
 import { dbkCapabilityManager } from './dbkCapabilityManager';
+import { dbkRegistry } from '../platform/dbkRegistry';
 import { DiscoverySurface, DiscoveryResultItem, CapabilityLifecycleState, EntitlementStatus } from './types';
 
 export class DiscoveryEngineService {
@@ -138,7 +139,7 @@ export class DiscoveryEngineService {
     const dna = await businessDnaManager.getPersistentBusinessDna(securityContext, dbkId);
     const rawSector = dna.identity.businessType as string;
     const sector = (rawSector === 'SCHOOL' ? 'EDUCATION' : rawSector) as any;
-    const dbk = await import('../platform/dbkRegistry').then((m) => m.dbkRegistry.getDbk(securityContext, dbkId));
+    const dbk = await dbkRegistry.getDbk(securityContext, dbkId);
     const subscriptionTier = dbk?.subscriptionTier || 'FOUNDATION';
     const allCaps = capabilityRegistry.getAllCapabilities();
     const compatibleCaps = allCaps.filter((cap) =>
