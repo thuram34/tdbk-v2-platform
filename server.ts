@@ -1272,7 +1272,7 @@ async function startServer() {
         ipAddress: req.ip,
       });
 
-      const docs = documentStore.listDocuments(context, dbkId, branchId);
+      const docs = await documentStore.listPersistentDocuments(context, dbkId, branchId);
       res.json({ status: 'SUCCESS', documents: docs });
     } catch (err) {
       if (err instanceof KernelError) {
@@ -1294,7 +1294,7 @@ async function startServer() {
         ipAddress: req.ip,
       });
 
-      const doc = documentStore.getDocument(context, dbkId, documentId);
+      const doc = await documentStore.getPersistentDocument(context, dbkId, documentId);
       if (!doc) {
         return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Document not found' } });
       }
@@ -1325,7 +1325,7 @@ async function startServer() {
       }
 
       // Transition to PROCESSING
-      documentLifecycleManager.transitionStatus(context, dbkId, documentId, 'PROCESSING');
+      await documentLifecycleManager.transitionPersistentStatus(context, dbkId, documentId, 'PROCESSING');
 
       const raw = documentStore.getRawContent(context, doc) || doc.contentSnippet || '';
       const classification = documentClassifier.classifyDocument(raw, doc.fileName);
@@ -1333,7 +1333,7 @@ async function startServer() {
 
       const targetStatus = extraction.requiresReview ? 'REVIEW_REQUIRED' : 'EXTRACTED';
 
-      const updated = documentLifecycleManager.recordProcessingSnapshot(context, dbkId, documentId, {
+      const updated = await documentLifecycleManager.recordPersistentProcessingSnapshot(context, dbkId, documentId, {
         provider: 'tdbk-hybrid-engine',
         model: 'gemini-2.5-flash',
         classification,
@@ -1381,7 +1381,7 @@ async function startServer() {
         ipAddress: req.ip,
       });
 
-      documentStore.deleteDocument(context, dbkId, documentId, reason);
+      await documentStore.deletePersistentDocument(context, dbkId, documentId, reason);
       res.json({ status: 'SUCCESS', message: 'Document removed or archived per policy' });
     } catch (err) {
       if (err instanceof KernelError) {
@@ -1502,7 +1502,7 @@ async function startServer() {
       const sanitized = aiSecurityGuard.sanitizeInput(context, message, 'PROMPT');
 
       // 2. Add user message to conversation
-      aiMemoryManager.addPersistentMessage(context, dbkId, branchId || 'HQ', `conv_${context.principal.id}_${branchId || 'HQ'}`, {
+      await aiMemoryManager.addPersistentMessage(context, dbkId, branchId || 'HQ', `conv_${context.principal.id}_${branchId || 'HQ'}`, {
         sender: 'USER',
         text: message,
         untrustedWarning: sanitized.isFlagged,
@@ -1523,7 +1523,7 @@ async function startServer() {
       });
 
       // 5. Add AI assistant message
-      const assistantMsg = aiMemoryManager.addMessage(context, dbkId, `conv_${context.principal.id}_${branchId || 'HQ'}`, {
+      const assistantMsg = await aiMemoryManager.addPersistentMessage(context, dbkId, branchId || 'HQ', `conv_${context.principal.id}_${branchId || 'HQ'}`, {
         sender: 'AI_ASSISTANT',
         text: aiResponse.data || 'I am your TDBK Assistant. How can I help you today?',
       });
