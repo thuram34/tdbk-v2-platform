@@ -16,6 +16,7 @@ import { auditLogger } from '../../kernel/audit/auditLogger';
 import { KernelError } from '../../kernel/errors/kernelErrors';
 import { aiConversationRepository } from '../../persistence/firestore/repositories/aiConversationRepository';
 
+
 export class AiMemoryManager {
   private static instance: AiMemoryManager;
 
@@ -122,6 +123,9 @@ ${docSummaries || 'No recent documents found.'}
     tenantIsolation.assertTenantIsolation(ctx.principal, tenantId);
     const convId = conversationId || `conv_${ctx.principal.id}_${branchId}`;
     const metadata = await aiConversationRepository.getConversationMetadata(tenantId, convId);
+    if (metadata && metadata.branchId !== branchId && !ctx.principal.isMaster) {
+      throw new KernelError('AUTHORIZATION_DENIED' as any, 'Conversation branch access denied', 403, ctx.requestId);
+    }
     if (metadata && metadata.principalId !== ctx.principal.id && !ctx.principal.isMaster) {
       throw new KernelError('AUTHORIZATION_DENIED' as any, 'Conversation access denied', 403, ctx.requestId);
     }
