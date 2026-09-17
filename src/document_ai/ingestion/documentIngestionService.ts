@@ -124,7 +124,7 @@ export class DocumentIngestionService {
     const fileSize = Buffer.byteLength(rawContent, 'utf8');
 
     // 5. Duplicate Detection (within Tenant Scope)
-    const existing = documentStore.findByChecksum(req.tenantId, checksum);
+    const existing = await documentStore.findPersistentByChecksum(ctx, req.tenantId, checksum);
     if (existing) {
       auditLogger.logAuditEvent(ctx, {
         action: 'DOCUMENT_DUPLICATE_DETECTED',
