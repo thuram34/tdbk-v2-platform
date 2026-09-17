@@ -10,6 +10,7 @@
  */
 
 import { SecurityContext, Principal } from '../kernel/types';
+import { KernelError } from '../kernel/errors/kernelErrors';
 import { masterAuthority } from '../kernel/master/masterAuthority';
 import { workspaceManager } from '../platform/workspace/workspaceManager';
 import { dbkRegistryRepository } from '../persistence/firestore/repositories/dbkRegistryRepository';
@@ -163,21 +164,9 @@ export class RoleBasedCoherenceEngine {
       }));
     }
 
-    // Fallback: Generate dynamic space based on tenant
-    const defaultSpace = this.resolveSpaceMetadata(`space_${tenantId}`, tenantId);
-    const defaultMembership: SpaceMembership = {
-      membershipId: `mem_${userId}_${tenantId}`,
-      userId,
-      spaceId: defaultSpace.spaceId,
-      tenantId,
-      role: 'STORE_OWNER',
-      roleTitle: 'Business Director',
-      status: 'ACTIVE',
-      joinedAt: new Date().toISOString(),
-      permissions: ['*'],
-    };
-
-    return [{ space: defaultSpace, membership: defaultMembership }];
+    // No implicit membership. Production identities must be explicitly provisioned
+    // into a space; never synthesize OWNER + wildcard permissions from absence of data.
+    return [];
   }
 
   /**
@@ -307,6 +296,15 @@ export class RoleBasedCoherenceEngine {
     let activeSpaceItem = userSpacesWithMemberships.find((s) => s.space.spaceId === options?.targetSpaceId);
     if (!activeSpaceItem) {
       activeSpaceItem = userSpacesWithMemberships[0];
+    }
+
+    if (!activeSpaceItem) {
+      throw new KernelError(
+        'AUTHORIZATION_ERROR',
+        `No active space membership exists for user '${principal.id}' in DBK '${targetDbkId}'`,
+        403,
+        context.requestId
+      );
     }
 
     const { space: currentSpace, membership: originalMembership } = activeSpaceItem;
