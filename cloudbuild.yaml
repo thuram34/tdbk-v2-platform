@@ -30,15 +30,18 @@ steps:
       - VITE_FIREBASE_APP_ID
     args:
       - '-c'
-      - >-
-        docker build -t ${_IMAGE}
-        --build-arg VITE_FIREBASE_API_KEY="$$VITE_FIREBASE_API_KEY"
-        --build-arg VITE_FIREBASE_AUTH_DOMAIN="$$VITE_FIREBASE_AUTH_DOMAIN"
-        --build-arg VITE_FIREBASE_PROJECT_ID="$$VITE_FIREBASE_PROJECT_ID"
-        --build-arg VITE_FIREBASE_STORAGE_BUCKET="$$VITE_FIREBASE_STORAGE_BUCKET"
-        --build-arg VITE_FIREBASE_MESSAGING_SENDER_ID="$$VITE_FIREBASE_MESSAGING_SENDER_ID"
-        --build-arg VITE_FIREBASE_APP_ID="$$VITE_FIREBASE_APP_ID"
-        .
+      - |-
+        test -n "$VITE_FIREBASE_API_KEY"
+        test -n "$VITE_FIREBASE_PROJECT_ID"
+        test "$(printf "%s" "$VITE_FIREBASE_API_KEY" | sha256sum | cut -d" " -f1)" = "2cfb4dad90878a926f12065eed14f333c51ece4cc4050f989824569d84f35490"
+        docker build -t ${_IMAGE} \
+          --build-arg VITE_FIREBASE_API_KEY="$$VITE_FIREBASE_API_KEY" \
+          --build-arg VITE_FIREBASE_AUTH_DOMAIN="$$VITE_FIREBASE_AUTH_DOMAIN" \
+          --build-arg VITE_FIREBASE_PROJECT_ID="$$VITE_FIREBASE_PROJECT_ID" \
+          --build-arg VITE_FIREBASE_STORAGE_BUCKET="$$VITE_FIREBASE_STORAGE_BUCKET" \
+          --build-arg VITE_FIREBASE_MESSAGING_SENDER_ID="$$VITE_FIREBASE_MESSAGING_SENDER_ID" \
+          --build-arg VITE_FIREBASE_APP_ID="$$VITE_FIREBASE_APP_ID" \
+          .
 
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: 'gcloud'
