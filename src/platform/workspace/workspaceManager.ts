@@ -48,7 +48,7 @@ export class WorkspaceManagerService {
 
     let discoverableCapabilities: string[] = [];
     try {
-      const discoverySurface = discoveryEngine.discoverCapabilitiesForDbk(context, dbkId);
+      const discoverySurface = await discoveryEngine.discoverPersistentCapabilitiesForDbk(context, dbkId);
       discoverableCapabilities = discoverySurface.availableCapabilities.map((c) => c.capabilityId);
     } catch (error) {
       console.error('[WORKSPACE_CAPABILITY_DISCOVERY_FAILED]', error);
