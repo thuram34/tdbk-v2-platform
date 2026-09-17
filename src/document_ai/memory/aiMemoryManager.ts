@@ -13,6 +13,8 @@ import { SecurityContext } from '../../kernel/types';
 import { tenantIsolation } from '../../kernel/tenancy/tenantIsolation';
 import { documentStore } from '../storage/documentStore';
 import { auditLogger } from '../../kernel/audit/auditLogger';
+import { KernelError } from '../../kernel/errors/kernelErrors';
+import { aiConversationRepository } from '../../persistence/firestore/repositories/aiConversationRepository';
 
 export class AiMemoryManager {
   private static instance: AiMemoryManager;
@@ -113,6 +115,36 @@ ${docSummaries || 'No recent documents found.'}
       contextPrompt,
       accessibleDocsCount: accessible.length,
     };
+  }
+
+  /** Authoritative production conversation read from Firestore. */
+  public async getPersistentConversation(ctx: SecurityContext, tenantId: string, branchId: string, conversationId?: string): Promise<AiConversation> {
+    tenantIsolation.assertTenantIsolation(ctx.principal, tenantId);
+    const convId = conversationId || `conv_${ctx.principal.id}_${branchId}`;
+    const metadata = await aiConversationRepository.getConversationMetadata(tenantId, convId);
+    if (metadata && metadata.principalId !== ctx.principal.id && !ctx.principal.isMaster) {
+      throw new KernelError('AUTHORIZATION_DENIED' as any, 'Conversation access denied', 403, ctx.requestId);
+    }
+    const messages = await aiConversationRepository.listMessages(tenantId, convId);
+    if (metadata) {
+      return { ...metadata, tenantId, messages, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() } as AiConversation;
+    }
+    const now = new Date().toISOString();
+    const conversation: AiConversation = { conversationId: convId, tenantId, branchId, principalId: ctx.principal.id, createdAt: now, updatedAt: now, messages };
+    await aiConversationRepository.saveConversationMetadata(tenantId, convId, { conversationId: convId, branchId, principalId: ctx.principal.id });
+    return conversation;
+  }
+
+  /** Persist a message before returning it; production callers should use this path. */
+  public async addPersistentMessage(ctx: SecurityContext, tenantId: string, branchId: string, conversationId: string, message: Omit<AiConversationMessage, 'id' | 'timestamp'>): Promise<AiConversationMessage> {
+    tenantIsolation.assertTenantIsolation(ctx.principal, tenantId);
+    const conversation = await this.getPersistentConversation(ctx, tenantId, branchId, conversationId);
+    if (conversation.principalId !== ctx.principal.id && !ctx.principal.isMaster) {
+      throw new KernelError('AUTHORIZATION_DENIED' as any, 'Conversation access denied', 403, ctx.requestId);
+    }
+    const fullMessage: AiConversationMessage = { id: `msg_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`, timestamp: new Date().toISOString(), ...message };
+    await aiConversationRepository.saveMessage(tenantId, conversationId, fullMessage.id, fullMessage);
+    return fullMessage;
   }
 
   public clearTenantMemory(tenantId: string): void {
