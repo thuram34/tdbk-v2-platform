@@ -103,6 +103,14 @@ export interface IAiProposalRepository {
   getProposal(tenantId: string, proposalId: string): Promise<AiProposedAction | null>;
   listProposals(tenantId: string, branchId?: string | null): Promise<AiProposedAction[]>;
   deleteProposal(tenantId: string, proposalId: string): Promise<void>;
+  transitionProposal(
+    tenantId: string,
+    proposalId: string,
+    expectedStatus: import('../document_ai/types').ProposalStatus,
+    nextStatus: import('../document_ai/types').ProposalStatus,
+    reviewedBy: string,
+    adjustedPayload?: Record<string, any>
+  ): Promise<AiProposedAction>;
 }
 
 export interface IAiConversationRepository {
