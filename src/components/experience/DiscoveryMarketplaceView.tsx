@@ -32,8 +32,9 @@ export const DiscoveryMarketplaceView: React.FC<DiscoveryMarketplaceViewProps> =
         await onDispatchCommand('ENABLE_CAPABILITY', { capabilityId: item.capabilityId });
       }
       await onRefreshExperience();
-    } catch {
-      // Error handled in server
+    } catch (err) {
+      console.error('Capability activation failed:', err);
+      throw err;
     } finally {
       setActionInProgress(null);
     }
