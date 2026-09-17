@@ -148,6 +148,31 @@ export class EntityEngineService {
     };
   }
 
+  /** Creates an entity and waits for the authoritative Firestore commit. */
+  public async createPersistentRecord(
+    _ctx: unknown,
+    tenantId: string,
+    entityType: string,
+    data: Record<string, unknown>
+  ): Promise<ExperienceEntityRecord & { recordId: string; data: Record<string, unknown> }> {
+    const recordId = (data.id as string) || `rec_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const now = new Date().toISOString();
+    const record: ExperienceEntityRecord = {
+      id: recordId,
+      entityType,
+      primaryIdentifier: (data.primaryIdentifier as string) || (data.admissionNo as string) || (data.skuCode as string) || recordId,
+      secondaryIdentifier: (data.secondaryIdentifier as string) || (data.fullName as string) || (data.itemName as string) || entityType,
+      status: (data.status as string) || 'ACTIVE',
+      attributes: { ...data },
+      createdAt: now,
+      updatedAt: now,
+    };
+    await entityRecordRepository.saveRecord(tenantId, entityType, record.id, record);
+    const cache = this.entityStore.get(`${tenantId}:${entityType}`) || [];
+    this.entityStore.set(`${tenantId}:${entityType}`, [record, ...cache.filter((item) => item.id !== record.id)]);
+    return { ...record, recordId: record.id, data: record.attributes };
+  }
+
   /**
    * Adds or updates a record for a given DBK and capability
    */
