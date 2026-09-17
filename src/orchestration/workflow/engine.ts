@@ -14,6 +14,7 @@ import { auditLogger } from '../../kernel/audit/auditLogger';
 import { KernelError } from '../../kernel/errors/kernelErrors';
 import { eventBus } from '../events/eventBus';
 import { EventEnvelope } from '../events/types';
+import { workflowInstanceRepository } from '../../persistence/firestore/repositories/workflowInstanceRepository';
 
 class WorkflowEngineService {
   private workflows: Map<string, WorkflowInstance> = new Map();
@@ -133,6 +134,25 @@ class WorkflowEngineService {
 
     eventBus.publish(eventEnvelope);
 
+    return workflow;
+  }
+
+  /** Creates and durably persists a workflow instance. */
+  public async createPersistentWorkflow(
+    context: SecurityContext,
+    workflowType: string,
+    workflowVersion: string,
+    stepDefinitions: Array<{
+      stepId: string;
+      stepType: string;
+      input?: Record<string, unknown>;
+      retryPolicy?: { maxAttempts: number; backoffMs: number; timeoutMs: number; retryableErrors: string[] };
+      compensationStepId?: string;
+    }>,
+    metadata: Record<string, unknown> = {}
+  ): Promise<WorkflowInstance> {
+    const workflow = this.createWorkflow(context, workflowType, workflowVersion, stepDefinitions, metadata);
+    await workflowInstanceRepository.saveWorkflow(workflow.tenantId, workflow.workflowId, workflow);
     return workflow;
   }
 
