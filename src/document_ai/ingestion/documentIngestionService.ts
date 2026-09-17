@@ -172,7 +172,8 @@ export class DocumentIngestionService {
     };
 
     // 7. Store document
-    documentStore.saveDocument(ctx, metadata, rawContent);
+    documentStore.saveDocument(ctx, metadata);
+    await documentStore.persistRawContent(ctx, metadata, rawContent);
 
     // 8. Audit event
     auditLogger.logAuditEvent(ctx, {
