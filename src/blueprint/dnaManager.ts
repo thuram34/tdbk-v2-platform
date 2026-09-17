@@ -138,7 +138,6 @@ export class BusinessDnaManager {
 
     // 8. Persist DNA
     this.dnaStore.set(dbkId, dna);
-    void businessDnaRepository.saveDna(dbkId, dna);
 
     auditLogger.logEvent(
       'SECURITY_CONFIGURATION_CHANGE',
@@ -153,6 +152,31 @@ export class BusinessDnaManager {
       }
     );
 
+    return dna;
+  }
+
+  /**
+   * Durable blueprint binding for production callers. The synchronous binding
+   * method remains available for deterministic tests; production commits wait
+   * for Firestore before reporting success.
+   */
+  public async bindBlueprintToDbkPersistent(
+    securityContext: SecurityContext,
+    dbkId: string,
+    businessName: string,
+    blueprintId: string,
+    blueprintVersion?: string,
+    branchTopologyInput?: Partial<BranchTopology>
+  ): Promise<BusinessDNA> {
+    const dna = this.bindBlueprintToDbk(
+      securityContext,
+      dbkId,
+      businessName,
+      blueprintId,
+      blueprintVersion,
+      branchTopologyInput
+    );
+    await businessDnaRepository.saveDna(dbkId, dna);
     return dna;
   }
 
@@ -221,6 +245,13 @@ export class BusinessDnaManager {
         details: { enabledCapabilities: dna.enabledCapabilityIds },
       }
     );
+  }
+
+  /** Durable Business DNA update for production callers. */
+  public async savePersistentBusinessDna(securityContext: SecurityContext, dna: BusinessDNA): Promise<BusinessDNA> {
+    this.saveBusinessDna(securityContext, dna);
+    await businessDnaRepository.saveDna(dna.dbkId, dna);
+    return JSON.parse(JSON.stringify(dna));
   }
 
   /**
