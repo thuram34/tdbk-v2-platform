@@ -46,15 +46,8 @@ export class WorkspaceManagerService {
       .filter((r) => r.state === 'ENABLED' || r.state === 'CONFIGURED')
       .map((r) => r.capabilityId);
 
-    let discoverableCapabilities: string[] = [];
-    try {
-      const discoverySurface = await discoveryEngine.discoverPersistentCapabilitiesForDbk(context, dbkId);
-      discoverableCapabilities = discoverySurface.availableCapabilities.map((c) => c.capabilityId);
-    } catch (error) {
-      console.error('[WORKSPACE_CAPABILITY_DISCOVERY_FAILED]', error);
-      // Fallback if DNA not yet bound
-      discoverableCapabilities = [];
-    }
+    const discoverySurface = await discoveryEngine.discoverPersistentCapabilitiesForDbk(context, dbkId);
+    const discoverableCapabilities = discoverySurface.availableCapabilities.map((c) => c.capabilityId);
 
     const terminology = blueprint?.terminology || {};
 
