@@ -41,7 +41,7 @@ export class WorkspaceManagerService {
     const branches = await branchManager.listPersistentBranches(context, dbkId);
 
     // Get enabled and discoverable capabilities
-    const capabilityRecords = dbkCapabilityManager.getDbkCapabilityRecords(context, dbkId);
+    const capabilityRecords = await dbkCapabilityManager.hydratePersistentCapabilities(context, dbkId);
     const enabledCapabilities = capabilityRecords
       .filter((r) => r.state === 'ENABLED' || r.state === 'CONFIGURED')
       .map((r) => r.capabilityId);
