@@ -68,6 +68,21 @@ export class EntityEngineService {
     return this.entityStore.get(key) || this.getDefaultRecordsForCapability(capabilityId);
   }
 
+  /**
+   * Authoritative server read path.
+   * Production reads come from Firestore; in-memory/demo records are retained
+   * only for local development and isolated test execution.
+   */
+  public async listPersistentRecords(
+    _ctx: unknown,
+    tenantId: string,
+    entityType: string,
+    branchId?: string | null,
+  ): Promise<ExperienceEntityRecord[]> {
+    const records = await entityRecordRepository.listRecords(tenantId, entityType, branchId);
+    return records;
+  }
+
   public listRecords(
     ctx: unknown,
     tenantId: string,
