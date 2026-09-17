@@ -46,8 +46,19 @@ export class WorkspaceManagerService {
       .filter((r) => r.state === 'ENABLED' || r.state === 'CONFIGURED')
       .map((r) => r.capabilityId);
 
-    const discoverySurface = await discoveryEngine.discoverPersistentCapabilitiesForDbk(context, dbkId);
-    const discoverableCapabilities = discoverySurface.availableCapabilities.map((c) => c.capabilityId);
+    let discoverableCapabilities: string[];
+    try {
+      const discoverySurface = await discoveryEngine.discoverPersistentCapabilitiesForDbk(context, dbkId);
+      discoverableCapabilities = discoverySurface.availableCapabilities.map((c) => c.capabilityId);
+    } catch (error) {
+      // An unbound Business DNA record is a valid pre-composition state; operational
+      // discovery failures must still propagate rather than becoming an empty UI.
+      if (error instanceof KernelError && error.code === 'NOT_FOUND') {
+        discoverableCapabilities = [];
+      } else {
+        throw error;
+      }
+    }
 
     const terminology = blueprint?.terminology || {};
 
