@@ -57,6 +57,80 @@ export class DocumentStore {
     void documentMetadataRepository.saveDocument(doc.tenantId, doc.documentId, doc);
   }
 
+  /** Authoritative Firestore read for production/server paths. */
+  public async getPersistentDocument(
+    ctx: SecurityContext,
+    tenantId: string,
+    documentId: string
+  ): Promise<DocumentMetadata | null> {
+    tenantIsolation.assertTenantIsolation(ctx.principal, tenantId);
+    const doc = await documentMetadataRepository.getDocument(tenantId, documentId);
+    if (!doc) return null;
+    if (ctx.principal.branchId && doc.branchId && ctx.principal.branchId !== doc.branchId && !ctx.principal.isMaster) {
+      throw new KernelError('AUTHORIZATION_DENIED' as any, 'Branch access denied. Document is scoped to another branch', 403, ctx.requestId);
+    }
+    return doc;
+  }
+
+  /** Authoritative Firestore list for production/server paths. */
+  public async listPersistentDocuments(
+    ctx: SecurityContext,
+    tenantId: string,
+    branchId?: string
+  ): Promise<DocumentMetadata[]> {
+    tenantIsolation.assertTenantIsolation(ctx.principal, tenantId);
+    const effectiveBranch = branchId || (ctx.principal.isMaster ? undefined : ctx.principal.branchId);
+    return documentMetadataRepository.listDocuments(tenantId, effectiveBranch);
+  }
+
+  /** Authoritative tenant-scoped duplicate lookup. */
+  public async findPersistentByChecksum(
+    ctx: SecurityContext,
+    tenantId: string,
+    checksum: string
+  ): Promise<DocumentMetadata | null> {
+    tenantIsolation.assertTenantIsolation(ctx.principal, tenantId);
+    const docs = await documentMetadataRepository.listDocuments(tenantId);
+    return docs.find(d => d.checksum === checksum && d.status !== 'ARCHIVED' && d.status !== 'REJECTED') || null;
+  }
+
+  public async deletePersistentDocument(
+    ctx: SecurityContext,
+    tenantId: string,
+    documentId: string,
+    reason: string
+  ): Promise<boolean> {
+    tenantIsolation.assertTenantIsolation(ctx.principal, tenantId);
+    const doc = await this.getPersistentDocument(ctx, tenantId, documentId);
+    if (!doc) throw new KernelError('NOT_FOUND', 'Document not found', 404, ctx.requestId);
+    if (doc.retentionPolicy.legalHold) {
+      throw new KernelError('FORBIDDEN_OPERATION' as any, 'Cannot delete document: Active Legal Hold in effect', 403, ctx.requestId);
+    }
+    const daysSinceUpload = (Date.now() - new Date(doc.uploadedAt).getTime()) / (1000 * 60 * 60 * 24);
+    if (daysSinceUpload < doc.retentionPolicy.retentionPeriodDays && !ctx.principal.isMaster) {
+      throw new KernelError('FORBIDDEN_OPERATION' as any, 'Retention policy violation', 403, ctx.requestId);
+    }
+    if (doc.retentionPolicy.archiveOnly) {
+      doc.status = 'ARCHIVED';
+      await documentMetadataRepository.saveDocument(tenantId, documentId, doc);
+      auditLogger.logAuditEvent(ctx, {
+        action: 'DOCUMENT_ARCHIVED_BY_POLICY',
+        targetResource: 'document:' + documentId,
+        outcome: 'ALLOWED',
+        details: { reason, retentionDays: doc.retentionPolicy.retentionPeriodDays }
+      });
+      return true;
+    }
+    await documentMetadataRepository.deleteDocument(tenantId, documentId);
+    auditLogger.logAuditEvent(ctx, {
+      action: 'DOCUMENT_DELETED',
+      targetResource: 'document:' + documentId,
+      outcome: 'ALLOWED',
+      details: { reason }
+    });
+    return true;
+  }
+
   public getDocument(
     ctx: SecurityContext,
     tenantId: string,
