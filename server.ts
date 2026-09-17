@@ -1159,7 +1159,36 @@ async function startServer() {
   app.get('/api/coherence/display/:spaceId/:surfaceType', async (req: Request, res: Response) => {
     try {
       const { spaceId, surfaceType } = req.params;
+      const tenantId = req.query.tenantId as string | undefined;
       const { title, sourceEvent, message, details } = req.query;
+
+      if (!tenantId) {
+        return res.status(400).json({ error: { code: 'TENANT_REQUIRED', message: 'tenantId is required' } });
+      }
+
+      const context = await securityContextFactory.createSecurityContext({
+        authHeader: req.headers.authorization,
+        targetTenantId: tenantId,
+        ipAddress: req.ip,
+      });
+
+      tenantIsolation.assertTenantIsolation(
+        context.principal,
+        tenantId,
+        'RENDER_SPACE_DISPLAY',
+        context.requestId,
+      );
+
+      if (!masterAuthority.isMasterAdmin(context.principal)) {
+        const memberships = roleBasedCoherenceEngine.getUserSpaces(context.principal.id, tenantId);
+        const hasSpaceAccess = memberships.some((item) => item.space.spaceId === spaceId);
+        if (!hasSpaceAccess) {
+          throw new AuthorizationError(
+            'User is not authorized to render the requested display space',
+            context.requestId,
+          );
+        }
+      }
 
       const rendered = multiSurfaceRenderer.renderToSurface(surfaceType as SurfaceType, spaceId, {
         title: (title as string) || 'Digital Screen Notice',
@@ -1170,7 +1199,8 @@ async function startServer() {
 
       res.json({ status: 'SUCCESS', rendered });
     } catch (err) {
-      res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: (err as Error).message } });
+      if (err instanceof KernelError) return res.status(err.statusCode).json(err.toJSON());
+      res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Unable to render display' } });
     }
   });
 
