@@ -176,6 +176,32 @@ export class ActivationEvaluatorService {
       dbkId,
     };
   }
+
+  /** Authoritative production evaluation: hydrate commercial and capability state before evaluating. */
+  public async evaluatePersistentActivation(
+    securityContext: SecurityContext,
+    dbkId: string,
+    capabilityId: string,
+    dnaOverride?: import('../blueprint/types').BusinessDNA
+  ): Promise<ActivationDecision> {
+    const { dbkRegistry } = await import('../platform/dbkRegistry');
+    const dbk = await dbkRegistry.getDbk(securityContext, dbkId);
+    if (!dbk) {
+      return {
+        allowed: false,
+        outcome: 'DENIED',
+        message: `DBK '${dbkId}' was not found`,
+        capabilityId,
+        dbkId,
+      };
+    }
+
+    entitlementEngine.setDbkSubscriptionTier(dbkId, dbk.subscriptionTier);
+    await dbkCapabilityManager.hydratePersistentCapabilities(securityContext, dbkId);
+
+    return this.evaluateActivation(securityContext, dbkId, capabilityId, dnaOverride);
+  }
+
 }
 
 export const activationEvaluator = new ActivationEvaluatorService();
