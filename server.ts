@@ -62,26 +62,6 @@ async function startServer() {
 
   app.use(express.json());
 
-  app.post('/api/events/pubsub', async (req: Request, res: Response) => {
-    try {
-      const message = req.body?.message;
-      const encodedData = message?.data;
-
-      if (typeof encodedData !== 'string') {
-        return res.status(400).json({ error: { code: 'INVALID_PUBSUB_MESSAGE', message: 'Missing Pub/Sub message.data' } });
-      }
-
-      const envelope = JSON.parse(Buffer.from(encodedData, 'base64').toString('utf8'));
-      const result = await eventBus.publish(envelope);
-
-      console.log('[TDBK_PUBSUB_CONSUMER]', JSON.stringify({ eventId: envelope.eventId, eventType: envelope.eventType, tenantId: envelope.tenantId, result }));
-      return res.status(204).send();
-    } catch (error) {
-      console.error('[TDBK_PUBSUB_CONSUMER_ERROR]', error);
-      return res.status(500).json({ error: { code: 'PUBSUB_CONSUMER_ERROR', message: error instanceof Error ? error.message : String(error) } });
-    }
-  });
-
   pubSubConsumer.register(app);
 
   // -------------------------------------------------------------
@@ -969,10 +949,29 @@ async function startServer() {
   app.get('/api/experience/entities/:dbkId/:capabilityId', async (req: Request, res: Response) => {
     try {
       const { dbkId, capabilityId } = req.params;
-      const records = entityEngine.getRecords(dbkId, capabilityId);
+      const authHeader = req.headers.authorization;
+      const context = await securityContextFactory.createSecurityContext({
+        authHeader,
+        targetTenantId: dbkId,
+        targetBranchId: req.query.branchId as string | undefined,
+        ipAddress: req.ip,
+      });
+      tenantIsolation.assertTenantIsolation(
+        context.principal,
+        dbkId,
+        'READ_ENTITY_RECORDS',
+        context.requestId,
+      );
+      const records = await entityEngine.listPersistentRecords(
+        context,
+        dbkId,
+        capabilityId,
+        req.query.branchId as string | undefined,
+      );
       res.json({ status: 'SUCCESS', records });
     } catch (err) {
-      res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: (err as Error).message } });
+      if (err instanceof KernelError) return res.status(err.statusCode).json(err.toJSON());
+      res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Unable to read entity records' } });
     }
   });
 
