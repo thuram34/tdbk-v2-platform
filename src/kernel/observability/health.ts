@@ -17,7 +17,7 @@ export class HealthMonitoringService {
 
   /** Readiness checks the authoritative persistence path, not merely process uptime. */
   public async getReadyStatus(): Promise<HealthStatus> {
-    const components: Record<string, boolean> = { kernel: true, tenancy: true, auth: true, audit: true, firestore: false };
+    const components: HealthStatus['components'] & { firestore: boolean } = { kernel: true, tenancy: true, auth: true, audit: true, firestore: false };
     try {
       await firestoreClient.get('/system/readiness');
       components.firestore = true;
