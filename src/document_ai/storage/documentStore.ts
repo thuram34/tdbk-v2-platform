@@ -14,6 +14,8 @@ import { tenantIsolation } from '../../kernel/tenancy/tenantIsolation';
 import { KernelError } from '../../kernel/errors/kernelErrors';
 import { auditLogger } from '../../kernel/audit/auditLogger';
 import { documentMetadataRepository } from '../../persistence/firestore/repositories/documentMetadataRepository';
+import { applicationDefault, cert, getApps, initializeApp } from 'firebase-admin/app';
+import { getStorage } from 'firebase-admin/storage';
 
 export class DocumentStore {
   private static instance: DocumentStore;
@@ -55,6 +57,64 @@ export class DocumentStore {
     }
 
     void documentMetadataRepository.saveDocument(doc.tenantId, doc.documentId, doc);
+  }
+
+  /**
+   * Persists raw document content to Firebase Storage. The in-memory binary store
+   * is retained only for tests/local compatibility; production content must
+   * survive instance restarts.
+   */
+  public async persistRawContent(
+    ctx: SecurityContext,
+    doc: DocumentMetadata,
+    rawContent: string
+  ): Promise<void> {
+    tenantIsolation.assertTenantIsolation(ctx.principal, doc.tenantId);
+
+    if (process.env.NODE_ENV === 'test') {
+      this.binaryStore.set(doc.storagePath, rawContent);
+      return;
+    }
+
+    const bucketName = process.env.FIREBASE_STORAGE_BUCKET || process.env.GCS_BUCKET;
+    if (!bucketName) {
+      throw new KernelError(
+        'CONFIGURATION_ERROR' as any,
+        'Document content storage is not configured. Set FIREBASE_STORAGE_BUCKET or GCS_BUCKET.',
+        500,
+        ctx.requestId
+      );
+    }
+
+    const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT;
+    if (getApps().length === 0) {
+      initializeApp({
+        credential: serviceAccount ? cert(JSON.parse(serviceAccount)) : applicationDefault(),
+        storageBucket: bucketName,
+        ...(process.env.GOOGLE_CLOUD_PROJECT || process.env.GCP_PROJECT
+          ? { projectId: process.env.GOOGLE_CLOUD_PROJECT || process.env.GCP_PROJECT }
+          : {}),
+      });
+    }
+
+    const bucket = getStorage().bucket(bucketName);
+    const file = bucket.file(doc.storagePath.replace(/^\//, ''));
+    const buffer = doc.mimeType === 'text/plain' || doc.mimeType.includes('json') || doc.mimeType.includes('csv')
+      ? Buffer.from(rawContent, 'utf8')
+      : Buffer.from(rawContent, 'base64');
+
+    await file.save(buffer, {
+      resumable: false,
+      metadata: {
+        contentType: doc.mimeType,
+        metadata: {
+          tenantId: doc.tenantId,
+          branchId: doc.branchId,
+          documentId: doc.documentId,
+          checksum: doc.checksum,
+        },
+      },
+    });
   }
 
   /** Authoritative Firestore read for production/server paths. */
@@ -190,9 +250,38 @@ export class DocumentStore {
     return null;
   }
 
-  public getRawContent(ctx: SecurityContext, doc: DocumentMetadata): string | null {
+  public async getRawContent(ctx: SecurityContext, doc: DocumentMetadata): Promise<string | null> {
     tenantIsolation.assertTenantIsolation(ctx.principal, doc.tenantId);
-    return this.binaryStore.get(doc.storagePath) || null;
+
+    if (process.env.NODE_ENV === 'test') {
+      return this.binaryStore.get(doc.storagePath) || null;
+    }
+
+    const bucketName = process.env.FIREBASE_STORAGE_BUCKET || process.env.GCS_BUCKET;
+    if (!bucketName) {
+      throw new KernelError(
+        'CONFIGURATION_ERROR' as any,
+        'Document content storage is not configured. Set FIREBASE_STORAGE_BUCKET or GCS_BUCKET.',
+        500,
+        ctx.requestId
+      );
+    }
+
+    const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT;
+    if (getApps().length === 0) {
+      initializeApp({
+        credential: serviceAccount ? cert(JSON.parse(serviceAccount)) : applicationDefault(),
+        storageBucket: bucketName,
+        ...(process.env.GOOGLE_CLOUD_PROJECT || process.env.GCP_PROJECT
+          ? { projectId: process.env.GOOGLE_CLOUD_PROJECT || process.env.GCP_PROJECT }
+          : {}),
+      });
+    }
+
+    const [buffer] = await getStorage().bucket(bucketName).file(doc.storagePath.replace(/^\//, '')).download();
+    return doc.mimeType === 'text/plain' || doc.mimeType.includes('json') || doc.mimeType.includes('csv')
+      ? buffer.toString('utf8')
+      : buffer.toString('base64');
   }
 
   public deleteDocument(
