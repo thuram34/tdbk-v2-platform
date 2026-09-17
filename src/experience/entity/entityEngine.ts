@@ -173,6 +173,21 @@ export class EntityEngineService {
     return { ...record, recordId: record.id, data: record.attributes };
   }
 
+  /** Persists an entity record before updating the hot cache. Production command paths use this method. */
+  public async savePersistentRecord(
+    _ctx: unknown,
+    tenantId: string,
+    entityType: string,
+    record: ExperienceEntityRecord,
+  ): Promise<ExperienceEntityRecord> {
+    const updated = { ...record, updatedAt: new Date().toISOString() };
+    await entityRecordRepository.saveRecord(tenantId, entityType, updated.id, updated);
+    const key = `${tenantId}:${entityType}`;
+    const list = this.entityStore.get(key) || [];
+    this.entityStore.set(key, [updated, ...list.filter((item) => item.id !== updated.id)]);
+    return updated;
+  }
+
   /**
    * Adds or updates a record for a given DBK and capability
    */
