@@ -231,7 +231,6 @@ export class BusinessDnaManager {
 
     dna.updatedAt = new Date().toISOString();
     this.dnaStore.set(dna.dbkId, dna);
-    void businessDnaRepository.saveDna(dna.dbkId, dna);
 
     auditLogger.logEvent(
       'SECURITY_CONFIGURATION_CHANGE',
