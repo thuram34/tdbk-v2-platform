@@ -6,7 +6,9 @@ ENV NODE_ENV=production
 
 COPY package*.json ./
 
-RUN npm ci --omit=dev
+# The production build requires Vite and esbuild, which are devDependencies.
+# Install the full dependency set for the build; runtime pruning happens afterward.
+RUN npm ci
 
 COPY . .
 
@@ -28,6 +30,9 @@ ENV VITE_FIREBASE_APP_ID=$VITE_FIREBASE_APP_ID
 
 RUN npm run build
 
-EXPOSE 3000
+# Remove build-only dependencies before the production image is deployed.
+RUN npm prune --omit=dev
+
+EXPOSE 8080
 
 CMD ["node", "dist/server.cjs"]
