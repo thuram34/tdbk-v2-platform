@@ -619,12 +619,19 @@ async function startServer() {
       }
 
       const cap = capabilityRegistry.getCapability(capabilityId);
-      const record = dbkCapabilityManager.enableCapability(
+      if (!cap) {
+        return res.status(404).json({ error: { code: 'NOT_FOUND', message: `Capability '${capabilityId}' not found` } });
+      }
+      await dbkCapabilityManager.hydratePersistentCapability(context, dbkId, capabilityId);
+      const record = await dbkCapabilityManager.persistCapabilityRecord(
         context,
-        dbkId,
-        capabilityId,
-        'ENTITLED',
-        cap.configurationSchema.requiresConfiguration
+        dbkCapabilityManager.enableCapability(
+          context,
+          dbkId,
+          capabilityId,
+          'ENTITLED',
+          cap.configurationSchema.requiresConfiguration
+        )
       );
 
       res.json({ status: 'SUCCESS', decision, record });
@@ -648,7 +655,11 @@ async function startServer() {
         ipAddress: req.ip,
       });
 
-      const record = dbkCapabilityManager.configureCapability(context, dbkId, capabilityId, configData);
+      await dbkCapabilityManager.hydratePersistentCapability(context, dbkId, capabilityId);
+      const record = await dbkCapabilityManager.persistCapabilityRecord(
+        context,
+        dbkCapabilityManager.configureCapability(context, dbkId, capabilityId, configData)
+      );
       res.json({ status: 'SUCCESS', record });
     } catch (err) {
       if (err instanceof KernelError) {
@@ -670,7 +681,11 @@ async function startServer() {
         ipAddress: req.ip,
       });
 
-      const record = dbkCapabilityManager.disableCapability(context, dbkId, capabilityId);
+      await dbkCapabilityManager.hydratePersistentCapability(context, dbkId, capabilityId);
+      const record = await dbkCapabilityManager.persistCapabilityRecord(
+        context,
+        dbkCapabilityManager.disableCapability(context, dbkId, capabilityId)
+      );
       res.json({ status: 'SUCCESS', record });
     } catch (err) {
       if (err instanceof KernelError) {
