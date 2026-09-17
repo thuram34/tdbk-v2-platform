@@ -35,7 +35,7 @@ export class DiscoveryEngineService {
     );
 
     // Get current DBK capability records
-    const records = dbkCapabilityManager.getDbkCapabilityRecords(securityContext, dbkId);
+    const records = await dbkCapabilityManager.hydratePersistentCapabilities(securityContext, dbkId);
     const recordMap = new Map(records.map((r) => [r.capabilityId, r]));
 
     const enabledCapIds = records
