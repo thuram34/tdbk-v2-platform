@@ -84,8 +84,56 @@ export class DbkCapabilityManagerService {
     };
 
     tenantMap.set(record.capabilityId, updatedRecord);
-    void capabilityStateRepository.saveCapabilityState(record.dbkId, record.capabilityId, updatedRecord);
     return updatedRecord;
+  }
+
+  /** Loads one capability record from Firestore into the hot cache for production mutations. */
+  public async hydratePersistentCapability(
+    securityContext: SecurityContext,
+    dbkId: string,
+    capabilityId: string
+  ): Promise<DbkCapabilityRecord | undefined> {
+    this.assertTenant(securityContext, dbkId, 'hydratePersistentCapability');
+    const record = await capabilityStateRepository.getCapabilityState(dbkId, capabilityId);
+    if (record) {
+      let tenantMap = this.dbkCapabilityStore.get(dbkId);
+      if (!tenantMap) {
+        tenantMap = new Map();
+        this.dbkCapabilityStore.set(dbkId, tenantMap);
+      }
+      tenantMap.set(capabilityId, record);
+    }
+    return record ?? undefined;
+  }
+
+  /** Loads all persistent capability records for a DBK into the hot cache. */
+  public async hydratePersistentCapabilities(
+    securityContext: SecurityContext,
+    dbkId: string
+  ): Promise<DbkCapabilityRecord[]> {
+    this.assertTenant(securityContext, dbkId, 'hydratePersistentCapabilities');
+    const records = await capabilityStateRepository.listCapabilityStates(dbkId);
+    const tenantMap = new Map<string, DbkCapabilityRecord>();
+    for (const record of records) tenantMap.set(record.capabilityId, record);
+    this.dbkCapabilityStore.set(dbkId, tenantMap);
+    return records;
+  }
+
+  /** Commits a capability mutation and only returns after Firestore accepts it. */
+  public async persistCapabilityRecord(
+    securityContext: SecurityContext,
+    record: DbkCapabilityRecord
+  ): Promise<DbkCapabilityRecord> {
+    this.assertTenant(securityContext, record.dbkId, 'persistCapabilityRecord');
+    const persisted = { ...record, updatedAt: new Date().toISOString() };
+    let tenantMap = this.dbkCapabilityStore.get(record.dbkId);
+    if (!tenantMap) {
+      tenantMap = new Map();
+      this.dbkCapabilityStore.set(record.dbkId, tenantMap);
+    }
+    tenantMap.set(record.capabilityId, persisted);
+    await capabilityStateRepository.saveCapabilityState(record.dbkId, record.capabilityId, persisted);
+    return persisted;
   }
 
   /**
