@@ -182,7 +182,7 @@ async function startServer() {
         authHeader, targetTenantId: tenantId, ipAddress: req.ip,
       });
       tenantIsolation.assertTenantIsolation(context.principal, tenantId, 'READ_AUDIT_LOGS', context.requestId);
-      const events = auditLogger.getEvents({ tenantId, limit: 50 });
+      const events = await (await import('./src/persistence/firestore/repositories/auditRepository')).auditRepository.listAudits(tenantId, 50);
       return res.json({ status: 'SUCCESS', events });
     } catch (err) {
       if (err instanceof KernelError) return res.status(err.statusCode).json(err.toJSON());
@@ -1419,7 +1419,7 @@ async function startServer() {
         ipAddress: req.ip,
       });
 
-      const proposals = aiCommandBoundary.listProposals(context, dbkId, status);
+      const proposals = await aiCommandBoundary.listPersistentProposals(context, dbkId, status, context.principal.branchId);
       res.json({ status: 'SUCCESS', proposals });
     } catch (err) {
       if (err instanceof KernelError) {
@@ -1465,7 +1465,7 @@ async function startServer() {
         ipAddress: req.ip,
       });
 
-      const result = aiCommandBoundary.rejectProposal(context, dbkId, proposalId, reason || 'Rejected by reviewer');
+      const result = await aiCommandBoundary.rejectProposal(context, dbkId, proposalId, reason || 'Rejected by reviewer');
       res.json({ status: 'SUCCESS', proposal: result });
     } catch (err) {
       if (err instanceof KernelError) {
