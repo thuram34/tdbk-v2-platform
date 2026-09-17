@@ -1,5 +1,5 @@
 substitutions:
-  _IMAGE: "africa-south1-docker.pkg.dev/project-d966df20-6e50-477b-8e2/tdbk/tdbk-v2"
+  _IMAGE: "africa-south1-docker.pkg.dev/$PROJECT_ID/tdbk/tdbk-v2"
   _SERVICE_NAME: "tdbk-v2"
   _DEPLOY_REGION: "africa-south1"
 
@@ -31,9 +31,9 @@ steps:
     args:
       - '-c'
       - |-
+        set -euo pipefail
         test -n "$VITE_FIREBASE_API_KEY"
         test -n "$VITE_FIREBASE_PROJECT_ID"
-        test "$(printf "%s" "$VITE_FIREBASE_API_KEY" | sha256sum | cut -d" " -f1)" = "2cfb4dad90878a926f12065eed14f333c51ece4cc4050f989824569d84f35490"
         docker build -t ${_IMAGE} \
           --build-arg VITE_FIREBASE_API_KEY="$$VITE_FIREBASE_API_KEY" \
           --build-arg VITE_FIREBASE_AUTH_DOMAIN="$$VITE_FIREBASE_AUTH_DOMAIN" \
