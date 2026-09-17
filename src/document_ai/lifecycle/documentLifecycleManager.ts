@@ -19,6 +19,7 @@ import { tenantIsolation } from '../../kernel/tenancy/tenantIsolation';
 import { KernelError } from '../../kernel/errors/kernelErrors';
 import { auditLogger } from '../../kernel/audit/auditLogger';
 import { documentStore } from '../storage/documentStore';
+import { documentMetadataRepository } from '../../persistence/firestore/repositories/documentMetadataRepository';
 
 export class DocumentLifecycleManager {
   private static instance: DocumentLifecycleManager;
@@ -147,6 +148,72 @@ export class DocumentLifecycleManager {
       }
     });
 
+    return doc;
+  }
+
+  /** Firestore-authoritative production transition. */
+  public async transitionPersistentStatus(
+    ctx: SecurityContext,
+    tenantId: string,
+    documentId: string,
+    targetStatus: DocumentStatus,
+    reason?: string
+  ): Promise<DocumentMetadata> {
+    tenantIsolation.assertTenantIsolation(ctx.principal, tenantId);
+    const doc = await documentStore.getPersistentDocument(ctx, tenantId, documentId);
+    if (!doc) throw new KernelError('NOT_FOUND', 'Document not found', 404, ctx.requestId);
+    const currentStatus = doc.status;
+    const allowedNext = DocumentLifecycleManager.VALID_TRANSITIONS[currentStatus] || [];
+    if (!allowedNext.includes(targetStatus) && currentStatus !== targetStatus) {
+      auditLogger.logAuditEvent(ctx, {
+        action: 'DOCUMENT_ILLEGAL_STATE_TRANSITION_DENIED',
+        targetResource: 'document:' + documentId,
+        outcome: 'DENIED',
+        details: { currentStatus, targetStatus, allowedNext }
+      });
+      throw new KernelError('ILLEGAL_STATE_TRANSITION' as any, 'Invalid document state transition', 400, ctx.requestId);
+    }
+    doc.status = targetStatus;
+    await documentMetadataRepository.saveDocument(tenantId, documentId, doc);
+    auditLogger.logAuditEvent(ctx, {
+      action: 'DOCUMENT_STATUS_' + targetStatus,
+      targetResource: 'document:' + documentId,
+      outcome: 'ALLOWED',
+      details: { previousStatus: currentStatus, newStatus: targetStatus, reason }
+    });
+    return doc;
+  }
+
+  /** Firestore-authoritative production processing snapshot. */
+  public async recordPersistentProcessingSnapshot(
+    ctx: SecurityContext,
+    tenantId: string,
+    documentId: string,
+    snapshot: Omit<DocumentProcessingHistory, 'processingVersion' | 'processedAt'>
+  ): Promise<DocumentMetadata> {
+    tenantIsolation.assertTenantIsolation(ctx.principal, tenantId);
+    const doc = await documentStore.getPersistentDocument(ctx, tenantId, documentId);
+    if (!doc) throw new KernelError('NOT_FOUND', 'Document not found', 404, ctx.requestId);
+    const versionParts = doc.processingVersion.split('.');
+    const nextMinor = parseInt(versionParts[1] || '0', 10) + 1;
+    const newVersion = versionParts[0] + '.' + nextMinor + '.0';
+    const historyEntry: DocumentProcessingHistory = {
+      processingVersion: doc.processingVersion,
+      processedAt: new Date().toISOString(),
+      ...snapshot,
+    };
+    doc.history.push(historyEntry);
+    doc.processingVersion = newVersion;
+    doc.classification = snapshot.classification;
+    doc.extractedData = snapshot.extractedFields;
+    doc.status = snapshot.status;
+    await documentMetadataRepository.saveDocument(tenantId, documentId, doc);
+    auditLogger.logAuditEvent(ctx, {
+      action: 'DOCUMENT_PROCESSING_RECORDED',
+      targetResource: 'document:' + documentId,
+      outcome: 'ALLOWED',
+      details: { newVersion, status: doc.status, confidenceAverage: snapshot.confidenceAverage, historyEntriesCount: doc.history.length }
+    });
     return doc;
   }
 
