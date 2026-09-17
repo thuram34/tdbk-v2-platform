@@ -503,7 +503,7 @@ async function startServer() {
         targetTenantId: req.params.dbkId,
         ipAddress: req.ip,
       });
-      const dna = businessDnaManager.getBusinessDna(context, req.params.dbkId);
+      const dna = await businessDnaManager.getPersistentBusinessDna(context, req.params.dbkId);
       res.json({ status: 'SUCCESS', dna });
     } catch (err) {
       if (err instanceof KernelError) {
@@ -555,7 +555,7 @@ async function startServer() {
         ipAddress: req.ip,
       });
 
-      const workspace = blueprintCompiler.compileWorkspace(context, dbkId);
+      const workspace = await blueprintCompiler.compilePersistentWorkspace(context, dbkId);
       res.json({ status: 'SUCCESS', workspace });
     } catch (err) {
       if (err instanceof KernelError) {
