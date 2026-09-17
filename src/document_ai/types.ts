@@ -145,6 +145,7 @@ export type AiProposalType =
 
 export type ProposalStatus = 
   | 'PENDING_REVIEW'
+  | 'EXECUTING'
   | 'APPROVED'
   | 'REJECTED'
   | 'SUPERSEDED'
