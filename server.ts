@@ -1127,7 +1127,7 @@ async function startServer() {
         ipAddress: req.ip,
       });
 
-      const request = capabilityAccessStore.createRequest({
+      const request = await capabilityAccessStore.createPersistentRequest(context, {
         tenantId,
         spaceId,
         requesterId: context.principal.id,
@@ -1152,14 +1152,15 @@ async function startServer() {
     try {
       const authHeader = req.headers.authorization;
       const { requestId } = req.params;
-      const { reviewNotes } = req.body;
+      const { reviewNotes, tenantId } = req.body;
 
       const context = await securityContextFactory.createSecurityContext({
         authHeader,
         ipAddress: req.ip,
       });
 
-      const approved = capabilityAccessStore.approveRequest(requestId, context.principal.id, reviewNotes);
+      if (!tenantId) return res.status(400).json({ error: { code: 'TENANT_REQUIRED', message: 'tenantId is required' } });
+      const approved = await capabilityAccessStore.approvePersistentRequest(context, requestId, tenantId, context.principal.id, reviewNotes);
       res.json({ status: 'SUCCESS', request: approved });
     } catch (err) {
       res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: (err as Error).message } });
@@ -1170,14 +1171,15 @@ async function startServer() {
     try {
       const authHeader = req.headers.authorization;
       const { requestId } = req.params;
-      const { reason } = req.body;
+      const { reason, tenantId } = req.body;
 
       const context = await securityContextFactory.createSecurityContext({
         authHeader,
         ipAddress: req.ip,
       });
 
-      const rejected = capabilityAccessStore.rejectRequest(requestId, context.principal.id, reason);
+      if (!tenantId) return res.status(400).json({ error: { code: 'TENANT_REQUIRED', message: 'tenantId is required' } });
+      const rejected = await capabilityAccessStore.rejectPersistentRequest(context, requestId, tenantId, context.principal.id, reason);
       res.json({ status: 'SUCCESS', request: rejected });
     } catch (err) {
       res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: (err as Error).message } });
