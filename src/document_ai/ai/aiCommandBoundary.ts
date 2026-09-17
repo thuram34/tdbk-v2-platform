@@ -42,7 +42,7 @@ export class AiCommandBoundary {
     return AiCommandBoundary.instance;
   }
 
-  public createProposal(
+  public async createPersistentProposal(
     ctx: SecurityContext,
     params: {
       tenantId: string;
@@ -100,7 +100,7 @@ export class AiCommandBoundary {
       this.proposals.set(params.tenantId, new Map());
     }
     this.proposals.get(params.tenantId)!.set(proposalId, proposal);
-    void aiProposalRepository.saveProposal(params.tenantId, proposalId, proposal);
+    await aiProposalRepository.saveProposal(params.tenantId, proposalId, proposal);
 
     auditLogger.logAuditEvent(ctx, {
       action: 'AI_PROPOSAL_CREATED',
