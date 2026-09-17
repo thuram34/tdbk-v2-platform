@@ -462,12 +462,17 @@ async function startServer() {
     }
   });
 
-  // Test runners are development-only. They must never be remotely executable in production.
-  if (process.env.NODE_ENV !== 'production' && process.env.ENABLE_TEST_API === 'true') {
-      // -------------------------------------------------------------
-      // PHASE 0 AUTOMATED TEST RUNNER ENDPOINT
-      }
-  // -------------------------------------------------------------
+  // Test runner APIs remain registered for local developer tooling, but are
+  // centrally blocked unless explicitly enabled outside production.
+  // This guard covers every /api/test/* route, including future test runners.
+  app.use('/api/test', (req: Request, res: Response, next) => {
+    const enabled = process.env.NODE_ENV !== 'production' && process.env.ENABLE_TEST_API === 'true';
+    if (!enabled) {
+      return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Not found' } });
+    }
+    return next();
+  });
+
   app.post('/api/test/phase0', async (req: Request, res: Response) => {
     const testSummary = await phase0TestRunner.runAllTests();
     res.json({ status: 'SUCCESS', summary: testSummary });
