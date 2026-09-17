@@ -192,9 +192,22 @@ async function startServer() {
   });
 
   app.get('/api/audit/logs', async (req: Request, res: Response) => {
-    const tenantId = req.query.tenantId as string;
-    const events = auditLogger.getEvents({ tenantId, limit: 50 });
-    res.json({ status: 'SUCCESS', events });
+    try {
+      const authHeader = req.headers.authorization;
+      const tenantId = req.query.tenantId as string;
+      if (!tenantId) {
+        return res.status(400).json({ error: { code: 'TENANT_REQUIRED', message: 'tenantId is required' } });
+      }
+      const context = await securityContextFactory.createSecurityContext({
+        authHeader, targetTenantId: tenantId, ipAddress: req.ip,
+      });
+      tenantIsolation.assertTenantIsolation(context.principal, tenantId, 'READ_AUDIT_LOGS', context.requestId);
+      const events = auditLogger.getEvents({ tenantId, limit: 50 });
+      return res.json({ status: 'SUCCESS', events });
+    } catch (err) {
+      if (err instanceof KernelError) return res.status(err.statusCode).json(err.toJSON());
+      return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Unable to read audit logs' } });
+    }
   });
 
   // -------------------------------------------------------------
