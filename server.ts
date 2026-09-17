@@ -609,7 +609,10 @@ async function startServer() {
         ipAddress: req.ip,
       });
 
-      const decision = activationEvaluator.evaluateActivation(context, dbkId, capabilityId);
+      const dna = await businessDnaManager.getPersistentBusinessDna(context, dbkId);
+      const dbk = await dbkRegistry.getDbk(context, dbkId);
+      if (dbk) entitlementEngine.setDbkSubscriptionTier(dbkId, dbk.subscriptionTier);
+      const decision = activationEvaluator.evaluateActivation(context, dbkId, capabilityId, dna);
       if (!decision.allowed) {
         res.status(403).json({ status: 'DENIED', decision });
         return;
