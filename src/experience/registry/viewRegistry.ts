@@ -113,6 +113,14 @@ export class CapabilityViewRegistry {
           { name: 'rating', label: 'Proficiency Level (EE/ME/AE/BE)', type: 'string', required: true },
         ],
       },
+      {
+        capabilityId: 'smart_classroom',
+        defaultNavLabel: 'Smart Classroom',
+        category: 'ACADEMICS',
+        iconName: 'GraduationCap',
+        viewType: 'CUSTOM_CLASSROOM',
+        displayOrder: 7,
+      },
 
       // HARDWARE
       {

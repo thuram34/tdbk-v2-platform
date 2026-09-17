@@ -12,7 +12,11 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../client/AuthContext';
 
-export function LoginScreen() {
+interface LoginScreenProps {
+  onBackToGateway?: () => void;
+}
+
+export function LoginScreen({ onBackToGateway }: LoginScreenProps) {
   const { signIn, signUp, isFirebaseConfigured } = useAuth();
 
   const [mode, setMode] = useState<'SIGN_IN' | 'SIGN_UP'>('SIGN_IN');
@@ -29,7 +33,7 @@ export function LoginScreen() {
     setInfo(null);
 
     if (!isFirebaseConfigured) {
-      setError('Firebase Authentication is not configured in this environment.');
+      setError('Authentication is not configured in this environment.');
       return;
     }
 
@@ -50,7 +54,7 @@ export function LoginScreen() {
         await signIn(email, password);
       } else {
         await signUp(email, password);
-        setInfo('Account created successfully. Authenticating session...');
+        setInfo('Account created successfully. Authenticating your Digital Space...');
       }
     } catch (err: any) {
       const code = err?.code || '';
@@ -71,34 +75,39 @@ export function LoginScreen() {
   };
 
   return (
-    <div className="min-h-screen bg-[#141414] text-white flex items-center justify-center p-6">
+    <div className="min-h-[calc(100vh-4rem)] bg-[#FBFBF9] text-neutral-900 flex items-center justify-center p-4 sm:p-6 antialiased">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-12 h-12 bg-neutral-900 border border-[#333] mb-4">
-            <Building2 className="w-6 h-6 text-white" />
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-neutral-950 text-white shadow-xs mb-3">
+            <Building2 className="w-6 h-6" />
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-white">
-            TDBK OPERATIONAL KERNEL
+          <div className="text-xs font-semibold uppercase tracking-wider text-neutral-500 mb-1.5">
+            Digital Bridge Kenya
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-serif font-bold tracking-tight text-neutral-950">
+            Your Digital Space
           </h1>
-          <p className="mt-2 text-sm text-neutral-400">
-            Secure access to your TDBK business workspace.
+          <p className="mt-2 text-sm text-neutral-600">
+            {mode === 'SIGN_IN'
+              ? 'Sign in to continue to your business.'
+              : 'Create your account and start your digital journey.'}
           </p>
         </div>
 
-        <div className="border border-[#333] bg-[#1A1A1A] p-6">
+        <div className="border border-neutral-200/90 bg-white shadow-sm sm:shadow-md rounded-2xl p-6 sm:p-8">
           {!isFirebaseConfigured && (
-            <div className="mb-6 border border-amber-800/60 bg-amber-950/40 p-4 text-xs text-amber-300">
-              <div className="flex items-center gap-2 mb-1.5 font-bold uppercase tracking-wider text-amber-200">
-                <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+            <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-900">
+              <div className="flex items-center gap-2 mb-1 font-bold uppercase tracking-wider text-amber-800">
+                <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0" />
                 <span>Configuration Required</span>
               </div>
-              <p className="text-neutral-300 leading-relaxed">
-                Firebase Web Client credentials (<code className="font-mono text-amber-300">VITE_FIREBASE_*</code>) are not configured. User authentication and workspace access are unavailable until valid configuration is provided.
+              <p className="text-neutral-700 leading-relaxed">
+                Authentication is not configured in this environment.
               </p>
             </div>
           )}
 
-          <div className="flex border-b border-[#333] mb-6">
+          <div className="flex border-b border-neutral-200 mb-6">
             <button
               type="button"
               onClick={() => {
@@ -106,10 +115,10 @@ export function LoginScreen() {
                 setError(null);
                 setInfo(null);
               }}
-              className={`flex-1 pb-3 text-xs font-bold uppercase tracking-wider text-center transition ${
+              className={`flex-1 pb-3 text-xs font-bold uppercase tracking-wider text-center transition cursor-pointer ${
                 mode === 'SIGN_IN'
-                  ? 'text-white border-b-2 border-white'
-                  : 'text-neutral-500 hover:text-neutral-300'
+                  ? 'text-neutral-950 border-b-2 border-neutral-950'
+                  : 'text-neutral-500 hover:text-neutral-800'
               }`}
             >
               Sign In
@@ -121,62 +130,62 @@ export function LoginScreen() {
                 setError(null);
                 setInfo(null);
               }}
-              className={`flex-1 pb-3 text-xs font-bold uppercase tracking-wider text-center transition ${
+              className={`flex-1 pb-3 text-xs font-bold uppercase tracking-wider text-center transition cursor-pointer ${
                 mode === 'SIGN_UP'
-                  ? 'text-white border-b-2 border-white'
-                  : 'text-neutral-500 hover:text-neutral-300'
+                  ? 'text-neutral-950 border-b-2 border-neutral-950'
+                  : 'text-neutral-500 hover:text-neutral-800'
               }`}
             >
-              Sign Up
+              Create Account
             </button>
           </div>
 
           {error && (
-            <div className="mb-4 p-3 bg-red-950/50 border border-red-800/80 text-red-200 text-xs flex items-start gap-2">
-              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            <div className="mb-4 p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-800 text-xs flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-red-600" />
               <span>{error}</span>
             </div>
           )}
 
           {info && (
-            <div className="mb-4 p-3 bg-emerald-950/50 border border-emerald-800/80 text-emerald-200 text-xs flex items-start gap-2">
-              <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
+            <div className="mb-4 p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-start gap-2">
+              <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5 text-emerald-600" />
               <span>{info}</span>
             </div>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-neutral-400 mb-1.5">
+              <label className="block text-xs font-semibold uppercase tracking-wider text-neutral-600 mb-1.5">
                 Email Address
               </label>
               <div className="relative">
-                <Mail className="w-4 h-4 text-neutral-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                <Mail className="w-4 h-4 text-neutral-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                 <input
                   type="email"
                   value={email}
                   disabled={!isFirebaseConfigured || isSubmitting}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="name@company.com"
-                  className="w-full bg-[#111] border border-[#333] px-3 py-2.5 pl-9 text-sm text-white placeholder-neutral-600 focus:outline-none focus:border-white disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3.5 py-2.5 pl-10 text-sm text-neutral-900 placeholder-neutral-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-neutral-950 disabled:opacity-50 disabled:cursor-not-allowed transition"
                   required
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-neutral-400 mb-1.5">
+              <label className="block text-xs font-semibold uppercase tracking-wider text-neutral-600 mb-1.5">
                 Password
               </label>
               <div className="relative">
-                <KeyRound className="w-4 h-4 text-neutral-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                <KeyRound className="w-4 h-4 text-neutral-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                 <input
                   type="password"
                   value={password}
                   disabled={!isFirebaseConfigured || isSubmitting}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full bg-[#111] border border-[#333] px-3 py-2.5 pl-9 text-sm text-white placeholder-neutral-600 focus:outline-none focus:border-white disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3.5 py-2.5 pl-10 text-sm text-neutral-900 placeholder-neutral-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-neutral-950 disabled:opacity-50 disabled:cursor-not-allowed transition"
                   required
                 />
               </div>
@@ -184,18 +193,18 @@ export function LoginScreen() {
 
             {mode === 'SIGN_UP' && (
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-neutral-400 mb-1.5">
+                <label className="block text-xs font-semibold uppercase tracking-wider text-neutral-600 mb-1.5">
                   Confirm Password
                 </label>
                 <div className="relative">
-                  <KeyRound className="w-4 h-4 text-neutral-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <KeyRound className="w-4 h-4 text-neutral-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                   <input
                     type="password"
                     value={confirmPassword}
                     disabled={!isFirebaseConfigured || isSubmitting}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="w-full bg-[#111] border border-[#333] px-3 py-2.5 pl-9 text-sm text-white placeholder-neutral-600 focus:outline-none focus:border-white disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3.5 py-2.5 pl-10 text-sm text-neutral-900 placeholder-neutral-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-neutral-950 disabled:opacity-50 disabled:cursor-not-allowed transition"
                     required
                   />
                 </div>
@@ -205,30 +214,46 @@ export function LoginScreen() {
             <button
               type="submit"
               disabled={isSubmitting || !isFirebaseConfigured}
-              className="w-full py-2.5 px-4 bg-white hover:bg-neutral-200 text-black text-xs font-bold uppercase tracking-wider transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-6"
+              className="w-full py-3 px-4 rounded-xl bg-neutral-950 hover:bg-neutral-800 text-white text-sm font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-6 cursor-pointer shadow-sm"
             >
               {isSubmitting ? (
-                <span>Authenticating...</span>
+                <span>Connecting...</span>
               ) : mode === 'SIGN_IN' ? (
                 <>
                   <LogIn className="w-4 h-4" />
-                  <span>Sign In</span>
+                  <span>Enter My Digital Space</span>
                 </>
               ) : (
                 <>
                   <UserPlus className="w-4 h-4" />
-                  <span>Create Account</span>
+                  <span>Create My Account</span>
                 </>
               )}
             </button>
           </form>
 
-          <div className="mt-6 flex items-start gap-2 text-xs text-neutral-500">
-            <ShieldCheck className="w-4 h-4 shrink-0 text-emerald-500" />
-            <span>
-              All operations are protected by Cryptographic Identity Verification and Tenant Data Isolation.
+          {onBackToGateway && (
+            <div className="mt-5 text-center">
+              <button
+                type="button"
+                onClick={onBackToGateway}
+                className="text-xs text-neutral-500 hover:text-neutral-900 font-medium transition cursor-pointer"
+              >
+                ← Return to DBK Overview
+              </button>
+            </div>
+          )}
+
+          <div className="mt-6 pt-5 border-t border-neutral-100 flex items-start gap-2.5 text-xs text-neutral-500">
+            <ShieldCheck className="w-4 h-4 shrink-0 text-emerald-600 mt-0.5" />
+            <span className="leading-relaxed">
+              Your account and business data are protected with secure identity and access controls.
             </span>
           </div>
+        </div>
+
+        <div className="mt-8 text-center text-xs text-neutral-500 font-medium">
+          Built in Kenya. For Kenya. For a Brighter Tomorrow.
         </div>
       </div>
     </div>

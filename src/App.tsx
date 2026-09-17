@@ -33,11 +33,14 @@ import { Phase6TestSuitePanel } from './components/document_ai/Phase6TestSuitePa
 import { DocumentAiShellPanel } from './components/document_ai/DocumentAiShellPanel';
 import { DbkShell } from './components/experience/DbkShell';
 import { LoginScreen } from './components/auth/LoginScreen';
+import { PublicGateway } from './public/PublicGateway';
 import { useAuth } from './client/AuthContext';
 import { verifyMasterAuthority, bootstrapMaster } from './client/masterApi';
 
 export default function App() {
   const { user, loading, getIdToken } = useAuth();
+  const [showPublicGatewayPreview, setShowPublicGatewayPreview] = useState(true);
+  const [publicView, setPublicView] = useState<'GATEWAY' | 'LOGIN'>('GATEWAY');
   const [appMode, setAppMode] = useState<'WORKSPACE' | 'MASTER'>('WORKSPACE');
   const [activeTab, setActiveTab] = useState<string>('phase6-verifier');
   const [selectedDocId, setSelectedDocId] = useState<string>('constitution');
@@ -117,6 +120,53 @@ export default function App() {
     fetchHealth();
   }, []);
 
+  if (showPublicGatewayPreview) {
+    return (
+      <div className="relative">
+        <PublicGateway
+          onSignIn={() => {
+            if (user) {
+              setShowPublicGatewayPreview(false);
+            } else {
+              setShowPublicGatewayPreview(false);
+              setPublicView('LOGIN');
+            }
+          }}
+          onLaunchWorkspace={() => {
+            if (user) {
+              setShowPublicGatewayPreview(false);
+            } else {
+              setShowPublicGatewayPreview(false);
+              setPublicView('LOGIN');
+            }
+          }}
+          onSelectSector={() => {
+            if (user) {
+              setShowPublicGatewayPreview(false);
+            } else {
+              setShowPublicGatewayPreview(false);
+              setPublicView('LOGIN');
+            }
+          }}
+        />
+        {user && (
+          <div className="fixed bottom-4 right-4 z-50 bg-neutral-950/90 text-white border border-neutral-800 shadow-2xl px-3.5 py-2 rounded-xl flex items-center space-x-3 text-xs backdrop-blur-md">
+            <span className="inline-flex items-center space-x-1.5 font-medium text-emerald-400">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span>Preview: Public Gateway</span>
+            </span>
+            <button
+              onClick={() => setShowPublicGatewayPreview(false)}
+              className="px-2.5 py-1 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-white font-medium transition cursor-pointer"
+            >
+              Open Workspace →
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[#141414] text-white flex items-center justify-center">
@@ -128,7 +178,36 @@ export default function App() {
   }
 
   if (!user) {
-    return <LoginScreen />;
+    if (publicView === 'LOGIN') {
+      return (
+        <div className="min-h-screen bg-[#FBFBF9] text-neutral-900">
+          <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-neutral-200/80 px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <button
+              onClick={() => setPublicView('GATEWAY')}
+              className="text-xs sm:text-sm font-semibold text-neutral-600 hover:text-neutral-950 transition flex items-center space-x-1.5 cursor-pointer"
+            >
+              <span>← Return to Public Gateway</span>
+            </button>
+            <div className="flex items-center space-x-2">
+              <span className="font-serif font-bold text-sm text-neutral-900">Thuram Digital Bridge Kenya</span>
+              <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-700 font-bold border border-neutral-200">
+                DBK V2
+              </span>
+            </div>
+          </header>
+          <LoginScreen onBackToGateway={() => setPublicView('GATEWAY')} />
+        </div>
+      );
+    }
+
+    return (
+      <PublicGateway
+        onSignIn={() => setPublicView('LOGIN')}
+        onSelectSector={() => {
+          setPublicView('LOGIN');
+        }}
+      />
+    );
   }
 
   if (appMode === 'WORKSPACE') {
