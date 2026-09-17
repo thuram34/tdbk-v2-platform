@@ -163,6 +163,20 @@ export interface IOutboxRepository {
   deleteOutbox(tenantId: string, eventId: string): Promise<void>;
 }
 
+export interface IAccessRequestRepository {
+  saveRequest(tenantId: string, requestId: string, request: import('../coherence/types').CapabilityAccessRequest): Promise<void>;
+  getRequest(tenantId: string, requestId: string): Promise<import('../coherence/types').CapabilityAccessRequest | null>;
+  listRequests(tenantId: string, spaceId?: string, requesterId?: string): Promise<import('../coherence/types').CapabilityAccessRequest[]>;
+  transitionRequest(
+    tenantId: string,
+    requestId: string,
+    expectedStatus: import('../coherence/types').AccessRequestStatus,
+    nextStatus: import('../coherence/types').AccessRequestStatus,
+    reviewedBy: string,
+    reviewNotes: string
+  ): Promise<import('../coherence/types').CapabilityAccessRequest>;
+}
+
 export interface IAuditRepository {
   appendAudit(tenantId: string | null, auditId: string, event: AuditEvent): Promise<void>;
   listAudits(tenantId?: string | null, limit?: number): Promise<AuditEvent[]>;
