@@ -56,5 +56,8 @@ steps:
       - '--platform=managed'
       - '--quiet'
 
+options:
+  defaultLogsBucketBehavior: REGIONAL_USER_OWNED_BUCKET
+
 images:
   - '${_IMAGE}'
