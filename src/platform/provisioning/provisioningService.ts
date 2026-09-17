@@ -531,7 +531,7 @@ export class ProvisioningService {
 
     // 8. Provisioning Succeeded
     const finalDbk = (await dbkRegistry.getDbk(context, request.dbkId))!;
-    const branches = branchManager.getBranchesForDbk(context, request.dbkId);
+    const branches = await branchManager.listPersistentBranches(context, request.dbkId);
     finalDbk.branchTopology = branches;
     await dbkRegistry.saveDbk(context, finalDbk);
 
