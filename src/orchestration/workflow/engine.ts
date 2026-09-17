@@ -163,7 +163,27 @@ class WorkflowEngineService {
     context: SecurityContext,
     workflowId: string
   ): Promise<WorkflowInstance> {
-    const workflow = this.workflows.get(workflowId);
+    const requestTenant = context.tenantContext?.tenantId || context.principal.tenantId;
+    if (!requestTenant) {
+      throw new KernelError(
+        'TENANT_ISOLATION_ERROR',
+        'Workflow Execution Denied: Security Context lacks authoritative Tenant Context',
+        403,
+        context.requestId
+      );
+    }
+
+    // Production execution is Firestore-authoritative. The in-memory map remains
+    // a hot cache and test/runtime compatibility layer, but a restart must not
+    // make a durable workflow disappear.
+    let workflow = this.workflows.get(workflowId);
+    if (!workflow) {
+      workflow = await workflowInstanceRepository.getWorkflow(requestTenant, workflowId) ?? undefined;
+      if (workflow) {
+        this.workflows.set(workflowId, workflow);
+      }
+    }
+
     if (!workflow) {
       throw new KernelError(
         'NOT_FOUND',
@@ -174,7 +194,6 @@ class WorkflowEngineService {
     }
 
     // Verify tenant isolation
-    const requestTenant = context.tenantContext?.tenantId || context.principal.tenantId;
     if (workflow.tenantId !== requestTenant && !context.principal.isMaster) {
       auditLogger.logEvent(
         'TENANT_ISOLATION_VIOLATION',
@@ -201,6 +220,7 @@ class WorkflowEngineService {
     }
 
     workflow.status = 'RUNNING';
+    await workflowInstanceRepository.saveWorkflow(workflow.tenantId, workflow.workflowId, workflow);
 
     while (workflow.currentStepIndex < workflow.steps.length) {
       const step = workflow.steps[workflow.currentStepIndex];
@@ -312,15 +332,18 @@ class WorkflowEngineService {
             metadata: workflow.metadata,
           });
 
+          await workflowInstanceRepository.saveWorkflow(workflow.tenantId, workflow.workflowId, workflow);
           return workflow;
         }
       } else {
         workflow.currentStepIndex++;
+        await workflowInstanceRepository.saveWorkflow(workflow.tenantId, workflow.workflowId, workflow);
       }
     }
 
     workflow.status = 'COMPLETED';
     workflow.completedAt = new Date().toISOString();
+    await workflowInstanceRepository.saveWorkflow(workflow.tenantId, workflow.workflowId, workflow);
 
     auditLogger.logEvent(
       'WORKFLOW_EXECUTION',
