@@ -10,6 +10,9 @@
 import { CapabilityAccessRequest, AccessRequestStatus } from './types';
 import { auditLogger } from '../kernel/audit/auditLogger';
 import { eventBus } from '../orchestration/events/eventBus';
+import { SecurityContext } from '../kernel/types';
+import { masterAuthority } from '../kernel/master/masterAuthority';
+import { accessRequestRepository } from '../persistence/firestore/repositories/accessRequestRepository';
 
 export class CapabilityAccessStore {
   private static instance: CapabilityAccessStore;
@@ -41,6 +44,102 @@ export class CapabilityAccessStore {
       requestedAt: new Date(Date.now() - 3600000).toISOString(),
     };
     this.requests.set(demoReq.requestId, demoReq);
+  }
+
+
+  private assertTenant(context: SecurityContext, tenantId: string, action: string): void {
+    if (masterAuthority.isMasterAdmin(context.principal)) return;
+    if (context.principal.tenantId !== tenantId) {
+      throw new Error(`Tenant boundary violation while attempting to ${action}.`);
+    }
+  }
+
+  /** Durable production path: request creation commits to Firestore before success. */
+  public async createPersistentRequest(context: SecurityContext, params: {
+    tenantId: string;
+    spaceId: string;
+    requesterId: string;
+    requesterName: string;
+    requesterRole: string;
+    capabilityId: string;
+    capabilityName: string;
+    justification: string;
+  }): Promise<CapabilityAccessRequest> {
+    this.assertTenant(context, params.tenantId, 'create access request');
+    if (params.requesterId !== context.principal.id && !masterAuthority.isMasterAdmin(context.principal)) {
+      throw new Error('Requester identity does not match authenticated principal.');
+    }
+    const request = this.createRequest(params);
+    await accessRequestRepository.saveRequest(params.tenantId, request.requestId, request);
+    return request;
+  }
+
+  /** Durable read path with test-fixture compatibility. */
+  public async listPersistentRequestsForSpace(
+    context: SecurityContext,
+    tenantId: string,
+    spaceId: string
+  ): Promise<CapabilityAccessRequest[]> {
+    this.assertTenant(context, tenantId, 'list access requests');
+    const requests = await accessRequestRepository.listRequests(tenantId, spaceId);
+    if (requests.length === 0 && process.env.NODE_ENV === 'test') {
+      return this.getRequestsForSpace(spaceId).filter((request) => request.tenantId === tenantId);
+    }
+    return requests;
+  }
+
+  public async listPersistentRequestsForUser(
+    context: SecurityContext,
+    tenantId: string,
+    userId: string
+  ): Promise<CapabilityAccessRequest[]> {
+    this.assertTenant(context, tenantId, 'list user access requests');
+    const requests = await accessRequestRepository.listRequests(tenantId, undefined, userId);
+    if (requests.length === 0 && process.env.NODE_ENV === 'test') {
+      return this.getRequestsForUser(userId).filter((request) => request.tenantId === tenantId);
+    }
+    return requests;
+  }
+
+  /** Durable compare-and-set approval transition. */
+  public async approvePersistentRequest(
+    context: SecurityContext,
+    requestId: string,
+    tenantId: string,
+    reviewerId: string,
+    reviewNotes?: string
+  ): Promise<CapabilityAccessRequest> {
+    this.assertTenant(context, tenantId, 'approve access request');
+    if (reviewerId !== context.principal.id) throw new Error('Reviewer identity does not match authenticated principal.');
+    const approved = await accessRequestRepository.transitionRequest(
+      tenantId, requestId, 'PENDING', 'APPROVED', reviewerId,
+      reviewNotes || 'Approved by Administrator. Workspace updated.'
+    );
+    this.requests.set(requestId, approved);
+    auditLogger.logEvent('SECURITY_CONFIGURATION_CHANGE', reviewerId, 'CAPABILITY_ACCESS_APPROVED', `request:${requestId}`, 'ALLOWED', {
+      tenantId: approved.tenantId,
+      details: { requesterId: approved.requesterId, capabilityId: approved.capabilityId, spaceId: approved.spaceId },
+    });
+    return approved;
+  }
+
+  /** Durable compare-and-set rejection transition. */
+  public async rejectPersistentRequest(
+    context: SecurityContext,
+    requestId: string,
+    tenantId: string,
+    reviewerId: string,
+    reason: string
+  ): Promise<CapabilityAccessRequest> {
+    this.assertTenant(context, tenantId, 'reject access request');
+    if (reviewerId !== context.principal.id) throw new Error('Reviewer identity does not match authenticated principal.');
+    const rejected = await accessRequestRepository.transitionRequest(tenantId, requestId, 'PENDING', 'REJECTED', reviewerId, reason);
+    this.requests.set(requestId, rejected);
+    auditLogger.logEvent('AUTHORIZATION_DENIED', reviewerId, 'CAPABILITY_ACCESS_REJECTED', `request:${requestId}`, 'DENIED', {
+      tenantId: rejected.tenantId,
+      details: { requesterId: rejected.requesterId, reason },
+    });
+    return rejected;
   }
 
   public getRequestsForSpace(spaceId: string): CapabilityAccessRequest[] {
