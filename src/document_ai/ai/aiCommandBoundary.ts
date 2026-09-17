@@ -132,6 +132,34 @@ export class AiCommandBoundary {
     return proposal;
   }
 
+  /** Legacy synchronous API retained for deterministic unit tests. Production callers must await createPersistentProposal. */
+  public createProposal(
+    ctx: SecurityContext,
+    params: {
+      tenantId: string;
+      branchId: string;
+      documentId?: string;
+      proposalType: AiProposalType;
+      suggestedPayload: Record<string, any>;
+      confidence: number;
+      summary: string;
+      sourceEvidence?: Record<string, any>;
+      causationId?: string;
+    }
+  ): AiProposedAction {
+    tenantIsolation.assertTenantIsolation(ctx.principal, params.tenantId);
+    const proposalId = `prop_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    const proposal: AiProposedAction = {
+      proposalId, documentId: params.documentId, tenantId: params.tenantId, branchId: params.branchId,
+      proposalType: params.proposalType, suggestedPayload: params.suggestedPayload, confidence: params.confidence,
+      summary: params.summary, status: 'PENDING_REVIEW', sourceEvidence: params.sourceEvidence,
+      proposedAt: new Date().toISOString(), correlationId: ctx.correlationId, causationId: params.causationId || ctx.requestId,
+    };
+    if (!this.proposals.has(params.tenantId)) this.proposals.set(params.tenantId, new Map());
+    this.proposals.get(params.tenantId)!.set(proposalId, proposal);
+    return proposal;
+  }
+
   public getProposal(
     ctx: SecurityContext,
     tenantId: string,
