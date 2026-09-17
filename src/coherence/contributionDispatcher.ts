@@ -138,7 +138,7 @@ export class ContributionDispatcher {
 
     // 3. Feed Signal to Business DNA (Adaptive Learning)
     try {
-      const existingDna = businessDnaManager.getBusinessDna(context, tenantId);
+      const existingDna = await businessDnaManager.getPersistentBusinessDna(context, tenantId);
       if (existingDna) {
         businessDnaManager.saveBusinessDna(context, {
           ...existingDna,
