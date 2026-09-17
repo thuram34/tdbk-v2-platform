@@ -1474,7 +1474,7 @@ async function startServer() {
         ipAddress: req.ip,
       });
 
-      const conv = aiMemoryManager.getOrCreateConversation(context, dbkId, branchId);
+      const conv = await aiMemoryManager.getPersistentConversation(context, dbkId, branchId);
       res.json({ status: 'SUCCESS', conversation: conv });
     } catch (err) {
       if (err instanceof KernelError) {
@@ -1502,7 +1502,7 @@ async function startServer() {
       const sanitized = aiSecurityGuard.sanitizeInput(context, message, 'PROMPT');
 
       // 2. Add user message to conversation
-      aiMemoryManager.addMessage(context, dbkId, `conv_${context.principal.id}_${branchId || 'HQ'}`, {
+      aiMemoryManager.addPersistentMessage(context, dbkId, branchId || 'HQ', `conv_${context.principal.id}_${branchId || 'HQ'}`, {
         sender: 'USER',
         text: message,
         untrustedWarning: sanitized.isFlagged,
