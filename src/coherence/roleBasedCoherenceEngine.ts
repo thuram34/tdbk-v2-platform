@@ -154,9 +154,11 @@ export class RoleBasedCoherenceEngine {
     space: BusinessSpace;
     membership: SpaceMembership;
   }> {
-    const memberships = this.spaceMemberships.get(userId) || [];
+    const memberships = (this.spaceMemberships.get(userId) || []).filter(
+      (membership) => membership.tenantId === tenantId
+    );
     
-    // If user has specific memberships registered, use them
+    // Only memberships belonging to the requested tenant are exposed.
     if (memberships.length > 0) {
       return memberships.map((m) => ({
         space: this.resolveSpaceMetadata(m.spaceId, m.tenantId),
