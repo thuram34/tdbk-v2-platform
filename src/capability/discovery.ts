@@ -106,7 +106,7 @@ export class DiscoveryEngineService {
         missingDependencies: depEval.missingDependencies,
         explanation,
       };
-    });
+    }));
 
     auditLogger.logEvent(
       'AUTHORIZATION_ALLOWED',
