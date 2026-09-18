@@ -359,7 +359,7 @@ export class Phase1TestRunner {
 
     // 11. School Blueprint produces school-specific terminology
     try {
-      const schoolWorkspace = blueprintCompiler.compileWorkspace(schoolAdminCtx, 'tenant_school_a');
+      const schoolWorkspace = await blueprintCompiler.compileWorkspace(schoolAdminCtx, 'tenant_school_a');
       const studentTerm = schoolWorkspace.terminology['customer'];
       const isSchoolTerm = studentTerm?.singular === 'Student' && studentTerm?.plural === 'Students';
       results.push({
@@ -383,7 +383,7 @@ export class Phase1TestRunner {
 
     // 12. Hardware Blueprint produces hardware-specific terminology
     try {
-      const hardwareWorkspace = blueprintCompiler.compileWorkspace(hardwareAdminCtx, 'tenant_hardware_b');
+      const hardwareWorkspace = await blueprintCompiler.compileWorkspace(hardwareAdminCtx, 'tenant_hardware_b');
       const contractorTerm = hardwareWorkspace.terminology['customer'];
       const isHardwareTerm = contractorTerm?.singular?.includes('Contractor') && contractorTerm?.plural?.includes('Contractors');
       results.push({
@@ -407,7 +407,7 @@ export class Phase1TestRunner {
 
     // 13. Logistics Blueprint produces logistics-specific terminology
     try {
-      const logisticsWorkspace = blueprintCompiler.compileWorkspace(logisticsAdminCtx, 'tenant_logistics_d');
+      const logisticsWorkspace = await blueprintCompiler.compileWorkspace(logisticsAdminCtx, 'tenant_logistics_d');
       const waybillTerm = logisticsWorkspace.terminology['contract'];
       const isWaybill = waybillTerm?.singular?.includes('Waybill') || waybillTerm?.singular?.includes('Consignment');
       results.push({
@@ -436,7 +436,7 @@ export class Phase1TestRunner {
       schoolDna.enabledCapabilityIds = schoolDna.enabledCapabilityIds.filter((id) => id !== 'library_sys');
       businessDnaManager.saveBusinessDna(schoolAdminCtx, schoolDna);
 
-      const schoolWorkspace = blueprintCompiler.compileWorkspace(schoolAdminCtx, 'tenant_school_a');
+      const schoolWorkspace = await blueprintCompiler.compileWorkspace(schoolAdminCtx, 'tenant_school_a');
       const libraryCap = schoolWorkspace.enabledCapabilities.find((c) => c.id === 'library_sys');
       
       results.push({
@@ -460,7 +460,7 @@ export class Phase1TestRunner {
 
     // 15. Discoverable capability is visible as available/discoverable but not operational
     try {
-      const schoolWorkspace = blueprintCompiler.compileWorkspace(schoolAdminCtx, 'tenant_school_a');
+      const schoolWorkspace = await blueprintCompiler.compileWorkspace(schoolAdminCtx, 'tenant_school_a');
       const libraryDiscoverable = schoolWorkspace.discoverableCapabilities.find((c) => c.id === 'library_sys');
       const isDiscoverableNotEnabled = libraryDiscoverable && libraryDiscoverable.status === 'DISCOVERABLE';
       results.push({
@@ -494,7 +494,7 @@ export class Phase1TestRunner {
       };
       businessDnaManager.saveBusinessDna(hardwareAdminCtx, hardwareDna);
 
-      const hardwareWorkspace = blueprintCompiler.compileWorkspace(hardwareAdminCtx, 'tenant_hardware_b');
+      const hardwareWorkspace = await blueprintCompiler.compileWorkspace(hardwareAdminCtx, 'tenant_hardware_b');
       const isMultiBranchCorrect =
         hardwareWorkspace.branchSummary.totalBranches === 2 &&
         hardwareWorkspace.branchSummary.type === 'MULTI_BRANCH' &&
