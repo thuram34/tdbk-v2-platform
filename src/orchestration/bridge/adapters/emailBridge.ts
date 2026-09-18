@@ -12,7 +12,7 @@ import {
 import { SecurityContext } from '../../../kernel/types';
 import { auditLogger } from '../../../kernel/audit/auditLogger';
 import { KernelError } from '../../../kernel/errors/kernelErrors';
-import { eventBus } from '../../events/eventBus';
+import { publishBridgeEvent } from '../bridgeEventPublisher';
 import { connectorConnectionRepository } from '../../../persistence/firestore/repositories/connectorConnectionRepository';
 
 export interface EmailSendRequest {
@@ -84,7 +84,7 @@ export class EmailBridge implements Bridge<EmailSendRequest, any, any> {
       details: { providerReference: messageId, status: normalized.status },
     });
 
-    eventBus.publish({
+    publishBridgeEvent({
       eventId: `evt_email_${Date.now()}`,
       eventType: 'notification.sent.v1',
       eventVersion: 'v1',
