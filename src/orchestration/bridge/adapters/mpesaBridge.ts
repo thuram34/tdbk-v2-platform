@@ -11,7 +11,6 @@ import {
 } from '../types';
 import { SecurityContext } from '../../../kernel/types';
 import { auditLogger } from '../../../kernel/audit/auditLogger';
-import { configManager } from '../../../kernel/configuration/configManager';
 import { KernelError } from '../../../kernel/errors/kernelErrors';
 import { publishBridgeEvent } from '../bridgeEventPublisher';
 import { connectorConnectionRepository } from '../../../persistence/firestore/repositories/connectorConnectionRepository';
