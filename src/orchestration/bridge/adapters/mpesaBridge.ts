@@ -17,6 +17,8 @@ import { publishBridgeEvent } from '../bridgeEventPublisher';
 import { connectorConnectionRepository } from '../../../persistence/firestore/repositories/connectorConnectionRepository';
 import { idempotencyRepository } from '../../../persistence/firestore/repositories/idempotencyRepository';
 import { financialLedgerRepository } from '../../../persistence/firestore/repositories/financialLedgerRepository';
+import { outboxEngine } from '../../outbox/outboxEngine';
+import { firestoreClient } from '../../../persistence/firestore/firestoreClient';
 
 export interface MpesaSTKPushRequest {
   phoneNumber: string;
@@ -241,20 +243,103 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
       throw new KernelError('TENANT_ISOLATION_ERROR', `Cross-Tenant Mutation Denied: Callback for tenant '${callbackTenant}' cannot alter tenant '${requestTenant}'`, 403, context.requestId);
     }
 
-    const callbackKey = `mpesa_callback_${stk.CheckoutRequestID}_${stk.ResultCode}`;
+    const callbackKey = `mpesa_callback_${stk.CheckoutRequestID}`;
     const idempotencyTenant = callbackTenant || requestTenant || 'unknown';
     const normalized = this.normalizeResponse(rawCallback);
-    const claim = await idempotencyRepository.claimIdempotencyRecord(idempotencyTenant, callbackKey, {
+
+    // The claim is intentionally made with the same Firestore transaction as
+    // financial state and the durable outbox. There is no "COMPLETED then enqueue"
+    // gap that can lose payment.confirmed.v1 after a process crash.
+    const claimPath = `/tenants/${idempotencyTenant}/idempotency/${callbackKey}`;
+    const claimRecord = {
       idempotencyKey: callbackKey,
       tenantId: idempotencyTenant,
       action: 'MPESA_CALLBACK',
       requestHash: `${stk.CheckoutRequestID}:${stk.ResultCode}`,
-      status: 'IN_PROGRESS',
+      status: 'IN_PROGRESS' as const,
       createdAt: new Date().toISOString(),
       expiresAt: new Date(Date.now() + 86400000 * 7).toISOString(),
+    };
+
+    const atomicResult = await firestoreClient.runTransaction(async (tx) => {
+      const existing = await tx.get<any>(claimPath);
+      if (existing?.status === 'COMPLETED') return { claim: 'COMPLETED' as const };
+      if (existing?.status === 'IN_PROGRESS' && new Date(existing.expiresAt).getTime() > Date.now()) {
+        return { claim: 'IN_PROGRESS' as const };
+      }
+
+      await tx.set(claimPath, claimRecord);
+
+      if (normalized.status === 'SUCCESS') {
+        const transactionId = `mpesa_${stk.CheckoutRequestID}`;
+        const now = new Date().toISOString();
+        const transaction = {
+          transactionId,
+          tenantId: idempotencyTenant,
+          branchId: context.branchContext?.branchId || null,
+          source: 'MPESA' as const,
+          providerReference: normalized.providerReference,
+          amount: normalized.amount || 0,
+          currency: normalized.currency || 'KES',
+          status: 'POSTED' as const,
+          description: stk.ResultDesc || 'M-Pesa payment received',
+          correlationId: normalized.correlationId,
+          createdAt: now,
+          postedAt: now,
+          reversedAt: null,
+        };
+        const entries = [
+          { entryId: `${transactionId}_debit`, transactionId, tenantId: idempotencyTenant, account: 'CASH:MPESA', entryType: 'DEBIT' as const, amount: normalized.amount || 0, currency: normalized.currency || 'KES', createdAt: now, immutable: true as const },
+          { entryId: `${transactionId}_credit`, transactionId, tenantId: idempotencyTenant, account: 'RECEIVABLES:PAYMENTS', entryType: 'CREDIT' as const, amount: normalized.amount || 0, currency: normalized.currency || 'KES', createdAt: now, immutable: true as const },
+        ];
+
+        const existingTransaction = await tx.get<any>(`/tenants/${idempotencyTenant}/financialTransactions/${transactionId}`);
+        if (!existingTransaction) {
+          const debit = entries[0].amount;
+          const credit = entries[1].amount;
+          if (debit !== credit || debit !== transaction.amount) throw new Error('Unbalanced financial transaction');
+          await tx.set(`/tenants/${idempotencyTenant}/financialTransactions/${transactionId}`, transaction);
+          await tx.set(`/tenants/${idempotencyTenant}/ledgerTransactions/${transactionId}`, {
+            ledgerTransactionId: transactionId, tenantId: idempotencyTenant, transactionId,
+            status: 'POSTED', amount: transaction.amount, currency: transaction.currency,
+            postedAt: now, createdAt: now,
+          });
+          for (const entry of entries) {
+            await tx.set(`/tenants/${idempotencyTenant}/ledgerTransactions/${transactionId}/entries/${entry.entryId}`, entry);
+          }
+        } else if (existingTransaction.status !== 'POSTED') {
+          throw new Error('Existing M-Pesa financial transaction is not POSTED');
+        }
+      }
+
+      await outboxEngine.enqueueEvent(idempotencyTenant, {
+        eventId: `evt_callback_${stk.CheckoutRequestID}`,
+        eventType: normalized.status === 'SUCCESS' ? 'payment.confirmed.v1' : 'payment.failed.v1',
+        eventVersion: 'v1',
+        occurredAt: normalized.occurredAt,
+        tenantId: idempotencyTenant,
+        branchId: context.branchContext?.branchId || null,
+        principalId: context.principal.id,
+        correlationId: normalized.correlationId,
+        causationId: stk.CheckoutRequestID,
+        source: 'MpesaBridge',
+        payload: normalized as unknown as Record<string, unknown>,
+        metadata: {},
+      }, tx, context.principal.id);
+
+      await tx.update<any>(claimPath, {
+        status: 'COMPLETED',
+        responsePayload: {
+          providerReference: normalized.providerReference,
+          status: normalized.status,
+          amount: normalized.amount || 0,
+        },
+      });
+
+      return { claim: 'CLAIMED' as const };
     });
 
-    if (claim === 'COMPLETED') {
+    if (atomicResult.claim === 'COMPLETED') {
       auditLogger.logEvent('BRIDGE_EXECUTION', context.principal.id, 'BRIDGE_CALLBACK_RECEIVED', `bridge:${this.bridgeId}`, 'ALLOWED', {
         tenantId: idempotencyTenant,
         requestId: context.requestId,
@@ -265,60 +350,6 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
 
     if (claim === 'IN_PROGRESS') {
       throw new KernelError('CONFLICT', 'M-Pesa callback is already being processed', 409, context.requestId);
-    }
-
-    try {
-      if (normalized.status === 'SUCCESS') {
-        const transactionId = `mpesa_${stk.CheckoutRequestID}`;
-        const now = new Date().toISOString();
-        await financialLedgerRepository.postTransaction(
-          {
-            transactionId,
-            tenantId: idempotencyTenant,
-            branchId: context.branchContext?.branchId || null,
-            source: 'MPESA',
-            providerReference: normalized.providerReference,
-            amount: normalized.amount || 0,
-            currency: normalized.currency || 'KES',
-            status: 'POSTED',
-            description: stk.ResultDesc || 'M-Pesa payment received',
-            correlationId: normalized.correlationId,
-            createdAt: now,
-            postedAt: now,
-            reversedAt: null,
-          },
-          [
-            { entryId: `${transactionId}_debit`, transactionId, tenantId: idempotencyTenant, account: 'CASH:MPESA', entryType: 'DEBIT', amount: normalized.amount || 0, currency: normalized.currency || 'KES', createdAt: now, immutable: true },
-            { entryId: `${transactionId}_credit`, transactionId, tenantId: idempotencyTenant, account: 'RECEIVABLES:PAYMENTS', entryType: 'CREDIT', amount: normalized.amount || 0, currency: normalized.currency || 'KES', createdAt: now, immutable: true },
-          ]
-        );
-      }
-
-      await publishBridgeEvent({
-        eventId: `evt_callback_${stk.CheckoutRequestID}`,
-        eventType: normalized.status === 'SUCCESS' ? 'payment.confirmed.v1' : 'payment.failed.v1',
-        eventVersion: 'v1',
-        occurredAt: normalized.occurredAt,
-        tenantId: callbackTenant || context.principal.tenantId,
-        branchId: context.branchContext?.branchId || null,
-        principalId: context.principal.id,
-        correlationId: normalized.correlationId,
-        causationId: stk.CheckoutRequestID,
-        source: 'MpesaBridge',
-        payload: normalized as unknown as Record<string, unknown>,
-        metadata: {},
-      });
-
-      await idempotencyRepository.completeIdempotencyRecord(idempotencyTenant, callbackKey, {
-        providerReference: normalized.providerReference,
-        status: normalized.status,
-        amount: normalized.amount || 0,
-      });
-    } catch (error) {
-      await idempotencyRepository.failIdempotencyRecord(idempotencyTenant, callbackKey, {
-        error: error instanceof Error ? error.message : String(error),
-      });
-      throw error;
     }
 
     auditLogger.logEvent('BRIDGE_EXECUTION', context.principal.id, 'BRIDGE_CALLBACK_RECEIVED', `bridge:${this.bridgeId}`, 'ALLOWED', {
