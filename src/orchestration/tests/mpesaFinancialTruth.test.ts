@@ -74,6 +74,7 @@ describe('M-Pesa callback financial atomicity', () => {
     );
 
     expect(tx?.status).toBe('POSTED');
+    expect(tx?.providerReceiptReference).toBe('QAB123XYZ');
     expect(ledger).toHaveLength(2);
     expect(outbox?.eventType).toBe('payment.confirmed.v1');
   });
@@ -100,6 +101,46 @@ describe('M-Pesa callback financial atomicity', () => {
     expect(outbox?.eventId).toBe(`evt_callback_${checkoutRequestId}`);
     expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
     expect(results.filter((r) => r.status === 'rejected')).toHaveLength(1);
+  });
+
+
+  it('persists a failed provider callback as FAILED without creating ledger entries', async () => {
+    const bridge = new MpesaBridge();
+    const failed = callback();
+    failed.Body.stkCallback.ResultCode = 1032;
+    failed.Body.stkCallback.ResultDesc = 'Request cancelled by user';
+
+    await bridge.handleCallback(context(), failed);
+
+    const tx = await firestoreClient.get<any>(
+      `/tenants/${tenantId}/financialTransactions/mpesa_${checkoutRequestId}`
+    );
+    const ledger = await firestoreClient.listCollection<any>(
+      `/tenants/${tenantId}/ledgerTransactions/mpesa_${checkoutRequestId}/entries`
+    );
+
+    expect(tx?.status).toBe('FAILED');
+    expect(ledger).toHaveLength(0);
+  });
+
+  it('preserves POSTED state and receipt reference across restart and duplicate replay', async () => {
+    const bridge = new MpesaBridge();
+    await bridge.handleCallback(context(), callback());
+
+    firestoreClient.simulateServerRestart();
+
+    await bridge.handleCallback(context(), callback());
+
+    const tx = await firestoreClient.get<any>(
+      `/tenants/${tenantId}/financialTransactions/mpesa_${checkoutRequestId}`
+    );
+    const ledger = await firestoreClient.listCollection<any>(
+      `/tenants/${tenantId}/ledgerTransactions/mpesa_${checkoutRequestId}/entries`
+    );
+
+    expect(tx?.status).toBe('POSTED');
+    expect(tx?.providerReceiptReference).toBe('QAB123XYZ');
+    expect(ledger).toHaveLength(2);
   });
 
   it('reconstructs the payment after a simulated server restart', async () => {
