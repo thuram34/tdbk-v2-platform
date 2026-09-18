@@ -35,6 +35,8 @@ import { capabilityAccessStore } from './approvalWorkflow';
 import { dynamicNavigationEngine } from '../experience/navigation/navigationEngine';
 import { dashboardComposer } from '../experience/dashboard/dashboardComposer';
 import { spaceMembershipRepository } from '../persistence/firestore/repositories/spaceMembershipRepository';
+import { dbkRegistry } from '../platform/dbkRegistry';
+import { branchRepository } from '../persistence/firestore/repositories/branchRepository';
 
 export class RoleBasedCoherenceEngine {
   private static instance: RoleBasedCoherenceEngine;
@@ -175,93 +177,58 @@ export class RoleBasedCoherenceEngine {
   /**
    * Helper to resolve space metadata
    */
-  private resolveSpaceMetadata(spaceId: string, tenantId: string): BusinessSpace {
-    const isSchool = tenantId.includes('school');
-    const isHardware = tenantId.includes('hardware');
-    const isClinic = tenantId.includes('clinic');
+  private async resolvePersistentSpaceMetadata(spaceId: string, tenantId: string): Promise<BusinessSpace> {
+    const dbk = await dbkRegistry.getDbkInternal(tenantId);
+    if (!dbk || dbk.dbkId !== tenantId) {
+      throw new Error(`Durable DBK '${tenantId}' not found while resolving space '${spaceId}'.`);
+    }
 
-    if (spaceId === 'space_mombasa_academy') {
+    const branches = await branchRepository.listBranches(tenantId);
+    const branch = branches.find((candidate) => candidate.branchId === spaceId);
+
+    if (branch) {
+      const spaceType: SpaceType =
+        branch.type === 'HEADQUARTERS' ? 'HEADQUARTERS' :
+        branch.type === 'CAMPUS' ? 'CAMPUS' :
+        branch.type === 'CLINIC_BRANCH' ? 'CLINIC_BRANCH' :
+        branch.type === 'WAREHOUSE' ? 'DISTRIBUTION_HUB' :
+        branch.type === 'RETAIL_OUTLET' ? 'STORE_OUTLET' :
+        'REGIONAL_OFFICE';
+
       return {
-        spaceId: 'space_mombasa_academy',
+        spaceId: branch.branchId,
         tenantId,
-        organizationName: 'Mombasa Educational Trust',
-        spaceName: 'Mombasa Academy Primary Campus',
-        spaceType: 'CAMPUS',
-        sector: 'EDUCATION',
-        isHeadquarters: false,
-        status: 'ACTIVE',
-        city: 'Mombasa',
+        organizationName: dbk.displayName || dbk.legalName,
+        spaceName: branch.name,
+        spaceType,
+        sector: dbk.sector,
+        isHeadquarters: branch.isHeadquarters,
+        status: branch.status === 'ACTIVE' ? 'ACTIVE' : branch.status === 'ARCHIVED' ? 'ARCHIVED' : 'SUSPENDED',
+        address: branch.location?.address,
+        city: branch.location?.town,
       };
     }
 
-    if (spaceId === 'space_kilifi_campus') {
-      return {
-        spaceId: 'space_kilifi_campus',
-        tenantId,
-        organizationName: 'Mombasa Educational Trust',
-        spaceName: 'Kilifi Branch Campus',
-        spaceType: 'BRANCH',
-        sector: 'EDUCATION',
-        isHeadquarters: false,
-        status: 'ACTIVE',
-        city: 'Kilifi',
-      };
+    // A DBK itself may be represented as its headquarters space.
+    if (spaceId === tenantId || spaceId === `${tenantId}_hq`) {
+      const hq = branches.find((candidate) => candidate.isHeadquarters && candidate.status === 'ACTIVE');
+      if (hq) {
+        return {
+          spaceId: hq.branchId,
+          tenantId,
+          organizationName: dbk.displayName || dbk.legalName,
+          spaceName: hq.name,
+          spaceType: 'HEADQUARTERS',
+          sector: dbk.sector,
+          isHeadquarters: true,
+          status: 'ACTIVE',
+          address: hq.location?.address,
+          city: hq.location?.town,
+        };
+      }
     }
 
-    if (spaceId === 'space_education_group') {
-      return {
-        spaceId: 'space_education_group',
-        tenantId,
-        organizationName: 'Mombasa Educational Trust',
-        spaceName: 'Central Group Headquarters',
-        spaceType: 'HEADQUARTERS',
-        sector: 'EDUCATION',
-        isHeadquarters: true,
-        status: 'ACTIVE',
-        city: 'Nairobi',
-      };
-    }
-
-    if (spaceId === 'space_downtown_hardware') {
-      return {
-        spaceId: 'space_downtown_hardware',
-        tenantId,
-        organizationName: 'Apex Building Supplies Ltd',
-        spaceName: 'Downtown Retail Store & POS',
-        spaceType: 'STORE_OUTLET',
-        sector: 'HARDWARE',
-        isHeadquarters: true,
-        status: 'ACTIVE',
-        city: 'Nairobi CBD',
-      };
-    }
-
-    if (spaceId === 'space_industrial_yard') {
-      return {
-        spaceId: 'space_industrial_yard',
-        tenantId,
-        organizationName: 'Apex Building Supplies Ltd',
-        spaceName: 'Industrial Area Heavy Materials Yard',
-        spaceType: 'DISTRIBUTION_HUB',
-        sector: 'HARDWARE',
-        isHeadquarters: false,
-        status: 'ACTIVE',
-        city: 'Industrial Area',
-      };
-    }
-
-    // Default generic space
-    return {
-      spaceId,
-      tenantId,
-      organizationName: isSchool ? 'Premier Academy Ltd' : isHardware ? 'National Hardware Store' : isClinic ? 'Apex Community Health' : 'TDBK Business Enterprise',
-      spaceName: isSchool ? 'Main Academy Campus' : isHardware ? 'Main Store & Counter' : isClinic ? 'Primary Care Clinic' : 'Main Business Space',
-      spaceType: 'HEADQUARTERS',
-      sector: isSchool ? 'EDUCATION' : isHardware ? 'HARDWARE' : isClinic ? 'HEALTHCARE' : 'PROFESSIONAL_SERVICES',
-      isHeadquarters: true,
-      status: 'ACTIVE',
-      city: 'Nairobi',
-    };
+    throw new Error(`Space '${spaceId}' is not backed by a durable branch for tenant '${tenantId}'.`);
   }
 
   /** Durable production membership read. Test fixtures may fall back to seeded data. */
@@ -273,12 +240,13 @@ export class RoleBasedCoherenceEngine {
     if (memberships.length === 0 && process.env.NODE_ENV === 'test') {
       return this.getUserSpaces(userId, tenantId);
     }
-    return memberships
+    return Promise.all(memberships
       .filter((membership) => membership.status === 'ACTIVE')
-      .map((membership) => ({
-        space: this.resolveSpaceMetadata(membership.spaceId, membership.tenantId),
+      .map(async (membership) => ({
+        space: await this.resolvePersistentSpaceMetadata(membership.spaceId, membership.tenantId),
         membership,
-      }));
+      })));
+
   }
 
   /**
