@@ -621,8 +621,7 @@ class WorkflowEngineService {
     await eventBus.publish(completedEnvelope);
 
         return workflow;
-      }
-    } finally {
+      } finally {
       if (leaseHeartbeat) clearInterval(leaseHeartbeat);
       if (durableWorkflow) {
         await workflowInstanceRepository.releaseExecutionLease(workflow.tenantId, workflow.workflowId, workerId);
