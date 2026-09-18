@@ -217,6 +217,31 @@ class WorkflowEngineService {
     return recovered;
   }
 
+  private buildLifecycleOutboxRecord(envelope: EventEnvelope): OutboxRecord {
+    const now = new Date().toISOString();
+    return {
+      eventId: envelope.eventId,
+      tenantId: envelope.tenantId,
+      branchId: envelope.branchId,
+      eventType: envelope.eventType,
+      eventVersion: envelope.eventVersion,
+      occurredAt: envelope.occurredAt,
+      correlationId: envelope.correlationId,
+      causationId: envelope.causationId || null,
+      source: envelope.source,
+      payload: envelope.payload,
+      status: 'PENDING',
+      attemptCount: 0,
+      availableAt: now,
+      createdAt: now,
+      updatedAt: now,
+      leaseOwner: null,
+      leaseUntil: null,
+      lastError: null,
+      deliveredAt: null,
+    };
+  }
+
   /**
    * Executes or resumes a workflow instance step by step.
    */
@@ -411,8 +436,6 @@ class WorkflowEngineService {
             }
           );
 
-          await workflowInstanceRepository.saveWorkflow(workflow.tenantId, workflow.workflowId, workflow);
-
           const failedEnvelope: EventEnvelope = {
             eventId: `evt_${workflowId}_failed`,
             eventType: 'workflow.failed.v1',
@@ -427,7 +450,8 @@ class WorkflowEngineService {
             payload: { workflowId, failedStepId: step.stepId, reason: step.error },
             metadata: workflow.metadata,
           };
-          await outboxEngine.enqueueEvent(workflow.tenantId, failedEnvelope, undefined, context.principal.id);
+          const failedRecord = this.buildLifecycleOutboxRecord(failedEnvelope);
+          await workflowInstanceRepository.saveWorkflowWithOutbox(workflow.tenantId, workflow.workflowId, workflow, failedRecord);
           await eventBus.publish(failedEnvelope);
           return workflow;
         }
@@ -439,9 +463,8 @@ class WorkflowEngineService {
 
     workflow.status = 'COMPLETED';
     workflow.completedAt = new Date().toISOString();
-    await workflowInstanceRepository.saveWorkflow(workflow.tenantId, workflow.workflowId, workflow);
-
-    auditLogger.logEvent(
+    // Lifecycle event and terminal workflow state commit atomically.
+    const completedEnvelope: EventEnvelope = {
       'WORKFLOW_EXECUTION',
       context.principal.id,
       'WORKFLOW_COMPLETED',
@@ -454,8 +477,7 @@ class WorkflowEngineService {
       }
     );
 
-    // Publish completed event only after durable workflow state has committed.
-    const completedEnvelope: EventEnvelope = {
+    // Publish completed event only after the atomic workflow + outbox commit.
       eventId: `evt_${workflowId}_completed`,
       eventType: 'workflow.completed.v1',
       eventVersion: 'v1',
@@ -469,7 +491,8 @@ class WorkflowEngineService {
       payload: { workflowId, status: 'COMPLETED' },
       metadata: workflow.metadata,
     };
-    await outboxEngine.enqueueEvent(workflow.tenantId, completedEnvelope, undefined, context.principal.id);
+    const completedRecord = this.buildLifecycleOutboxRecord(completedEnvelope);
+    await workflowInstanceRepository.saveWorkflowWithOutbox(workflow.tenantId, workflow.workflowId, workflow, completedRecord);
     await eventBus.publish(completedEnvelope);
 
     return workflow;
