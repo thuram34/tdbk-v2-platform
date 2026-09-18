@@ -23,7 +23,7 @@ export async function handleSubscriptionPaymentConfirmed(event: EventEnvelope): 
   if (!result.transitioned) return;
 
   const context = {
-    requestId: \`subpay_\${event.eventId}\`,
+    requestId: `subpay_${event.eventId}`,
     correlationId: event.correlationId,
     timestamp: new Date().toISOString(),
     principal: {
