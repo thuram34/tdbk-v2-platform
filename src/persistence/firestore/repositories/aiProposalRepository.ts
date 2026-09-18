@@ -58,7 +58,8 @@ export class AiProposalRepository implements IAiProposalRepository {
     expectedStatus: import('../../../document_ai/types').ProposalStatus,
     nextStatus: import('../../../document_ai/types').ProposalStatus,
     reviewedBy: string,
-    adjustedPayload?: Record<string, any>
+    adjustedPayload?: Record<string, any>,
+    metadataPatch?: Partial<Pick<AiProposedAction, 'rejectionReason' | 'executionResult'>>
   ): Promise<AiProposedAction> {
     return await firestoreClient.runTransaction(async (transaction) => {
       const path = this.getPath(tenantId, proposalId);
@@ -74,6 +75,7 @@ export class AiProposalRepository implements IAiProposalRepository {
         reviewedBy,
         reviewedAt: new Date().toISOString(),
         ...(adjustedPayload !== undefined ? { suggestedPayload: adjustedPayload } : {}),
+        ...(metadataPatch || {}),
       };
       await transaction.set(path, updated as unknown as Record<string, unknown>);
       return updated;
