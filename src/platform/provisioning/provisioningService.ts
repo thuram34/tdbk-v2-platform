@@ -588,6 +588,10 @@ export class ProvisioningService {
       }
     );
 
+    // Keep the legacy entitlement cache warm for synchronous test/UI compatibility.
+    // Durable DBK identity remains the production authority.
+    entitlementEngine.setDbkSubscriptionTier(request.dbkId, finalDbk.subscriptionTier);
+
     const result: ProvisionDbkResult = {
       success: true,
       dbkId: request.dbkId,
