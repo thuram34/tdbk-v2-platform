@@ -62,6 +62,14 @@ class AuditLoggerService {
   }
 
   /**
+   * Await durable persistence for a previously-created audit event.
+   * Critical command paths use this before reporting success or failure.
+   */
+  public async persistEvent(event: AuditEvent): Promise<void> {
+    await auditRepository.appendAudit(event.tenantId, event.id, event);
+  }
+
+  /**
    * Retrieves recorded audit events filtered by tenant or event type.
    */
   public logAuditEvent(
