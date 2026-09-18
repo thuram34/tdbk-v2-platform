@@ -9,6 +9,7 @@
 import { IAccessRequestRepository } from '../../types';
 import { CapabilityAccessRequest, AccessRequestStatus } from '../../../coherence/types';
 import { firestoreClient } from '../firestoreClient';
+import type { EventEnvelope, OutboxRecord } from '../../types';
 
 export class AccessRequestRepository implements IAccessRequestRepository {
   private static instance: AccessRequestRepository;
@@ -73,6 +74,60 @@ export class AccessRequestRepository implements IAccessRequestRepository {
         reviewNotes,
       };
       await transaction.set(path, updated as unknown as Record<string, unknown>);
+
+      // Authorization lifecycle state and its downstream notification/recovery
+      // event are one durable unit. A crash cannot leave an approved/rejected
+      // request without the corresponding outbox record.
+      if (nextStatus === 'APPROVED' || nextStatus === 'REJECTED') {
+        const eventId = `evt_access_request_${nextStatus.toLowerCase()}_${requestId}`;
+        const now = new Date().toISOString();
+        const event: EventEnvelope = {
+          eventId,
+          eventType: nextStatus === 'APPROVED'
+            ? 'access.request_approved.v1'
+            : 'access.request_rejected.v1',
+          eventVersion: 'v1',
+          source: 'access_request_repository',
+          tenantId,
+          branchId: null,
+          principalId: reviewedBy,
+          correlationId: `corr_${requestId}`,
+          causationId: requestId,
+          occurredAt: updated.reviewedAt || now,
+          payload: {
+            requestId,
+            spaceId: updated.spaceId,
+            requesterId: updated.requesterId,
+            capabilityId: updated.capabilityId,
+            status: updated.status,
+            reviewedBy,
+            reviewNotes,
+          },
+          metadata: {},
+        };
+        const outbox: OutboxRecord = {
+          eventId,
+          tenantId,
+          branchId: null,
+          eventType: event.eventType,
+          eventVersion: event.eventVersion,
+          occurredAt: event.occurredAt,
+          correlationId: event.correlationId,
+          causationId: event.causationId || null,
+          source: event.source,
+          payload: event.payload,
+          status: 'PENDING',
+          attemptCount: 0,
+          availableAt: now,
+          createdAt: now,
+          updatedAt: now,
+          leaseOwner: null,
+          leaseUntil: null,
+          lastError: null,
+          deliveredAt: null,
+        };
+        await transaction.set(`/tenants/${tenantId}/outbox/${eventId}`, outbox as unknown as Record<string, unknown>);
+      }
       return updated;
     });
   }
