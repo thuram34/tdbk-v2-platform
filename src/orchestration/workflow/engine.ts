@@ -462,12 +462,9 @@ class WorkflowEngineService {
             step.status = 'WAITING';
             step.failureClassification = 'WAITING_FOR_EXTERNAL_RESULT';
             workflow.status = 'WAITING';
-            await workflowStepExecutionRepository.failExecution(
-              workflow.tenantId,
-              step.executionKey!,
-              workerId,
-              result.error || 'Waiting for external result'
-            );
+            // Keep the durable execution in EXECUTING while the workflow is WAITING.
+            // After lease expiry, recovery can reclaim the same executionKey and resume
+            // the provider operation without manufacturing a second execution identity.
             await workflowInstanceRepository.saveWorkflow(workflow.tenantId, workflow.workflowId, workflow, workerId);
             return workflow;
           }
