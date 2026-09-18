@@ -38,10 +38,6 @@ export class EtimsBridge implements Bridge<EtimsInvoiceRequest, any, any> {
     }
     // Configuration is durable, but no live provider client is wired yet.
     return { status: 'UNAVAILABLE', details: { provider: this.provider, version: this.version, reason: 'PROVIDER_CLIENT_NOT_CONNECTED', connectionId: connection.connectionId, configurationVersion: connection.configurationVersion } };
-    return {
-      status: 'UNAVAILABLE',
-      details: { provider: this.provider, version: this.version, kraDeviceConnected: true },
-    };
   }
 
   public async execute(
@@ -119,15 +115,22 @@ export class EtimsBridge implements Bridge<EtimsInvoiceRequest, any, any> {
   }
 
   public normalizeResponse(rawResponse: any): NormalizedBridgeResult<any> {
+    const reference = String(rawResponse?.kraIcn || rawResponse?.providerReference || '').trim();
+    if (!reference) {
+      throw new KernelError('VALIDATION_ERROR', 'eTIMS response is missing an authoritative KRA invoice reference', 422);
+    }
+    const amount = Number(rawResponse?.amount);
+    if (!Number.isFinite(amount) || amount < 0) {
+      throw new KernelError('VALIDATION_ERROR', 'eTIMS response contains an invalid amount', 422);
+    }
     return {
       status: rawResponse.status || 'SUCCESS',
       provider: this.provider,
-      providerReference: rawResponse.kraIcn || `ICN_${Date.now()}`,
-      amount: rawResponse.amount || 0,
+      providerReference: reference,
+      amount,
       currency: 'KES',
-      occurredAt: new Date().toISOString(),
+      occurredAt: rawResponse.occurredAt || new Date().toISOString(),
       correlationId: rawResponse.correlationId || 'corr_etims',
       data: rawResponse,
     };
-  }
-}
+  }}
