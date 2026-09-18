@@ -171,7 +171,7 @@ class WorkflowEngineService {
       correlationId: workflow.correlationId,
       causationId: null,
       source: 'WorkflowEngine',
-      payload: { workflowId: workflow.workflowId, workflowType, workflowVersion }
+      payload: { workflowId: workflow.workflowId, workflowType, workflowVersion },
       metadata: {},
     };
 
