@@ -258,6 +258,12 @@ export interface IWorkflowStepExecutionRepository {
     workerId: string,
     leaseDurationMs: number
   ): Promise<WorkflowStepExecution | null>;
+  renewExecution(
+    tenantId: string,
+    executionKey: string,
+    workerId: string,
+    leaseDurationMs: number
+  ): Promise<boolean>;
   completeExecution(
     tenantId: string,
     executionKey: string,
