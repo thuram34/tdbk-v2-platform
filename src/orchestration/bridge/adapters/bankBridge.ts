@@ -13,6 +13,7 @@ import { SecurityContext } from '../../../kernel/types';
 import { auditLogger } from '../../../kernel/audit/auditLogger';
 import { KernelError } from '../../../kernel/errors/kernelErrors';
 import { eventBus } from '../../events/eventBus';
+import { connectorConnectionRepository } from '../../../persistence/firestore/repositories/connectorConnectionRepository';
 
 export interface BankTransferRequest {
   sourceAccount: string;
@@ -30,9 +31,14 @@ export class BankBridge implements Bridge<BankTransferRequest, any, any> {
   public readonly version = 'v1.0';
 
   public async health(_context: SecurityContext): Promise<{ status: BridgeHealthStatus; details?: Record<string, unknown> }> {
-    // These adapters are explicitly MOCK in the platform registry. They must
-    // never advertise a live provider connection until a real provider client
-    // is configured and the adapter performs an actual connectivity check.
+    const tenantId = _context.tenantContext?.tenantId || _context.principal.tenantId;
+    if (!tenantId) return { status: 'UNAVAILABLE', details: { provider: this.provider, reason: 'TENANT_CONTEXT_MISSING' } };
+    const connection = await connectorConnectionRepository.getConnection(tenantId, `conn_${this.bridgeId}`);
+    if (!connection || !connection.enabled || connection.status !== 'CONFIGURED') {
+      return { status: 'UNAVAILABLE', details: { provider: this.provider, version: this.version, reason: 'CONNECTION_NOT_CONFIGURED' } };
+    }
+    // Configuration is durable, but no live provider client is wired yet.
+    return { status: 'UNAVAILABLE', details: { provider: this.provider, version: this.version, reason: 'PROVIDER_CLIENT_NOT_CONNECTED', connectionId: connection.connectionId, configurationVersion: connection.configurationVersion } };
     return {
       status: 'UNAVAILABLE',
       details: { provider: this.provider, version: this.version, gatewayConnected: true },
@@ -46,6 +52,10 @@ export class BankBridge implements Bridge<BankTransferRequest, any, any> {
   ): Promise<NormalizedBridgeResult<any>> {
     const tenantId = context.tenantContext?.tenantId || context.principal.tenantId;
     if (process.env.NODE_ENV === 'production') {
+      const connection = await connectorConnectionRepository.getConnection(tenantId, `conn_${this.bridgeId}`);
+      if (!connection || !connection.enabled || connection.status !== 'CONFIGURED') {
+        throw new KernelError('INTEGRATION_UNAVAILABLE', 'Bank bridge has no configured tenant connection', 503, context.requestId);
+      }
       throw new KernelError('INTEGRATION_UNAVAILABLE', 'Bank bridge is not connected to a production provider', 503, context.requestId);
     }
     if (!tenantId) {
