@@ -232,7 +232,12 @@ export interface OutboxRecord {
   deliveredAt: string | null;
 }
 
+export type IdempotencyClaimResult = 'CLAIMED' | 'COMPLETED' | 'IN_PROGRESS';
+
 export interface IIdempotencyRepository {
+  claimIdempotencyRecord(tenantId: string, key: string, record: IdempotencyRecord): Promise<IdempotencyClaimResult>;
+  completeIdempotencyRecord(tenantId: string, key: string, responsePayload?: Record<string, unknown>): Promise<void>;
+  failIdempotencyRecord(tenantId: string, key: string, responsePayload?: Record<string, unknown>): Promise<void>;
   saveIdempotencyRecord(tenantId: string, key: string, record: IdempotencyRecord): Promise<void>;
   getIdempotencyRecord(tenantId: string, key: string): Promise<IdempotencyRecord | null>;
   deleteIdempotencyRecord(tenantId: string, key: string): Promise<void>;
