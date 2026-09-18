@@ -1,6 +1,7 @@
 name: TDBK V2 CI
 
 on:
+  workflow_dispatch:
   push:
     branches: ["main"]
   pull_request:
