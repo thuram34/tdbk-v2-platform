@@ -73,7 +73,6 @@ export class FinancialLedgerRepository implements IFinancialLedgerRepository {
     tx: FirestoreTransaction,
     transaction: FinancialTransaction,
     entries: LedgerEntry[],
-    outboxRecord?: import('../../types').OutboxRecord,
   ): Promise<void> {
     return (async () => {
       await tx.set(this.transactionPath(transaction.tenantId, transaction.transactionId), transaction);
@@ -143,6 +142,7 @@ export class FinancialLedgerRepository implements IFinancialLedgerRepository {
   public async confirmReconciledTransaction(
     transaction: FinancialTransaction,
     entries: LedgerEntry[],
+    outboxRecord?: import('../../types').OutboxRecord,
   ): Promise<void> {
     this.assertBalanced(transaction, entries);
     if (transaction.status !== 'POSTED') throw new Error('Confirmed transaction must have POSTED status');
