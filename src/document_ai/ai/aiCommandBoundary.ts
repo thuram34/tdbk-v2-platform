@@ -27,6 +27,10 @@ import { eventBus } from '../../orchestration/events/eventBus';
 import { outboxEngine } from '../../orchestration/outbox/outboxEngine';
 import { branchManager } from '../../platform/branch/branchManager';
 import { aiProposalRepository } from '../../persistence/firestore/repositories/aiProposalRepository';
+import { ledgerService } from '../../finance/ledgerService';
+import { financialTransactionService } from '../../finance/transactionService';
+import { receiptService } from '../../finance/receiptService';
+import { reconciliationService } from '../../finance/reconciliationService';
 
 export class AiCommandBoundary {
   private static instance: AiCommandBoundary;
@@ -158,12 +162,8 @@ export class AiCommandBoundary {
       proposalType: params.proposalType,
       suggestedPayload: params.suggestedPayload,
     });
-    if (params.branchId) {
-      const branch = await branchManager.getPersistentBranch(ctx, params.tenantId, params.branchId);
-      if (!branch) {
-        throw new KernelError('VALIDATION_ERROR', `Branch '${params.branchId}' does not exist for tenant '${params.tenantId}'`, 400, ctx.requestId);
-      }
-    }
+    // Legacy synchronous API is test-only; production uses createPersistentProposal.
+    // It must remain synchronous and therefore cannot perform a durable branch read.
     const proposalId = `prop_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     const proposal: AiProposedAction = {
       proposalId, documentId: params.documentId, tenantId: params.tenantId, branchId: params.branchId,
@@ -282,8 +282,20 @@ export class AiCommandBoundary {
           throw new KernelError('AUTHORIZATION_ERROR', 'Permission waybill:write required', 403, ctx.requestId);
         }
         break;
-      default:
+      case 'PROPOSE_RECORD_PAYMENT':
+        if (!rbacEngine.hasPermission(ctx.principal, 'finance:receive') && !ctx.principal.isMaster) {
+          throw new KernelError('AUTHORIZATION_ERROR', 'Permission finance:receive required', 403, ctx.requestId);
+        }
         break;
+      case 'PROPOSE_RECONCILE_TRANSACTION':
+        if (!rbacEngine.hasPermission(ctx.principal, 'mpesa:reconcile') && !ctx.principal.isMaster) {
+          throw new KernelError('AUTHORIZATION_ERROR', 'Permission mpesa:reconcile required', 403, ctx.requestId);
+        }
+        break;
+      case 'PROPOSE_CREATE_INVOICE':
+        throw new KernelError('NOT_IMPLEMENTED', 'Invoice proposals require the authoritative invoice engine; no generic POS fallback is permitted.', 501, ctx.requestId);
+      default:
+        throw new KernelError('VALIDATION_ERROR', `Unsupported AI proposal type '${proposal.proposalType}'`, 400, ctx.requestId);
     }
 
     // Atomically reserve the proposal before executing the authoritative command.
@@ -328,19 +340,54 @@ export class AiCommandBoundary {
           executedRecordId = wb.recordId;
           break;
         }
-        case 'PROPOSE_CREATE_INVOICE':
-        case 'PROPOSE_RECORD_PAYMENT':
-        case 'PROPOSE_RECONCILE_TRANSACTION':
-        default: {
-          const record = await entityEngine.createPersistentRecord(ctx, tenantId, 'pos_register', {
-            ...finalPayload,
-            approvedBy: ctx.principal.id,
-            sourceProposalId: proposalId,
+        case 'PROPOSE_RECORD_PAYMENT': {
+          const transactionId = String(finalPayload.transactionId || `txn_ai_${proposalId}`);
+          const providerReference = String(finalPayload.providerReference || finalPayload.mpesaReceiptNumber || transactionId);
+          const amount = Number(finalPayload.amount);
+          if (!Number.isFinite(amount) || amount <= 0) throw new KernelError('VALIDATION_ERROR', 'AI payment proposal requires a positive amount', 400, ctx.requestId);
+          const now = new Date().toISOString();
+          const transaction = {
+            transactionId,
+            tenantId,
             branchId: proposal.branchId,
-          });
-          executedRecordId = record.recordId;
+            source: 'MPESA' as const,
+            providerReference,
+            amount,
+            currency: String(finalPayload.currency || 'KES'),
+            status: 'POSTED' as const,
+            description: String(finalPayload.description || 'AI-approved payment'),
+            correlationId: ctx.correlationId || proposalId,
+            createdAt: now,
+            postedAt: now,
+            reversedAt: null,
+          };
+          await ledgerService.post(transaction, [
+            { entryId: `${transactionId}_receivable`, transactionId, tenantId, account: 'RECEIVABLES:PAYMENTS', entryType: 'DEBIT', amount, currency: transaction.currency, createdAt: now, immutable: true },
+            { entryId: `${transactionId}_cash`, transactionId, tenantId, account: 'CASH:MPESA', entryType: 'CREDIT', amount, currency: transaction.currency, createdAt: now, immutable: true },
+          ]);
+          await receiptService.createFromPostedTransaction(tenantId, transactionId, ctx.principal.id);
+          executedRecordId = transactionId;
           break;
         }
+        case 'PROPOSE_RECONCILE_TRANSACTION': {
+          const transactionId = String(finalPayload.transactionId || '');
+          if (!transactionId) throw new KernelError('VALIDATION_ERROR', 'Reconciliation proposal requires transactionId', 400, ctx.requestId);
+          const existing = await financialTransactionService.get(tenantId, transactionId);
+          if (!existing) throw new KernelError('NOT_FOUND', `Financial transaction '${transactionId}' not found`, 404, ctx.requestId);
+          const entries = await ledgerService.entries(tenantId, transactionId);
+          if (existing.status === 'RECONCILIATION_REQUIRED') {
+            const confirmed = { ...existing, status: 'POSTED' as const, postedAt: existing.postedAt || new Date().toISOString() };
+            await reconciliationService.confirmReconciled(ctx, confirmed, entries);
+          } else if (existing.status !== 'POSTED') {
+            throw new KernelError('ILLEGAL_STATE_TRANSITION', `Transaction '${transactionId}' cannot be reconciled from state '${existing.status}'`, 400, ctx.requestId);
+          }
+          executedRecordId = transactionId;
+          break;
+        }
+        case 'PROPOSE_CREATE_INVOICE':
+          throw new KernelError('NOT_IMPLEMENTED', 'Invoice proposals require the authoritative invoice engine; no generic POS fallback is permitted.', 501, ctx.requestId);
+        default:
+          throw new KernelError('VALIDATION_ERROR', `Unsupported AI proposal type '${proposal.proposalType}'`, 400, ctx.requestId);
       }
     } catch (error: any) {
       // Never leave an approved proposal stranded in EXECUTING after a failed command.
