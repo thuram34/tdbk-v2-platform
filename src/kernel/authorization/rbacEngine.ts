@@ -145,6 +145,56 @@ export class RBACEngineService {
     };
   }
 
+  /** Authoritative async authorization path for production request handling. */
+  public async authorizeAsync(
+    principal: Principal,
+    action: string,
+    resource: string,
+    options: {
+      tenantId?: string | null;
+      branchId?: string | null;
+      requiredPermission?: string;
+      requiredRole?: string;
+      requestId?: string;
+    } = {}
+  ): Promise<AuthorizationResult> {
+    const { tenantId, branchId, requiredPermission, requiredRole, requestId } = options;
+    const evaluatedAt = new Date().toISOString();
+
+    if (masterAuthority.isMasterAdmin(principal)) {
+      return { allowed: true, reason: 'Authorized via TDBK MASTER administrative override', ruleEvaluated: 'MASTER_ADMIN_OVERRIDE', evaluatedAt };
+    }
+
+    try {
+      if (tenantId) tenantIsolation.assertTenantIsolation(principal, tenantId, action, requestId);
+      if (branchId) {
+        await branchAuthority.assertPersistentBranchContext(
+          principal,
+          tenantId || principal.tenantId || '',
+          branchId,
+          action,
+          requestId
+        );
+      }
+    } catch (err) {
+      return {
+        allowed: false,
+        reason: err instanceof Error ? err.message : 'Authorization denied',
+        ruleEvaluated: branchId ? 'BRANCH_ISOLATION_RULE' : 'TENANT_ISOLATION_RULE',
+        evaluatedAt,
+      };
+    }
+
+    if (requiredRole && !principal.roles.includes(requiredRole)) {
+      return { allowed: false, reason: `Role requirement missing: required role '${requiredRole}' not found in principal roles [${principal.roles.join(', ')}]`, ruleEvaluated: 'ROLE_REQUIREMENT_RULE', evaluatedAt };
+    }
+    if (requiredPermission && !principal.permissions.includes(requiredPermission) && !principal.permissions.includes('*')) {
+      return { allowed: false, reason: `Permission requirement missing: required permission '${requiredPermission}' not granted to principal`, ruleEvaluated: 'PERMISSION_REQUIREMENT_RULE', evaluatedAt };
+    }
+
+    return { allowed: true, reason: 'Authorization policy evaluation succeeded', ruleEvaluated: 'POLICY_EVALUATION_SUCCESS', evaluatedAt };
+  }
+
   public hasPermission(principal?: Principal | null, permission?: string): boolean {
     if (!principal) return false;
     if (masterAuthority.isMasterAdmin(principal) || principal.isMaster) return true;
