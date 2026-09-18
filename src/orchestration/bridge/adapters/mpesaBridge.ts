@@ -479,42 +479,42 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
       if (normalized.status === 'SUCCESS') {
         const transactionId = `mpesa_${stk.CheckoutRequestID}`;
         const now = new Date().toISOString();
+        const existingTransaction = await tx.get<any>(`/tenants/${idempotencyTenant}/financialTransactions/${transactionId}`);
+        if (!existingTransaction) {
+          throw new Error('M-Pesa callback has no authoritative pending transaction');
+        }
+        if (
+          existingTransaction.status !== 'PENDING' ||
+          existingTransaction.tenantId !== idempotencyTenant ||
+          existingTransaction.providerReference !== stk.CheckoutRequestID ||
+          Number(existingTransaction.amount) !== Number(normalized.amount) ||
+          existingTransaction.currency !== (normalized.currency || 'KES')
+        ) {
+          throw new Error('M-Pesa callback conflicts with authoritative pending transaction');
+        }
+
         const transaction = {
-          transactionId,
-          tenantId: idempotencyTenant,
-          branchId: initiatedBranchId,
-          source: 'MPESA' as const,
-          providerReference: normalized.providerReference,
-          amount: normalized.amount || 0,
-          currency: normalized.currency || 'KES',
+          ...existingTransaction,
+          providerReference: stk.CheckoutRequestID,
+          providerReceiptReference: normalized.providerReference,
           status: 'POSTED' as const,
-          description: stk.ResultDesc || 'M-Pesa payment received',
-          correlationId: normalized.correlationId,
-          createdAt: now,
+          description: stk.ResultDesc || existingTransaction.description || 'M-Pesa payment received',
           postedAt: now,
           reversedAt: null,
         };
         const entries = [
-          { entryId: `${transactionId}_debit`, transactionId, tenantId: idempotencyTenant, account: 'CASH:MPESA', entryType: 'DEBIT' as const, amount: normalized.amount || 0, currency: normalized.currency || 'KES', createdAt: now, immutable: true as const },
-          { entryId: `${transactionId}_credit`, transactionId, tenantId: idempotencyTenant, account: 'RECEIVABLES:PAYMENTS', entryType: 'CREDIT' as const, amount: normalized.amount || 0, currency: normalized.currency || 'KES', createdAt: now, immutable: true as const },
+          { entryId: `${transactionId}_debit`, transactionId, tenantId: idempotencyTenant, account: 'CASH:MPESA', entryType: 'DEBIT' as const, amount: transaction.amount, currency: transaction.currency, createdAt: now, immutable: true as const },
+          { entryId: `${transactionId}_credit`, transactionId, tenantId: idempotencyTenant, account: 'RECEIVABLES:PAYMENTS', entryType: 'CREDIT' as const, amount: transaction.amount, currency: transaction.currency, createdAt: now, immutable: true as const },
         ];
 
-        const existingTransaction = await tx.get<any>(`/tenants/${idempotencyTenant}/financialTransactions/${transactionId}`);
-        if (!existingTransaction) {
-          const debit = entries[0].amount;
-          const credit = entries[1].amount;
-          if (debit !== credit || debit !== transaction.amount) throw new Error('Unbalanced financial transaction');
-          await tx.set(`/tenants/${idempotencyTenant}/financialTransactions/${transactionId}`, transaction);
-          await tx.set(`/tenants/${idempotencyTenant}/ledgerTransactions/${transactionId}`, {
-            ledgerTransactionId: transactionId, tenantId: idempotencyTenant, transactionId,
-            status: 'POSTED', amount: transaction.amount, currency: transaction.currency,
-            postedAt: now, createdAt: now,
-          });
-          for (const entry of entries) {
-            await tx.set(`/tenants/${idempotencyTenant}/ledgerTransactions/${transactionId}/entries/${entry.entryId}`, entry);
-          }
-        } else if (existingTransaction.status !== 'POSTED') {
-          throw new Error('Existing M-Pesa financial transaction is not POSTED');
+        await tx.set(`/tenants/${idempotencyTenant}/financialTransactions/${transactionId}`, transaction);
+        await tx.set(`/tenants/${idempotencyTenant}/ledgerTransactions/${transactionId}`, {
+          ledgerTransactionId: transactionId, tenantId: idempotencyTenant, transactionId,
+          status: 'POSTED', amount: transaction.amount, currency: transaction.currency,
+          postedAt: now, createdAt: transaction.createdAt,
+        });
+        for (const entry of entries) {
+          await tx.set(`/tenants/${idempotencyTenant}/ledgerTransactions/${transactionId}/entries/${entry.entryId}`, entry);
         }
       }
 
