@@ -236,7 +236,7 @@ Date: 2026-08-14`;
       throw new Error('Extracted student name does not match');
     }
 
-    const proposal = aiCommandBoundary.createProposal(schoolContext, {
+    const proposal = await aiCommandBoundary.createPersistentProposal(schoolContext, {
       documentId: p7DocId,
       tenantId: schoolDbkId,
       branchId: schoolHqBranchId,
