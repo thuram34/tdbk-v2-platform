@@ -463,21 +463,8 @@ class WorkflowEngineService {
 
     workflow.status = 'COMPLETED';
     workflow.completedAt = new Date().toISOString();
-    // Lifecycle event and terminal workflow state commit atomically.
-    const completedEnvelope: EventEnvelope = {
-      'WORKFLOW_EXECUTION',
-      context.principal.id,
-      'WORKFLOW_COMPLETED',
-      `workflow:${workflowId}`,
-      'ALLOWED',
-      {
-        tenantId: workflow.tenantId,
-        requestId: context.requestId,
-        details: { correlationId: workflow.correlationId },
-      }
-    );
 
-    // Publish completed event only after the atomic workflow + outbox commit.
+    const completedEnvelope: EventEnvelope = {
       eventId: `evt_${workflowId}_completed`,
       eventType: 'workflow.completed.v1',
       eventVersion: 'v1',
@@ -491,8 +478,29 @@ class WorkflowEngineService {
       payload: { workflowId, status: 'COMPLETED' },
       metadata: workflow.metadata,
     };
+
+    // Terminal workflow state and lifecycle outbox event commit atomically.
     const completedRecord = this.buildLifecycleOutboxRecord(completedEnvelope);
-    await workflowInstanceRepository.saveWorkflowWithOutbox(workflow.tenantId, workflow.workflowId, workflow, completedRecord);
+    await workflowInstanceRepository.saveWorkflowWithOutbox(
+      workflow.tenantId,
+      workflow.workflowId,
+      workflow,
+      completedRecord
+    );
+
+    auditLogger.logEvent(
+      'WORKFLOW_EXECUTION',
+      context.principal.id,
+      'WORKFLOW_COMPLETED',
+      `workflow:${workflowId}`,
+      'ALLOWED',
+      {
+        tenantId: workflow.tenantId,
+        requestId: context.requestId,
+        details: { correlationId: workflow.correlationId },
+      }
+    );
+
     await eventBus.publish(completedEnvelope);
 
     return workflow;
