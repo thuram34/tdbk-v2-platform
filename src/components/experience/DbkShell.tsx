@@ -17,6 +17,7 @@ import { OwnerPortfolioView } from './OwnerPortfolioView';
 import { MultiBusinessSuitePanel } from './MultiBusinessSuitePanel';
 import { CoherenceEnginePanel } from './CoherenceEnginePanel';
 import { SmartClassroomView } from '../classroom/SmartClassroomView';
+import { DisplayControlCenter } from '../display/DisplayControlCenter';
 import {
   Building2,
   GitBranch,
@@ -37,6 +38,7 @@ import {
   Bot,
   FileText,
   Grid,
+  ScreenShare,
 } from 'lucide-react';
 
 interface DbkShellProps {
@@ -335,6 +337,19 @@ export const DbkShell: React.FC<DbkShellProps> = ({
               <span className="hidden sm:inline">P6 (60 Tests)</span>
             </button>
 
+            {/* Unified Display Engine */}
+            <button
+              onClick={() => setActiveViewId('unified_displays')}
+              className={`flex items-center space-x-1.5 px-2.5 py-1 text-xs font-semibold rounded border transition cursor-pointer ${
+                activeViewId === 'unified_displays'
+                  ? 'bg-indigo-600 border-indigo-500 text-white'
+                  : 'bg-neutral-800 border-neutral-700 text-indigo-300 hover:bg-neutral-700'
+              }`}
+            >
+              <ScreenShare className="w-3 h-3" />
+              <span className="hidden sm:inline">Displays</span>
+            </button>
+
             {/* Role-Based Coherence Engine Trigger */}
             <button
               onClick={() => setViewMode('COHERENCE_ENGINE')}
@@ -484,7 +499,9 @@ export const DbkShell: React.FC<DbkShellProps> = ({
               </div>
 
               {/* View Router */}
-              {activeViewId === 'view_doc_ai' ? (
+              {activeViewId === 'unified_displays' ? (
+                <DisplayControlCenter tenantId={selectedDbkId} />
+              ) : activeViewId === 'view_doc_ai' ? (
                 <DocumentAiShellPanel tenantId={selectedDbkId} />
               ) : activeViewId === 'view_phase6_suite' ? (
                 <Phase6TestSuitePanel />
