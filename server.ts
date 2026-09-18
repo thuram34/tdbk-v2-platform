@@ -1,4 +1,19 @@
         res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: (err as Error).message } });
+import { bridgeRegistry } from './src/orchestration/bridge/registry';
+import { mpesaBridge } from './src/orchestration/bridge/adapters/mpesaBridge';
+import { EtimsBridge } from './src/orchestration/bridge/adapters/etimsBridge';
+import { WhatsappBridge } from './src/orchestration/bridge/adapters/whatsappBridge';
+import { EmailBridge } from './src/orchestration/bridge/adapters/emailBridge';
+import { SmsBridge } from './src/orchestration/bridge/adapters/smsBridge';
+import { BankBridge } from './src/orchestration/bridge/adapters/bankBridge';
+
+bridgeRegistry.registerBridgeInstance(mpesaBridge);
+bridgeRegistry.registerBridgeInstance(new EtimsBridge());
+bridgeRegistry.registerBridgeInstance(new WhatsappBridge());
+bridgeRegistry.registerBridgeInstance(new EmailBridge());
+bridgeRegistry.registerBridgeInstance(new SmsBridge());
+bridgeRegistry.registerBridgeInstance(new BankBridge());
+
       }
     }
   });
