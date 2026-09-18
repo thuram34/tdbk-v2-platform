@@ -36,7 +36,12 @@ export async function handleSubscriptionPaymentConfirmed(event: EventEnvelope): 
       authTime: Math.floor(Date.now() / 1000),
       tokenSource: 'SERVICE_KEY' as const,
     },
-    tenantContext: { tenantId: dbkId },
+    tenantContext: {
+      tenantId: dbkId,
+      name: 'TDBK Subscription Event Handler',
+      blueprintId: 'TDBK_PLATFORM',
+      status: 'ACTIVE',
+    },
     branchContext: null,
     ipAddress: 'internal:subscription-payment-handler',
     userAgent: 'TDBK-Subscription-Event-Handler',
