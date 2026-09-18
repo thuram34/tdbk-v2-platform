@@ -474,6 +474,7 @@ class WorkflowEngineService {
               step,
               input: step.output || {},
               correlationId: workflow.correlationId,
+              executionKey: `comp_${workflow.workflowId}_${step.stepId}_${step.compensationStepId}`,
             });
             step.status = 'SKIPPED'; // marked rolled back
           } catch (err: any) {
