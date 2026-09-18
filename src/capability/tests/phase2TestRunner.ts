@@ -329,7 +329,7 @@ export class Phase2TestRunner {
     // P2_TEST_09: Missing dependency blocks activation -> DENIED
     // -----------------------------------------------------------------
     try {
-      const decision = activationEvaluator.evaluateActivation(schoolCtx, 'tenant_school_01', 'school_fee_structure');
+      const decision = await activationEvaluator.evaluateActivation(schoolCtx, 'tenant_school_01', 'school_fee_structure');
       const passed = decision.allowed === false && decision.outcome === 'DEPENDENCY_REQUIRED';
       addResult(
         'P2_TEST_09',
@@ -352,7 +352,7 @@ export class Phase2TestRunner {
       dbkCapabilityManager.enableCapability(schoolCtx, 'tenant_school_01', 'finance_ledger_core', 'ENTITLED', false);
 
       // Step 2: Now evaluate dependent 'school_fee_structure'
-      const decision = activationEvaluator.evaluateActivation(schoolCtx, 'tenant_school_01', 'school_fee_structure');
+      const decision = await activationEvaluator.evaluateActivation(schoolCtx, 'tenant_school_01', 'school_fee_structure');
       const passed = decision.allowed === true && decision.outcome === 'ALLOWED';
       addResult(
         'P2_TEST_10',
@@ -514,7 +514,7 @@ export class Phase2TestRunner {
     // -----------------------------------------------------------------
     try {
       dbkCapabilityManager.disableCapability(schoolCtx, 'tenant_school_01', 'school_academics');
-      const decision = activationEvaluator.evaluateActivation(schoolCtx, 'tenant_school_01', 'school_fee_structure');
+      const decision = await activationEvaluator.evaluateActivation(schoolCtx, 'tenant_school_01', 'school_fee_structure');
       const passed = decision.allowed === false && decision.outcome === 'DEPENDENCY_REQUIRED';
       addResult(
         'P2_TEST_17',
@@ -536,7 +536,7 @@ export class Phase2TestRunner {
     // -----------------------------------------------------------------
     try {
       capabilityRegistry.suspendCapabilityPlatformWide(masterCtx, 'mpesa_bridge', 'Security audit in progress');
-      const decision = activationEvaluator.evaluateActivation(schoolCtx, 'tenant_school_01', 'mpesa_bridge');
+      const decision = await activationEvaluator.evaluateActivation(schoolCtx, 'tenant_school_01', 'mpesa_bridge');
       const passed = decision.allowed === false && decision.outcome === 'SUSPENDED';
       addResult(
         'P2_TEST_18',
@@ -698,7 +698,7 @@ export class Phase2TestRunner {
     // P2_TEST_25: Unrelated capability is not operational -> PASS
     // -----------------------------------------------------------------
     try {
-      const decision = activationEvaluator.evaluateActivation(hardwareCtx, 'tenant_hardware_01', 'school_academics');
+      const decision = await activationEvaluator.evaluateActivation(hardwareCtx, 'tenant_hardware_01', 'school_academics');
       const passed = decision.allowed === false && decision.outcome === 'BLUEPRINT_UNSUPPORTED';
       addResult(
         'P2_TEST_25',
