@@ -3,6 +3,7 @@ import { firestoreClient } from '../../persistence/firestore/firestoreClient';
 import { buildSyncPlan, capabilitiesForNodeType, createDisplayCommand } from './displayEngine';
 import type { DisplayCommand, DisplayContent, DisplayNode, DisplayNodeType, DisplayScheduleEntry, DisplaySyncPlan } from './types';
 import { eventBus } from '../../orchestration/events/eventBus';
+import { registerDisplayProjector } from './displayProjector';
 
 export interface DisplayRegistrationInput {
   tenantId: string; siteId: string; name: string; nodeType: DisplayNodeType;
@@ -53,13 +54,37 @@ export class DisplayService {
     return updated;
   }
   async getNode(tenantId:string,id:string){return firestoreClient.get<DisplayNode>(nodePath(tenantId,id));}
+  async listNodes(tenantId:string):Promise<DisplayNode[]>{
+    return firestoreClient.listCollection<DisplayNode>(`/tenants/${tenantId}/displayNodes`);
+  }
   async sync(tenantId:string,id:string):Promise<DisplaySyncPlan>{
     const node=await this.getNode(tenantId,id); if(!node) throw new Error('DISPLAY_NOT_FOUND');
-    const [content,schedules]=await Promise.all([
+    const [content,schedules,commands]=await Promise.all([
       firestoreClient.listCollection<DisplayContent>(`/tenants/${tenantId}/displayContent`),
-      firestoreClient.listCollection<DisplayScheduleEntry>(`/tenants/${tenantId}/displaySchedules`)
+      firestoreClient.listCollection<DisplayScheduleEntry>(`/tenants/${tenantId}/displaySchedules`),
+      firestoreClient.listCollection<DisplayCommand>(`/tenants/${tenantId}/displayCommands`)
     ]);
-    return buildSyncPlan(node,{tenantId,generatedAt:new Date().toISOString(),nodes:[node],content,schedules});
+    const plan=buildSyncPlan(node,{tenantId,generatedAt:new Date().toISOString(),nodes:[node],content,schedules});
+    plan.commands=commands
+      .filter((command)=>command.displayId===id && (!command.status || command.status==='PENDING'))
+      .sort((a,b)=>a.issuedAt.localeCompare(b.issuedAt))
+      .slice(0,50);
+    if (plan.commands.length) {
+      await Promise.all(plan.commands.map((command)=>firestoreClient.update<DisplayCommand>(
+        `/tenants/${tenantId}/displayCommands/${command.commandId}`,
+        {status:'DELIVERED',deliveredAt:new Date().toISOString()}
+      )));
+      plan.commands=plan.commands.map((command)=>({...command,status:'DELIVERED',deliveredAt:new Date().toISOString()}));
+    }
+    return plan;
+  }
+  async acknowledgeCommand(tenantId:string,id:string,commandId:string,success=true,error?:string):Promise<DisplayCommand>{
+    const path=`/tenants/${tenantId}/displayCommands/${commandId}`;
+    const command=await firestoreClient.get<DisplayCommand>(path);
+    if(!command || command.tenantId!==tenantId || command.displayId!==id) throw new Error('DISPLAY_COMMAND_NOT_FOUND');
+    const updated={...command,status:success?'ACKNOWLEDGED':'FAILED',acknowledgedAt:new Date().toISOString(),error:error??null};
+    await firestoreClient.set(path,updated);
+    return updated;
   }
   async issueCommand(tenantId:string,id:string,type:DisplayCommand['type'],payload:Record<string,unknown>={}):Promise<DisplayCommand>{
     const node=await this.getNode(tenantId,id); if(!node) throw new Error('DISPLAY_NOT_FOUND');
@@ -70,3 +95,4 @@ export class DisplayService {
   }
 }
 export const displayService=new DisplayService();
+registerDisplayProjector();
