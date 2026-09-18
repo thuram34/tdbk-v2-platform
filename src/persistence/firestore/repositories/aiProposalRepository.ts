@@ -85,6 +85,68 @@ export class AiProposalRepository implements IAiProposalRepository {
       const proposal = await transaction.get<AiProposedAction>(path);
       if (!proposal) throw new Error(`Proposal '${proposalId}' not found.`);
       if (proposal.tenantId !== tenantId) throw new Error('AI proposal tenant boundary violation.');
+      const terminalStatuses = new Set<import('../../../document_ai/types').ProposalStatus>(['APPROVED', 'FAILED', 'REJECTED']);
+      const isTerminalTransition = terminalStatuses.has(nextStatus);
+      const terminalEventType = nextStatus === 'APPROVED'
+        ? 'ai.proposal_approved.v1'
+        : nextStatus === 'FAILED'
+          ? 'ai.proposal_failed.v1'
+          : 'ai.proposal_rejected.v1';
+
+      // Terminal lifecycle events are part of the same transaction as the
+      // authoritative proposal transition. This prevents a terminal proposal
+      // from existing without its recovery/notification event after a crash.
+      if (proposal.status === nextStatus && isTerminalTransition) {
+        const eventId = `evt_proposal_${nextStatus.toLowerCase()}_${proposalId}`;
+        const existingEvent = await transaction.get<OutboxRecord>(`/tenants/${tenantId}/outbox/${eventId}`);
+        if (!existingEvent) {
+          const now = new Date().toISOString();
+          const event: EventEnvelope = {
+            eventId,
+            eventType: terminalEventType,
+            eventVersion: 'v1',
+            source: 'ai_proposal_repository',
+            tenantId,
+            branchId: proposal.branchId,
+            principalId: reviewedBy,
+            correlationId: proposal.correlationId || `corr_${proposalId}`,
+            causationId: proposal.causationId,
+            occurredAt: proposal.reviewedAt || proposal.proposedAt,
+            payload: {
+              proposalId,
+              proposalType: proposal.proposalType,
+              status: proposal.status,
+              executionResult: proposal.executionResult || null,
+              rejectionReason: proposal.rejectionReason || null,
+            },
+            metadata: {},
+          };
+          const outbox: OutboxRecord = {
+            eventId,
+            tenantId,
+            branchId: proposal.branchId || null,
+            eventType: event.eventType,
+            eventVersion: event.eventVersion,
+            occurredAt: event.occurredAt,
+            correlationId: event.correlationId,
+            causationId: event.causationId || null,
+            source: event.source,
+            payload: event.payload,
+            status: 'PENDING',
+            attemptCount: 0,
+            availableAt: now,
+            createdAt: now,
+            updatedAt: now,
+            leaseOwner: null,
+            leaseUntil: null,
+            lastError: null,
+            deliveredAt: null,
+          };
+          await transaction.set(`/tenants/${tenantId}/outbox/${eventId}`, outbox as unknown as Record<string, unknown>);
+        }
+        return proposal;
+      }
+
       if (proposal.status !== expectedStatus) {
         throw new Error(`Proposal '${proposalId}' is already ${proposal.status}; expected ${expectedStatus}.`);
       }
@@ -97,6 +159,53 @@ export class AiProposalRepository implements IAiProposalRepository {
         ...(metadataPatch || {}),
       };
       await transaction.set(path, updated as unknown as Record<string, unknown>);
+
+      if (isTerminalTransition) {
+        const now = new Date().toISOString();
+        const eventId = `evt_proposal_${nextStatus.toLowerCase()}_${proposalId}`;
+        const event: EventEnvelope = {
+          eventId,
+          eventType: terminalEventType,
+          eventVersion: 'v1',
+          source: 'ai_proposal_repository',
+          tenantId,
+          branchId: updated.branchId,
+          principalId: reviewedBy,
+          correlationId: updated.correlationId || `corr_${proposalId}`,
+          causationId: updated.causationId,
+          occurredAt: updated.reviewedAt || now,
+          payload: {
+            proposalId,
+            proposalType: updated.proposalType,
+            status: updated.status,
+            executionResult: updated.executionResult || null,
+            rejectionReason: updated.rejectionReason || null,
+          },
+          metadata: {},
+        };
+        const outbox: OutboxRecord = {
+          eventId,
+          tenantId,
+          branchId: updated.branchId || null,
+          eventType: event.eventType,
+          eventVersion: event.eventVersion,
+          occurredAt: event.occurredAt,
+          correlationId: event.correlationId,
+          causationId: event.causationId || null,
+          source: event.source,
+          payload: event.payload,
+          status: 'PENDING',
+          attemptCount: 0,
+          availableAt: now,
+          createdAt: now,
+          updatedAt: now,
+          leaseOwner: null,
+          leaseUntil: null,
+          lastError: null,
+          deliveredAt: null,
+        };
+        await transaction.set(`/tenants/${tenantId}/outbox/${eventId}`, outbox as unknown as Record<string, unknown>);
+      }
       return updated;
     });
   }
