@@ -92,7 +92,7 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
           details: { provider: this.provider, version: this.version, reason: 'CREDENTIALS_MISSING' },
         };
       }
-      const tokenResponse = await fetch(`${baseUrl.replace(/\\/$/, '')}${oauthPath}`, {
+      const tokenResponse = await fetch(`${baseUrl.replace(/\/$/, '')}${oauthPath}`, {
         headers: {
           Authorization: `Basic ${Buffer.from(`${consumerKey}:${consumerSecret}`).toString('base64')}`,
           Accept: 'application/json',
@@ -142,7 +142,7 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
   }
 
   private normalizePhone(phone: string): string {
-    const digits = phone.replace(/\\D/g, '');
+    const digits = phone.replace(/\D/g, '');
     if (digits.startsWith('254')) return digits;
     if (digits.startsWith('0')) return `254${digits.substring(1)}`;
     if (digits.startsWith('7') || digits.startsWith('1')) return `254${digits}`;
@@ -240,7 +240,7 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
 
     try {
       const authHeader = Buffer.from(`${consumerKey}:${consumerSecret}`).toString('base64');
-      const tokenResponse = await fetch(`${baseUrl.replace(/\\/$/, '')}${oauthPath}`, {
+      const tokenResponse = await fetch(`${baseUrl.replace(/\/$/, '')}${oauthPath}`, {
         method: 'GET',
         headers: { Authorization: `Basic ${authHeader}`, Accept: 'application/json' },
       });
@@ -265,7 +265,7 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
         TransactionDesc: payload.transactionDesc,
       };
 
-      const providerResponse = await fetch(`${baseUrl.replace(/\\/$/, '')}${stkPath}`, {
+      const providerResponse = await fetch(`${baseUrl.replace(/\/$/, '')}${stkPath}`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${tokenBody.access_token}`,
