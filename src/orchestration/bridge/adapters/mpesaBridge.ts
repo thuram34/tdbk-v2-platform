@@ -17,6 +17,8 @@ import { publishBridgeEvent } from '../bridgeEventPublisher';
 import { connectorConnectionRepository } from '../../../persistence/firestore/repositories/connectorConnectionRepository';
 import { idempotencyRepository } from '../../../persistence/firestore/repositories/idempotencyRepository';
 import { financialLedgerRepository } from '../../../persistence/firestore/repositories/financialLedgerRepository';
+import { FinancialTransaction, LedgerEntry } from '../../../persistence/types';
+import { financialLedgerRepository } from '../../../persistence/firestore/repositories/financialLedgerRepository';
 
 export interface MpesaSTKPushRequest {
   phoneNumber: string;
