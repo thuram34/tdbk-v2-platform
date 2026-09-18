@@ -292,7 +292,7 @@ export class Phase2TestRunner {
       // Enable core_identity prerequisite
       dbkCapabilityManager.enableCapability(schoolCtx, 'tenant_school_01', 'core_identity', 'ENTITLED', false);
 
-      const decision = activationEvaluator.evaluateActivation(schoolCtx, 'tenant_school_01', 'school_academics');
+      const decision = await activationEvaluator.evaluateActivation(schoolCtx, 'tenant_school_01', 'school_academics');
       const passed = decision.allowed === true && decision.outcome === 'ALLOWED';
       addResult(
         'P2_TEST_07',
@@ -311,7 +311,7 @@ export class Phase2TestRunner {
     // -----------------------------------------------------------------
     try {
       entitlementEngine.setDbkSubscriptionTier('tenant_school_01', 'FOUNDATION');
-      const decision = activationEvaluator.evaluateActivation(schoolCtx, 'tenant_school_01', 'payroll_pro');
+      const decision = await activationEvaluator.evaluateActivation(schoolCtx, 'tenant_school_01', 'payroll_pro');
       const passed = decision.allowed === false && decision.outcome === 'UPGRADE_REQUIRED';
       addResult(
         'P2_TEST_08',
