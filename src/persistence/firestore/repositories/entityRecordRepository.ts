@@ -42,6 +42,25 @@ export class EntityRecordRepository implements IEntityRecordRepository {
     await firestoreClient.set(path, record as unknown as Record<string, unknown>);
   }
 
+  public async createIfAbsent(
+    tenantId: string,
+    capabilityId: string,
+    recordId: string,
+    record: ExperienceEntityRecord
+  ): Promise<ExperienceEntityRecord> {
+    const path = this.getPath(tenantId, capabilityId, recordId);
+    return firestoreClient.runTransaction(async (tx) => {
+      const existing = await tx.get<ExperienceEntityRecord>(path);
+      if (existing) {
+        if (existing.entityType !== capabilityId || existing.id !== recordId) {
+          throw new Error("Entity record identity conflict for '" + recordId + "'");
+        }
+        return existing;
+      }
+      await tx.set(path, record as unknown as Record<string, unknown>);
+      return record;
+    });
+  }
   public async getRecord(
     tenantId: string,
     capabilityId: string,
