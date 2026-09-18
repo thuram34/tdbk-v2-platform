@@ -20,7 +20,6 @@ import { outboxEngine } from '../outbox/outboxEngine';
 class WorkflowEngineService {
   private workflows: Map<string, WorkflowInstance> = new Map();
   private stepHandlers: Map<string, StepHandler> = new Map();
-  private outboxStore: Map<string, OutboxRecord> = new Map();
 
   /**
    * Registers a step handler for a specific step type.
@@ -434,7 +433,7 @@ class WorkflowEngineService {
   /**
    * Adds an event envelope to the Firestore Outbox Delivery Store (/tenants/{tenantId}/outbox/{eventId}).
    */
-  public addToOutbox(context: SecurityContext, event: EventEnvelope): OutboxRecord {
+  public async addToOutbox(context: SecurityContext, event: EventEnvelope): Promise<OutboxRecord> {
     const tenantId = event.tenantId || context.tenantContext?.tenantId || context.principal.tenantId;
     if (!tenantId) {
       throw new KernelError(
@@ -445,53 +444,70 @@ class WorkflowEngineService {
       );
     }
 
-    const outboxId = `outbox_${event.eventId}`;
-    const record: OutboxRecord = {
-      outboxId,
-      eventId: event.eventId,
+    // Durable outbox is authoritative. The workflow engine no longer maintains
+    // a second in-memory business outbox that would disappear on restart.
+    const durable = await outboxEngine.enqueueEvent(
       tenantId,
-      eventType: event.eventType,
-      status: 'PENDING',
-      attempts: 0,
-      payload: event.payload,
-      createdAt: new Date().toISOString(),
-      lastAttemptAt: null,
-      errorDetails: null,
-    };
+      event,
+      undefined,
+      context.principal.id
+    );
 
-    this.outboxStore.set(outboxId, record);
-    return record;
+    return {
+      outboxId: `outbox_${durable.eventId}`,
+      eventId: durable.eventId,
+      tenantId: durable.tenantId,
+      eventType: durable.eventType,
+      status: durable.status === 'PROCESSING' ? 'PROCESSING' : 'PENDING',
+      attempts: durable.attemptCount,
+      payload: durable.payload,
+      createdAt: durable.createdAt,
+      lastAttemptAt: null,
+      errorDetails: durable.lastError,
+    };
   }
 
   /**
-   * Processes pending outbox records reliably and idempotently.
+   * Processes the durable Firestore outbox. Delivery, leasing, retries and
+   * dead-letter handling are delegated to the authoritative OutboxEngine.
    */
   public async processOutbox(context: SecurityContext): Promise<OutboxRecord[]> {
-    const processed: OutboxRecord[] = [];
-
-    for (const [outboxId, record] of this.outboxStore.entries()) {
-      if (record.status === 'PENDING' || record.status === 'PROCESSING') {
-        record.status = 'PROCESSING';
-        record.attempts++;
-        record.lastAttemptAt = new Date().toISOString();
-
-        try {
-          if (eventBus.isProcessed(record.eventId)) {
-            record.status = 'DELIVERED';
-          } else {
-            record.status = 'DELIVERED';
-          }
-          processed.push(record);
-        } catch (err: any) {
-          record.errorDetails = err.message || 'Outbox delivery error';
-          if (record.attempts >= 3) {
-            record.status = 'FAILED';
-          }
-        }
-      }
+    const tenantId = context.tenantContext?.tenantId || context.principal.tenantId;
+    if (!tenantId) {
+      throw new KernelError(
+        'TENANT_ISOLATION_ERROR',
+        'Outbox Processing Denied: Missing Tenant Context',
+        403,
+        context.requestId
+      );
     }
 
-    return processed;
+    const result = await outboxEngine.processTenantOutbox(
+      tenantId,
+      `workflow-worker-${context.principal.id}`
+    );
+
+    // Return the durable records that this invocation successfully delivered.
+    const durableRecords = await Promise.all(
+      (await import('../../persistence/firestore/repositories/outboxRepository')).outboxRepository
+        .listOutbox(tenantId, 'DELIVERED')
+    );
+
+    const delivered = new Set(durableRecords.map((record) => record.eventId));
+    return durableRecords
+      .filter((record) => delivered.has(record.eventId))
+      .map((record) => ({
+        outboxId: `outbox_${record.eventId}`,
+        eventId: record.eventId,
+        tenantId: record.tenantId,
+        eventType: record.eventType,
+        status: 'DELIVERED' as const,
+        attempts: record.attemptCount,
+        payload: record.payload,
+        createdAt: record.createdAt,
+        lastAttemptAt: record.updatedAt,
+        errorDetails: record.lastError,
+      }));
   }
 
   /**
@@ -504,7 +520,6 @@ class WorkflowEngineService {
   public clearStoreForTesting(): void {
     this.workflows.clear();
     this.stepHandlers.clear();
-    this.outboxStore.clear();
   }
 }
 
