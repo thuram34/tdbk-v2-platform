@@ -88,7 +88,7 @@ export class ActivationEvaluatorService {
     }
 
     // 3. Check Subscription Tier Entitlement
-    const entitlementStatus = await entitlementEngine.evaluatePersistentEntitlement(dbkId, cap);
+    const entitlementStatus = entitlementEngine.evaluateEntitlement(dbkId, cap);
     if (entitlementStatus === 'UPGRADE_REQUIRED') {
       auditLogger.logEvent(
         'AUTHORIZATION_DENIED',
