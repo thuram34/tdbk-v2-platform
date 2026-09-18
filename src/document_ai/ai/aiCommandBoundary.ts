@@ -406,13 +406,19 @@ export class AiCommandBoundary {
       );
     }
 
-    proposal.status = 'REJECTED';
-    proposal.reviewedBy = ctx.principal.id;
-    proposal.reviewedAt = new Date().toISOString();
-    proposal.rejectionReason = reason;
-    await aiProposalRepository.saveProposal(tenantId, proposalId, proposal);
+    // Atomically transition PENDING_REVIEW -> REJECTED so concurrent approval
+    // cannot race with this rejection and overwrite the terminal decision.
+    const rejectedProposal = await aiProposalRepository.transitionProposal(
+      tenantId,
+      proposalId,
+      'PENDING_REVIEW',
+      'REJECTED',
+      ctx.principal.id,
+      undefined,
+      { rejectionReason: reason },
+    );
 
-    auditLogger.logAuditEvent(ctx, {
+    await auditLogger.persistEvent(auditLogger.logAuditEvent(ctx, {
       action: 'AI_PROPOSAL_REJECTED',
       targetResource: `proposal:${proposalId}`,
       outcome: 'ALLOWED',
@@ -420,9 +426,9 @@ export class AiCommandBoundary {
         reason,
         reviewedBy: ctx.principal.id,
       }
-    });
+    }));
 
-    return proposal;
+    return rejectedProposal;
   }
 }
 
