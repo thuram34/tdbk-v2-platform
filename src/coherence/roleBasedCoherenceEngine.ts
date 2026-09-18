@@ -178,7 +178,7 @@ export class RoleBasedCoherenceEngine {
    * Helper to resolve space metadata
    */
   private resolveSpaceMetadata(spaceId: string, tenantId: string): BusinessSpace {
-    return { spaceId, tenantId, organizationName: tenantId, spaceName: spaceId, spaceType: 'REGIONAL_OFFICE' as SpaceType, sector: 'OTHER' as any, isHeadquarters: false, status: 'ACTIVE' };
+    return { spaceId, tenantId, organizationName: tenantId, spaceName: spaceId, spaceType: 'BRANCH' as SpaceType, sector: 'OTHER' as any, isHeadquarters: false, status: 'ACTIVE' };
   }
 
   private async resolvePersistentSpaceMetadata(spaceId: string, tenantId: string): Promise<BusinessSpace> {
@@ -194,10 +194,10 @@ export class RoleBasedCoherenceEngine {
       const spaceType: SpaceType =
         branch.type === 'HEADQUARTERS' ? 'HEADQUARTERS' :
         branch.type === 'CAMPUS' ? 'CAMPUS' :
-        branch.type === 'CLINIC_BRANCH' ? 'REGIONAL_OFFICE' :
+        branch.type === 'CLINIC_BRANCH' ? 'BRANCH' :
         branch.type === 'WAREHOUSE' ? 'DISTRIBUTION_HUB' :
         branch.type === 'RETAIL_OUTLET' ? 'STORE_OUTLET' :
-        'REGIONAL_OFFICE';
+        'BRANCH';
 
       return {
         spaceId: branch.branchId,
