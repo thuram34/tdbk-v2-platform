@@ -82,16 +82,3 @@ export type StepHandler = (
   error?: string;
   failureClassification?: FailureClassification;
 }>;
-
-export interface OutboxRecord {
-  outboxId: string;
-  eventId: string;
-  tenantId: string;
-  eventType: string;
-  status: 'PENDING' | 'PROCESSING' | 'DELIVERED' | 'FAILED';
-  attempts: number;
-  payload: Record<string, unknown>;
-  createdAt: string;
-  lastAttemptAt: string | null;
-  errorDetails: string | null;
-}
