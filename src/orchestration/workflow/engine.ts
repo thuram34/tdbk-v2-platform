@@ -210,6 +210,13 @@ class WorkflowEngineService {
 
     const recovered: WorkflowInstance[] = [];
     for (const workflow of recoverable) {
+      // Recovery is itself an authorized action. A branch-scoped principal may
+      // only resume workflows belonging to that same durable branch; otherwise
+      // a tenant-wide scan could accidentally attempt another branch's work.
+      if (!context.principal.isMaster && workflow.branchId) {
+        const requestBranch = context.branchContext?.branchId || context.principal.branchId || null;
+        if (requestBranch !== workflow.branchId) continue;
+      }
       // Hydrate first so a fresh process can resume without prior cache state.
       this.workflows.set(workflow.workflowId, workflow);
       recovered.push(await this.executeWorkflow(context, workflow.workflowId));
