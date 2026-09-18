@@ -148,7 +148,7 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
       primaryBranchName: 'Main Campus',
     });
     schoolDbkId = res.dbkId;
-    await businessDnaManager.bindBlueprintToDbkPersistent(masterCtx, schoolDbkId, 'Premier Academy');
+    await businessDnaManager.bindBlueprintToDbkPersistent(masterCtx, schoolDbkId, 'Premier Academy', 'school_v1', '1.0.0');
     if (!schoolDbkId || res.status !== 'ACTIVE') {
       throw new Error(`Failed to provision school DBK: ${JSON.stringify(res)}`);
     }
@@ -165,7 +165,7 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
       primaryBranchName: 'Industrial Area Yard',
     });
     hardwareDbkId = res.dbkId;
-    await businessDnaManager.bindBlueprintToDbkPersistent(masterCtx, hardwareDbkId, 'Apex Hardware & Timber');
+    await businessDnaManager.bindBlueprintToDbkPersistent(masterCtx, hardwareDbkId, 'Apex Hardware & Timber', 'hardware_v1', '1.0.0');
     if (!hardwareDbkId || res.status !== 'ACTIVE') {
       throw new Error(`Failed to provision hardware DBK: ${JSON.stringify(res)}`);
     }
@@ -182,7 +182,7 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
       primaryBranchName: 'Westlands Hub',
     });
     clinicDbkId = res.dbkId;
-    await businessDnaManager.bindBlueprintToDbkPersistent(masterCtx, clinicDbkId, 'Afyangu Clinic');
+    await businessDnaManager.bindBlueprintToDbkPersistent(masterCtx, clinicDbkId, 'Afyangu Clinic', 'clinic_v1', '1.0.0');
     if (!clinicDbkId || res.status !== 'ACTIVE') {
       throw new Error(`Failed to provision clinic DBK: ${JSON.stringify(res)}`);
     }
