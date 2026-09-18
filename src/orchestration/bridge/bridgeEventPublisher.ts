@@ -6,9 +6,9 @@
  * result after the bridge has reported success.
  */
 
-import { EventEnvelope } from './events/types';
-import { eventBus } from './events/eventBus';
-import { outboxEngine } from './outbox/outboxEngine';
+import { EventEnvelope } from '../events/types';
+import { eventBus } from '../events/eventBus';
+import { outboxEngine } from '../outbox/outboxEngine';
 
 export async function publishBridgeEvent(event: EventEnvelope): Promise<void> {
   if (process.env.NODE_ENV === 'production') {
