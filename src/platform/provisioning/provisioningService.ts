@@ -153,7 +153,12 @@ export class ProvisioningService {
       const dbkId = input.dbkId as string;
       const tier = (input.subscriptionTier as any) || 'FOUNDATION';
 
-      entitlementEngine.setDbkSubscriptionTier(dbkId, tier);
+      // Subscription tier is already persisted on the authoritative DBK identity.
+      // Do not create a second process-local entitlement authority here.
+      const durableDbk = await dbkRegistry.getDbkInternal(dbkId);
+      if (!durableDbk || durableDbk.subscriptionTier !== tier) {
+        return { success: false, error: 'Durable DBK subscription tier does not match provisioning request', failureClassification: 'PERMANENT' };
+      }
       return { success: true, output: { subscriptionTier: tier } };
     });
 
