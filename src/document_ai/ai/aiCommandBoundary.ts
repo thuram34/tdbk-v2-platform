@@ -303,7 +303,7 @@ export class AiCommandBoundary {
     if (proposal.status === 'EXECUTING') {
       const executionRecordId = proposal.executionResult?.recordId;
       if (proposal.proposalType === 'PROPOSE_RECORD_PAYMENT') {
-        const transactionId = String(executionRecordId || proposal.suggestedPayload.transactionId || `txn_ai_${proposalId}`);
+        const transactionId = String(proposal.executionResult?.recordId || proposal.suggestedPayload.transactionId || `txn_ai_${proposalId}`);
         const recovered = await financialTransactionService.get(tenantId, transactionId);
         if (recovered?.status === 'POSTED') {
           await receiptService.createFromPostedTransaction(tenantId, transactionId, ctx.principal.id);
@@ -325,8 +325,9 @@ export class AiCommandBoundary {
       if (proposal.proposalType === 'PROPOSE_ADMIT_STUDENT' || proposal.proposalType === 'PROPOSE_BOOK_WAYBILL') {
         const entityType = proposal.proposalType === 'PROPOSE_ADMIT_STUDENT' ? 'student_records' : 'waybill_booking';
         const records = await entityEngine.listPersistentRecords(ctx, tenantId, entityType, proposal.branchId);
-        const recovered = executionRecordId
-          ? records.find((record) => record.id === executionRecordId)
+        const recoveredRecordId = proposal.executionResult?.recordId;
+        const recovered = recoveredRecordId
+          ? records.find((record) => record.id === recoveredRecordId)
           : undefined;
         if (recovered) {
           const recoveredProposal = await aiProposalRepository.transitionProposal(
