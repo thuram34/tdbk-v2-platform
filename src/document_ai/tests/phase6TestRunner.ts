@@ -615,7 +615,7 @@ export async function runPhase6TestSuite(): Promise<Phase6TestSummary> {
   await runTest('P6_TEST_28', 'Rejected proposal does not mutate business truth', async () => {
     const countBefore = entityEngine.listRecords(schoolAdminCtx, schoolDbkId, 'student_records').length;
 
-    const prop = aiCommandBoundary.createProposal(schoolAdminCtx, {
+    const prop = await aiCommandBoundary.createPersistentProposal(schoolAdminCtx, {
       tenantId: schoolDbkId,
       branchId: 'tenant_school_01_hq',
       proposalType: 'PROPOSE_ADMIT_STUDENT',
@@ -894,7 +894,7 @@ export async function runPhase6TestSuite(): Promise<Phase6TestSummary> {
   });
 
   await runTest('P6_TEST_49', 'AI proposal cannot self-approve (Anti-Self-Approval barrier)', async () => {
-    const prop = aiCommandBoundary.createProposal(schoolAdminCtx, {
+    const prop = await aiCommandBoundary.createPersistentProposal(schoolAdminCtx, {
       tenantId: schoolDbkId,
       branchId: 'tenant_school_01_hq',
       proposalType: 'PROPOSE_ADMIT_STUDENT',
