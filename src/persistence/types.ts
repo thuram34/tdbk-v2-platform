@@ -109,7 +109,8 @@ export interface IAiProposalRepository {
     expectedStatus: import('../document_ai/types').ProposalStatus,
     nextStatus: import('../document_ai/types').ProposalStatus,
     reviewedBy: string,
-    adjustedPayload?: Record<string, any>
+    adjustedPayload?: Record<string, any>,
+    metadataPatch?: Partial<Pick<AiProposedAction, 'rejectionReason' | 'executionResult'>>
   ): Promise<AiProposedAction>;
 }
 
