@@ -338,7 +338,35 @@ class WorkflowEngineService {
       workflow.status = 'RUNNING';
       await workflowInstanceRepository.saveWorkflow(workflow.tenantId, workflow.workflowId, workflow, workerId);
 
-    while (workflow.currentStepIndex < workflow.steps.length) {
+      // Keep long-running workflows from losing their durable execution lease while
+      // an external provider/step is still executing. The lease remains owned by
+      // this worker; if renewal fails, subsequent durable writes will be rejected.
+      const leaseDurationMs = 300000;
+      const leaseHeartbeatMs = 60000;
+      let leaseLost = false;
+      const leaseHeartbeat = durableWorkflow
+        ? setInterval(() => {
+            void workflowInstanceRepository
+              .renewExecutionLease(workflow.tenantId, workflow.workflowId, workerId, leaseDurationMs)
+              .then((renewed) => {
+                if (!renewed) leaseLost = true;
+              })
+              .catch(() => {
+                leaseLost = true;
+              });
+          }, leaseHeartbeatMs)
+        : null;
+
+      try {
+        while (workflow.currentStepIndex < workflow.steps.length) {
+          if (leaseLost) {
+            throw new KernelError(
+              'CONFLICT',
+              'Workflow execution lease was lost; refusing to continue with potentially stale state.',
+              409,
+              context.requestId
+            );
+          }
       const step = workflow.steps[workflow.currentStepIndex];
       const handler = this.stepHandlers.get(step.stepType);
 
@@ -504,8 +532,10 @@ class WorkflowEngineService {
 
     await eventBus.publish(completedEnvelope);
 
-    return workflow;
+        return workflow;
+      }
     } finally {
+      if (leaseHeartbeat) clearInterval(leaseHeartbeat);
       if (durableWorkflow) {
         await workflowInstanceRepository.releaseExecutionLease(workflow.tenantId, workflow.workflowId, workerId);
       }
