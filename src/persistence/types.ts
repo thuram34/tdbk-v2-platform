@@ -115,6 +115,23 @@ export interface LedgerEntry {
   immutable: true;
 }
 
+export interface FinancialReceipt {
+  receiptId: string;
+  tenantId: string;
+  transactionId: string;
+  providerReference: string;
+  amount: number;
+  currency: string;
+  status: 'CREATED';
+  createdAt: string;
+}
+
+export interface IReceiptRepository {
+  createIfAbsent(tenantId: string, receipt: FinancialReceipt, transaction: FirestoreTransaction, outboxRecord: OutboxRecord): Promise<boolean>;
+  getReceipt(tenantId: string, receiptId: string): Promise<FinancialReceipt | null>;
+  listReceipts(tenantId: string): Promise<FinancialReceipt[]>;
+}
+
 export interface IFinancialLedgerRepository {
   savePendingTransaction(transaction: FinancialTransaction): Promise<void>;
   postTransaction(transaction: FinancialTransaction, entries: LedgerEntry[]): Promise<void>;
