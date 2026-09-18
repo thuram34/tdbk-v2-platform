@@ -1,45 +1,194 @@
 /**
  * TDBK V2 — DURABLE FINANCIAL LEDGER REPOSITORY
- * Atomic transaction + balanced immutable double-entry posting.
+ *
+ * Canonical paths:
+ * /tenants/{tenantId}/financialTransactions/{transactionId}
+ * /tenants/{tenantId}/ledgerTransactions/{ledgerTransactionId}/entries/{entryId}
+ *
+ * Financial truth is committed atomically. Posted ledger entries are immutable:
+ * there is no update operation for an entry, and reversal creates counter-entries.
  */
-import { IFinancialLedgerRepository, FinancialTransaction, LedgerEntry } from '../../types';
+import {
+  IFinancialLedgerRepository,
+  FinancialTransaction,
+  LedgerEntry,
+  FirestoreTransaction,
+} from '../../types';
 import { firestoreClient } from '../firestoreClient';
+
 export class FinancialLedgerRepository implements IFinancialLedgerRepository {
   private static instance: FinancialLedgerRepository;
+
   private constructor() {}
-  public static getInstance(): FinancialLedgerRepository { return this.instance ??= new FinancialLedgerRepository(); }
-  private txPath(t:string,id:string){return `/tenants/${t}/financial_transactions/${id}`;}
-  private entryPath(t:string,id:string){return `/tenants/${t}/ledger_entries/${id}`;}
-  public async savePendingTransaction(transaction: FinancialTransaction): Promise<void> {
-    if (!transaction.tenantId || transaction.status !== 'PENDING' || transaction.amount <= 0 || !Number.isFinite(transaction.amount)) {
-      throw new Error('Invalid pending financial transaction');
+
+  public static getInstance(): FinancialLedgerRepository {
+    return (this.instance ??= new FinancialLedgerRepository());
+  }
+
+  private transactionPath(tenantId: string, transactionId: string): string {
+    return `/tenants/${tenantId}/financialTransactions/${transactionId}`;
+  }
+
+  private ledgerPath(tenantId: string, transactionId: string): string {
+    return `/tenants/${tenantId}/ledgerTransactions/${transactionId}`;
+  }
+
+  private entryPath(tenantId: string, transactionId: string, entryId: string): string {
+    return `${this.ledgerPath(tenantId, transactionId)}/entries/${entryId}`;
+  }
+
+  private assertValidTransaction(transaction: FinancialTransaction): void {
+    if (!transaction.tenantId || !transaction.transactionId) throw new Error('Financial transaction identity is required');
+    if (!Number.isFinite(transaction.amount) || transaction.amount <= 0) throw new Error('Financial transaction amount must be positive');
+    if (!transaction.currency) throw new Error('Financial transaction currency is required');
+    if (!transaction.providerReference) throw new Error('Financial transaction provider reference is required');
+  }
+
+  private assertBalanced(transaction: FinancialTransaction, entries: LedgerEntry[]): void {
+    this.assertValidTransaction(transaction);
+    if (!entries.length) throw new Error('A financial transaction requires ledger entries');
+
+    const debit = entries.filter((entry) => entry.entryType === 'DEBIT').reduce((sum, entry) => sum + entry.amount, 0);
+    const credit = entries.filter((entry) => entry.entryType === 'CREDIT').reduce((sum, entry) => sum + entry.amount, 0);
+
+    if (!Number.isFinite(debit) || !Number.isFinite(credit)) throw new Error('Ledger amounts must be finite');
+    if (Math.abs(debit - credit) > 0.000001) throw new Error('Debit total must equal credit total');
+    if (Math.abs(debit - transaction.amount) > 0.000001) throw new Error('Ledger total must equal transaction amount');
+
+    for (const entry of entries) {
+      if (
+        entry.transactionId !== transaction.transactionId ||
+        entry.tenantId !== transaction.tenantId ||
+        entry.currency !== transaction.currency ||
+        !Number.isFinite(entry.amount) ||
+        entry.amount <= 0 ||
+        entry.immutable !== true
+      ) {
+        throw new Error('Invalid immutable ledger entry');
+      }
     }
-    await firestoreClient.runTransaction(async tx => {
-      const path = this.txPath(transaction.tenantId, transaction.transactionId);
+  }
+
+  private writePostedState(
+    tx: FirestoreTransaction,
+    transaction: FinancialTransaction,
+    entries: LedgerEntry[],
+  ): Promise<void> {
+    return (async () => {
+      await tx.set(this.transactionPath(transaction.tenantId, transaction.transactionId), transaction);
+      await tx.set(this.ledgerPath(transaction.tenantId, transaction.transactionId), {
+        ledgerTransactionId: transaction.transactionId,
+        tenantId: transaction.tenantId,
+        transactionId: transaction.transactionId,
+        status: 'POSTED',
+        amount: transaction.amount,
+        currency: transaction.currency,
+        postedAt: transaction.postedAt,
+        createdAt: transaction.createdAt,
+      });
+      for (const entry of entries) {
+        await tx.set(this.entryPath(transaction.tenantId, transaction.transactionId, entry.entryId), entry);
+      }
+    })();
+  }
+
+  public async savePendingTransaction(transaction: FinancialTransaction): Promise<void> {
+    this.assertValidTransaction(transaction);
+    if (transaction.status !== 'PENDING') throw new Error('Pending transaction must have PENDING status');
+
+    await firestoreClient.runTransaction(async (tx) => {
+      const path = this.transactionPath(transaction.tenantId, transaction.transactionId);
       const existing = await tx.get<FinancialTransaction>(path);
+
       if (existing) {
-        if (existing.providerReference !== transaction.providerReference || existing.amount !== transaction.amount) {
+        if (
+          existing.providerReference !== transaction.providerReference ||
+          existing.amount !== transaction.amount ||
+          existing.currency !== transaction.currency
+        ) {
           throw new Error('Conflicting financial transaction identity');
         }
         return;
       }
+
       await tx.set(path, transaction);
     });
   }
+
   public async postTransaction(transaction: FinancialTransaction, entries: LedgerEntry[]): Promise<void> {
-    if (!transaction.tenantId || transaction.amount <= 0 || !Number.isFinite(transaction.amount)) throw new Error('Invalid financial transaction');
-    const debit=entries.filter(e=>e.entryType==='DEBIT').reduce((s,e)=>s+e.amount,0);
-    const credit=entries.filter(e=>e.entryType==='CREDIT').reduce((s,e)=>s+e.amount,0);
-    if (!entries.length || Math.abs(debit-credit)>0.000001 || Math.abs(debit-transaction.amount)>0.000001) throw new Error('Unbalanced financial transaction');
-    if (entries.some(e=>e.transactionId!==transaction.transactionId||e.tenantId!==transaction.tenantId||e.immutable!==true)) throw new Error('Invalid ledger entry ownership');
-    await firestoreClient.runTransaction(async tx=>{
-      const existing=await tx.get<FinancialTransaction>(this.txPath(transaction.tenantId,transaction.transactionId));
-      if(existing) { if(existing.status!=='POSTED') throw new Error('Existing transaction is not posted'); return; }
-      await tx.set(this.txPath(transaction.tenantId,transaction.transactionId),transaction);
-      for(const entry of entries) await tx.set(this.entryPath(transaction.tenantId,entry.entryId),entry);
+    this.assertBalanced(transaction, entries);
+    if (transaction.status !== 'POSTED') throw new Error('Posted transaction must have POSTED status');
+
+    await firestoreClient.runTransaction(async (tx) => {
+      const existing = await tx.get<FinancialTransaction>(
+        this.transactionPath(transaction.tenantId, transaction.transactionId)
+      );
+
+      if (existing) {
+        if (
+          existing.status === 'POSTED' &&
+          existing.amount === transaction.amount &&
+          existing.providerReference === transaction.providerReference
+        ) {
+          return;
+        }
+        throw new Error('Financial transaction already exists in a non-posted or conflicting state');
+      }
+
+      await this.writePostedState(tx, transaction, entries);
     });
   }
-  public async getTransaction(tenantId:string,transactionId:string){return firestoreClient.get<FinancialTransaction>(this.txPath(tenantId,transactionId));}
-  public async listEntries(tenantId:string,transactionId:string){const all=await firestoreClient.listCollection<LedgerEntry>(`/tenants/${tenantId}/ledger_entries`);return all.filter(e=>e.transactionId===transactionId);}
+
+  public async reverseTransaction(
+    tenantId: string,
+    transactionId: string,
+    reversalTransaction: FinancialTransaction,
+    reversalEntries: LedgerEntry[],
+  ): Promise<void> {
+    if (reversalTransaction.reversalOfTransactionId !== transactionId) {
+      throw new Error('Reversal must reference the original transaction');
+    }
+    this.assertBalanced(reversalTransaction, reversalEntries);
+    if (reversalTransaction.status !== 'POSTED') throw new Error('Reversal transaction must be POSTED');
+
+    await firestoreClient.runTransaction(async (tx) => {
+      const originalPath = this.transactionPath(tenantId, transactionId);
+      const original = await tx.get<FinancialTransaction>(originalPath);
+
+      if (!original) throw new Error('Original financial transaction not found');
+      if (original.status === 'REVERSED') return;
+      if (original.status !== 'POSTED') throw new Error('Only POSTED transactions can be reversed');
+      if (original.tenantId !== tenantId) throw new Error('Cross-tenant reversal denied');
+      if (reversalTransaction.amount !== original.amount || reversalTransaction.currency !== original.currency) {
+        throw new Error('Reversal amount/currency must match original transaction');
+      }
+
+      const reversalPath = this.transactionPath(tenantId, reversalTransaction.transactionId);
+      const existingReversal = await tx.get<FinancialTransaction>(reversalPath);
+      if (existingReversal) {
+        if (existingReversal.reversalOfTransactionId !== transactionId) {
+          throw new Error('Conflicting reversal transaction identity');
+        }
+        return;
+      }
+
+      await tx.update<FinancialTransaction>(originalPath, {
+        status: 'REVERSED',
+        reversedAt: reversalTransaction.postedAt,
+      });
+      await this.writePostedState(tx, reversalTransaction, reversalEntries);
+    });
+  }
+
+  public async getTransaction(tenantId: string, transactionId: string): Promise<FinancialTransaction | null> {
+    return firestoreClient.get<FinancialTransaction>(this.transactionPath(tenantId, transactionId));
+  }
+
+  public async listEntries(tenantId: string, transactionId: string): Promise<LedgerEntry[]> {
+    return firestoreClient.listCollection<LedgerEntry>(
+      `${this.ledgerPath(tenantId, transactionId)}/entries`
+    );
+  }
 }
-export const financialLedgerRepository=FinancialLedgerRepository.getInstance();
+
+export const financialLedgerRepository = FinancialLedgerRepository.getInstance();
