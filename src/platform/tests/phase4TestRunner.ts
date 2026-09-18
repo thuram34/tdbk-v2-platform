@@ -706,7 +706,7 @@ export async function runPhase4TestSuite(): Promise<Phase4TestSummary> {
 
   // P4_TEST_40: Unrelated sector capability remains inaccessible
   await runTest('P4_TEST_40', 'Unrelated sector capability remains inaccessible', async () => {
-    const hardwareSurface = discoveryEngine.discoverCapabilitiesForDbk(tenantContextHardware, 'tenant_p4_hardware_01');
+    const hardwareSurface = await discoveryEngine.discoverCapabilitiesForDbk(tenantContextHardware, 'tenant_p4_hardware_01');
     const schoolCapInHardware = hardwareSurface.availableCapabilities.find((c) => c.capabilityId === 'school_academics');
     if (schoolCapInHardware) {
       throw new Error('Hardware DBK was improperly exposed to school_academics capability');
