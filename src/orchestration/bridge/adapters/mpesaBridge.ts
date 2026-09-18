@@ -74,16 +74,46 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
       };
     }
 
-    return {
-      status: 'UNAVAILABLE',
-      details: {
-        provider: this.provider,
-        version: this.version,
-        reason: 'PROVIDER_CLIENT_NOT_CONNECTED',
-        connectionId: connection.connectionId,
-        configurationVersion: connection.configurationVersion,
-      },
-    };
+    if (process.env.NODE_ENV !== 'production') {
+      return {
+        status: 'HEALTHY',
+        details: { provider: this.provider, version: this.version, mode: 'DEVELOPMENT_MOCK' },
+      };
+    }
+
+    try {
+      const consumerKey = await this.connectionSecret(connection, 'MPESA_CONSUMER_KEY', 'consumerKey');
+      const consumerSecret = await this.connectionSecret(connection, 'MPESA_CONSUMER_SECRET', 'consumerSecret');
+      const baseUrl = this.connectionParameter(connection, 'MPESA_BASE_URL', 'baseUrl') || 'https://api.safaricom.co.ke';
+      const oauthPath = this.connectionParameter(connection, 'MPESA_OAUTH_PATH', 'oauthPath') || '/oauth/v1/generate?grant_type=client_credentials';
+      if (!consumerKey || !consumerSecret) {
+        return {
+          status: 'ERROR',
+          details: { provider: this.provider, version: this.version, reason: 'CREDENTIALS_MISSING' },
+        };
+      }
+      const tokenResponse = await fetch(`${baseUrl.replace(/\\/$/, '')}${oauthPath}`, {
+        headers: {
+          Authorization: `Basic ${Buffer.from(`${consumerKey}:${consumerSecret}`).toString('base64')}`,
+          Accept: 'application/json',
+        },
+      });
+      if (!tokenResponse.ok) {
+        return {
+          status: 'ERROR',
+          details: { provider: this.provider, version: this.version, reason: 'DARaja_AUTH_FAILED', httpStatus: tokenResponse.status },
+        };
+      }
+      return {
+        status: 'HEALTHY',
+        details: { provider: this.provider, version: this.version, connectionId: connection.connectionId },
+      };
+    } catch (error: any) {
+      return {
+        status: 'ERROR',
+        details: { provider: this.provider, version: this.version, reason: error?.message || 'PROVIDER_UNAVAILABLE' },
+      };
+    }
   }
 
   private connectionParameter(connection: { parameters: Record<string, string> }, ...names: string[]): string | undefined {
