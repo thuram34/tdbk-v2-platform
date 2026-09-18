@@ -225,7 +225,7 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
     await financialLedgerRepository.savePendingTransaction({
       transactionId: initiationId,
       tenantId,
-      branchId: initiatedBranchId,
+      branchId: context.branchContext?.branchId || null,
       source: 'MPESA',
       providerReference: initiationReference,
       amount: payload.amount,
@@ -284,7 +284,7 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
       const boundTransaction = {
         transactionId: `mpesa_${checkoutRequestId}`,
         tenantId,
-        branchId: initiatedBranchId,
+        branchId: context.branchContext?.branchId || null,
         source: 'MPESA' as const,
         providerReference: checkoutRequestId,
         amount: payload.amount,
@@ -312,7 +312,7 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
         eventVersion: 'v1',
         occurredAt,
         tenantId,
-        branchId: initiatedBranchId,
+        branchId: context.branchContext?.branchId || null,
         principalId: context.principal.id,
         correlationId: context.correlationId,
         causationId: requestId,
@@ -429,6 +429,7 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
     const callbackKey = `mpesa_callback_${stk.CheckoutRequestID}`;
     const idempotencyTenant = callbackTenant || requestTenant || 'unknown';
     const normalized = this.normalizeResponse(rawCallback);
+    let initiatedBranchId: string | null = context.branchContext?.branchId || null;
     let initiatedBranchId: string | null = context.branchContext?.branchId || null;
 
     // In production, a callback is only a claim about a previously initiated payment.
