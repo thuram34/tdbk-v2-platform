@@ -485,7 +485,7 @@ export class Phase3TestRunner {
       mpesaAdapter.registerPendingTransaction('CO_TEST_30', 'tenant_school_a', 'corr_test_30');
 
       const rawCb = {
-        Body: { stkCallback: { MerchantRequestID: 'MR_TEST', CheckoutRequestID: 'CO_DUP_TEST', ResultCode: 0, ResultDesc: 'Success' } },
+        Body: { stkCallback: { MerchantRequestID: 'MR_TEST', CheckoutRequestID: 'CO_DUP_TEST', ResultCode: 0, ResultDesc: 'Success', CallbackMetadata: { Item: [{ Name: 'Amount', Value: 100 }] } } },
         signature: 'VALID_SIG',
         tenantId: 'tenant_school_a',
         correlationId: 'corr_cb_dup',
