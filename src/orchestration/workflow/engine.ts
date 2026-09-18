@@ -134,6 +134,7 @@ class WorkflowEngineService {
       source: 'WorkflowEngine',
       payload: { workflowId, workflowType, workflowVersion },
       metadata,
+      metadata: {},
     };
 
     if (publishLifecycleEvent) {
@@ -171,6 +172,7 @@ class WorkflowEngineService {
       causationId: null,
       source: 'WorkflowEngine',
       payload: { workflowId: workflow.workflowId, workflowType, workflowVersion }
+      metadata: {},
     };
 
     const startedRecord: OutboxRecord = {
@@ -562,6 +564,7 @@ class WorkflowEngineService {
             causationId: step.stepId,
             source: 'WorkflowEngine',
             payload: { workflowId, failedStepId: step.stepId, reason: step.error }
+      metadata: {},
           };
           const failedRecord = this.buildLifecycleOutboxRecord(failedEnvelope);
           await workflowInstanceRepository.saveWorkflowWithOutbox(workflow.tenantId, workflow.workflowId, workflow, failedRecord, workerId);
@@ -589,6 +592,7 @@ class WorkflowEngineService {
       causationId: null,
       source: 'WorkflowEngine',
       payload: { workflowId, status: 'COMPLETED' }
+      metadata: {},
     };
 
     // Terminal workflow state and lifecycle outbox event commit atomically.
@@ -692,7 +696,6 @@ class WorkflowEngineService {
       correlationId: durable.correlationId,
       causationId: durable.causationId,
       source: durable.source,
-      metadata: durable.metadata,
       availableAt: durable.availableAt,
       leaseOwner: durable.leaseOwner,
       leaseUntil: durable.leaseUntil,
