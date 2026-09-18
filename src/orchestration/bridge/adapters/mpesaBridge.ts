@@ -228,6 +228,18 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
       throw new KernelError('VALIDATION_ERROR', 'Unknown provider reference cannot mutate tenant state', 404, context.requestId);
     }
 
+    const callbackTenant = rawCallback.tenantId || context.tenantContext?.tenantId;
+    const requestTenant = context.tenantContext?.tenantId || context.principal.tenantId;
+
+    if (callbackTenant && requestTenant && callbackTenant !== requestTenant && !context.principal.isMaster) {
+      auditLogger.logEvent('TENANT_ISOLATION_VIOLATION', context.principal.id, 'MUTATE_STATE_CROSS_TENANT', `bridge:${this.bridgeId}`, 'DENIED', {
+        tenantId: requestTenant,
+        requestId: context.requestId,
+        details: { targetTenant: callbackTenant },
+      });
+      throw new KernelError('TENANT_ISOLATION_ERROR', `Cross-Tenant Mutation Denied: Callback for tenant '${callbackTenant}' cannot alter tenant '${requestTenant}'`, 403, context.requestId);
+    }
+
     const callbackKey = `mpesa_callback_${stk.CheckoutRequestID}_${stk.ResultCode}`;
     const idempotencyTenant = callbackTenant || requestTenant || 'unknown';
     const existing = await idempotencyRepository.getIdempotencyRecord(idempotencyTenant, callbackKey);
@@ -252,20 +264,6 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
 
     const callbackTenant = rawCallback.tenantId || context.tenantContext?.tenantId;
     const requestTenant = context.tenantContext?.tenantId || context.principal.tenantId;
-
-    if (callbackTenant && requestTenant && callbackTenant !== requestTenant && !context.principal.isMaster) {
-      auditLogger.logEvent('TENANT_ISOLATION_VIOLATION', context.principal.id, 'MUTATE_STATE_CROSS_TENANT', `bridge:${this.bridgeId}`, 'DENIED', {
-        tenantId: requestTenant,
-        requestId: context.requestId,
-        details: { targetTenant: callbackTenant },
-      });
-      throw new KernelError(
-        'TENANT_ISOLATION_ERROR',
-        `Cross-Tenant Mutation Denied: Callback for tenant '${callbackTenant}' cannot alter tenant '${requestTenant}'`,
-        403,
-        context.requestId
-      );
-    }
 
     const normalized = this.normalizeResponse(rawCallback);
 
@@ -295,6 +293,11 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
     });
 
     return normalized;
+  }
+
+  /** Legacy test-hook retained for compatibility; authoritative callback identity comes from the signed request context. */
+  public registerPendingTransaction(_checkoutRequestId: string, _tenantId: string, _correlationId?: string): void {
+    // Intentionally no in-memory business state. Durable callback idempotency is authoritative.
   }
 
   public normalizeResponse(rawResponse: any): NormalizedBridgeResult<any> {
