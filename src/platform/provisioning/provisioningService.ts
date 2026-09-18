@@ -186,7 +186,7 @@ export class ProvisioningService {
       );
 
       let initializedCount = 0;
-      compatible.forEach((cap) => {
+      for (const cap of compatible) {
         const isEntitled = entitlementEngine.isTierSatisfied(tier, cap.entitlementRequirements.minimumTier);
         const isDefaultInBp = defaultCapIds.has(cap.capabilityId);
 
@@ -199,7 +199,9 @@ export class ProvisioningService {
           }
         }
 
-        dbkCapabilityManager.saveDbkCapabilityRecord(mockCtx, {
+        // Capability state is business truth. Provisioning must not report
+        // success until the initialized record is durably committed.
+        const record = dbkCapabilityManager.saveDbkCapabilityRecord(mockCtx, {
           dbkId,
           capabilityId: cap.capabilityId,
           capabilityVersion: cap.version,
@@ -210,8 +212,9 @@ export class ProvisioningService {
           entitlement: isEntitled ? 'ENTITLED' : 'UPGRADE_REQUIRED',
           updatedAt: new Date().toISOString(),
         });
+        await dbkCapabilityManager.persistCapabilityRecord(mockCtx, record);
         initializedCount++;
-      });
+      }
 
       return { success: true, output: { initializedCapabilities: initializedCount } };
     });
