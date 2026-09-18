@@ -342,8 +342,7 @@ class WorkflowEngineService {
     workflow = durableExecution;
     this.workflows.set(workflow.workflowId, workflow);
 
-    try {
-      workflow.status = 'RUNNING';
+    workflow.status = 'RUNNING';
       await workflowInstanceRepository.saveWorkflow(workflow.tenantId, workflow.workflowId, workflow, workerId);
 
       // Keep long-running workflows from losing their durable execution lease while
