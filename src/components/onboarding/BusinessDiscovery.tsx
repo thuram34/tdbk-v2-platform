@@ -158,7 +158,7 @@ export function BusinessDiscovery({ onProvisioned }: BusinessDiscoveryProps) {
           displayName: businessName.trim(),
           blueprintId: selectedBlueprint.id,
           blueprintVersion: selectedBlueprint.version,
-          subscriptionTier: 'PROFESSIONAL',
+          subscriptionTier: 'FOUNDATION',
           primaryBranchName: branchName.trim() || 'Head Office',
         }),
       });
@@ -276,7 +276,7 @@ export function BusinessDiscovery({ onProvisioned }: BusinessDiscoveryProps) {
             <section className="rounded-2xl border border-neutral-200 bg-white p-6 sm:p-8 shadow-sm">
               <div className="flex items-center gap-2 text-emerald-700 text-xs font-bold uppercase tracking-wider"><Sparkles className="w-4 h-4" /> This is what TDBK understands</div>
               <h2 className="mt-3 text-2xl font-serif font-bold">{businessName}</h2>
-              <div className="mt-5 grid md:grid-cols-3 gap-4 text-sm"><div className="rounded-xl bg-neutral-50 p-4"><div className="text-[10px] uppercase text-neutral-500">Operating model</div><div className="font-semibold mt-1">{selectedBlueprint.name}</div></div><div className="rounded-xl bg-neutral-50 p-4"><div className="text-[10px] uppercase text-neutral-500">Primary location</div><div className="font-semibold mt-1">{branchName || 'Head Office'}</div></div><div className="rounded-xl bg-neutral-50 p-4"><div className="text-[10px] uppercase text-neutral-500">Subscription</div><div className="font-semibold mt-1">Professional</div></div></div>
+              <div className="mt-5 grid md:grid-cols-3 gap-4 text-sm"><div className="rounded-xl bg-neutral-50 p-4"><div className="text-[10px] uppercase text-neutral-500">Operating model</div><div className="font-semibold mt-1">{selectedBlueprint.name}</div></div><div className="rounded-xl bg-neutral-50 p-4"><div className="text-[10px] uppercase text-neutral-500">Primary location</div><div className="font-semibold mt-1">{branchName || 'Head Office'}</div></div><div className="rounded-xl bg-neutral-50 p-4"><div className="text-[10px] uppercase text-neutral-500">Subscription</div><div className="font-semibold mt-1">Foundation</div></div></div>
               {narrative && <p className="mt-5 text-sm text-neutral-600 leading-relaxed">{narrative}</p>}
               <div className="mt-6"><div className="text-xs font-bold uppercase tracking-wider text-neutral-500 mb-3">Selected capabilities</div><div className="flex flex-wrap gap-2">{selectedCapabilities.map((id) => <span key={id} className="inline-flex items-center gap-1.5 rounded-full bg-neutral-100 px-3 py-1.5 text-xs"><WalletCards className="w-3.5 h-3.5" />{selectedBlueprint.supportedCapabilities?.find((capability) => capability.id === id)?.name || id}</span>)}</div></div>
             </section>
