@@ -148,6 +148,11 @@ export class AiCommandBoundary {
     }
   ): AiProposedAction {
     tenantIsolation.assertTenantIsolation(ctx.principal, params.tenantId);
+    aiSecurityGuard.validateProposalIntegrity(ctx, params.tenantId, {
+      tenantId: params.tenantId,
+      proposalType: params.proposalType,
+      suggestedPayload: params.suggestedPayload,
+    });
     if (params.branchId) {
       const branch = branchManager.getBranch(ctx, params.tenantId, params.branchId);
       if (!branch) {
