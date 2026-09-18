@@ -196,10 +196,92 @@ export class ActivationEvaluatorService {
       };
     }
 
-    entitlementEngine.setDbkSubscriptionTier(dbkId, dbk.subscriptionTier);
     await dbkCapabilityManager.hydratePersistentCapabilities(securityContext, dbkId);
 
-    return this.evaluateActivation(securityContext, dbkId, capabilityId, dnaOverride);
+    const cap = capabilityRegistry.getCapability(capabilityId);
+    if (!cap) {
+      return {
+        allowed: false,
+        outcome: 'DENIED',
+        message: `Capability '${capabilityId}' is not registered in TDBK platform`,
+        capabilityId,
+        dbkId,
+      };
+    }
+
+    if (cap.lifecycleStatus === 'SUSPENDED') {
+      return {
+        allowed: false,
+        outcome: 'SUSPENDED',
+        message: `Capability '${cap.name}' is currently suspended platform-wide by TDBK Master`,
+        capabilityId,
+        dbkId,
+      };
+    }
+
+    const dna = dnaOverride || await businessDnaManager.getPersistentBusinessDna(securityContext, dbkId);
+    const sector = dna.identity.businessType as string;
+    const isBlueprintSupported =
+      (cap.supportedBlueprints as string[]).includes('ALL') ||
+      (cap.supportedBlueprints as string[]).includes(sector);
+
+    if (!isBlueprintSupported) {
+      return {
+        allowed: false,
+        outcome: 'BLUEPRINT_UNSUPPORTED',
+        message: `Capability '${cap.name}' is not compatible with DBK Blueprint sector '${sector}'`,
+        capabilityId,
+        dbkId,
+      };
+    }
+
+    const entitlementStatus = await entitlementEngine.evaluatePersistentEntitlement(dbkId, cap);
+    if (entitlementStatus === 'UPGRADE_REQUIRED') {
+      return {
+        allowed: false,
+        outcome: 'UPGRADE_REQUIRED',
+        message: `Subscription upgrade required: Capability '${cap.name}' requires tier '${cap.entitlementRequirements.minimumTier}' or higher`,
+        capabilityId,
+        dbkId,
+        requiredTier: cap.entitlementRequirements.minimumTier,
+      };
+    }
+
+    const existingRecords = await dbkCapabilityManager.hydratePersistentCapabilities(securityContext, dbkId);
+    const enabledCapIds = existingRecords
+      .filter((record) => record.state === 'ENABLED' || record.state === 'CONFIGURED')
+      .map((record) => record.capabilityId);
+    const depEval = dependencyEngine.evaluateDependencies(cap, enabledCapIds);
+
+    if (!depEval.valid) {
+      return {
+        allowed: false,
+        outcome: 'DEPENDENCY_REQUIRED',
+        message: `Missing prerequisites: Capability '${cap.name}' requires dependencies [${depEval.missingDependencies.join(', ')}]`,
+        capabilityId,
+        dbkId,
+        missingDependencies: depEval.missingDependencies,
+      };
+    }
+
+    const existingRec = dbkCapabilityManager.getDbkCapabilityRecord(securityContext, dbkId, capabilityId);
+    if (cap.configurationSchema.requiresConfiguration && (!existingRec || !existingRec.configurationState.isConfigured)) {
+      return {
+        allowed: true,
+        outcome: 'CONFIGURATION_REQUIRED',
+        message: `Capability '${cap.name}' is entitled and eligible, but requires setup configuration before becoming fully operational`,
+        capabilityId,
+        dbkId,
+      };
+    }
+
+    return {
+      allowed: true,
+      outcome: 'ALLOWED',
+      message: `Capability '${cap.name}' is fully entitled and eligible for activation`,
+      capabilityId,
+      dbkId,
+    };
   }
 
 }
