@@ -215,6 +215,29 @@ export class DbkCapabilityManagerService {
     return await this.persistCapabilityRecord(securityContext, updated);
   }
 
+  /** Production-safe configuration path: always derives from durable state. */
+  public async configureCapabilityPersistent(
+    securityContext: SecurityContext,
+    dbkId: string,
+    capabilityId: string,
+    configData: Record<string, unknown>
+  ): Promise<DbkCapabilityRecord> {
+    await this.hydratePersistentCapability(securityContext, dbkId, capabilityId);
+    const updated = this.configureCapability(securityContext, dbkId, capabilityId, configData);
+    return await this.persistCapabilityRecord(securityContext, updated);
+  }
+
+  /** Production-safe disable path: always derives from durable state. */
+  public async disableCapabilityPersistent(
+    securityContext: SecurityContext,
+    dbkId: string,
+    capabilityId: string
+  ): Promise<DbkCapabilityRecord> {
+    await this.hydratePersistentCapability(securityContext, dbkId, capabilityId);
+    const updated = this.disableCapability(securityContext, dbkId, capabilityId);
+    return await this.persistCapabilityRecord(securityContext, updated);
+  }
+
   /**
    * Configures a capability for a DBK.
    */
