@@ -15,7 +15,6 @@ import { KernelError } from '../../kernel/errors/kernelErrors';
 import { eventBus } from '../events/eventBus';
 import { EventEnvelope } from '../events/types';
 import { workflowInstanceRepository } from '../../persistence/firestore/repositories/workflowInstanceRepository';
-import { outboxEngine } from '../outbox/outboxEngine';
 import { outboxRepository } from '../../persistence/firestore/repositories/outboxRepository';
 
 class WorkflowEngineService {
