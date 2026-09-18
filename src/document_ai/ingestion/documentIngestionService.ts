@@ -23,6 +23,7 @@ import { KernelError } from '../../kernel/errors/kernelErrors';
 import { auditLogger } from '../../kernel/audit/auditLogger';
 import { documentStore } from '../storage/documentStore';
 import { eventBus } from '../../orchestration/events/eventBus';
+import { outboxEngine } from '../../orchestration/outbox/outboxEngine';
 import { dbkRegistry } from '../../platform/dbkRegistry';
 
 export interface IngestDocumentRequest {
@@ -190,10 +191,10 @@ export class DocumentIngestionService {
       }
     });
 
-    // 9. Emit event on EventBus
-    eventBus.publish({
-      eventId: `evt_doc_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-      eventType: 'document.ingested.v1',
+    // 9. Commit the lifecycle event to the durable outbox before returning success.
+    const eventEnvelope = {
+      eventId: `evt_doc_${documentId}_ingested`,
+      eventType: 'document.ingested.v1' as const,
       eventVersion: 'v1',
       source: 'document_ingestion_service',
       tenantId: req.tenantId,
@@ -202,14 +203,10 @@ export class DocumentIngestionService {
       correlationId: ctx.correlationId || `corr_${Date.now()}`,
       causationId: req.causationId || null,
       occurredAt: new Date().toISOString(),
-      payload: {
-        documentId,
-        fileName: req.fileName,
-        documentType,
-        checksum,
-      },
+      payload: { documentId, fileName: req.fileName, documentType, checksum },
       metadata: {},
-    });
+    };
+    await outboxEngine.enqueueEvent(req.tenantId, eventEnvelope, undefined, ctx.principal.id);
 
     return metadata;
   }
