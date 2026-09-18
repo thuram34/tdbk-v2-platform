@@ -12,6 +12,8 @@ import { KernelError } from '../../kernel/errors/kernelErrors';
 import { ConnectorConnection, ConnectorConnectionStatus } from '../../persistence/types';
 import { connectorConnectionRepository } from '../../persistence/firestore/repositories/connectorConnectionRepository';
 import { bridgeRegistry } from './registry';
+import { rbacEngine } from '../../kernel/authorization/rbacEngine';
+import { auditLogger } from '../../kernel/audit/auditLogger';
 import { Bridge } from './types';
 
 export interface ConnectionHealthResult {
@@ -75,11 +77,27 @@ class ConnectionHubService {
   }
 
   public async setStatus(context: SecurityContext, bridgeId: string, status: ConnectorConnectionStatus, enabled: boolean): Promise<ConnectorConnection> {
+    const tenantId = this.tenantId(context);
+    if (!context.principal.isMaster && !rbacEngine.hasPermission(context.principal, 'connectors:write')) {
+      auditLogger.logAuditEvent(context, {
+        action: 'CONNECTION_STATUS_CHANGE_DENIED',
+        targetResource: `connection:${bridgeId}`,
+        outcome: 'DENIED',
+        details: { tenantId, requestedStatus: status, enabled },
+      });
+      throw new KernelError('AUTHORIZATION_ERROR', 'Permission connectors:write required to change bridge connection state', 403, context.requestId);
+    }
     const connection = await this.getConnection(context, bridgeId);
     if (!connection) throw new KernelError('INTEGRATION_UNAVAILABLE', `Bridge '${bridgeId}' connection not found`, 404, context.requestId);
-    if (connection.tenantId !== this.tenantId(context)) throw new KernelError('TENANT_ISOLATION_ERROR', 'Cross-tenant connection mutation denied', 403, context.requestId);
+    if (connection.tenantId !== tenantId) throw new KernelError('TENANT_ISOLATION_ERROR', 'Cross-tenant connection mutation denied', 403, context.requestId);
     const updated: ConnectorConnection = { ...connection, status, enabled, updatedAt: new Date().toISOString() };
     await connectorConnectionRepository.saveConnection(connection.tenantId, connection.connectionId, updated);
+    auditLogger.logAuditEvent(context, {
+      action: 'CONNECTION_STATUS_CHANGED',
+      targetResource: `connection:${bridgeId}`,
+      outcome: 'ALLOWED',
+      details: { tenantId, status, enabled, configurationVersion: updated.configurationVersion },
+    });
     return updated;
   }
 }
