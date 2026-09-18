@@ -51,6 +51,10 @@ export class IdempotencyRepository implements IIdempotencyRepository {
     await firestoreClient.runTransaction(async (transaction) => {
       const existing = await transaction.get<IdempotencyRecord>(path);
       if (!existing) throw new Error('Cannot complete missing idempotency record');
+      if (existing.status === 'COMPLETED') return;
+      if (existing.status !== 'IN_PROGRESS') {
+        throw new Error(`Cannot complete idempotency record in status '${existing.status}'`);
+      }
       await transaction.update<IdempotencyRecord>(path, {
         status: 'COMPLETED',
         responsePayload,
@@ -66,7 +70,8 @@ export class IdempotencyRepository implements IIdempotencyRepository {
     const path = this.getPath(tenantId, key);
     await firestoreClient.runTransaction(async (transaction) => {
       const existing = await transaction.get<IdempotencyRecord>(path);
-      if (!existing) return;
+      if (!existing || existing.status === 'COMPLETED') return;
+      if (existing.status !== 'IN_PROGRESS') return;
       await transaction.update<IdempotencyRecord>(path, {
         status: 'FAILED',
         responsePayload,
