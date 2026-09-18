@@ -419,7 +419,7 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
   // -------------------------------------------------------------
   await runTest('P5_TEST_19', 'Multi-branch Hardware DBK reports all available branches in resolved experience', async () => {
     // Add a second branch to hardware DBK
-    branchManager.createSecondaryBranch(masterCtx, hardwareDbkId, {
+    await branchManager.createSecondaryBranch(masterCtx, hardwareDbkId, {
       branchId: 'br_apex_mombasa',
       name: 'Mombasa Road Branch',
       type: 'RETAIL_OUTLET',
