@@ -65,6 +65,39 @@ export class SubscriptionRepository implements ISubscriptionRepository {
     return updated;
   }
 
+  public async activateIfPending(
+    dbkId: string,
+    subscriptionId: string,
+    paymentReference?: string | null,
+    provider?: string | null,
+  ): Promise<{ subscription: DbkSubscription; transitioned: boolean }> {
+    return await firestoreClient.runTransaction(async (tx) => {
+      const path = this.getPath(dbkId, subscriptionId);
+      const current = await tx.get<DbkSubscription>(path);
+      if (!current) throw new Error(\`Subscription '\${subscriptionId}' not found.\`);
+      this.assertBoundary(dbkId, current);
+
+      if (paymentReference && current.paymentReference && current.paymentReference !== paymentReference) {
+        throw new Error('Subscription payment reference does not match the initiated payment.');
+      }
+
+      if (current.status === 'ACTIVE' && current.paymentStatus === 'PAID') {
+        return { subscription: current, transitioned: false };
+      }
+
+      const updated: DbkSubscription = {
+        ...current,
+        status: 'ACTIVE',
+        paymentStatus: 'PAID',
+        paymentReference: paymentReference || current.paymentReference,
+        provider: provider || current.provider,
+        updatedAt: new Date().toISOString(),
+      };
+      await tx.set(path, updated as unknown as Record<string, unknown>);
+      return { subscription: updated, transitioned: true };
+    });
+  }
+
   public async getSubscriptionForDbk(dbkId: string, subscriptionId: string): Promise<DbkSubscription | null> {
     return this.getSubscription(subscriptionId, dbkId);
   }
