@@ -24,7 +24,6 @@ import { auditLogger } from '../../kernel/audit/auditLogger';
 import { aiSecurityGuard } from './aiSecurityGuard';
 import { entityEngine } from '../../experience/entity/entityEngine';
 import { eventBus } from '../../orchestration/events/eventBus';
-import { outboxEngine } from '../../orchestration/outbox/outboxEngine';
 import { branchManager } from '../../platform/branch/branchManager';
 import { aiProposalRepository } from '../../persistence/firestore/repositories/aiProposalRepository';
 import { ledgerService } from '../../finance/ledgerService';
