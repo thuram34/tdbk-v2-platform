@@ -50,6 +50,7 @@ import { runCoherenceTestSuite } from './src/coherence/tests/coherenceTestRunner
 import { SurfaceType } from './src/coherence/types';
 import { eventBus } from './src/orchestration/events/eventBus';
 import { pubSubConsumer } from './src/orchestration/events/pubsubConsumer';
+import { subscriptionRouter } from './src/platform/subscription/subscriptionRouter';
 
 async function startServer() {
   // Explicit bootstrap boundary: Seed demo DBKs only in development, preview, or explicit flag
@@ -63,6 +64,9 @@ async function startServer() {
   app.use(express.json());
 
   pubSubConsumer.register(app);
+
+  // Commercial subscription boundary: authentication is established by the router.
+  app.use('/api/subscriptions', subscriptionRouter);
 
   // -------------------------------------------------------------
   // HEALTH & READINESS ENDPOINTS
