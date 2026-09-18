@@ -128,9 +128,14 @@ export class FinancialLedgerRepository implements IFinancialLedgerRepository {
         if (
           existing.status === 'POSTED' &&
           existing.amount === transaction.amount &&
+          existing.currency === transaction.currency &&
           existing.providerReference === transaction.providerReference
         ) {
-          return;
+          const existingEntries = await Promise.all(
+            entries.map((entry) => tx.get<LedgerEntry>(this.entryPath(transaction.tenantId, transaction.transactionId, entry.entryId)))
+          );
+          if (existingEntries.every((entry) => entry !== null)) return;
+          throw new Error('Posted financial transaction is missing immutable ledger entries');
         }
         throw new Error('Financial transaction already exists in a non-posted or conflicting state');
       }
