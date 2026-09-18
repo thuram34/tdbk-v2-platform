@@ -225,7 +225,7 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
     await financialLedgerRepository.savePendingTransaction({
       transactionId: initiationId,
       tenantId,
-      branchId: context.branchContext?.branchId || null,
+      branchId: initiatedBranchId,
       source: 'MPESA',
       providerReference: initiationReference,
       amount: payload.amount,
@@ -284,7 +284,7 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
       const boundTransaction = {
         transactionId: `mpesa_${checkoutRequestId}`,
         tenantId,
-        branchId: context.branchContext?.branchId || null,
+        branchId: initiatedBranchId,
         source: 'MPESA' as const,
         providerReference: checkoutRequestId,
         amount: payload.amount,
@@ -312,7 +312,7 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
         eventVersion: 'v1',
         occurredAt,
         tenantId,
-        branchId: context.branchContext?.branchId || null,
+        branchId: initiatedBranchId,
         principalId: context.principal.id,
         correlationId: context.correlationId,
         causationId: requestId,
@@ -429,6 +429,7 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
     const callbackKey = `mpesa_callback_${stk.CheckoutRequestID}`;
     const idempotencyTenant = callbackTenant || requestTenant || 'unknown';
     const normalized = this.normalizeResponse(rawCallback);
+    let initiatedBranchId: string | null = context.branchContext?.branchId || null;
 
     // In production, a callback is only a claim about a previously initiated payment.
     // The initiation path must durably record the checkout request before provider contact.
@@ -443,9 +444,10 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
       const initiated = await firestoreClient.get<any>(
         `/tenants/${requestTenant}/financialTransactions/mpesa_${stk.CheckoutRequestID}`
       );
-      if (!initiated || initiated.tenantId !== requestTenant || initiated.providerReference !== stk.CheckoutRequestID) {
+      if (!initiated || initiated.tenantId !== requestTenant || initiated.providerReference !== stk.CheckoutRequestID || initiated.status !== 'PENDING') {
         throw new KernelError('VALIDATION_ERROR', 'M-Pesa callback rejected: checkout request was not durably initiated by TDBK', 422, context.requestId);
       }
+      initiatedBranchId = initiated.branchId || null;
       if (normalized.status === 'SUCCESS' && Number(initiated.amount) !== Number(normalized.amount)) {
         throw new KernelError('VALIDATION_ERROR', 'M-Pesa callback amount does not match the initiated transaction', 422, context.requestId);
       }
@@ -480,7 +482,7 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
         const transaction = {
           transactionId,
           tenantId: idempotencyTenant,
-          branchId: context.branchContext?.branchId || null,
+          branchId: initiatedBranchId,
           source: 'MPESA' as const,
           providerReference: normalized.providerReference,
           amount: normalized.amount || 0,
@@ -522,7 +524,7 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
         eventVersion: 'v1',
         occurredAt: normalized.occurredAt,
         tenantId: idempotencyTenant,
-        branchId: context.branchContext?.branchId || null,
+        branchId: initiatedBranchId,
         principalId: context.principal.id,
         correlationId: normalized.correlationId,
         causationId: stk.CheckoutRequestID,
