@@ -17,7 +17,7 @@ export class ActivationEvaluatorService {
   /**
    * Evaluates if a DBK is eligible to activate a specified capability.
    */
-  public evaluateActivation(
+  public async evaluateActivation(
     securityContext: SecurityContext,
     dbkId: string,
     capabilityId: string,
@@ -88,7 +88,7 @@ export class ActivationEvaluatorService {
     }
 
     // 3. Check Subscription Tier Entitlement
-    const entitlementStatus = entitlementEngine.evaluateEntitlement(dbkId, cap);
+    const entitlementStatus = await entitlementEngine.evaluatePersistentEntitlement(dbkId, cap);
     if (entitlementStatus === 'UPGRADE_REQUIRED') {
       auditLogger.logEvent(
         'AUTHORIZATION_DENIED',
