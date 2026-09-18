@@ -1,28 +1,29 @@
 /** TDBK V2 — payment-to-subscription bridge. */
 import { EventEnvelope } from '../../orchestration/events/types';
 import { subscriptionRepository } from '../../persistence/firestore/repositories/subscriptionRepository';
-import { subscriptionService } from './subscriptionService';
-import { securityContextFactory } from '../../kernel/context/contextFactory';
+import { dbkRegistry } from '../dbkRegistry';
 
 export async function handleSubscriptionPaymentConfirmed(event: EventEnvelope): Promise<void> {
-  const payload = (event.payload || {}) as Record<string, any>;
-  if (payload.purpose !== 'SUBSCRIPTION') return;
-
   const dbkId = event.tenantId;
-  const providerReference = String(payload.data?.checkoutRequestId || event.causationId || payload.providerReference || '');
+  const payload = (event.payload || {}) as Record<string, any>;
+  const providerReference = String(payload.data?.checkoutRequestId || event.causationId || '');
   if (!dbkId || !providerReference) throw new Error('Subscription payment event missing DBK or provider reference.');
 
   const subscriptions = await subscriptionRepository.listSubscriptions(dbkId);
-  const subscription = subscriptions.find((candidate) =>
-    candidate.paymentReference === providerReference
-  );
+  const subscription = subscriptions.find((candidate) => candidate.paymentReference === providerReference);
   if (!subscription) return;
-  const subscriptionId = subscription.subscriptionId;
-  if (!subscription) throw new Error(`Subscription '${subscriptionId}' not found for DBK '${dbkId}'.`);
-  if (subscription.paymentStatus === 'PAID' && subscription.status === 'ACTIVE') return;
+
+  const result = await subscriptionRepository.activateIfPending(
+    dbkId,
+    subscription.subscriptionId,
+    providerReference,
+    payload.provider || 'SAFARICOM_MPESA',
+  );
+
+  if (!result.transitioned) return;
 
   const context = {
-    requestId: `subpay_${event.eventId}`,
+    requestId: \`subpay_\${event.eventId}\`,
     correlationId: event.correlationId,
     timestamp: new Date().toISOString(),
     principal: {
@@ -41,13 +42,10 @@ export async function handleSubscriptionPaymentConfirmed(event: EventEnvelope): 
     userAgent: 'TDBK-Subscription-Event-Handler',
   } as const;
 
-  const updated = await subscriptionRepository.updateSubscriptionForDbk(dbkId, subscriptionId, {
-    paymentStatus: 'PAID',
-    paymentReference: payload.providerReference || subscription.paymentReference,
-    provider: payload.provider || subscription.provider || 'SAFARICOM_MPESA',
-    status: 'ACTIVE',
-  });
-
-  await subscriptionService.activateSubscription(context, subscriptionId, dbkId);
-  void updated;
+  await dbkRegistry.changeSubscriptionTier(
+    context,
+    dbkId,
+    result.subscription.tier,
+    'Subscription payment confirmed',
+  );
 }
