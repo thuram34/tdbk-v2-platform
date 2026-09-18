@@ -58,18 +58,24 @@ export class OutboxEngine {
 
     await outboxRepository.saveOutbox(tenantId, envelope.eventId, record, transaction);
 
-    auditLogger.logEvent(
-      'WORKFLOW_EXECUTION',
-      principalId,
-      'OUTBOX_CREATED',
-      `outbox:${envelope.eventId}`,
-      'ALLOWED',
-      {
-        tenantId,
-        branchId: envelope.branchId,
-        details: { eventType: envelope.eventType, correlationId: envelope.correlationId },
-      }
-    );
+    // When an event is enqueued inside a Firestore transaction, do not emit an
+    // external audit side effect from inside that transaction callback. Firestore
+    // may retry the callback, which would duplicate audit entries. Callers that
+    // enqueue transactionally can audit after the transaction commits.
+    if (!transaction) {
+      auditLogger.logEvent(
+        'WORKFLOW_EXECUTION',
+        principalId,
+        'OUTBOX_CREATED',
+        `outbox:${envelope.eventId}`,
+        'ALLOWED',
+        {
+          tenantId,
+          branchId: envelope.branchId,
+          details: { eventType: envelope.eventType, correlationId: envelope.correlationId },
+        }
+      );
+    }
 
     return record;
   }
