@@ -18,6 +18,7 @@ import { capabilityRegistry } from '../../capability/registry';
 import { CapabilityLifecycleState } from '../../capability/types';
 import { workflowEngine } from '../../orchestration/workflow/engine';
 import { eventBus } from '../../orchestration/events/eventBus';
+import { idempotencyRepository } from '../../persistence/firestore/repositories/idempotencyRepository';
 import { auditLogger } from '../../kernel/audit/auditLogger';
 import { KernelError } from '../../kernel/errors/kernelErrors';
 import { SectorType } from '../../blueprint/types';
@@ -281,7 +282,12 @@ export class ProvisioningService {
     const correlationId = request.correlationId || context.correlationId || `corr_prov_${request.dbkId}_${Date.now()}`;
     const idempotencyKey = request.idempotencyKey || `idem_${request.dbkId}`;
 
-    // 2. Idempotency Check
+    // 2. Idempotency Check — durable first, memory only as a compatibility cache.
+    const durableIdempotency = await idempotencyRepository.getIdempotencyRecord(request.dbkId, idempotencyKey);
+    if (durableIdempotency?.status === 'COMPLETED' && durableIdempotency.responsePayload) {
+      const cached = durableIdempotency.responsePayload as unknown as ProvisionDbkResult;
+      return { ...cached, isIdempotentReplay: true };
+    }
     if (this.idempotencyStore.has(idempotencyKey)) {
       const cached = this.idempotencyStore.get(idempotencyKey)!;
       auditLogger.logEvent(
@@ -581,7 +587,18 @@ export class ProvisioningService {
       correlationId,
     };
 
-    // Store in idempotency store
+    // Persist the completed result before returning success. The in-memory map remains
+    // only as a test/latency cache; restart recovery comes from Firestore.
+    await idempotencyRepository.saveIdempotencyRecord(request.dbkId, idempotencyKey, {
+      idempotencyKey,
+      tenantId: request.dbkId,
+      action: 'DBK_PROVISIONING',
+      requestHash: `${request.dbkId}:${bp.id}:${bp.version}`,
+      status: 'COMPLETED',
+      responsePayload: result as unknown as Record<string, unknown>,
+      createdAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 86400000 * 30).toISOString(),
+    });
     this.idempotencyStore.set(idempotencyKey, result);
 
     return result;
