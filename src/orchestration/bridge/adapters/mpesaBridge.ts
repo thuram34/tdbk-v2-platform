@@ -347,7 +347,7 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
       return normalized;
     }
 
-    if (claim === 'IN_PROGRESS') {
+    if (atomicResult.claim === 'IN_PROGRESS') {
       throw new KernelError('CONFLICT', 'M-Pesa callback is already being processed', 409, context.requestId);
     }
 
