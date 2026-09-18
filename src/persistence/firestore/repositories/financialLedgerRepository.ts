@@ -10,6 +10,22 @@ export class FinancialLedgerRepository implements IFinancialLedgerRepository {
   public static getInstance(): FinancialLedgerRepository { return this.instance ??= new FinancialLedgerRepository(); }
   private txPath(t:string,id:string){return `/tenants/${t}/financial_transactions/${id}`;}
   private entryPath(t:string,id:string){return `/tenants/${t}/ledger_entries/${id}`;}
+  public async savePendingTransaction(transaction: FinancialTransaction): Promise<void> {
+    if (!transaction.tenantId || transaction.status !== 'PENDING' || transaction.amount <= 0 || !Number.isFinite(transaction.amount)) {
+      throw new Error('Invalid pending financial transaction');
+    }
+    await firestoreClient.runTransaction(async tx => {
+      const path = this.txPath(transaction.tenantId, transaction.transactionId);
+      const existing = await tx.get<FinancialTransaction>(path);
+      if (existing) {
+        if (existing.providerReference !== transaction.providerReference || existing.amount !== transaction.amount) {
+          throw new Error('Conflicting financial transaction identity');
+        }
+        return;
+      }
+      await tx.set(path, transaction);
+    });
+  }
   public async postTransaction(transaction: FinancialTransaction, entries: LedgerEntry[]): Promise<void> {
     if (!transaction.tenantId || transaction.amount <= 0 || !Number.isFinite(transaction.amount)) throw new Error('Invalid financial transaction');
     const debit=entries.filter(e=>e.entryType==='DEBIT').reduce((s,e)=>s+e.amount,0);
