@@ -188,6 +188,47 @@ export class EntityEngineService {
     return updated;
   }
 
+  /** Updates an existing entity and waits for the authoritative Firestore commit. */
+  public async updatePersistentRecord(
+    _ctx: unknown,
+    tenantId: string,
+    entityType: string,
+    recordId: string,
+    patch: Record<string, unknown>,
+  ): Promise<ExperienceEntityRecord & { recordId: string; data: Record<string, unknown> }> {
+    const existing = await entityRecordRepository.getRecord(tenantId, entityType, recordId);
+    if (!existing) throw new Error(`Entity record '${recordId}' not found`);
+    const now = new Date().toISOString();
+    const updated: ExperienceEntityRecord = {
+      ...existing,
+      ...patch,
+      id: existing.id,
+      entityType: existing.entityType,
+      attributes: { ...existing.attributes, ...patch },
+      updatedAt: now,
+    };
+    await entityRecordRepository.saveRecord(tenantId, entityType, recordId, updated);
+    const key = `${tenantId}:${entityType}`;
+    const list = this.entityStore.get(key) || [];
+    this.entityStore.set(key, [updated, ...list.filter((item) => item.id !== recordId)]);
+    return { ...updated, recordId: updated.id, data: updated.attributes };
+  }
+
+  /** Deletes an entity only after the authoritative Firestore delete succeeds. */
+  public async deletePersistentRecord(
+    _ctx: unknown,
+    tenantId: string,
+    entityType: string,
+    recordId: string,
+  ): Promise<void> {
+    const existing = await entityRecordRepository.getRecord(tenantId, entityType, recordId);
+    if (!existing) throw new Error(`Entity record '${recordId}' not found`);
+    await entityRecordRepository.deleteRecord(tenantId, entityType, recordId);
+    const key = `${tenantId}:${entityType}`;
+    const list = this.entityStore.get(key) || [];
+    this.entityStore.set(key, list.filter((item) => item.id !== recordId));
+  }
+
   /**
    * Adds or updates a record for a given DBK and capability
    */
