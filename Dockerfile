@@ -2,18 +2,15 @@ FROM node:22-slim
 
 WORKDIR /app
 
-ENV NODE_ENV=production
-
 COPY package*.json ./
 
-# The production build requires Vite and esbuild, which are devDependencies.
-# Install the full dependency set for the build; runtime pruning happens afterward.
+# Install the full dependency set because the production build uses
+# Vite/esbuild and other development tooling.
 RUN npm ci
 
 COPY . .
 
-# Firebase Web Client configuration.
-# These values are required at Vite build time.
+# Firebase Web Client configuration is embedded by Vite at build time.
 ARG VITE_FIREBASE_API_KEY
 ARG VITE_FIREBASE_AUTH_DOMAIN
 ARG VITE_FIREBASE_PROJECT_ID
@@ -30,8 +27,10 @@ ENV VITE_FIREBASE_APP_ID=$VITE_FIREBASE_APP_ID
 
 RUN npm run build
 
-# Remove build-only dependencies before the production image is deployed.
+# Only runtime dependencies belong in the deployed image.
 RUN npm prune --omit=dev
+
+ENV NODE_ENV=production
 
 EXPOSE 8080
 
