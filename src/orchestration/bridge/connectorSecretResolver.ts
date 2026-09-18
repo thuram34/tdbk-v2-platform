@@ -1,5 +1,5 @@
 import { GoogleAuth } from 'google-auth-library';
-import type { ConnectorSecretReference } from '../../../persistence/types';
+import type { ConnectorSecretReference } from '../../persistence/types';
 
 const auth = new GoogleAuth({
   scopes: ['https://www.googleapis.com/auth/cloud-platform'],
