@@ -270,7 +270,7 @@ export class Phase2TestRunner {
     // P2_TEST_06: Discoverable capability is not automatically enabled -> PASS
     // -----------------------------------------------------------------
     try {
-      const surface = discoveryEngine.discoverCapabilitiesForDbk(schoolCtx, 'tenant_school_01');
+      const surface = await discoveryEngine.discoverCapabilitiesForDbk(schoolCtx, 'tenant_school_01');
       const anyEnabled = surface.items.some((i) => i.currentState === 'ENABLED' || i.currentState === 'CONFIGURED');
       addResult(
         'P2_TEST_06',
@@ -633,7 +633,7 @@ export class Phase2TestRunner {
     // P2_TEST_22: School capability surface -> PASS
     // -----------------------------------------------------------------
     try {
-      const surface = discoveryEngine.discoverCapabilitiesForDbk(schoolCtx, 'tenant_school_01');
+      const surface = await discoveryEngine.discoverCapabilitiesForDbk(schoolCtx, 'tenant_school_01');
       const ids = surface.items.map((i) => i.capability.capabilityId);
       const hasAcademics = ids.includes('school_academics');
       const hasFee = ids.includes('school_fee_structure');
@@ -655,7 +655,7 @@ export class Phase2TestRunner {
     // P2_TEST_23: Hardware capability surface -> PASS
     // -----------------------------------------------------------------
     try {
-      const surface = discoveryEngine.discoverCapabilitiesForDbk(hardwareCtx, 'tenant_hardware_01');
+      const surface = await discoveryEngine.discoverCapabilitiesForDbk(hardwareCtx, 'tenant_hardware_01');
       const ids = surface.items.map((i) => i.capability.capabilityId);
       const hasInventory = ids.includes('inventory_foundation');
       const hasSales = ids.includes('sales_counter');
@@ -677,7 +677,7 @@ export class Phase2TestRunner {
     // P2_TEST_24: Logistics capability surface -> PASS
     // -----------------------------------------------------------------
     try {
-      const surface = discoveryEngine.discoverCapabilitiesForDbk(logisticsCtx, 'tenant_logistics_01');
+      const surface = await discoveryEngine.discoverCapabilitiesForDbk(logisticsCtx, 'tenant_logistics_01');
       const ids = surface.items.map((i) => i.capability.capabilityId);
       const hasDispatch = ids.includes('logistics_dispatch');
       const hasFleet = ids.includes('fleet_tracking');
