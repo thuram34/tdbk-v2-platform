@@ -430,7 +430,6 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
     const idempotencyTenant = callbackTenant || requestTenant || 'unknown';
     const normalized = this.normalizeResponse(rawCallback);
     let initiatedBranchId: string | null = context.branchContext?.branchId || null;
-    let initiatedBranchId: string | null = context.branchContext?.branchId || null;
 
     // In production, a callback is only a claim about a previously initiated payment.
     // The initiation path must durably record the checkout request before provider contact.
