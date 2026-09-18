@@ -774,7 +774,7 @@ export class Phase3TestRunner {
     // -----------------------------------------------------------------
     try {
       const rawCb = {
-        Body: { stkCallback: { MerchantRequestID: 'MR_TEST', CheckoutRequestID: 'CO_TEST_30', ResultCode: 0, ResultDesc: 'The service request is processed successfully.' } },
+        Body: { stkCallback: { MerchantRequestID: 'MR_TEST', CheckoutRequestID: 'CO_TEST_30', ResultCode: 0, ResultDesc: 'The service request is processed successfully.', CallbackMetadata: { Item: [{ Name: 'Amount', Value: 3500 }] } } },
         signature: 'VALID_SIG',
         tenantId: 'tenant_school_a',
         correlationId: 'corr_test_30',
