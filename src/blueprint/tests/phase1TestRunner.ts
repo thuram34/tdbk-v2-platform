@@ -335,8 +335,8 @@ export class Phase1TestRunner {
 
     // 10. Blueprint compilation produces deterministic output
     try {
-      const compilation1 = blueprintCompiler.compileWorkspace(schoolAdminCtx, 'tenant_school_a');
-      const compilation2 = blueprintCompiler.compileWorkspace(schoolAdminCtx, 'tenant_school_a');
+      const compilation1 = await blueprintCompiler.compileWorkspace(schoolAdminCtx, 'tenant_school_a');
+      const compilation2 = await blueprintCompiler.compileWorkspace(schoolAdminCtx, 'tenant_school_a');
       const isHashIdentical = compilation1.hash === compilation2.hash;
       results.push({
         id: 'P1_TEST_10',
