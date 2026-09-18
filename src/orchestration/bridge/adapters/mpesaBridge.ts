@@ -236,6 +236,26 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
       throw new KernelError('TENANT_ISOLATION_ERROR', `Cross-Tenant Mutation Denied: Callback for tenant '${callbackTenant}' cannot alter tenant '${requestTenant}'`, 403, context.requestId);
     }
 
+    // In production, a callback is only a claim about a previously initiated payment.
+    // The initiation path must durably record the provider reference before provider contact.
+    if (process.env.NODE_ENV === 'production') {
+      const connection = await connectorConnectionRepository.getConnection(
+        requestTenant,
+        `conn_${this.bridgeId}`
+      );
+      if (!connection || !connection.enabled || connection.status !== 'CONFIGURED') {
+        throw new KernelError('INTEGRATION_UNAVAILABLE', 'M-Pesa callback rejected: tenant connection is not configured', 503, context.requestId);
+      }
+      const initiated = await firestoreClient.get<any>(
+        `/tenants/${requestTenant}/financialTransactions/mpesa_${stk.CheckoutRequestID}`
+      );
+      if (!initiated || initiated.tenantId !== requestTenant || initiated.providerReference !== stk.CheckoutRequestID) {
+        throw new KernelError('VALIDATION_ERROR', 'M-Pesa callback rejected: provider reference was not durably initiated by TDBK', 422, context.requestId);
+      }
+      if (normalized.status === 'SUCCESS' && Number(initiated.amount) !== Number(normalized.amount)) {
+        throw new KernelError('VALIDATION_ERROR', 'M-Pesa callback amount does not match the initiated transaction', 422, context.requestId);
+      }
+    }
     const callbackKey = `mpesa_callback_${stk.CheckoutRequestID}`;
     const idempotencyTenant = callbackTenant || requestTenant || 'unknown';
     const normalized = this.normalizeResponse(rawCallback);
