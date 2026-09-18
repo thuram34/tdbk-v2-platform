@@ -183,10 +183,10 @@ export interface DbkSubscription {
 
 export interface ISubscriptionRepository {
   saveSubscription(subscription: DbkSubscription): Promise<void>;
-  getSubscription(subscriptionId: string): Promise<DbkSubscription | null>;
+  getSubscriptionForDbk(dbkId: string, subscriptionId: string): Promise<DbkSubscription | null>;
   getActiveSubscription(dbkId: string): Promise<DbkSubscription | null>;
   listSubscriptions(dbkId: string): Promise<DbkSubscription[]>;
-  updateSubscription(subscriptionId: string, patch: Partial<DbkSubscription>): Promise<DbkSubscription>;
+  updateSubscriptionForDbk(dbkId: string, subscriptionId: string, patch: Partial<DbkSubscription>): Promise<DbkSubscription>;
 }
 
 export interface IDbkRegistryRepository {
