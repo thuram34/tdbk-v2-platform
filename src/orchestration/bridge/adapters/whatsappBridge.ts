@@ -28,8 +28,11 @@ export class WhatsappBridge implements Bridge<WhatsappMessageRequest, any, any> 
   public readonly version = 'v1.0';
 
   public async health(_context: SecurityContext): Promise<{ status: BridgeHealthStatus; details?: Record<string, unknown> }> {
+    // These adapters are explicitly MOCK in the platform registry. They must
+    // never advertise a live provider connection until a real provider client
+    // is configured and the adapter performs an actual connectivity check.
     return {
-      status: 'HEALTHY',
+      status: 'UNAVAILABLE',
       details: { provider: this.provider, version: this.version, cloudApiOnline: true },
     };
   }
@@ -40,6 +43,9 @@ export class WhatsappBridge implements Bridge<WhatsappMessageRequest, any, any> 
     payload: WhatsappMessageRequest
   ): Promise<NormalizedBridgeResult<any>> {
     const tenantId = context.tenantContext?.tenantId || context.principal.tenantId;
+    if (process.env.NODE_ENV === 'production') {
+      throw new KernelError('INTEGRATION_UNAVAILABLE', 'WhatsApp bridge is not connected to a production provider', 503, context.requestId);
+    }
     if (!tenantId) {
       throw new KernelError('TENANT_ISOLATION_ERROR', 'WhatsApp Dispatch Denied: Missing Tenant Context', 403, context.requestId);
     }
