@@ -168,16 +168,104 @@ export class BusinessDnaManager {
     blueprintVersion?: string,
     branchTopologyInput?: Partial<BranchTopology>
   ): Promise<BusinessDNA> {
-    const dna = this.bindBlueprintToDbk(
-      securityContext,
+    BlueprintValidator.assertTenantAccess(securityContext, dbkId, 'bind Blueprint');
+
+    const blueprint = blueprintRegistry.getBlueprint(blueprintId, blueprintVersion);
+    if (!blueprint) {
+      throw new KernelError('VALIDATION_ERROR', `Blueprint '${blueprintId}' version '${blueprintVersion || 'latest'}' is not registered`, 400, securityContext.requestId);
+    }
+
+    // Production binding must consult durable state before making any decision.
+    // The process-local dnaStore is only a compatibility cache and can be empty
+    // after restart.
+    const existingDna = await businessDnaRepository.getDna(dbkId);
+    if (existingDna && existingDna.identity.blueprintId !== blueprintId) {
+      auditLogger.logEvent(
+        'SECURITY_CONFIGURATION_CHANGE',
+        securityContext.principal.id,
+        'mutateBlueprintBinding',
+        `dbk:${dbkId}`,
+        'DENIED',
+        {
+          tenantId: securityContext.principal.tenantId,
+          requestId: securityContext.requestId,
+          details: { existingBlueprint: existingDna.identity.blueprintId, attemptedBlueprint: blueprintId },
+        }
+      );
+      throw new KernelError(
+        'FORBIDDEN_OPERATION' as any,
+        `Blueprint Mutation Restricted: DBK '${dbkId}' is already bound to Blueprint '${existingDna.identity.blueprintId}' v${existingDna.identity.blueprintVersion}.`,
+        403,
+        securityContext.requestId
+      );
+    }
+
+    const identity: BusinessIdentity = {
       dbkId,
       businessName,
-      blueprintId,
-      blueprintVersion,
-      branchTopologyInput
-    );
+      legalName: businessName,
+      businessType: blueprint.sector,
+      blueprintId: blueprint.id,
+      blueprintVersion: blueprint.version,
+      industry: blueprint.sector,
+      country: 'KE',
+      currency: 'KES',
+      timezone: 'Africa/Nairobi',
+      operationalStatus: 'ACTIVE',
+    };
+
+    const branchTopology: BranchTopology = branchTopologyInput?.branches?.length
+      ? (branchTopologyInput as BranchTopology)
+      : {
+          type: 'SINGLE_BRANCH',
+          branches: [{
+            branchId: `${dbkId}_hq`,
+            name: 'Headquarters',
+            isHeadquarters: true,
+            code: 'HQ-01',
+            status: 'ACTIVE',
+          }],
+        };
+
+    const defaultEnabledCaps = blueprint.supportedCapabilities.filter((cap) => cap.isDefault).map((cap) => cap.id);
+    const now = new Date().toISOString();
+    const dna: BusinessDNA = {
+      dbkId,
+      identity,
+      scale: 'SMALL',
+      branchTopology,
+      operationalPreferences: {
+        paperlessDefault: true,
+        primaryCommunication: blueprint.supportedCommunicationChannels[0] || 'WHATSAPP',
+      },
+      enabledCapabilityIds: defaultEnabledCaps,
+      growthStage: 'GROWTH',
+      createdAt: existingDna?.createdAt || now,
+      updatedAt: now,
+    };
+
+    const validation = BlueprintValidator.validateBusinessDna(dna);
+    if (!validation.valid) {
+      throw new Error(`Invalid Business DNA: ${validation.errors.join('; ')}`);
+    }
+
     await businessDnaRepository.saveDna(dbkId, dna);
-    return dna;
+    this.dnaStore.set(dbkId, dna);
+
+    auditLogger.logEvent(
+      'SECURITY_CONFIGURATION_CHANGE',
+      securityContext.principal.id,
+      'bindBlueprintToDbk',
+      `dbk:${dbkId}`,
+      'ALLOWED',
+      {
+        tenantId: securityContext.principal.tenantId,
+        requestId: securityContext.requestId,
+        details: { blueprintId: blueprint.id, version: blueprint.version, enabledCapabilitiesCount: defaultEnabledCaps.length },
+      }
+    );
+
+    return JSON.parse(JSON.stringify(dna));
   }
 
   /**
