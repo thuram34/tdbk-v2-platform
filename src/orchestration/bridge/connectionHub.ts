@@ -43,6 +43,7 @@ class ConnectionHubService {
     const tenantId = this.tenantId(context);
     const definition = bridgeRegistry.getBridgeDefinition(bridgeId);
     if (!definition) throw new KernelError('VALIDATION_ERROR', `Unknown bridge '${bridgeId}'`, 404, context.requestId);
+    if (definition.bridgeId !== bridgeId) throw new KernelError('VALIDATION_ERROR', `Bridge definition mismatch for '${bridgeId}'`, 400, context.requestId);
     const connection = await connectorConnectionRepository.getConnection(tenantId, this.connectionId(bridgeId));
     if (!connection || connection.bridgeId !== bridgeId || connection.tenantId !== tenantId) {
       throw new KernelError('INTEGRATION_UNAVAILABLE', `Bridge '${bridgeId}' is not configured for this tenant`, 503, context.requestId);
