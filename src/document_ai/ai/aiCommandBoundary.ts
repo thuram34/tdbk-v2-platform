@@ -356,6 +356,7 @@ export class AiCommandBoundary {
     }
 
     const finalPayload = adjustedPayload || proposal.suggestedPayload;
+    let executedRecordId: string | null = null;
 
     // Perform all caller authorization checks before reserving the proposal.
     // A failed authorization must never leave a proposal stranded in EXECUTING.
