@@ -18,9 +18,7 @@ import { FORMAL_CAPABILITY_DEFINITIONS } from './capabilityLayer';
 import { PLATFORM_MODULE_CATALOG, PLATFORM_WORKFLOW_CATALOG } from './moduleRegistry';
 import {
   BusinessSpace,
-  SpaceMembership,
-  SpaceType,
-  SpaceType,
+  SpaceMembership , SpaceType,
   CoherentExperienceResolution,
   FormalCapabilityDefinition,
   BusinessModuleDefinition,
@@ -180,7 +178,7 @@ export class RoleBasedCoherenceEngine {
    * Helper to resolve space metadata
    */
   private resolveSpaceMetadata(spaceId: string, tenantId: string): BusinessSpace {
-    return { spaceId, tenantId, organizationName: tenantId, spaceName: spaceId, spaceType: 'REGIONAL_OFFICE', sector: 'OTHER' as any, isHeadquarters: false, status: 'ACTIVE' };
+    return { spaceId, tenantId, organizationName: tenantId, spaceName: spaceId, spaceType: 'REGIONAL_OFFICE' as SpaceType, sector: 'OTHER' as any, isHeadquarters: false, status: 'ACTIVE' };
   }
 
   private async resolvePersistentSpaceMetadata(spaceId: string, tenantId: string): Promise<BusinessSpace> {
@@ -196,7 +194,7 @@ export class RoleBasedCoherenceEngine {
       const spaceType: SpaceType =
         branch.type === 'HEADQUARTERS' ? 'HEADQUARTERS' :
         branch.type === 'CAMPUS' ? 'CAMPUS' :
-        branch.type === 'CLINIC_BRANCH' ? 'CLINIC_BRANCH' :
+        branch.type === 'CLINIC_BRANCH' ? 'REGIONAL_OFFICE' :
         branch.type === 'WAREHOUSE' ? 'DISTRIBUTION_HUB' :
         branch.type === 'RETAIL_OUTLET' ? 'STORE_OUTLET' :
         'REGIONAL_OFFICE';
