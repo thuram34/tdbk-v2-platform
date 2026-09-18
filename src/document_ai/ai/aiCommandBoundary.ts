@@ -381,6 +381,18 @@ export class AiCommandBoundary {
         }
         break;
       }
+
+    try {
+      switch (proposal.proposalType) {
+        case 'PROPOSE_ADMIT_STUDENT': {
+          const student = await entityEngine.createPersistentRecord(ctx, tenantId, 'student_records', {
+            id: `ai_student_${proposalId}`,
+            ...finalPayload,
+            branchId: proposal.branchId,
+          });
+          executedRecordId = student.recordId;
+          break;
+        }
         case 'PROPOSE_BOOK_WAYBILL': {
           const wb = await entityEngine.createPersistentRecord(ctx, tenantId, 'waybill_booking', {
             id: `ai_waybill_${proposalId}`,
