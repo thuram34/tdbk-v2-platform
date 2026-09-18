@@ -231,6 +231,8 @@ export interface IWorkflowInstanceRepository {
   saveWorkflow(tenantId: string, workflowId: string, workflow: WorkflowInstance): Promise<void>;
   getWorkflow(tenantId: string, workflowId: string): Promise<WorkflowInstance | null>;
   listWorkflows(tenantId: string): Promise<WorkflowInstance[]>;
+  claimExecutionLease(tenantId: string, workflowId: string, owner: string, leaseDurationMs: number): Promise<WorkflowInstance | null>;
+  releaseExecutionLease(tenantId: string, workflowId: string, owner: string): Promise<void>;
 }
 
 export type OutboxStatus =
