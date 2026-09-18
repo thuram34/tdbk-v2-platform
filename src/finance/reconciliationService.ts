@@ -49,6 +49,15 @@ export class ReconciliationService {
       );
     }
 
+    // Validate the provider confirmation against authoritative transaction identity
+    // before any ledger-balance checks. A changed amount/reference/currency/branch is
+    // an identity conflict, not a ledger-shape error.
+    const identityFields: Array<keyof FinancialTransaction> = ['tenantId', 'transactionId', 'branchId', 'providerReference', 'currency', 'amount'];
+    const identityConflict = identityFields.some((field) => current[field] !== transaction[field]);
+    if (identityConflict) {
+      throw new Error('Authoritative reconciliation identity conflicts with persisted transaction');
+    }
+
     const occurredAt = transaction.postedAt!;
     const outboxRecord: OutboxRecord = {
       eventId: `evt_payment_confirmed_${transaction.transactionId}`,
