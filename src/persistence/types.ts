@@ -235,43 +235,6 @@ export interface OutboxRecord {
 
 export type IdempotencyClaimResult = 'CLAIMED' | 'COMPLETED' | 'IN_PROGRESS';
 
-export type FinancialTransactionStatus = 'PENDING' | 'SUCCESS' | 'FAILED' | 'UNKNOWN' | 'REVERSED';
-
-export interface FinancialTransaction {
-  transactionId: string;
-  tenantId: string;
-  branchId?: string | null;
-  source: 'MPESA' | 'BANK' | 'CASH' | 'CARD' | 'OTHER';
-  providerReference?: string | null;
-  idempotencyKey: string;
-  amount: number;
-  currency: string;
-  status: FinancialTransactionStatus;
-  description?: string;
-  correlationId?: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface LedgerEntry {
-  entryId: string;
-  transactionId: string;
-  tenantId: string;
-  accountId: string;
-  direction: 'DEBIT' | 'CREDIT';
-  amount: number;
-  currency: string;
-  createdAt: string;
-}
-
-export interface IFinancialTransactionRepository {
-  getTransaction(tenantId: string, transactionId: string): Promise<FinancialTransaction | null>;
-  getByIdempotencyKey(tenantId: string, idempotencyKey: string): Promise<FinancialTransaction | null>;
-  saveTransaction(transaction: FinancialTransaction): Promise<void>;
-  listLedgerEntries(tenantId: string, transactionId: string): Promise<LedgerEntry[]>;
-  appendLedgerEntries(entries: LedgerEntry[]): Promise<void>;
-}
-
 export interface IIdempotencyRepository {
   claimIdempotencyRecord(tenantId: string, key: string, record: IdempotencyRecord): Promise<IdempotencyClaimResult>;
   completeIdempotencyRecord(tenantId: string, key: string, responsePayload?: Record<string, unknown>): Promise<void>;
