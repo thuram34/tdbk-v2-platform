@@ -7,6 +7,7 @@ import { Principal, BranchContext } from '../types';
 import { AuthorizationError } from '../errors/kernelErrors';
 import { auditLogger } from '../audit/auditLogger';
 import { masterAuthority } from '../master/masterAuthority';
+import { branchRepository } from '../../persistence/firestore/repositories/branchRepository';
 
 export class BranchAuthorityService {
   /**
@@ -61,6 +62,54 @@ export class BranchAuthorityService {
     }
 
     return this.resolveBranchContext(requestedBranchId);
+  }
+
+  /**
+   * Authoritative production branch authorization. Validates both the
+   * principal's branch scope and the branch's durable DBK ownership.
+   */
+  public async assertPersistentBranchContext(
+    principal: Principal,
+    tenantId: string,
+    requestedBranchId: string,
+    action: string,
+    requestId?: string
+  ): Promise<BranchContext> {
+    if (!requestedBranchId) {
+      throw new AuthorizationError('Target branchId required for branch operation', requestId);
+    }
+
+    if (!masterAuthority.isMasterAdmin(principal) && principal.tenantId !== tenantId) {
+      throw new AuthorizationError('Branch authorization denied: tenant boundary violation', requestId);
+    }
+
+    if (!masterAuthority.isMasterAdmin(principal) && principal.branchId != null && principal.branchId !== requestedBranchId) {
+      throw new AuthorizationError(
+        `Branch authorization failed: User constrained to branch '${principal.branchId}' cannot access target branch '${requestedBranchId}'`,
+        requestId
+      );
+    }
+
+    const branch = await branchRepository.getBranch(tenantId, requestedBranchId);
+    if (!branch || branch.dbkId !== tenantId || branch.status !== 'ACTIVE') {
+      auditLogger.logEvent('AUTHORIZATION_DENIED', principal.id, action, `branch:${requestedBranchId}`, 'DENIED', {
+        tenantId,
+        branchId: requestedBranchId,
+        requestId,
+        details: { reason: 'Durable branch not found, tenant mismatch, or inactive' },
+      });
+      throw new AuthorizationError(
+        `Branch authorization failed: branch '${requestedBranchId}' is not an active branch of tenant '${tenantId}'`,
+        requestId
+      );
+    }
+
+    return {
+      branchId: branch.branchId,
+      name: branch.name,
+      isHeadquarters: branch.isHeadquarters,
+      status: branch.status,
+    };
   }
 
   public resolveBranchContext(branchId: string): BranchContext {
