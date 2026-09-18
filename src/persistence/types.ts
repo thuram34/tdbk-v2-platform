@@ -158,6 +158,37 @@ export interface IFinancialLedgerRepository {
 // REPOSITORY INTERFACES
 // -------------------------------------------------------------
 
+export type SubscriptionStatus = 'TRIAL' | 'ACTIVE' | 'PAST_DUE' | 'CANCELLED' | 'EXPIRED';
+export type SubscriptionPaymentStatus = 'PENDING' | 'PAID' | 'FAILED' | 'REFUNDED';
+
+export interface DbkSubscription {
+  subscriptionId: string;
+  dbkId: string;
+  tier: import('../capability/types').SubscriptionTier;
+  status: SubscriptionStatus;
+  paymentStatus: SubscriptionPaymentStatus;
+  currency: string;
+  amount: number;
+  interval: 'MONTHLY' | 'ANNUAL' | 'NONE';
+  startedAt: string;
+  currentPeriodStart: string;
+  currentPeriodEnd: string | null;
+  cancelledAt: string | null;
+  paymentReference: string | null;
+  provider: string | null;
+  createdAt: string;
+  updatedAt: string;
+  correlationId: string;
+}
+
+export interface ISubscriptionRepository {
+  saveSubscription(subscription: DbkSubscription): Promise<void>;
+  getSubscription(subscriptionId: string): Promise<DbkSubscription | null>;
+  getActiveSubscription(dbkId: string): Promise<DbkSubscription | null>;
+  listSubscriptions(dbkId: string): Promise<DbkSubscription[]>;
+  updateSubscription(subscriptionId: string, patch: Partial<DbkSubscription>): Promise<DbkSubscription>;
+}
+
 export interface IDbkRegistryRepository {
   saveDbk(tenantId: string, dbk: DbkIdentity): Promise<void>;
   getDbk(tenantId: string): Promise<DbkIdentity | null>;
