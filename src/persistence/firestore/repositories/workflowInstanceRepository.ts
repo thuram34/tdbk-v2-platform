@@ -26,22 +26,45 @@ export class WorkflowInstanceRepository implements IWorkflowInstanceRepository {
   public async saveWorkflow(
     tenantId: string,
     workflowId: string,
-    workflow: WorkflowInstance
+    workflow: WorkflowInstance,
+    expectedLeaseOwner?: string
   ): Promise<void> {
-    await firestoreClient.set(
-      this.getPath(tenantId, workflowId),
-      workflow as unknown as Record<string, unknown>
-    );
+    if (!expectedLeaseOwner) {
+      await firestoreClient.set(
+        this.getPath(tenantId, workflowId),
+        workflow as unknown as Record<string, unknown>
+      );
+      return;
+    }
+
+    await firestoreClient.runTransaction(async (tx) => {
+      const path = this.getPath(tenantId, workflowId);
+      const current = await tx.get<WorkflowInstance>(path);
+      if (!current) throw new Error(`Workflow '${workflowId}' not found.`);
+      if (current.executionLeaseOwner !== expectedLeaseOwner) {
+        throw new Error(`Workflow '${workflowId}' execution lease is not owned by '${expectedLeaseOwner}'.`);
+      }
+      await tx.set(path, workflow as unknown as Record<string, unknown>);
+    });
   }
 
   public async saveWorkflowWithOutbox(
     tenantId: string,
     workflowId: string,
     workflow: WorkflowInstance,
-    event: import('../../types').OutboxRecord
+    event: import('../../types').OutboxRecord,
+    expectedLeaseOwner?: string
   ): Promise<void> {
     await firestoreClient.runTransaction(async (tx) => {
-      await tx.set(this.getPath(tenantId, workflowId), workflow as unknown as Record<string, unknown>);
+      const path = this.getPath(tenantId, workflowId);
+      if (expectedLeaseOwner) {
+        const current = await tx.get<WorkflowInstance>(path);
+        if (!current) throw new Error(`Workflow '${workflowId}' not found.`);
+        if (current.executionLeaseOwner !== expectedLeaseOwner) {
+          throw new Error(`Workflow '${workflowId}' execution lease is not owned by '${expectedLeaseOwner}'.`);
+        }
+      }
+      await tx.set(path, workflow as unknown as Record<string, unknown>);
       await tx.set('/tenants/' + tenantId + '/outbox/' + event.eventId, event as unknown as Record<string, unknown>);
     });
   }
