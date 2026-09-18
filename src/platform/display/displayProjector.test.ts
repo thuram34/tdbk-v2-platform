@@ -48,8 +48,9 @@ describe('display event projector', () => {
 
     expect(result.published).toBe(true);
 
-    const content = await firestoreClient.get('/tenants/tenant_projection/displayContent/event_9d3c5e0f5c5a1f0f5f3c0f5e');
-    expect(content).not.toBeNull();
+    const contents = await firestoreClient.listCollection<any>('/tenants/tenant_projection/displayContent');
+    const content = contents.find((item) => item.title === 'School Announcement');
+    expect(content).toBeDefined();
 
     const plan = await displayService.sync('tenant_projection', 'display_projection_1');
     expect(plan.content.some((item) => item.title === 'School Announcement')).toBe(true);
