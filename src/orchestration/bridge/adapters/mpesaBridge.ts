@@ -302,7 +302,7 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
       },
     });
 
-    publishBridgeEvent({
+    await publishBridgeEvent({
       eventId: `evt_callback_${stk.CheckoutRequestID}`,
       eventType: normalized.status === 'SUCCESS' ? 'payment.confirmed.v1' : 'payment.failed.v1',
       eventVersion: 'v1',
