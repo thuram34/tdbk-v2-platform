@@ -380,43 +380,7 @@ export class AiCommandBoundary {
           throw new KernelError('AUTHORIZATION_ERROR', 'Permission mpesa:reconcile required', 403, ctx.requestId);
         }
         break;
-      case 'PROPOSE_CREATE_INVOICE':
-        throw new KernelError('INTEGRATION_UNAVAILABLE', 'Invoice proposals require the authoritative invoice engine; no generic POS fallback is permitted.', 501, ctx.requestId);
-      default:
-        throw new KernelError('VALIDATION_ERROR', `Unsupported AI proposal type '${proposal.proposalType}'`, 400, ctx.requestId);
-    }
-
-    // Atomically reserve the proposal before executing the authoritative command.
-    // This prevents two reviewers/processes from executing the same proposal concurrently.
-    const executingProposal = await aiProposalRepository.transitionProposal(
-      tenantId,
-      proposalId,
-      'PENDING_REVIEW',
-      'EXECUTING',
-      ctx.principal.id,
-      finalPayload,
-    );
-    proposal.status = executingProposal.status;
-    proposal.reviewedBy = executingProposal.reviewedBy;
-    proposal.reviewedAt = executingProposal.reviewedAt;
-    proposal.suggestedPayload = executingProposal.suggestedPayload;
-    let executedRecordId: string | undefined;
-
-    try {
-      // Route to authoritative engine based on proposal type.
-      switch (proposal.proposalType) {
-        case 'PROPOSE_ADMIT_STUDENT': {
-          const student = await entityEngine.createPersistentRecord(ctx, tenantId, 'student_records', {
-            id: `ai_student_${proposalId}`,
-            admissionNo: finalPayload.admissionNumber || `ADM-${Date.now()}`,
-            fullName: finalPayload.studentName || 'Student Name',
-            grade: finalPayload.gradeLevel || 'Grade 1',
-            branchId: proposal.branchId,
-            sourceDocId: proposal.documentId,
-          });
-          executedRecordId = student.recordId;
-          break;
-        }
+      }
         case 'PROPOSE_BOOK_WAYBILL': {
           const wb = await entityEngine.createPersistentRecord(ctx, tenantId, 'waybill_booking', {
             id: `ai_waybill_${proposalId}`,
