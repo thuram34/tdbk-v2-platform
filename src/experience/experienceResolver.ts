@@ -169,9 +169,12 @@ export class ExperienceResolver {
         if (!capabilityId) {
           throw new KernelError('VALIDATION_ERROR', 'Missing capabilityId', 400, context.requestId);
         }
-        await dbkCapabilityManager.hydratePersistentCapability(context, req.targetDbkId, String(capabilityId));
-        const configured = dbkCapabilityManager.configureCapability(context, req.targetDbkId, String(capabilityId), (configData as Record<string, unknown>) || {});
-        await dbkCapabilityManager.persistCapabilityRecord(context, configured);
+        await dbkCapabilityManager.configureCapabilityPersistent(
+          context,
+          req.targetDbkId,
+          String(capabilityId),
+          (configData as Record<string, unknown>) || {}
+        );
         await workspaceManager.incrementWorkspaceVersion(context, req.targetDbkId);
         updatedExperience = await this.resolveExperience(context, req.targetDbkId);
       } else if (req.commandType === 'EXECUTE_SALE') {
