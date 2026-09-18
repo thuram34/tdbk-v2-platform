@@ -723,18 +723,7 @@ class WorkflowEngineService {
 
     // Return the durable delivered records for this tenant.
     const durableRecords = await outboxRepository.listOutbox(tenantId, 'DELIVERED');
-    return durableRecords
-      .map((record) => ({
-        eventId: record.eventId,
-        tenantId: record.tenantId,
-        eventType: record.eventType,
-        status: 'DELIVERED' as const,
-        attemptCount: record.attemptCount,
-        payload: record.payload,
-        createdAt: record.createdAt,
-        lastAttemptAt: record.updatedAt,
-        errorDetails: record.lastError,
-      }));
+    return durableRecords;
   }
 
   /**
