@@ -69,23 +69,6 @@ export class EtimsBridge implements Bridge<EtimsInvoiceRequest, any, any> {
 
     throw new KernelError('INTEGRATION_UNAVAILABLE', 'eTIMS provider client is not connected; no synthetic tax invoice may be issued', 503, context.requestId);
 
-    // Publish event
-    publishBridgeEvent({
-      eventId: `evt_etims_${kraIcn}`,
-      eventType: 'document.issued.v1',
-      eventVersion: 'v1',
-      occurredAt: normalized.occurredAt,
-      tenantId,
-      branchId: context.branchContext?.branchId || null,
-      principalId: context.principal.id,
-      correlationId: context.correlationId,
-      causationId: null,
-      source: 'EtimsBridge',
-      payload: { kraIcn, invoiceNumber: payload.invoiceNumber, status: 'CERTIFIED' },
-      metadata: {},
-    });
-
-    return normalized;
   }
 
   public async verifyCallback(rawCallback: any, signatureHeader?: string): Promise<CallbackVerificationResult> {
