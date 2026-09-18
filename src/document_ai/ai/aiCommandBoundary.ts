@@ -461,17 +461,15 @@ export class AiCommandBoundary {
           }
 
           if (existing.status === 'PENDING') {
-            const now = new Date().toISOString();
-            const posted = {
-              ...existing,
-              status: 'POSTED' as const,
-              postedAt: existing.postedAt || now,
-              description: String(finalPayload.description || existing.description || 'M-Pesa payment'),
-            };
-            await ledgerService.post(posted, [
-              { entryId: `${transactionId}_receivable`, transactionId, tenantId, account: 'RECEIVABLES:PAYMENTS', entryType: 'DEBIT', amount: existing.amount, currency: existing.currency, createdAt: now, immutable: true },
-              { entryId: `${transactionId}_cash`, transactionId, tenantId, account: 'CASH:MPESA', entryType: 'CREDIT', amount: existing.amount, currency: existing.currency, createdAt: now, immutable: true },
-            ]);
+            // A provider initiation is not proof of payment. AI must never promote
+            // an unconfirmed PENDING transaction into ledger truth. Only the provider
+            // callback/reconciliation boundary may establish POSTED financial state.
+            throw new KernelError(
+              'ILLEGAL_STATE_TRANSITION',
+              "M-Pesa transaction '" + transactionId + "' is still PENDING; provider confirmation is required before AI can record it",
+              409,
+              ctx.requestId
+            );
           } else if (existing.status === 'RECONCILIATION_REQUIRED') {
             const entries = await ledgerService.entries(tenantId, transactionId);
             const confirmed = { ...existing, status: 'POSTED' as const, postedAt: existing.postedAt || new Date().toISOString() };
