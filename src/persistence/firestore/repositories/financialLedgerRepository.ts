@@ -139,6 +139,58 @@ export class FinancialLedgerRepository implements IFinancialLedgerRepository {
     });
   }
 
+  public async confirmReconciledTransaction(
+    transaction: FinancialTransaction,
+    entries: LedgerEntry[],
+  ): Promise<void> {
+    this.assertBalanced(transaction, entries);
+    if (transaction.status !== 'POSTED') throw new Error('Confirmed transaction must have POSTED status');
+    if (!transaction.postedAt) throw new Error('Confirmed transaction must have postedAt');
+
+    await firestoreClient.runTransaction(async (tx) => {
+      const path = this.transactionPath(transaction.tenantId, transaction.transactionId);
+      const existing = await tx.get<FinancialTransaction>(path);
+
+      if (!existing) throw new Error('Financial transaction not found for reconciliation confirmation');
+      if (existing.tenantId !== transaction.tenantId) throw new Error('Financial transaction tenant mismatch');
+
+      if (existing.status === 'POSTED') {
+        if (
+          existing.amount === transaction.amount &&
+          existing.currency === transaction.currency &&
+          existing.providerReference === transaction.providerReference
+        ) return;
+        throw new Error('Conflicting already-posted financial transaction');
+      }
+
+      if (existing.status !== 'RECONCILIATION_REQUIRED') {
+        throw new Error(
+          `Only RECONCILIATION_REQUIRED transactions may be authoritatively confirmed; found '${existing.status}'`
+        );
+      }
+
+      if (
+        existing.amount !== transaction.amount ||
+        existing.currency !== transaction.currency ||
+        existing.providerReference !== transaction.providerReference
+      ) {
+        throw new Error('Reconciliation confirmation identity conflicts with original transaction');
+      }
+
+      const confirmed: FinancialTransaction = {
+        ...existing,
+        ...transaction,
+        transactionId: existing.transactionId,
+        tenantId: existing.tenantId,
+        status: 'POSTED',
+        postedAt: transaction.postedAt,
+        reversedAt: null,
+      };
+
+      await this.writePostedState(tx, confirmed, entries);
+    });
+  }
+
   public async reverseTransaction(
     tenantId: string,
     transactionId: string,
