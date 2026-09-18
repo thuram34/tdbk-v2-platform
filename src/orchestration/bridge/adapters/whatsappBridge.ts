@@ -12,7 +12,7 @@ import {
 import { SecurityContext } from '../../../kernel/types';
 import { auditLogger } from '../../../kernel/audit/auditLogger';
 import { KernelError } from '../../../kernel/errors/kernelErrors';
-import { eventBus } from '../../events/eventBus';
+import { publishBridgeEvent } from '../bridgeEventPublisher';
 import { connectorConnectionRepository } from '../../../persistence/firestore/repositories/connectorConnectionRepository';
 
 export interface WhatsappMessageRequest {
@@ -92,7 +92,7 @@ export class WhatsappBridge implements Bridge<WhatsappMessageRequest, any, any> 
     });
 
     // Publish event
-    eventBus.publish({
+    publishBridgeEvent({
       eventId: `evt_wa_${wamid}`,
       eventType: 'notification.sent.v1',
       eventVersion: 'v1',
