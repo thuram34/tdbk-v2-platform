@@ -681,7 +681,6 @@ class WorkflowEngineService {
     );
 
     return {
-      outboxId: `outbox_${durable.eventId}`,
       eventId: durable.eventId,
       tenantId: durable.tenantId,
       eventType: durable.eventType,
@@ -718,7 +717,6 @@ class WorkflowEngineService {
     const durableRecords = await outboxRepository.listOutbox(tenantId, 'DELIVERED');
     return durableRecords
       .map((record) => ({
-        outboxId: `outbox_${record.eventId}`,
         eventId: record.eventId,
         tenantId: record.tenantId,
         eventType: record.eventType,
