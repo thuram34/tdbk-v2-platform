@@ -34,6 +34,10 @@ export type DisplayCommandType =
 export interface DisplayCommand {
   commandId: string; tenantId: string; displayId: string; type: DisplayCommandType;
   payload?: Record<string, unknown>; issuedAt: string;
+  status?: 'PENDING' | 'DELIVERED' | 'ACKNOWLEDGED' | 'FAILED';
+  deliveredAt?: string | null;
+  acknowledgedAt?: string | null;
+  error?: string | null;
 }
 export interface DisplaySyncPlan {
   displayId: string; generatedAt: string; content: DisplayContent[];
