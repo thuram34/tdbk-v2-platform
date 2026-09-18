@@ -22,7 +22,7 @@ export class ActivationEvaluatorService {
     dbkId: string,
     capabilityId: string,
     dnaOverride?: import('../blueprint/types').BusinessDNA
-  ): ActivationDecision {
+  ): Promise<ActivationDecision> {
     const cap = capabilityRegistry.getCapability(capabilityId);
     if (!cap) {
       return {
