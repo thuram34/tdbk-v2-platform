@@ -17,6 +17,7 @@ import { capabilityViewRegistry } from '../registry/viewRegistry';
 import { entityEngine } from '../entity/entityEngine';
 import { entitlementEngine } from '../../capability/entitlement';
 import { dbkCapabilityManager } from '../../capability/dbkCapabilityManager';
+import { businessDnaManager } from '../../blueprint/dnaManager';
 import { auditLogger } from '../../kernel/audit/auditLogger';
 import { eventBus } from '../../orchestration/events/eventBus';
 import { phase0TestRunner } from '../../kernel/tests/phase0TestRunner';
@@ -147,6 +148,7 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
       primaryBranchName: 'Main Campus',
     });
     schoolDbkId = res.dbkId;
+    await businessDnaManager.bindBlueprintToDbkPersistent(masterCtx, schoolDbkId, 'Premier Academy');
     if (!schoolDbkId || res.status !== 'ACTIVE') {
       throw new Error(`Failed to provision school DBK: ${JSON.stringify(res)}`);
     }
@@ -163,6 +165,7 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
       primaryBranchName: 'Industrial Area Yard',
     });
     hardwareDbkId = res.dbkId;
+    await businessDnaManager.bindBlueprintToDbkPersistent(masterCtx, hardwareDbkId, 'Apex Hardware & Timber');
     if (!hardwareDbkId || res.status !== 'ACTIVE') {
       throw new Error(`Failed to provision hardware DBK: ${JSON.stringify(res)}`);
     }
@@ -179,6 +182,7 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
       primaryBranchName: 'Westlands Hub',
     });
     clinicDbkId = res.dbkId;
+    await businessDnaManager.bindBlueprintToDbkPersistent(masterCtx, clinicDbkId, 'Afyangu Clinic');
     if (!clinicDbkId || res.status !== 'ACTIVE') {
       throw new Error(`Failed to provision clinic DBK: ${JSON.stringify(res)}`);
     }
