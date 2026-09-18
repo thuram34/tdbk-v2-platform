@@ -44,6 +44,7 @@ export interface WorkflowStep {
   error: string | null;
   failureClassification?: FailureClassification;
   compensationStepId?: string;
+  executionKey?: string;
 }
 
 export interface WorkflowInstance {
@@ -60,6 +61,8 @@ export interface WorkflowInstance {
   completedAt: string | null;
   failureReason: string | null;
   metadata: Record<string, unknown>;
+  executionLeaseOwner?: string | null;
+  executionLeaseUntil?: string | null;
 }
 
 export interface StepExecutorContext {
@@ -67,6 +70,7 @@ export interface StepExecutorContext {
   step: WorkflowStep;
   input: Record<string, unknown>;
   correlationId: string;
+  executionKey: string;
 }
 
 export type StepHandler = (
