@@ -325,10 +325,9 @@ export class AiCommandBoundary {
       if (proposal.proposalType === 'PROPOSE_ADMIT_STUDENT' || proposal.proposalType === 'PROPOSE_BOOK_WAYBILL') {
         const entityType = proposal.proposalType === 'PROPOSE_ADMIT_STUDENT' ? 'student_records' : 'waybill_booking';
         const records = await entityEngine.listPersistentRecords(ctx, tenantId, entityType, proposal.branchId);
-        const recoveredRecordId = proposal.executionResult?.recordId;
-        const recovered = recoveredRecordId
-          ? records.find((record) => record.id === recoveredRecordId)
-          : undefined;
+        const recoveredRecordId = proposal.executionResult?.recordId ||
+          (proposal.proposalType === 'PROPOSE_ADMIT_STUDENT' ? `ai_student_${proposalId}` : `ai_waybill_${proposalId}`);
+        const recovered = records.find((record) => record.id === recoveredRecordId);
         if (recovered) {
           const recoveredProposal = await aiProposalRepository.transitionProposal(
             tenantId, proposalId, 'EXECUTING', 'APPROVED', ctx.principal.id, proposal.suggestedPayload,
