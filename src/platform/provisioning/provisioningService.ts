@@ -337,6 +337,7 @@ export class ProvisioningService {
       );
     }
 
+    try {
     // 4. Prevent duplicate creation under same dbkId with different keys
     if (await dbkRegistry.hasDbk(request.dbkId)) {
       const existing = await dbkRegistry.getDbk(context, request.dbkId);
@@ -613,6 +614,17 @@ export class ProvisioningService {
       expiresAt: new Date(Date.now() + 86400000 * 30).toISOString(),
     });
     return result;
+    } catch (err: any) {
+      // Any unexpected exception after claiming the durable idempotency key must
+      // release the claim as a failed attempt. Otherwise a crash/exception can
+      // strand the request in IN_PROGRESS until expiry.
+      await idempotencyRepository.failIdempotencyRecord(request.dbkId, idempotencyKey, {
+        error: err?.message || 'Unexpected provisioning exception',
+        requestId: context.requestId,
+        correlationId,
+      });
+      throw err;
+    }
   }
 }
 
