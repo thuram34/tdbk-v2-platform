@@ -1,6 +1,7 @@
 import { describe, expect, it, beforeEach } from 'vitest';
 import { MpesaBridge } from '../bridge/adapters/mpesaBridge';
 import { firestoreClient } from '../../persistence/firestore/firestoreClient';
+import { financialLedgerRepository } from '../../persistence/firestore/repositories/financialLedgerRepository';
 
 const tenantId = 'tenant_mpesa_atomic';
 const checkoutRequestId = 'ws_CO_ATOMIC_001';
@@ -38,8 +39,23 @@ function callback() {
 }
 
 describe('M-Pesa callback financial atomicity', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     firestoreClient.clearAllForTesting();
+    await financialLedgerRepository.savePendingTransaction({
+      transactionId: `mpesa_${checkoutRequestId}`,
+      tenantId,
+      branchId: 'branch_hq',
+      source: 'MPESA',
+      providerReference: checkoutRequestId,
+      amount: 1000,
+      currency: 'KES',
+      status: 'PENDING',
+      description: 'Test M-Pesa initiation',
+      correlationId: 'corr_mpesa_atomic',
+      createdAt: new Date().toISOString(),
+      postedAt: null,
+      reversedAt: null,
+    });
   });
 
   it('creates one financial transaction, ledger posting and outbox event for duplicate callbacks', async () => {
