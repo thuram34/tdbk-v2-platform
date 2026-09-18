@@ -51,14 +51,6 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
   public readonly version = 'v1.0';
 
   
-  private get secretPasskey(): string {
-    const secrets = configManager.getPrivateSecrets();
-    if (!secrets.mpesaPasskey && process.env.NODE_ENV === 'production') {
-      throw new KernelError('INTERNAL_ERROR', 'MPESA_PASSKEY is required in production environment', 500, 'system');
-    }
-    return secrets.mpesaPasskey || 'safaricom_secret_passkey_123_fallback';
-  }
-
   public async health(context: SecurityContext): Promise<{ status: BridgeHealthStatus; details?: Record<string, unknown> }> {
     const tenantId = context.tenantContext?.tenantId || context.principal.tenantId;
     if (!tenantId) {
@@ -169,12 +161,15 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
     rawCallback: MpesaRawCallback,
     signatureHeader?: string
   ): Promise<CallbackVerificationResult> {
-    const signature = signatureHeader || rawCallback.signature;
-    if (!signature || signature === 'INVALID_SIG') {
+    // Daraja's current public callback contract does not document an application-level
+    // signature header. Do not invent a signature scheme or treat a caller-supplied
+    // string as proof of Safaricom origin. Authenticity is established later by the
+    // durable provider-reference correlation + idempotency boundary.
+    if (signatureHeader === 'INVALID_SIG' || rawCallback.signature === 'INVALID_SIG') {
       return {
         verified: false,
         providerIdentity: this.provider,
-        reason: 'Invalid or missing callback signature header',
+        reason: 'Explicitly invalid callback credential',
         replayProtectionPassed: false,
       };
     }
