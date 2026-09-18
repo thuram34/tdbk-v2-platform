@@ -40,7 +40,7 @@ export async function handleSubscriptionPaymentConfirmed(event: EventEnvelope): 
     branchContext: null,
     ipAddress: 'internal:subscription-payment-handler',
     userAgent: 'TDBK-Subscription-Event-Handler',
-  } as const;
+  };
 
   await dbkRegistry.changeSubscriptionTier(
     context,
