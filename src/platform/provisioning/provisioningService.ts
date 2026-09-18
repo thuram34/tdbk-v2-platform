@@ -524,6 +524,13 @@ export class ProvisioningService {
         }
       );
 
+      // Release the durable idempotency claim as a failed attempt so an
+      // operator can safely retry provisioning without waiting for claim expiry.
+      await idempotencyRepository.failIdempotencyRecord(request.dbkId, idempotencyKey, {
+        error: executedWorkflow.failureReason || 'Provisioning workflow failed',
+        workflowId: executedWorkflow.workflowId,
+      });
+
       return {
         success: false,
         dbkId: request.dbkId,
