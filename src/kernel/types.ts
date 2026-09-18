@@ -75,6 +75,7 @@ export type KernelErrorCode =
   | 'NOT_FOUND'
   | 'CONFLICT'
   | 'OPTIMISTIC_LOCK_ERROR'
+  | 'INTEGRATION_UNAVAILABLE'
   | 'INTERNAL_ERROR';
 
 export interface AuthorizationResult {
