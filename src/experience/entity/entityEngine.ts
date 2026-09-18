@@ -167,10 +167,11 @@ export class EntityEngineService {
       createdAt: now,
       updatedAt: now,
     };
-    await entityRecordRepository.saveRecord(tenantId, entityType, record.id, record);
+    const persisted = await entityRecordRepository.createIfAbsent(tenantId, entityType, record.id, record);
+    const authoritative = persisted;
     const cache = this.entityStore.get(`${tenantId}:${entityType}`) || [];
-    this.entityStore.set(`${tenantId}:${entityType}`, [record, ...cache.filter((item) => item.id !== record.id)]);
-    return { ...record, recordId: record.id, data: record.attributes };
+    this.entityStore.set(`${tenantId}:${entityType}`, [authoritative, ...cache.filter((item) => item.id !== authoritative.id)]);
+    return { ...authoritative, recordId: authoritative.id, data: authoritative.attributes };
   }
 
   /** Persists an entity record before updating the hot cache. Production command paths use this method. */
