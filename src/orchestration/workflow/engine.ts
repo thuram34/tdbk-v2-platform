@@ -413,6 +413,15 @@ class WorkflowEngineService {
             executionKey: step.executionKey!,
           });
 
+          if (leaseLost) {
+            throw new KernelError(
+              'CONFLICT',
+              'Workflow execution lease was lost during step execution; refusing to retry or persist stale results.',
+              409,
+              context.requestId
+            );
+          }
+
           if (result.status === 'WAITING' || result.failureClassification === 'WAITING_FOR_EXTERNAL_RESULT') {
             step.status = 'WAITING';
             step.failureClassification = 'WAITING_FOR_EXTERNAL_RESULT';
@@ -435,6 +444,7 @@ class WorkflowEngineService {
             }
           }
         } catch (err: any) {
+          if (leaseLost) throw err;
           step.error = err.message || 'Exception during step execution';
           step.failureClassification = 'TRANSIENT';
         }
