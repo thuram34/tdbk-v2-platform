@@ -192,6 +192,7 @@ export interface IWorkspaceRepository {
 
 export interface IEntityRecordRepository {
   saveRecord(tenantId: string, capabilityId: string, recordId: string, record: ExperienceEntityRecord): Promise<void>;
+  createIfAbsent(tenantId: string, capabilityId: string, recordId: string, record: ExperienceEntityRecord): Promise<ExperienceEntityRecord>;
   getRecord(tenantId: string, capabilityId: string, recordId: string): Promise<ExperienceEntityRecord | null>;
   listRecords(tenantId: string, capabilityId: string, branchId?: string | null): Promise<ExperienceEntityRecord[]>;
   deleteRecord(tenantId: string, capabilityId: string, recordId: string): Promise<void>;
