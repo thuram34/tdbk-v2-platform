@@ -132,6 +132,17 @@ export interface IReceiptRepository {
   listReceipts(tenantId: string): Promise<FinancialReceipt[]>;
 }
 
+export interface IReconciliationRepository {
+  markRequired(tenantId: string, transactionId: string, expectedStatus: FinancialTransactionStatus): Promise<FinancialTransaction>;
+  resolve(
+    tenantId: string,
+    transactionId: string,
+    expectedStatus: FinancialTransactionStatus,
+    status: Extract<FinancialTransactionStatus, 'POSTED' | 'FAILED' | 'REVERSED'>
+  ): Promise<FinancialTransaction>;
+  get(tenantId: string, transactionId: string): Promise<FinancialTransaction | null>;
+}
+
 export interface IFinancialLedgerRepository {
   savePendingTransaction(transaction: FinancialTransaction): Promise<void>;
   postTransaction(transaction: FinancialTransaction, entries: LedgerEntry[]): Promise<void>;
