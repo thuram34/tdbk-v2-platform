@@ -60,6 +60,28 @@ export class DocumentStore {
   }
 
   /**
+   * Authoritative asynchronous metadata persistence for production command paths.
+   * The synchronous saveDocument method remains for legacy/test compatibility.
+   */
+  public async persistDocument(
+    ctx: SecurityContext,
+    doc: DocumentMetadata,
+    rawContent?: string
+  ): Promise<void> {
+    tenantIsolation.assertTenantIsolation(ctx.principal, doc.tenantId);
+
+    if (!this.tenantDocumentIndex.has(doc.tenantId)) {
+      this.tenantDocumentIndex.set(doc.tenantId, new Map());
+    }
+    this.tenantDocumentIndex.get(doc.tenantId)!.set(doc.documentId, doc);
+    if (rawContent) {
+      this.binaryStore.set(doc.storagePath, rawContent);
+    }
+
+    await documentMetadataRepository.saveDocument(doc.tenantId, doc.documentId, doc);
+  }
+
+  /**
    * Persists raw document content to Firebase Storage. The in-memory binary store
    * is retained only for tests/local compatibility; production content must
    * survive instance restarts.
