@@ -134,7 +134,6 @@ class WorkflowEngineService {
       source: 'WorkflowEngine',
       payload: { workflowId, workflowType, workflowVersion },
       metadata,
-      metadata: {},
     };
 
     if (publishLifecycleEvent) {
