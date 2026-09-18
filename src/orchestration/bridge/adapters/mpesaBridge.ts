@@ -13,7 +13,7 @@ import { SecurityContext } from '../../../kernel/types';
 import { auditLogger } from '../../../kernel/audit/auditLogger';
 import { configManager } from '../../../kernel/configuration/configManager';
 import { KernelError } from '../../../kernel/errors/kernelErrors';
-import { eventBus } from '../../events/eventBus';
+import { publishBridgeEvent } from '../bridgeEventPublisher';
 import { connectorConnectionRepository } from '../../../persistence/firestore/repositories/connectorConnectionRepository';
 
 export interface MpesaSTKPushRequest {
@@ -153,7 +153,7 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
       details: { providerReference: checkoutReqId, status: normalizedResult.status },
     });
 
-    eventBus.publish({
+    publishBridgeEvent({
       eventId: `evt_mpesa_${checkoutReqId}`,
       eventType: 'payment.pending.v1',
       eventVersion: 'v1',
@@ -277,7 +277,7 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
       },
     });
 
-    eventBus.publish({
+    publishBridgeEvent({
       eventId: `evt_callback_${stk.CheckoutRequestID}`,
       eventType: normalized.status === 'SUCCESS' ? 'payment.confirmed.v1' : 'payment.failed.v1',
       eventVersion: 'v1',
