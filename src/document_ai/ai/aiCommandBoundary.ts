@@ -101,10 +101,9 @@ export class AiCommandBoundary {
       causationId: params.causationId || ctx.requestId,
     };
 
-    if (!this.proposals.has(params.tenantId)) {
-      this.proposals.set(params.tenantId, new Map());
-    }
-    this.proposals.get(params.tenantId)!.set(proposalId, proposal);
+    // Durable Firestore state is authoritative. Do not populate the hot cache
+    // until the proposal + lifecycle outbox transaction has committed; otherwise
+    // a failed persistence attempt can expose a proposal that never existed durably.
 
     // Persist the lifecycle event before publishing it to the in-process bus.
     // The outbox is the recovery authority if the process restarts after proposal creation.
@@ -153,6 +152,11 @@ export class AiCommandBoundary {
       proposalEvent,
       proposalOutbox,
     );
+
+    if (!this.proposals.has(params.tenantId)) {
+      this.proposals.set(params.tenantId, new Map());
+    }
+    this.proposals.get(params.tenantId)!.set(proposalId, proposal);
 
     auditLogger.logAuditEvent(ctx, {
       action: 'AI_PROPOSAL_CREATED',
