@@ -12,7 +12,7 @@ import {
 import { SecurityContext } from '../../../kernel/types';
 import { auditLogger } from '../../../kernel/audit/auditLogger';
 import { KernelError } from '../../../kernel/errors/kernelErrors';
-import { eventBus } from '../../events/eventBus';
+import { publishBridgeEvent } from '../bridgeEventPublisher';
 import { connectorConnectionRepository } from '../../../persistence/firestore/repositories/connectorConnectionRepository';
 
 export interface EtimsInvoiceRequest {
@@ -99,7 +99,7 @@ export class EtimsBridge implements Bridge<EtimsInvoiceRequest, any, any> {
     });
 
     // Publish event
-    eventBus.publish({
+    publishBridgeEvent({
       eventId: `evt_etims_${kraIcn}`,
       eventType: 'document.issued.v1',
       eventVersion: 'v1',
