@@ -83,6 +83,43 @@ export interface IConnectorConnectionRepository {
   ): Promise<void>;
 }
 
+export type FinancialTransactionStatus = 'PENDING' | 'POSTED' | 'FAILED' | 'REVERSED' | 'RECONCILIATION_REQUIRED';
+export type LedgerEntryType = 'DEBIT' | 'CREDIT';
+
+export interface FinancialTransaction {
+  transactionId: string;
+  tenantId: string;
+  branchId: string | null;
+  source: 'MPESA' | 'BANK' | 'CASH' | 'ETIMS' | 'OTHER';
+  providerReference: string;
+  amount: number;
+  currency: string;
+  status: FinancialTransactionStatus;
+  description: string;
+  correlationId: string;
+  createdAt: string;
+  postedAt: string | null;
+  reversedAt: string | null;
+}
+
+export interface LedgerEntry {
+  entryId: string;
+  transactionId: string;
+  tenantId: string;
+  account: string;
+  entryType: LedgerEntryType;
+  amount: number;
+  currency: string;
+  createdAt: string;
+  immutable: true;
+}
+
+export interface IFinancialLedgerRepository {
+  postTransaction(transaction: FinancialTransaction, entries: LedgerEntry[]): Promise<void>;
+  getTransaction(tenantId: string, transactionId: string): Promise<FinancialTransaction | null>;
+  listEntries(tenantId: string, transactionId: string): Promise<LedgerEntry[]>;
+}
+
 // -------------------------------------------------------------
 // REPOSITORY INTERFACES
 // -------------------------------------------------------------
