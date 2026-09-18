@@ -15,6 +15,7 @@ import { KernelError } from '../../kernel/errors/kernelErrors';
 import { eventBus } from '../events/eventBus';
 import { EventEnvelope } from '../events/types';
 import { workflowInstanceRepository } from '../../persistence/firestore/repositories/workflowInstanceRepository';
+import { workflowStepExecutionRepository } from '../../persistence/firestore/repositories/workflowStepExecutionRepository';
 import { outboxEngine } from '../outbox/outboxEngine';
 import { outboxRepository } from '../../persistence/firestore/repositories/outboxRepository';
 
@@ -440,6 +441,15 @@ class WorkflowEngineService {
         }
 
         step.attemptCount = Math.max(step.attemptCount + 1, execution.attemptCount);
+        const stepLeaseDurationMs = 300000;
+        const stepLeaseHeartbeatMs = 60000;
+        let stepLeaseLost = false;
+        const stepLeaseHeartbeat = setInterval(() => {
+          void workflowStepExecutionRepository
+            .renewExecution(workflow.tenantId, step.executionKey!, workerId, stepLeaseDurationMs)
+            .then((renewed) => { if (!renewed) stepLeaseLost = true; })
+            .catch(() => { stepLeaseLost = true; });
+        }, stepLeaseHeartbeatMs);
         try {
           const result = await handler({
             workflow,
@@ -449,7 +459,7 @@ class WorkflowEngineService {
             executionKey: step.executionKey!,
           });
 
-          if (leaseLost) {
+          if (leaseLost || stepLeaseLost) {
             throw new KernelError(
               'CONFLICT',
               'Workflow execution lease was lost during step execution; refusing to retry or persist stale results.',
@@ -494,7 +504,7 @@ class WorkflowEngineService {
             }
           }
         } catch (err: any) {
-          if (leaseLost) throw err;
+          if (leaseLost || stepLeaseLost) throw err;
           step.error = err.message || 'Exception during step execution';
           step.failureClassification = 'TRANSIENT';
           if (step.attemptCount >= maxAttempts) {
@@ -506,6 +516,8 @@ class WorkflowEngineService {
             );
             break;
           }
+        } finally {
+          clearInterval(stepLeaseHeartbeat);
         }
       }
 
