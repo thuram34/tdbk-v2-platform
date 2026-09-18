@@ -31,6 +31,7 @@ import { ledgerService } from '../../finance/ledgerService';
 import { financialTransactionService } from '../../finance/transactionService';
 import { receiptService } from '../../finance/receiptService';
 import { reconciliationService } from '../../finance/reconciliationService';
+import type { OutboxRecord } from '../../persistence/types';
 
 export class AiCommandBoundary {
   private static instance: AiCommandBoundary;
@@ -105,9 +106,6 @@ export class AiCommandBoundary {
       this.proposals.set(params.tenantId, new Map());
     }
     this.proposals.get(params.tenantId)!.set(proposalId, proposal);
-    await aiProposalRepository.saveProposal(params.tenantId, proposalId, proposal);
-
-    auditLogger.logAuditEvent(ctx, {
       action: 'AI_PROPOSAL_CREATED',
       targetResource: `proposal:${proposalId}`,
       outcome: 'ALLOWED',
@@ -135,7 +133,49 @@ export class AiCommandBoundary {
       payload: { proposalId, proposalType: proposal.proposalType, confidence: proposal.confidence },
       metadata: {},
     };
-    await outboxEngine.enqueueEvent(params.tenantId, proposalEvent, undefined, ctx.principal.id);
+    const outboxNow = new Date().toISOString();
+    const proposalOutbox: OutboxRecord = {
+      eventId: proposalEvent.eventId,
+      tenantId: params.tenantId,
+      branchId: params.branchId || null,
+      eventType: proposalEvent.eventType,
+      eventVersion: proposalEvent.eventVersion,
+      occurredAt: proposalEvent.occurredAt,
+      correlationId: proposalEvent.correlationId,
+      causationId: proposalEvent.causationId || null,
+      source: proposalEvent.source,
+      payload: proposalEvent.payload,
+      status: 'PENDING',
+      attemptCount: 0,
+      availableAt: outboxNow,
+      createdAt: outboxNow,
+      updatedAt: outboxNow,
+      leaseOwner: null,
+      leaseUntil: null,
+      lastError: null,
+      deliveredAt: null,
+    };
+    // Proposal and lifecycle event are one durable unit. A process crash cannot
+    // leave an accepted proposal without its recovery event.
+    await aiProposalRepository.saveProposalWithOutbox(
+      params.tenantId,
+      proposalId,
+      proposal,
+      proposalEvent,
+      proposalOutbox,
+    );
+
+    auditLogger.logAuditEvent(ctx, {
+      action: 'AI_PROPOSAL_CREATED',
+      targetResource: `proposal:${proposalId}`,
+      outcome: 'ALLOWED',
+      details: {
+        proposalType: proposal.proposalType,
+        confidence: proposal.confidence,
+        documentId: proposal.documentId,
+        summary: proposal.summary,
+      }
+    });
     await eventBus.publish(proposalEvent);
 
     return proposal;
