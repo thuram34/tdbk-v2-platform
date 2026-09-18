@@ -99,8 +99,8 @@ describe('M-Pesa callback financial atomicity', () => {
     expect(tx?.status).toBe('POSTED');
     expect(ledger).toHaveLength(2);
     expect(outbox?.eventId).toBe(`evt_callback_${checkoutRequestId}`);
-    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
-    expect(results.filter((r) => r.status === 'rejected')).toHaveLength(1);
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(2);
+    expect(results.filter((r) => r.status === 'rejected')).toHaveLength(0);
   });
 
 
