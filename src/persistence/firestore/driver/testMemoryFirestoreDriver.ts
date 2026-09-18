@@ -19,6 +19,7 @@ export class TestMemoryFirestoreDriver implements IFirestoreDriver {
   > = new Map();
 
   private persistentBackingStore: Map<string, string> = new Map();
+  private transactionQueue: Promise<void> = Promise.resolve();
 
   constructor() {
     this.rehydrateFromBackingStore();
@@ -123,6 +124,7 @@ export class TestMemoryFirestoreDriver implements IFirestoreDriver {
   public async runTransaction<T>(
     updateFunction: (transaction: FirestoreTransaction) => Promise<T>
   ): Promise<T> {
+    const execute = async (): Promise<T> => {
     const snapshot = new Map(this.documents);
     const stagingWrites = new Map<string, { data: Record<string, unknown>; options?: FirestoreWriteOptions }>();
     const stagingDeletes = new Set<string>();
@@ -173,6 +175,17 @@ export class TestMemoryFirestoreDriver implements IFirestoreDriver {
       this.documents = snapshot;
       this.syncToBackingStore();
       throw err;
+    }
+    };
+
+    const previous = this.transactionQueue;
+    let release!: () => void;
+    this.transactionQueue = new Promise<void>((resolve) => { release = resolve; });
+    await previous;
+    try {
+      return await execute();
+    } finally {
+      release();
     }
   }
 }
