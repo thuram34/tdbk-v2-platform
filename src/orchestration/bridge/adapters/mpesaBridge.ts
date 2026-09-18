@@ -66,8 +66,11 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
   }
 
   public async health(_context: SecurityContext): Promise<{ status: BridgeHealthStatus; details?: Record<string, unknown> }> {
+    // These adapters are explicitly MOCK in the platform registry. They must
+    // never advertise a live provider connection until a real provider client
+    // is configured and the adapter performs an actual connectivity check.
     return {
-      status: 'HEALTHY',
+      status: 'UNAVAILABLE',
       details: { provider: this.provider, version: this.version, latencyMs: 12 },
     };
   }
@@ -81,6 +84,9 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
     payload: MpesaSTKPushRequest
   ): Promise<NormalizedBridgeResult<any>> {
     const tenantId = context.tenantContext?.tenantId || context.principal.tenantId;
+    if (process.env.NODE_ENV === 'production') {
+      throw new KernelError('INTEGRATION_UNAVAILABLE', 'M-Pesa bridge is not connected to a production provider', 503, context.requestId);
+    }
     if (!tenantId) {
       throw new KernelError('TENANT_ISOLATION_ERROR', 'M-Pesa STK Push Denied: Missing Tenant Context', 403, context.requestId);
     }
