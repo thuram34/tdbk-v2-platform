@@ -15,7 +15,6 @@ import { configManager } from '../../../kernel/configuration/configManager';
 import { KernelError } from '../../../kernel/errors/kernelErrors';
 import { publishBridgeEvent } from '../bridgeEventPublisher';
 import { connectorConnectionRepository } from '../../../persistence/firestore/repositories/connectorConnectionRepository';
-import { idempotencyRepository } from '../../../persistence/firestore/repositories/idempotencyRepository';
 import { financialLedgerRepository } from '../../../persistence/firestore/repositories/financialLedgerRepository';
 import { outboxEngine } from '../../outbox/outboxEngine';
 import { firestoreClient } from '../../../persistence/firestore/firestoreClient';
