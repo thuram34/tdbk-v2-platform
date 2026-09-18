@@ -413,7 +413,8 @@ export class AiCommandBoundary {
       switch (proposal.proposalType) {
         case 'PROPOSE_ADMIT_STUDENT': {
           const student = await entityEngine.createPersistentRecord(ctx, tenantId, 'student_records', {
-            id: executionRecordId || `ai_student_${proposalId}`,\n            admissionNo: finalPayload.admissionNumber || `ADM-${Date.now()}`,
+            id: executionRecordId || `ai_student_${proposalId}`,
+            admissionNo: finalPayload.admissionNumber || `ADM-${Date.now()}`,
             fullName: finalPayload.studentName || 'Student Name',
             grade: finalPayload.gradeLevel || 'Grade 1',
             branchId: proposal.branchId,
@@ -424,7 +425,8 @@ export class AiCommandBoundary {
         }
         case 'PROPOSE_BOOK_WAYBILL': {
           const wb = await entityEngine.createPersistentRecord(ctx, tenantId, 'waybill_booking', {
-            id: executionRecordId || `ai_waybill_${proposalId}`,\n            waybillNo: finalPayload.waybillNumber || `WB-${Date.now()}`,
+            id: executionRecordId || `ai_waybill_${proposalId}`,
+            waybillNo: finalPayload.waybillNumber || `WB-${Date.now()}`,
             consignor: finalPayload.consignor || 'Consignor',
             consignee: finalPayload.consignee || 'Consignee',
             weightKg: finalPayload.weightKg || 100,
