@@ -20,6 +20,7 @@ import {
   BusinessSpace,
   SpaceMembership,
   SpaceType,
+  SpaceType,
   CoherentExperienceResolution,
   FormalCapabilityDefinition,
   BusinessModuleDefinition,
