@@ -276,9 +276,32 @@ class WorkflowEngineService {
       return workflow;
     }
 
+    // A workflow is branch-scoped business state. Non-master execution must use
+    // the same authoritative branch context; a missing branch context cannot
+    // silently become permission to execute another branch's workflow.
+    if (!context.principal.isMaster && workflow.branchId) {
+      const requestBranch = context.branchContext?.branchId || context.principal.branchId || null;
+      if (requestBranch !== workflow.branchId) {
+        auditLogger.logEvent(
+          'TENANT_ISOLATION_VIOLATION',
+          context.principal.id,
+          'EXECUTE_WORKFLOW_CROSS_BRANCH',
+          'workflow:' + workflowId,
+          'DENIED',
+          { tenantId: requestTenant, requestId: context.requestId, details: { targetWorkflowBranch: workflow.branchId, requestBranch } }
+        );
+        throw new KernelError(
+          'AUTHORIZATION_ERROR',
+          'Branch Authorization Violation: Principal cannot execute workflow for branch ' + workflow.branchId,
+          403,
+          context.requestId
+        );
+      }
+    }
+
     const workerId = 'workflow-' + context.principal.id + '-' + context.requestId;
     const durableExecution = durableWorkflow
-      ? await workflowInstanceRepository.claimExecutionLease(workflow.tenantId, workflow.workflowId, workerId, 30000)
+      ? await workflowInstanceRepository.claimExecutionLease(workflow.tenantId, workflow.workflowId, workerId, 300000)
       : workflow;
     if (!durableExecution) {
       throw new KernelError('CONFLICT', 'Workflow is currently executing', 409, context.requestId);
