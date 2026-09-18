@@ -1,5 +1,6 @@
 import { reconciliationRepository } from '../persistence/firestore/repositories/reconciliationRepository';
-import type { FinancialTransaction, FinancialTransactionStatus } from './types';
+import type { FinancialTransaction, FinancialTransactionStatus, LedgerEntry } from './types';
+import type { OutboxRecord } from '../persistence/types';
 
 export class ReconciliationService {
   public async markRequired(
@@ -34,7 +35,7 @@ export class ReconciliationService {
    */
   public async resolveConfirmed(
     transaction: FinancialTransaction,
-    entries: import('./types').LedgerEntry[],
+    entries: LedgerEntry[],
   ): Promise<FinancialTransaction> {
     if (transaction.status !== 'POSTED') {
       throw new Error('Confirmed reconciliation must provide a POSTED transaction');
@@ -48,8 +49,43 @@ export class ReconciliationService {
       );
     }
 
-    const { ledgerService } = await import('./ledgerService');
-    await ledgerService.confirmReconciled(transaction, entries);
+    const occurredAt = transaction.postedAt!;
+    const outboxRecord: OutboxRecord = {
+      eventId: `evt_payment_confirmed_${transaction.transactionId}`,
+      tenantId: transaction.tenantId,
+      branchId: transaction.branchId,
+      eventType: 'payment.confirmed.v1',
+      eventVersion: 'v1',
+      occurredAt,
+      correlationId: transaction.correlationId,
+      causationId: transaction.providerReference,
+      source: 'TDBK_RECONCILIATION_SERVICE',
+      payload: {
+        transactionId: transaction.transactionId,
+        providerReference: transaction.providerReference,
+        amount: transaction.amount,
+        currency: transaction.currency,
+        status: 'POSTED',
+      },
+      status: 'PENDING',
+      attemptCount: 0,
+      availableAt: occurredAt,
+      createdAt: occurredAt,
+      updatedAt: occurredAt,
+      leaseOwner: null,
+      leaseUntil: null,
+      lastError: null,
+      deliveredAt: null,
+    };
+
+    const { financialLedgerRepository } = await import(
+      '../persistence/firestore/repositories/financialLedgerRepository'
+    );
+    await financialLedgerRepository.confirmReconciledTransaction(
+      transaction,
+      entries,
+      outboxRecord,
+    );
     return (await reconciliationRepository.get(transaction.tenantId, transaction.transactionId))!;
   }
 
