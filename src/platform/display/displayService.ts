@@ -34,14 +34,13 @@ export class DisplayService {
       if(!pair||pair.tenantId!==tenantId||pair.used||new Date(pair.expiresAt).getTime()<Date.now()) throw new Error('DISPLAY_PAIRING_INVALID');
       const deviceToken=randomBytes(32).toString('hex');
       await tx.update(pairingPath(tenantId,code),{used:true});
-      await tx.set(`${nodePath(tenantId,pair.displayId)}/auth/device`,{displayId:pair.displayId,tenantId,tokenHash:tokenHash(deviceToken)});
+      await tx.set(`/system/displayDeviceAuth/${tokenHash(deviceToken)}`,{displayId:pair.displayId,tenantId,tokenHash:tokenHash(deviceToken)});
       return {displayId:pair.displayId,deviceToken};
     });
   }
   async authenticateDevice(deviceToken:string):Promise<DisplayAuthRecord|null>{
     const hash=tokenHash(deviceToken);
-    const tenants=await firestoreClient.listCollection<{displayId:string;tenantId:string;tokenHash:string}>('/system/displayDeviceAuth');
-    return tenants.find(x=>x.tokenHash===hash)??null;
+    return firestoreClient.get<DisplayAuthRecord>(`/system/displayDeviceAuth/${hash}`);
   }
   async heartbeat(heartbeat:{displayId:string;tenantId:string;status:DisplayNode['status'];networkQuality:DisplayNode['networkQuality'];appVersion:string;cacheVersion:number;currentContentId:string|null;reportedAt:string}):Promise<DisplayNode>{
     const path=nodePath(heartbeat.tenantId,heartbeat.displayId); const node=await firestoreClient.get<DisplayNode>(path);
