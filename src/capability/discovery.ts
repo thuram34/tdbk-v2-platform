@@ -22,7 +22,7 @@ export class DiscoveryEngineService {
     const dna = await businessDnaManager.getPersistentBusinessDna(securityContext, dbkId);
     const rawSector = dna.identity.businessType as string;
     const sector = (rawSector === 'SCHOOL' ? 'EDUCATION' : rawSector) as any;
-    const subscriptionTier = entitlementEngine.getDbkSubscriptionTier(dbkId);
+    const subscriptionTier = await entitlementEngine.getPersistentDbkSubscriptionTier(dbkId);
 
     const allCaps = capabilityRegistry.getAllCapabilities();
 
@@ -46,7 +46,7 @@ export class DiscoveryEngineService {
       const rec = recordMap.get(cap.capabilityId);
 
       // Entitlement status
-      const entitlementStatus: EntitlementStatus = entitlementEngine.evaluateEntitlement(dbkId, cap);
+      const entitlementStatus: EntitlementStatus = await entitlementEngine.evaluatePersistentEntitlement(dbkId, cap);
 
       // Dependency check
       const depEval = dependencyEngine.evaluateDependencies(cap, enabledCapIds);
