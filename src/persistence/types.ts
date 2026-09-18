@@ -1,7 +1,7 @@
 /**
  * TDBK V2 — AUTHORITATIVE PERSISTENCE LAYER TYPES
  * Layer: ARCHITECTURAL FOUNDATION — FIRESTORE NATIVE MODE
- * 
+ *
  * Canonical Path Model: /tenants/{tenantId}/...
  * Invariant: tenantId === dbkId for tenant boundaries.
  */
@@ -43,6 +43,44 @@ export interface IdempotencyRecord {
   responsePayload?: Record<string, unknown>;
   createdAt: string;
   expiresAt: string;
+}
+
+export interface ConnectorSecretReference {
+  name: string;
+  provider: 'GCP_SECRET_MANAGER' | 'CLOUD_RUN_ENV';
+}
+
+export type ConnectorConnectionStatus = 'UNCONFIGURED' | 'CONFIGURED' | 'DISABLED' | 'ERROR';
+export type ConnectorHealthStatus = 'UNKNOWN' | 'HEALTHY' | 'UNAVAILABLE' | 'ERROR';
+
+export interface ConnectorConnection {
+  connectionId: string;
+  tenantId: string;
+  bridgeId: string;
+  provider: string;
+  status: ConnectorConnectionStatus;
+  enabled: boolean;
+  configurationVersion: number;
+  parameters: Record<string, string>;
+  secretRefs: Record<string, ConnectorSecretReference>;
+  configuredAt: string | null;
+  updatedAt: string;
+  lastHealthCheckAt: string | null;
+  lastHealthStatus: ConnectorHealthStatus;
+  lastErrorCode: string | null;
+}
+
+export interface IConnectorConnectionRepository {
+  saveConnection(tenantId: string, connectionId: string, connection: ConnectorConnection): Promise<void>;
+  getConnection(tenantId: string, connectionId: string): Promise<ConnectorConnection | null>;
+  listConnections(tenantId: string): Promise<ConnectorConnection[]>;
+  deleteConnection(tenantId: string, connectionId: string): Promise<void>;
+  updateHealth(
+    tenantId: string,
+    connectionId: string,
+    healthStatus: ConnectorHealthStatus,
+    lastErrorCode?: string | null
+  ): Promise<void>;
 }
 
 // -------------------------------------------------------------
