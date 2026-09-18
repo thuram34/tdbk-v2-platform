@@ -71,6 +71,26 @@ export class WorkflowStepExecutionRepository implements IWorkflowStepExecutionRe
     });
   }
 
+  public async renewExecution(
+    tenantId: string,
+    executionKey: string,
+    workerId: string,
+    leaseDurationMs: number
+  ): Promise<boolean> {
+    const path = this.getPath(tenantId, executionKey);
+    return await firestoreClient.runTransaction(async (tx) => {
+      const current = await tx.get<WorkflowStepExecution>(path);
+      if (!current || current.status !== 'EXECUTING' || current.workerId !== workerId) return false;
+      if (!current.leaseUntil || Date.parse(current.leaseUntil) <= Date.now()) return false;
+      const now = new Date().toISOString();
+      await tx.update(path, {
+        leaseUntil: new Date(Date.now() + leaseDurationMs).toISOString(),
+        updatedAt: now,
+      });
+      return true;
+    });
+  }
+
   public async completeExecution(
     tenantId: string,
     executionKey: string,
