@@ -570,7 +570,7 @@ export async function runPhase6TestSuite(): Promise<Phase6TestSummary> {
   let studentProposalId = '';
 
   await runTest('P6_TEST_25', 'AI proposal generated correctly in PENDING_REVIEW state', async () => {
-    const proposal = aiCommandBoundary.createProposal(schoolAdminCtx, {
+    const proposal = await aiCommandBoundary.createPersistentProposal(schoolAdminCtx, {
       tenantId: schoolDbkId,
       branchId: 'tenant_school_01_hq',
       documentId: sampleDocId1,
