@@ -27,6 +27,32 @@ export class ReconciliationService {
     );
   }
 
+  /**
+   * Confirms an uncertain transaction only through the authoritative ledger.
+   * The repository atomically changes RECONCILIATION_REQUIRED -> POSTED and
+   * writes the immutable balanced entries in the same Firestore transaction.
+   */
+  public async resolveConfirmed(
+    transaction: FinancialTransaction,
+    entries: import('./types').LedgerEntry[],
+  ): Promise<FinancialTransaction> {
+    if (transaction.status !== 'POSTED') {
+      throw new Error('Confirmed reconciliation must provide a POSTED transaction');
+    }
+
+    const current = await reconciliationRepository.get(transaction.tenantId, transaction.transactionId);
+    if (!current) throw new Error('Financial transaction not found');
+    if (current.status !== 'RECONCILIATION_REQUIRED' && current.status !== 'POSTED') {
+      throw new Error(
+        `Cannot confirm financial transaction from status '${current.status}'`
+      );
+    }
+
+    const { ledgerService } = await import('./ledgerService');
+    await ledgerService.confirmReconciled(transaction, entries);
+    return (await reconciliationRepository.get(transaction.tenantId, transaction.transactionId))!;
+  }
+
   public async get(
     tenantId: string,
     transactionId: string,
