@@ -133,7 +133,7 @@ export class ProvisioningService {
       const mockCtx = createStepContext(workflow, dbkId);
 
       try {
-        const dna = businessDnaManager.bindBlueprintToDbk(
+        const dna = await businessDnaManager.bindBlueprintToDbkPersistent(
           mockCtx,
           dbkId,
           legalName,
