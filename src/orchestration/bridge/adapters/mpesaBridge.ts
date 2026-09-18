@@ -262,8 +262,6 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
       expiresAt: new Date(Date.now() + 86400000 * 7).toISOString(),
     });
 
-    const callbackTenant = rawCallback.tenantId || context.tenantContext?.tenantId;
-    const requestTenant = context.tenantContext?.tenantId || context.principal.tenantId;
 
     const normalized = this.normalizeResponse(rawCallback);
 
