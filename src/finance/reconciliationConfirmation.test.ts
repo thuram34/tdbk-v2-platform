@@ -89,6 +89,12 @@ describe('Authoritative reconciliation confirmation', () => {
     expect(persisted?.status).toBe('POSTED');
     expect(ledger).toHaveLength(2);
     expect(ledger.every((entry) => entry.immutable === true)).toBe(true);
+
+    const outbox = await firestoreClient.get<any>(
+      `/tenants/${tenantId}/outbox/evt_payment_confirmed_${transactionId}`
+    );
+    expect(outbox?.eventType).toBe('payment.confirmed.v1');
+    expect(outbox?.status).toBe('PENDING');
     expect(ledger.reduce((sum, entry) => sum + entry.amount, 0)).toBe(2500);
   });
 
