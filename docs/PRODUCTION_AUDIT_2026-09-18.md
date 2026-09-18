@@ -58,3 +58,18 @@ TDBK V2 should be considered production-ready only after:
 - authoritative entity and coherence state is persisted in Firestore;
 - live connector adapters replace MOCK bridge implementations for the connectors being sold;
 - end-to-end golden flows pass against the deployed service.
+
+## Subsequent hardening recorded on 2026-09-18
+
+The following repository-confirmable hardening was completed after the original audit snapshot:
+
+- Durable workflow step execution now has Firestore-backed execution identity, worker leases, restart recovery, and lease renewal.
+- Workflow recovery is branch-scoped and cannot resume another branch's workflow under a non-master principal.
+- Connection Hub lifecycle mutation is authorization-gated and audited.
+- eTIMS production execution rejects synthetic certification when no real provider client is connected.
+- AI financial execution cannot promote an unconfirmed PENDING M-Pesa transaction to POSTED.
+- M-Pesa callback posting is bound to the authoritative initiated transaction and preserves the provider receipt reference.
+- M-Pesa duplicate/restart/failure financial-truth tests have been expanded.
+- CI now supports manual workflow_dispatch verification in addition to push and pull-request triggers.
+
+These changes reduce the remaining software-level risk, but they do not replace live GCP deployment evidence or real provider credentials.
