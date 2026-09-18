@@ -200,6 +200,22 @@ export class DbkCapabilityManagerService {
   }
 
   /**
+   * Production-safe enable path: hydrate authoritative state, mutate, then
+   * durably commit before returning. The process-local map is only a cache.
+   */
+  public async enableCapabilityPersistent(
+    securityContext: SecurityContext,
+    dbkId: string,
+    capabilityId: string,
+    entitlement: EntitlementStatus,
+    requiresConfig: boolean
+  ): Promise<DbkCapabilityRecord> {
+    await this.hydratePersistentCapability(securityContext, dbkId, capabilityId);
+    const updated = this.enableCapability(securityContext, dbkId, capabilityId, entitlement, requiresConfig);
+    return await this.persistCapabilityRecord(securityContext, updated);
+  }
+
+  /**
    * Configures a capability for a DBK.
    */
   public configureCapability(
