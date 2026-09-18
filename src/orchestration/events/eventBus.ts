@@ -5,6 +5,7 @@
 
 import { EventEnvelope, EventRegistration, EventHandler, EventPublishResult } from './types';
 import { KernelError } from '../../kernel/errors/kernelErrors';
+import { handleSubscriptionPaymentConfirmed } from '../../platform/subscription/subscriptionPaymentHandler';
 
 class EventBusService {
   private eventRegistry: Map<string, EventRegistration> = new Map();
@@ -15,6 +16,7 @@ class EventBusService {
 
   constructor() {
     this.seedDefaultEventRegistry();
+    this.subscribe('payment.confirmed.v1', handleSubscriptionPaymentConfirmed);
   }
 
   /**
