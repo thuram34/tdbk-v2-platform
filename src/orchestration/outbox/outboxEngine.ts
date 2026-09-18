@@ -108,25 +108,32 @@ export class OutboxEngine {
 
       try {
         const idempotencyKey = `outbox_delivery_${record.eventId}`;
-        const existingIdempotency = await idempotencyRepository.getIdempotencyRecord(record.tenantId, idempotencyKey);
+        const idempotencyClaim = await idempotencyRepository.claimIdempotencyRecord(record.tenantId, idempotencyKey, {
+          idempotencyKey,
+          tenantId: record.tenantId,
+          action: 'OUTBOX_DELIVERY',
+          requestHash: record.eventId,
+          status: 'IN_PROGRESS',
+          createdAt: new Date().toISOString(),
+          expiresAt: new Date(Date.now() + 86400000 * 7).toISOString(),
+        });
 
-        if (existingIdempotency && existingIdempotency.status === 'COMPLETED') {
+        if (idempotencyClaim === 'COMPLETED') {
           await outboxRepository.updateStatus(record.tenantId, record.eventId, 'DELIVERED', {
             deliveredAt: new Date().toISOString(),
             leaseOwner: null,
             leaseUntil: null,
           });
-
-          auditLogger.logEvent(
-            'WORKFLOW_EXECUTION',
-            workerId,
-            'OUTBOX_DUPLICATE_IGNORED',
-            `outbox:${record.eventId}`,
-            'ALLOWED',
-            { tenantId: record.tenantId, branchId: record.branchId, details: { eventId: record.eventId } }
-          );
-
           succeeded++;
+          continue;
+        }
+
+        if (idempotencyClaim === 'IN_PROGRESS') {
+          await outboxRepository.updateStatus(record.tenantId, record.eventId, 'RETRY_WAIT', {
+            availableAt: new Date(Date.now() + 1000).toISOString(),
+            leaseOwner: null,
+            leaseUntil: null,
+          });
           continue;
         }
 
@@ -150,14 +157,9 @@ export class OutboxEngine {
 
         await handler(envelope);
 
-        await idempotencyRepository.saveIdempotencyRecord(record.tenantId, idempotencyKey, {
-          idempotencyKey,
-          tenantId: record.tenantId,
-          action: 'OUTBOX_DELIVERY',
-          requestHash: record.eventId,
-          status: 'COMPLETED',
-          createdAt: new Date().toISOString(),
-          expiresAt: new Date(Date.now() + 86400000 * 7).toISOString(),
+        await idempotencyRepository.completeIdempotencyRecord(record.tenantId, idempotencyKey, {
+          eventId: record.eventId,
+          status: 'DELIVERED',
         });
 
         await outboxRepository.updateStatus(record.tenantId, record.eventId, 'DELIVERED', {
@@ -177,6 +179,10 @@ export class OutboxEngine {
 
         succeeded++;
       } catch (err: any) {
+        const idempotencyKey = `outbox_delivery_${record.eventId}`;
+        await idempotencyRepository.failIdempotencyRecord(record.tenantId, idempotencyKey, {
+          error: err?.message || String(err),
+        });
         failed++;
         const errorMessage = err?.message || String(err);
         const attempt = record.attemptCount;
