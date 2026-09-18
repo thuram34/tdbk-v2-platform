@@ -155,9 +155,13 @@ export class ExperienceResolver {
         if (!capabilityId) {
           throw new KernelError('VALIDATION_ERROR', 'Missing capabilityId', 400, context.requestId);
         }
-        await dbkCapabilityManager.hydratePersistentCapability(context, req.targetDbkId, String(capabilityId));
-        const enabled = dbkCapabilityManager.enableCapability(context, req.targetDbkId, String(capabilityId), 'ENTITLED', false);
-        await dbkCapabilityManager.persistCapabilityRecord(context, enabled);
+        const enabled = await dbkCapabilityManager.enableCapabilityPersistent(
+          context,
+          req.targetDbkId,
+          String(capabilityId),
+          'ENTITLED',
+          false
+        );
         await workspaceManager.incrementWorkspaceVersion(context, req.targetDbkId);
         updatedExperience = await this.resolveExperience(context, req.targetDbkId);
       } else if (req.commandType === 'CONFIGURE_CAPABILITY') {
