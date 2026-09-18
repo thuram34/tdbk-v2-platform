@@ -1,19 +1,37 @@
-import { financialLedgerRepository } from '../persistence/firestore/repositories/financialLedgerRepository';
-import type { FinancialTransaction } from './types';
+import { reconciliationRepository } from '../persistence/firestore/repositories/reconciliationRepository';
+import type { FinancialTransaction, FinancialTransactionStatus } from './types';
 
 export class ReconciliationService {
   public async markRequired(
     tenantId: string,
     transactionId: string,
+    expectedStatus: FinancialTransactionStatus = 'PENDING',
   ): Promise<FinancialTransaction> {
-    const transaction = await financialLedgerRepository.getTransaction(tenantId, transactionId);
-    if (!transaction) throw new Error('Financial transaction not found');
-    if (transaction.status === 'POSTED' || transaction.status === 'REVERSED') {
-      throw new Error('Posted/reversed financial history cannot be changed to reconciliation-required');
-    }
+    return reconciliationRepository.markRequired(tenantId, transactionId, expectedStatus);
+  }
 
-    // This transition will be made atomic with provider reconciliation in the next hardening batch.
-    return { ...transaction, status: 'RECONCILIATION_REQUIRED' };
+  /**
+   * Resolves an uncertain provider result to FAILED durably.
+   * Confirmation and reversal deliberately delegate to the ledger engine so
+   * financial truth can never be changed by a status-only mutation.
+   */
+  public async resolveFailed(
+    tenantId: string,
+    transactionId: string,
+  ): Promise<FinancialTransaction> {
+    return reconciliationRepository.resolve(
+      tenantId,
+      transactionId,
+      'RECONCILIATION_REQUIRED',
+      'FAILED'
+    );
+  }
+
+  public async get(
+    tenantId: string,
+    transactionId: string,
+  ): Promise<FinancialTransaction | null> {
+    return reconciliationRepository.get(tenantId, transactionId);
   }
 }
 
