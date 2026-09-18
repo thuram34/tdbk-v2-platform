@@ -14,6 +14,7 @@ import { auditLogger } from '../../../kernel/audit/auditLogger';
 import { configManager } from '../../../kernel/configuration/configManager';
 import { KernelError } from '../../../kernel/errors/kernelErrors';
 import { eventBus } from '../../events/eventBus';
+import { connectorConnectionRepository } from '../../../persistence/firestore/repositories/connectorConnectionRepository';
 
 export interface MpesaSTKPushRequest {
   phoneNumber: string;
@@ -28,7 +29,7 @@ export interface MpesaRawCallback {
     stkCallback: {
       MerchantRequestID: string;
       CheckoutRequestID: string;
-      ResultCode: number; // 0 = Success
+      ResultCode: number;
       ResultDesc: string;
       CallbackMetadata?: {
         Item: Array<{ Name: string; Value: any }>;
@@ -55,40 +56,66 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
     if (!secrets.mpesaPasskey && process.env.NODE_ENV === 'production') {
       throw new KernelError('INTERNAL_ERROR', 'MPESA_PASSKEY is required in production environment', 500, 'system');
     }
-    return secrets.mpesaPasskey || 'safaricom_secret_passkey_123_fallback'; // Fallback for testing only
+    return secrets.mpesaPasskey || 'safaricom_secret_passkey_123_fallback';
   }
 
-  /**
-   * Registers a pending provider reference mapping (for testing and execution tracking).
-   */
   public registerPendingTransaction(checkoutRequestId: string, tenantId: string, correlationId?: string): void {
     this.pendingTransactions.set(checkoutRequestId, { tenantId, correlationId });
   }
 
-  public async health(_context: SecurityContext): Promise<{ status: BridgeHealthStatus; details?: Record<string, unknown> }> {
-    // These adapters are explicitly MOCK in the platform registry. They must
-    // never advertise a live provider connection until a real provider client
-    // is configured and the adapter performs an actual connectivity check.
+  public async health(context: SecurityContext): Promise<{ status: BridgeHealthStatus; details?: Record<string, unknown> }> {
+    const tenantId = context.tenantContext?.tenantId || context.principal.tenantId;
+    if (!tenantId) {
+      return { status: 'UNAVAILABLE', details: { provider: this.provider, reason: 'TENANT_CONTEXT_MISSING' } };
+    }
+
+    const connection = await connectorConnectionRepository.getConnection(
+      tenantId,
+      `conn_${this.bridgeId}`
+    );
+
+    if (!connection || !connection.enabled || connection.status !== 'CONFIGURED') {
+      return {
+        status: 'UNAVAILABLE',
+        details: {
+          provider: this.provider,
+          version: this.version,
+          reason: 'CONNECTION_NOT_CONFIGURED',
+        },
+      };
+    }
+
     return {
       status: 'UNAVAILABLE',
-      details: { provider: this.provider, version: this.version, latencyMs: 12 },
+      details: {
+        provider: this.provider,
+        version: this.version,
+        reason: 'PROVIDER_CLIENT_NOT_CONNECTED',
+        connectionId: connection.connectionId,
+        configurationVersion: connection.configurationVersion,
+      },
     };
   }
 
-  /**
-   * Executes an M-Pesa operation (e.g. STK_PUSH).
-   */
   public async execute(
     context: SecurityContext,
     operation: string,
     payload: MpesaSTKPushRequest
   ): Promise<NormalizedBridgeResult<any>> {
     const tenantId = context.tenantContext?.tenantId || context.principal.tenantId;
-    if (process.env.NODE_ENV === 'production') {
-      throw new KernelError('INTEGRATION_UNAVAILABLE', 'M-Pesa bridge is not connected to a production provider', 503, context.requestId);
-    }
     if (!tenantId) {
       throw new KernelError('TENANT_ISOLATION_ERROR', 'M-Pesa STK Push Denied: Missing Tenant Context', 403, context.requestId);
+    }
+
+    if (process.env.NODE_ENV === 'production') {
+      const connection = await connectorConnectionRepository.getConnection(
+        tenantId,
+        `conn_${this.bridgeId}`
+      );
+      if (!connection || !connection.enabled || connection.status !== 'CONFIGURED') {
+        throw new KernelError('INTEGRATION_UNAVAILABLE', 'M-Pesa bridge has no configured tenant connection', 503, context.requestId);
+      }
+      throw new KernelError('INTEGRATION_UNAVAILABLE', 'M-Pesa bridge is not connected to a production provider', 503, context.requestId);
     }
 
     auditLogger.logEvent('BRIDGE_EXECUTION', context.principal.id, 'BRIDGE_REQUESTED', `bridge:${this.bridgeId}`, 'ALLOWED', {
@@ -101,7 +128,6 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
       throw new KernelError('VALIDATION_ERROR', `Unsupported M-Pesa operation: '${operation}'`, 400, context.requestId);
     }
 
-    // Generate mock Safaricom Checkout Request ID
     const checkoutReqId = `ws_CO_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     this.pendingTransactions.set(checkoutReqId, { tenantId, correlationId: context.correlationId });
 
@@ -127,7 +153,6 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
       details: { providerReference: checkoutReqId, status: normalizedResult.status },
     });
 
-    // Publish event
     eventBus.publish({
       eventId: `evt_mpesa_${checkoutReqId}`,
       eventType: 'payment.pending.v1',
@@ -146,9 +171,6 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
     return normalizedResult;
   }
 
-  /**
-   * Verifies external Safaricom callback signature and replay protection.
-   */
   public async verifyCallback(
     rawCallback: MpesaRawCallback,
     signatureHeader?: string
@@ -163,7 +185,6 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
       };
     }
 
-    // Replay Protection Window Check (5 minutes)
     if (rawCallback.timestamp) {
       const callbackTime = new Date(rawCallback.timestamp).getTime();
       const now = Date.now();
@@ -186,9 +207,6 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
     };
   }
 
-  /**
-   * Handles incoming Safaricom payment callback safely and idempotently.
-   */
   public async handleCallback(
     context: SecurityContext,
     rawCallback: MpesaRawCallback
@@ -208,7 +226,6 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
       throw new KernelError('VALIDATION_ERROR', 'Malformed M-Pesa Callback Payload', 400, context.requestId);
     }
 
-    // Provider Reference Lookup Validation
     if (stk.CheckoutRequestID.startsWith('CO_UNKNOWN_') || stk.CheckoutRequestID === 'UNKNOWN_REF') {
       auditLogger.logEvent('BRIDGE_EXECUTION', context.principal.id, 'UNKNOWN_PROVIDER_REFERENCE', `bridge:${this.bridgeId}`, 'DENIED', {
         tenantId: context.tenantContext?.tenantId || null,
@@ -220,7 +237,6 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
 
     const callbackKey = `${stk.CheckoutRequestID}_${stk.ResultCode}`;
 
-    // Idempotency Check
     if (this.processedCallbacks.has(callbackKey)) {
       auditLogger.logEvent('BRIDGE_EXECUTION', context.principal.id, 'BRIDGE_CALLBACK_RECEIVED', `bridge:${this.bridgeId}`, 'ALLOWED', {
         tenantId: context.tenantContext?.tenantId || null,
@@ -232,7 +248,6 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
 
     this.processedCallbacks.add(callbackKey);
 
-    // Cross-tenant Context Validation
     const callbackTenant = rawCallback.tenantId || context.tenantContext?.tenantId;
     const requestTenant = context.tenantContext?.tenantId || context.principal.tenantId;
 
@@ -262,7 +277,6 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
       },
     });
 
-    // Publish event
     eventBus.publish({
       eventId: `evt_callback_${stk.CheckoutRequestID}`,
       eventType: normalized.status === 'SUCCESS' ? 'payment.confirmed.v1' : 'payment.failed.v1',
@@ -281,9 +295,6 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
     return normalized;
   }
 
-  /**
-   * Normalizes raw Safaricom STK Push callback payload into standard NormalizedBridgeResult.
-   */
   public normalizeResponse(rawResponse: any): NormalizedBridgeResult<any> {
     const stk = rawResponse?.Body?.stkCallback;
     if (!stk) {
