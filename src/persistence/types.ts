@@ -231,6 +231,48 @@ export interface IAiConversationRepository {
   saveConversationMetadata(tenantId: string, conversationId: string, meta: { conversationId: string; branchId: string; principalId: string }): Promise<void>;
 }
 
+export type WorkflowStepExecutionStatus = 'EXECUTING' | 'COMPLETED' | 'FAILED';
+
+export interface WorkflowStepExecution {
+  executionKey: string;
+  tenantId: string;
+  workflowId: string;
+  stepId: string;
+  attemptCount: number;
+  status: WorkflowStepExecutionStatus;
+  output: Record<string, unknown> | null;
+  error: string | null;
+  workerId: string | null;
+  leaseUntil: string | null;
+  createdAt: string;
+  updatedAt: string;
+  completedAt: string | null;
+}
+
+export interface IWorkflowStepExecutionRepository {
+  claimExecution(
+    tenantId: string,
+    workflowId: string,
+    stepId: string,
+    executionKey: string,
+    workerId: string,
+    leaseDurationMs: number
+  ): Promise<WorkflowStepExecution | null>;
+  completeExecution(
+    tenantId: string,
+    executionKey: string,
+    workerId: string,
+    output: Record<string, unknown>
+  ): Promise<WorkflowStepExecution>;
+  failExecution(
+    tenantId: string,
+    executionKey: string,
+    workerId: string,
+    error: string
+  ): Promise<WorkflowStepExecution>;
+  getExecution(tenantId: string, executionKey: string): Promise<WorkflowStepExecution | null>;
+}
+
 export interface IWorkflowInstanceRepository {
   saveWorkflow(tenantId: string, workflowId: string, workflow: WorkflowInstance, expectedLeaseOwner?: string): Promise<void>;
   saveWorkflowWithOutbox(tenantId: string, workflowId: string, workflow: WorkflowInstance, event: OutboxRecord, expectedLeaseOwner?: string): Promise<void>;
