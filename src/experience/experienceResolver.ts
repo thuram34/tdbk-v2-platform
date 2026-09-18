@@ -36,20 +36,6 @@ export class ExperienceResolver {
     // 3. Resolve active branch
     const branchCtxId = requestedBranchId || context.branchContext?.branchId || (context as any).branchId;
     let activeBranch: DbkBranch | undefined = workspace.activeBranches.find((b) => b.branchId === branchCtxId);
-    if (!activeBranch && branchCtxId) {
-      if (context.branchContext && context.branchContext.branchId === branchCtxId) {
-        activeBranch = {
-          dbkId,
-          branchId: context.branchContext.branchId,
-          name: context.branchContext.name || branchCtxId,
-          type: 'RETAIL_OUTLET',
-          status: 'ACTIVE',
-          isHeadquarters: !!context.branchContext.isHeadquarters,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
-      }
-    }
     if (!activeBranch) {
       activeBranch = workspace.activeBranches.find((b) => b.isHeadquarters) || workspace.activeBranches[0];
     }
@@ -62,53 +48,35 @@ export class ExperienceResolver {
     const dashboardWidgets = dashboardComposer.composeDashboard(workspace);
 
     // 5. Build discovery items
-    let discoveryItems: ExperienceDiscoveryItem[] = [];
-    try {
-      const discoverySurface = await discoveryEngine.discoverPersistentCapabilitiesForDbk(context, dbkId);
-      discoveryItems = discoverySurface.items.map((item) => {
-        const cap = item.capability;
-        const isEnabled = workspace.enabledCapabilities.includes(cap.capabilityId);
-        let status: 'OPERATIONAL' | 'DISCOVERABLE' | 'UPGRADE_REQUIRED' | 'CONFIGURATION_REQUIRED' | 'SUSPENDED' =
-          'DISCOVERABLE';
+    const discoverySurface = await discoveryEngine.discoverPersistentCapabilitiesForDbk(context, dbkId);
+    const discoveryItems: ExperienceDiscoveryItem[] = discoverySurface.items.map((item) => {
+      const cap = item.capability;
+      const isEnabled = workspace.enabledCapabilities.includes(cap.capabilityId);
+      let status: 'OPERATIONAL' | 'DISCOVERABLE' | 'UPGRADE_REQUIRED' | 'CONFIGURATION_REQUIRED' | 'SUSPENDED' =
+        'DISCOVERABLE';
 
-        if (isEnabled) {
-          status = 'OPERATIONAL';
-        } else if (item.rejectionReason === 'UPGRADE_REQUIRED' || item.entitlementStatus === 'UPGRADE_REQUIRED') {
-          status = 'UPGRADE_REQUIRED';
-        } else if (item.rejectionReason === 'CONFIGURATION_REQUIRED') {
-          status = 'CONFIGURATION_REQUIRED';
-        } else if (item.rejectionReason === 'SUSPENDED') {
-          status = 'SUSPENDED';
-        } else {
-          status = 'DISCOVERABLE';
-        }
+      if (isEnabled) {
+        status = 'OPERATIONAL';
+      } else if (item.rejectionReason === 'UPGRADE_REQUIRED' || item.entitlementStatus === 'UPGRADE_REQUIRED') {
+        status = 'UPGRADE_REQUIRED';
+      } else if (item.rejectionReason === 'CONFIGURATION_REQUIRED') {
+        status = 'CONFIGURATION_REQUIRED';
+      } else if (item.rejectionReason === 'SUSPENDED') {
+        status = 'SUSPENDED';
+      }
 
-        return {
-          capabilityId: cap.capabilityId,
-          name: cap.name,
-          category: cap.category,
-          description: cap.description,
-          minimumTier: cap.entitlementRequirements.minimumTier,
-          isEntitled: item.entitlementStatus === 'ENTITLED' || isEnabled,
-          isEnabled,
-          status,
-          iconName: cap.category === 'FINANCE' ? 'DollarSign' : cap.category === 'INVENTORY' ? 'Package' : 'Sparkles',
-        };
-      });
-    } catch (error) {
-      console.error('[CAPABILITY_DISCOVERY_FAILED]', error);
-      discoveryItems = workspace.discoverableCapabilities.map((c) => ({
-        capabilityId: c,
-        name: c.split('_').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
-        category: 'GENERAL',
-        description: `Capability module ${c}`,
-        minimumTier: 'FOUNDATION',
-        isEntitled: workspace.enabledCapabilities.includes(c),
-        isEnabled: workspace.enabledCapabilities.includes(c),
-        status: workspace.enabledCapabilities.includes(c) ? ('OPERATIONAL' as const) : ('DISCOVERABLE' as const),
-        iconName: 'Sparkles',
-      }));
-    }
+      return {
+        capabilityId: cap.capabilityId,
+        name: cap.name,
+        category: cap.category,
+        description: cap.description,
+        minimumTier: cap.entitlementRequirements.minimumTier,
+        isEntitled: item.entitlementStatus === 'ENTITLED' || isEnabled,
+        isEnabled,
+        status,
+        iconName: cap.category === 'FINANCE' ? 'DollarSign' : cap.category === 'INVENTORY' ? 'Package' : 'Sparkles',
+      };
+    });
 
     const resolved: DbkExperienceResolved = {
       dbkId: workspace.dbkId,
