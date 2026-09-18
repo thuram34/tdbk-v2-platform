@@ -67,7 +67,13 @@ export class SecurityContextFactory {
     }
 
     const branchCtx = options.targetBranchId
-      ? branchAuthority.assertBranchContext(principal, options.targetBranchId, 'CONTEXT_RESOLVE', reqId)
+      ? await branchAuthority.assertPersistentBranchContext(
+          principal,
+          options.targetTenantId || principal.tenantId || '',
+          options.targetBranchId,
+          'CONTEXT_RESOLVE',
+          reqId
+        )
       : principal.branchId
       ? branchAuthority.resolveBranchContext(principal.branchId)
       : null;
