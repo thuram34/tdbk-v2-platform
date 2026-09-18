@@ -115,6 +115,7 @@ export interface LedgerEntry {
 }
 
 export interface IFinancialLedgerRepository {
+  savePendingTransaction(transaction: FinancialTransaction): Promise<void>;
   postTransaction(transaction: FinancialTransaction, entries: LedgerEntry[]): Promise<void>;
   getTransaction(tenantId: string, transactionId: string): Promise<FinancialTransaction | null>;
   listEntries(tenantId: string, transactionId: string): Promise<LedgerEntry[]>;
