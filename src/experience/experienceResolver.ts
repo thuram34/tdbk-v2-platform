@@ -51,18 +51,10 @@ export class ExperienceResolver {
       }
     }
     if (!activeBranch) {
-      activeBranch =
-        workspace.activeBranches.find((b) => b.isHeadquarters) ||
-        workspace.activeBranches[0] || {
-          dbkId,
-          branchId: 'branch_hq',
-          name: 'Headquarters',
-          type: 'HEADQUARTERS',
-          status: 'ACTIVE',
-          isHeadquarters: true,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
+      activeBranch = workspace.activeBranches.find((b) => b.isHeadquarters) || workspace.activeBranches[0];
+    }
+    if (!activeBranch) {
+      throw new KernelError('NOT_FOUND', `DBK '${dbkId}' has no persisted active branch`, 404, context.requestId);
     }
 
     // 4. Build navigation & dashboard
@@ -72,7 +64,7 @@ export class ExperienceResolver {
     // 5. Build discovery items
     let discoveryItems: ExperienceDiscoveryItem[] = [];
     try {
-      const discoverySurface = discoveryEngine.discoverCapabilitiesForDbk(context, dbkId);
+      const discoverySurface = await discoveryEngine.discoverPersistentCapabilitiesForDbk(context, dbkId);
       discoveryItems = discoverySurface.items.map((item) => {
         const cap = item.capability;
         const isEnabled = workspace.enabledCapabilities.includes(cap.capabilityId);
