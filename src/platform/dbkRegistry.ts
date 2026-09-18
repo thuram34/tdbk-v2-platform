@@ -5,6 +5,7 @@
  */
 
 import { DbkIdentity, DbkLifecycleStatus } from './types';
+import { SubscriptionTier } from '../capability/types';
 import { SecurityContext } from '../kernel/types';
 import { masterAuthority } from '../kernel/master/masterAuthority';
 import { KernelError } from '../kernel/errors/kernelErrors';
@@ -123,6 +124,46 @@ export class DbkRegistryService {
           correlationId: context.correlationId,
         },
       }
+    );
+
+    return dbk;
+  }
+
+  /**
+   * Authoritatively changes a DBK subscription tier.
+   * Commercial authority is TDBK Master; the new tier is persisted on the canonical DBK identity.
+   */
+  public async changeSubscriptionTier(
+    context: SecurityContext,
+    dbkId: string,
+    newTier: SubscriptionTier,
+    reason?: string,
+  ): Promise<DbkIdentity> {
+    masterAuthority.assertMasterAuthority(context.principal, 'changeSubscriptionTier', context.requestId);
+
+    const dbk = await dbkRegistryRepository.getDbk(dbkId);
+    if (!dbk) {
+      throw new KernelError('NOT_FOUND', `DBK with ID '${dbkId}' not found`, 404, context.requestId);
+    }
+
+    const previousTier = dbk.subscriptionTier;
+    if (previousTier === newTier) return dbk;
+
+    dbk.subscriptionTier = newTier;
+    dbk.updatedAt = new Date().toISOString();
+    await dbkRegistryRepository.saveDbk(dbkId, dbk);
+
+    auditLogger.logEvent(
+      'SECURITY_CONFIGURATION_CHANGE',
+      context.principal.id,
+      'DBK_SUBSCRIPTION_TIER_CHANGED',
+      `dbk:${dbkId}`,
+      'ALLOWED',
+      {
+        tenantId: dbkId,
+        requestId: context.requestId,
+        details: { previousTier, newTier, reason, correlationId: context.correlationId },
+      },
     );
 
     return dbk;
