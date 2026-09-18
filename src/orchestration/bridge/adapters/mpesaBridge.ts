@@ -88,7 +88,7 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
       const oauthPath = this.connectionParameter(connection, 'MPESA_OAUTH_PATH', 'oauthPath') || '/oauth/v1/generate?grant_type=client_credentials';
       if (!consumerKey || !consumerSecret) {
         return {
-          status: 'ERROR',
+          status: 'UNAVAILABLE',
           details: { provider: this.provider, version: this.version, reason: 'CREDENTIALS_MISSING' },
         };
       }
@@ -100,7 +100,7 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
       });
       if (!tokenResponse.ok) {
         return {
-          status: 'ERROR',
+          status: 'UNAVAILABLE',
           details: { provider: this.provider, version: this.version, reason: 'DARaja_AUTH_FAILED', httpStatus: tokenResponse.status },
         };
       }
@@ -110,7 +110,7 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
       };
     } catch (error: any) {
       return {
-        status: 'ERROR',
+        status: 'UNAVAILABLE',
         details: { provider: this.provider, version: this.version, reason: error?.message || 'PROVIDER_UNAVAILABLE' },
       };
     }
@@ -164,7 +164,7 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
     }
 
     if (operation !== 'STK_PUSH') {
-      throw new KernelError('NOT_IMPLEMENTED', `M-Pesa operation '${operation}' requires its provider-specific command implementation`, 501, context.requestId);
+      throw new KernelError('INTEGRATION_UNAVAILABLE', `M-Pesa operation '${operation}' requires its provider-specific command implementation`, 501, context.requestId);
     }
 
     if (!Number.isFinite(payload.amount) || payload.amount <= 0) {
