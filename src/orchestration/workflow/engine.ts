@@ -157,7 +157,13 @@ class WorkflowEngineService {
   ): Promise<WorkflowInstance> {
     // Durable creation must commit business state before publishing its lifecycle signal.
     const workflow = this.createWorkflow(context, workflowType, workflowVersion, stepDefinitions, metadata, false);
-    await workflowInstanceRepository.saveWorkflow(workflow.tenantId, workflow.workflowId, workflow);
+    try {
+      await workflowInstanceRepository.saveWorkflow(workflow.tenantId, workflow.workflowId, workflow);
+    } catch (error) {
+      // Never leave a process-local phantom workflow after durable creation fails.
+      this.workflows.delete(workflow.workflowId);
+      throw error;
+    }
 
     const startedEnvelope: EventEnvelope = {
       eventId: `evt_${workflow.workflowId}_started`,
@@ -177,6 +183,37 @@ class WorkflowEngineService {
     await outboxEngine.enqueueEvent(workflow.tenantId, startedEnvelope, undefined, context.principal.id);
     await eventBus.publish(startedEnvelope);
     return workflow;
+  }
+
+  /**
+   * Rehydrates and resumes all non-terminal workflows for a tenant after a
+   * process restart. Durable Firestore state is the recovery source; the
+   * in-memory workflow map is only repopulated as a cache.
+   */
+  public async recoverTenantWorkflows(context: SecurityContext): Promise<WorkflowInstance[]> {
+    const tenantId = context.tenantContext?.tenantId || context.principal.tenantId;
+    if (!tenantId) {
+      throw new KernelError(
+        'TENANT_ISOLATION_ERROR',
+        'Workflow Recovery Denied: Missing Tenant Context',
+        403,
+        context.requestId
+      );
+    }
+
+    const durableWorkflows = await workflowInstanceRepository.listWorkflows(tenantId);
+    const recoverable = durableWorkflows.filter(
+      (workflow) => workflow.status === 'RUNNING' || workflow.status === 'WAITING' || workflow.status === 'PENDING'
+    );
+
+    const recovered: WorkflowInstance[] = [];
+    for (const workflow of recoverable) {
+      // Hydrate first so a fresh process can resume without prior cache state.
+      this.workflows.set(workflow.workflowId, workflow);
+      recovered.push(await this.executeWorkflow(context, workflow.workflowId));
+    }
+
+    return recovered;
   }
 
   /**
