@@ -105,16 +105,6 @@ export class AiCommandBoundary {
       this.proposals.set(params.tenantId, new Map());
     }
     this.proposals.get(params.tenantId)!.set(proposalId, proposal);
-      action: 'AI_PROPOSAL_CREATED',
-      targetResource: `proposal:${proposalId}`,
-      outcome: 'ALLOWED',
-      details: {
-        proposalType: proposal.proposalType,
-        confidence: proposal.confidence,
-        documentId: proposal.documentId,
-        summary: proposal.summary,
-      }
-    });
 
     // Persist the lifecycle event before publishing it to the in-process bus.
     // The outbox is the recovery authority if the process restarts after proposal creation.
