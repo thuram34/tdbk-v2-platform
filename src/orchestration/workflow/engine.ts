@@ -170,8 +170,7 @@ class WorkflowEngineService {
       correlationId: workflow.correlationId,
       causationId: null,
       source: 'WorkflowEngine',
-      payload: { workflowId: workflow.workflowId, workflowType, workflowVersion },
-      metadata: workflow.metadata,
+      payload: { workflowId: workflow.workflowId, workflowType, workflowVersion }
     };
 
     const startedRecord: OutboxRecord = {
@@ -562,8 +561,7 @@ class WorkflowEngineService {
             correlationId: workflow.correlationId,
             causationId: step.stepId,
             source: 'WorkflowEngine',
-            payload: { workflowId, failedStepId: step.stepId, reason: step.error },
-            metadata: workflow.metadata,
+            payload: { workflowId, failedStepId: step.stepId, reason: step.error }
           };
           const failedRecord = this.buildLifecycleOutboxRecord(failedEnvelope);
           await workflowInstanceRepository.saveWorkflowWithOutbox(workflow.tenantId, workflow.workflowId, workflow, failedRecord, workerId);
@@ -590,8 +588,7 @@ class WorkflowEngineService {
       correlationId: workflow.correlationId,
       causationId: null,
       source: 'WorkflowEngine',
-      payload: { workflowId, status: 'COMPLETED' },
-      metadata: workflow.metadata,
+      payload: { workflowId, status: 'COMPLETED' }
     };
 
     // Terminal workflow state and lifecycle outbox event commit atomically.
