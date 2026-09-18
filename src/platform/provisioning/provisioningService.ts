@@ -227,6 +227,13 @@ export class ProvisioningService {
       const dbkId = input.dbkId as string;
       const primaryBranchName = (input.primaryBranchName as string) || 'Headquarters';
       const secondaryBranches = (input.secondaryBranches as any[]) || [];
+      const secondaryIds = new Set<string>();
+      for (const sb of secondaryBranches) {
+        if (!sb?.branchId || secondaryIds.has(sb.branchId)) {
+          return { success: false, error: `Duplicate or missing secondary branch ID '${sb?.branchId || ''}' in provisioning request`, failureClassification: 'PERMANENT' };
+        }
+        secondaryIds.add(sb.branchId);
+      }
 
       const mockCtx = createStepContext(workflow, dbkId);
 
