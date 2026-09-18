@@ -11,6 +11,16 @@ export class LedgerService {
     await financialLedgerRepository.postTransaction(transaction, entries);
   }
 
+  public async confirmReconciled(
+    transaction: FinancialTransaction,
+    entries: LedgerEntry[],
+  ): Promise<void> {
+    if (transaction.status !== 'POSTED') {
+      throw new Error('Reconciled confirmation must produce a POSTED transaction');
+    }
+    await financialLedgerRepository.confirmReconciledTransaction(transaction, entries);
+  }
+
   public async entries(tenantId: string, transactionId: string): Promise<LedgerEntry[]> {
     return financialLedgerRepository.listEntries(tenantId, transactionId);
   }
