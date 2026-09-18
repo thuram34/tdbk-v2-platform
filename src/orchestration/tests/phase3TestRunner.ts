@@ -705,7 +705,7 @@ export class Phase3TestRunner {
         payload: { test: 1 },
         metadata: {},
       };
-      const rec = workflowEngine.addToOutbox(tenantAContext, evt);
+      const rec = await workflowEngine.addToOutbox(tenantAContext, evt);
       const processed = await workflowEngine.processOutbox(tenantAContext);
       results.push({
         id: 'P3_TEST_26',

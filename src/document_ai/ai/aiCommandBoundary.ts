@@ -24,6 +24,7 @@ import { auditLogger } from '../../kernel/audit/auditLogger';
 import { aiSecurityGuard } from './aiSecurityGuard';
 import { entityEngine } from '../../experience/entity/entityEngine';
 import { eventBus } from '../../orchestration/events/eventBus';
+import { outboxEngine } from '../../orchestration/outbox/outboxEngine';
 import { branchManager } from '../../platform/branch/branchManager';
 import { aiProposalRepository } from '../../persistence/firestore/repositories/aiProposalRepository';
 
@@ -114,20 +115,24 @@ export class AiCommandBoundary {
       }
     });
 
-    eventBus.publish({
-      eventId: `evt_prop_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+    // Persist the lifecycle event before publishing it to the in-process bus.
+    // The outbox is the recovery authority if the process restarts after proposal creation.
+    const proposalEvent = {
+      eventId: `evt_proposal_generated_${proposalId}`,
       eventType: 'ai.proposal_generated.v1',
       eventVersion: 'v1',
       source: 'ai_command_boundary',
       tenantId: params.tenantId,
       branchId: params.branchId,
       principalId: ctx.principal.id,
-      correlationId: ctx.correlationId || `corr_${Date.now()}`,
-      causationId: null,
-      occurredAt: new Date().toISOString(),
+      correlationId: ctx.correlationId || `corr_${proposalId}`,
+      causationId: proposal.causationId,
+      occurredAt: proposal.proposedAt,
       payload: { proposalId, proposalType: proposal.proposalType, confidence: proposal.confidence },
       metadata: {},
-    });
+    };
+    await outboxEngine.enqueueEvent(params.tenantId, proposalEvent, undefined, ctx.principal.id);
+    await eventBus.publish(proposalEvent);
 
     return proposal;
   }

@@ -25,8 +25,6 @@ import { SectorType } from '../../blueprint/types';
 
 export class ProvisioningService {
   private static instance: ProvisioningService;
-  // Idempotency store: key -> ProvisionDbkResult
-  private idempotencyStore: Map<string, ProvisionDbkResult> = new Map();
   private handlersRegistered = false;
 
   private constructor() {
@@ -41,7 +39,6 @@ export class ProvisioningService {
   }
 
   public clearStoreForTesting(): void {
-    this.idempotencyStore.clear();
     this.handlersRegistered = false;
     this.registerProvisioningStepHandlers();
   }
@@ -282,46 +279,8 @@ export class ProvisioningService {
     const correlationId = request.correlationId || context.correlationId || `corr_prov_${request.dbkId}_${Date.now()}`;
     const idempotencyKey = request.idempotencyKey || `idem_${request.dbkId}`;
 
-    // 2. Idempotency Check — durable first, memory only as a compatibility cache.
-    const durableIdempotency = await idempotencyRepository.getIdempotencyRecord(request.dbkId, idempotencyKey);
-    if (durableIdempotency?.status === 'COMPLETED' && durableIdempotency.responsePayload) {
-      const cached = durableIdempotency.responsePayload as unknown as ProvisionDbkResult;
-      return { ...cached, isIdempotentReplay: true };
-    }
-    if (this.idempotencyStore.has(idempotencyKey)) {
-      const cached = this.idempotencyStore.get(idempotencyKey)!;
-      auditLogger.logEvent(
-        'AUTHORIZATION_ALLOWED',
-        context.principal.id,
-        'DBK_PROVISIONING_IDEMPOTENT_REPLAY',
-        `dbk:${request.dbkId}`,
-        'ALLOWED',
-        {
-          tenantId: request.dbkId,
-          requestId: context.requestId,
-          details: { idempotencyKey, originalWorkflowId: cached.workflowId },
-        }
-      );
-      return {
-        ...cached,
-        isIdempotentReplay: true,
-      };
-    }
-
-    // 3. Prevent duplicate creation under same dbkId with different keys
-    if (await dbkRegistry.hasDbk(request.dbkId)) {
-      const existing = await dbkRegistry.getDbk(context, request.dbkId);
-      if (existing && existing.status !== 'PROVISIONING_FAILED') {
-        throw new KernelError(
-          'CONFLICT',
-          `DBK with ID '${request.dbkId}' already exists in state '${existing.status}'`,
-          409,
-          context.requestId
-        );
-      }
-    }
-
-    // 4. Validate Blueprint up front
+    // 2. Validate Blueprint before claiming the durable provisioning idempotency key.
+    // This prevents invalid requests from consuming a retry key.
     const bp = blueprintRegistry.getBlueprint(request.blueprintId, request.blueprintVersion);
     if (!bp) {
       auditLogger.logEvent(
@@ -342,6 +301,48 @@ export class ProvisioningService {
         400,
         context.requestId
       );
+    }
+
+    // 3. Atomically claim the provisioning request. Firestore is authoritative;
+    // there is no process-local idempotency authority to lose on restart.
+    const claim = await idempotencyRepository.claimIdempotencyRecord(request.dbkId, idempotencyKey, {
+      idempotencyKey,
+      tenantId: request.dbkId,
+      action: 'DBK_PROVISIONING',
+      requestHash: `${request.dbkId}:${bp.id}:${bp.version}`,
+      status: 'IN_PROGRESS',
+      createdAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 86400000).toISOString(),
+    });
+
+    if (claim === 'COMPLETED') {
+      const completed = await idempotencyRepository.getIdempotencyRecord(request.dbkId, idempotencyKey);
+      if (completed?.responsePayload) {
+        const cached = completed.responsePayload as unknown as ProvisionDbkResult;
+        return { ...cached, isIdempotentReplay: true };
+      }
+    }
+
+    if (claim === 'IN_PROGRESS') {
+      throw new KernelError(
+        'CONFLICT',
+        `Provisioning request '${idempotencyKey}' is already in progress`,
+        409,
+        context.requestId
+      );
+    }
+
+    // 4. Prevent duplicate creation under same dbkId with different keys
+    if (await dbkRegistry.hasDbk(request.dbkId)) {
+      const existing = await dbkRegistry.getDbk(context, request.dbkId);
+      if (existing && existing.status !== 'PROVISIONING_FAILED') {
+        throw new KernelError(
+          'CONFLICT',
+          `DBK with ID '${request.dbkId}' already exists in state '${existing.status}'`,
+          409,
+          context.requestId
+        );
+      }
     }
 
     // 5. Create DBK in PROVISIONING state
@@ -523,6 +524,13 @@ export class ProvisioningService {
         }
       );
 
+      // Release the durable idempotency claim as a failed attempt so an
+      // operator can safely retry provisioning without waiting for claim expiry.
+      await idempotencyRepository.failIdempotencyRecord(request.dbkId, idempotencyKey, {
+        error: executedWorkflow.failureReason || 'Provisioning workflow failed',
+        workflowId: executedWorkflow.workflowId,
+      });
+
       return {
         success: false,
         dbkId: request.dbkId,
@@ -599,8 +607,6 @@ export class ProvisioningService {
       createdAt: new Date().toISOString(),
       expiresAt: new Date(Date.now() + 86400000 * 30).toISOString(),
     });
-    this.idempotencyStore.set(idempotencyKey, result);
-
     return result;
   }
 }

@@ -22,7 +22,7 @@ export class ActivationEvaluatorService {
     dbkId: string,
     capabilityId: string,
     dnaOverride?: import('../blueprint/types').BusinessDNA
-  ): ActivationDecision {
+  ): Promise<ActivationDecision> {
     const cap = capabilityRegistry.getCapability(capabilityId);
     if (!cap) {
       return {
@@ -58,7 +58,7 @@ export class ActivationEvaluatorService {
     }
 
     // 2. Check Blueprint Sector Compatibility
-    const dna = dnaOverride || businessDnaManager.getBusinessDna(securityContext, dbkId);
+    const dna = dnaOverride || await businessDnaManager.getPersistentBusinessDna(securityContext, dbkId);
     const sector = dna.identity.businessType as any;
 
     const isBlueprintSupported =
@@ -113,7 +113,7 @@ export class ActivationEvaluatorService {
     }
 
     // 4. Check Capability Dependencies
-    const existingRecords = dbkCapabilityManager.getDbkCapabilityRecords(securityContext, dbkId);
+    const existingRecords = await dbkCapabilityManager.hydratePersistentCapabilities(securityContext, dbkId);
     const enabledCapIds = existingRecords
       .filter((r) => r.state === 'ENABLED' || r.state === 'CONFIGURED')
       .map((r) => r.capabilityId);

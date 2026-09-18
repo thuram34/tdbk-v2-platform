@@ -645,7 +645,7 @@ export async function runPhase4TestSuite(): Promise<Phase4TestSummary> {
 
   // P4_TEST_37: School DBK receives School capability discovery
   await runTest('P4_TEST_37', 'School DBK receives School capability discovery', async () => {
-    const surface = discoveryEngine.discoverCapabilitiesForDbk(tenantContextSchool, 'tenant_p4_school_01');
+    const surface = await discoveryEngine.discoverCapabilitiesForDbk(tenantContextSchool, 'tenant_p4_school_01');
     const schoolCaps = surface.availableCapabilities.filter((c) => c.capabilityId.startsWith('school_'));
     if (schoolCaps.length === 0) {
       throw new Error('School DBK failed to discover School-specific capabilities');
@@ -660,7 +660,7 @@ export async function runPhase4TestSuite(): Promise<Phase4TestSummary> {
       blueprintId: 'hardware_v1',
       subscriptionTier: 'GROWTH',
     });
-    const surface = discoveryEngine.discoverCapabilitiesForDbk(tenantContextHardware, 'tenant_p4_hardware_01');
+    const surface = await discoveryEngine.discoverCapabilitiesForDbk(tenantContextHardware, 'tenant_p4_hardware_01');
     const posCap = surface.availableCapabilities.find((c) => c.capabilityId === 'pos_register');
     if (!posCap) {
       throw new Error('Hardware DBK failed to discover POS Register capability');

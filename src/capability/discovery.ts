@@ -18,8 +18,8 @@ export class DiscoveryEngineService {
   /**
    * Generates a Blueprint-bounded discovery surface for a DBK.
    */
-  public discoverCapabilitiesForDbk(securityContext: SecurityContext, dbkId: string): DiscoverySurface {
-    const dna = businessDnaManager.getBusinessDna(securityContext, dbkId);
+  public async discoverCapabilitiesForDbk(securityContext: SecurityContext, dbkId: string): Promise<DiscoverySurface> {
+    const dna = await businessDnaManager.getPersistentBusinessDna(securityContext, dbkId);
     const rawSector = dna.identity.businessType as string;
     const sector = (rawSector === 'SCHOOL' ? 'EDUCATION' : rawSector) as any;
     const subscriptionTier = entitlementEngine.getDbkSubscriptionTier(dbkId);
@@ -35,7 +35,7 @@ export class DiscoveryEngineService {
     );
 
     // Get current DBK capability records
-    const records = dbkCapabilityManager.getDbkCapabilityRecords(securityContext, dbkId);
+    const records = await dbkCapabilityManager.hydratePersistentCapabilities(securityContext, dbkId);
     const recordMap = new Map(records.map((r) => [r.capabilityId, r]));
 
     const enabledCapIds = records

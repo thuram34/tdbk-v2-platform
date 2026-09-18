@@ -100,6 +100,7 @@ export interface FinancialTransaction {
   createdAt: string;
   postedAt: string | null;
   reversedAt: string | null;
+  reversalOfTransactionId?: string | null;
 }
 
 export interface LedgerEntry {
@@ -114,13 +115,42 @@ export interface LedgerEntry {
   immutable: true;
 }
 
+export interface FinancialReceipt {
+  receiptId: string;
+  tenantId: string;
+  transactionId: string;
+  providerReference: string;
+  amount: number;
+  currency: string;
+  status: 'CREATED';
+  createdAt: string;
+}
+
+export interface IReceiptRepository {
+  createIfAbsent(tenantId: string, receipt: FinancialReceipt, transaction: FirestoreTransaction, outboxRecord: OutboxRecord): Promise<boolean>;
+  getReceipt(tenantId: string, receiptId: string): Promise<FinancialReceipt | null>;
+  listReceipts(tenantId: string): Promise<FinancialReceipt[]>;
+}
+
+export interface IReconciliationRepository {
+  markRequired(tenantId: string, transactionId: string, expectedStatus: FinancialTransactionStatus): Promise<FinancialTransaction>;
+  resolve(
+    tenantId: string,
+    transactionId: string,
+    expectedStatus: FinancialTransactionStatus,
+    status: Extract<FinancialTransactionStatus, 'POSTED' | 'FAILED' | 'REVERSED'>
+  ): Promise<FinancialTransaction>;
+  get(tenantId: string, transactionId: string): Promise<FinancialTransaction | null>;
+}
+
 export interface IFinancialLedgerRepository {
   savePendingTransaction(transaction: FinancialTransaction): Promise<void>;
   postTransaction(transaction: FinancialTransaction, entries: LedgerEntry[]): Promise<void>;
+  confirmReconciledTransaction(transaction: FinancialTransaction, entries: LedgerEntry[], outboxRecord?: OutboxRecord): Promise<void>;
+  reverseTransaction(tenantId: string, transactionId: string, reversalTransaction: FinancialTransaction, reversalEntries: LedgerEntry[]): Promise<void>;
   getTransaction(tenantId: string, transactionId: string): Promise<FinancialTransaction | null>;
   listEntries(tenantId: string, transactionId: string): Promise<LedgerEntry[]>;
 }
-
 // -------------------------------------------------------------
 // REPOSITORY INTERFACES
 // -------------------------------------------------------------
