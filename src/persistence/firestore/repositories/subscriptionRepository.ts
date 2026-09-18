@@ -33,8 +33,9 @@ export class SubscriptionRepository implements ISubscriptionRepository {
     );
   }
 
-  public async getSubscription(subscriptionId: string): Promise<DbkSubscription | null> {
-    throw new Error('Subscription lookup requires dbkId to preserve tenant-scoped Firestore access.');
+  public async getSubscription(subscriptionId: string, dbkId?: string): Promise<DbkSubscription | null> {
+    if (!dbkId) throw new Error('Subscription lookup requires dbkId to preserve tenant-scoped Firestore access.');
+    return await firestoreClient.get<DbkSubscription>(this.getPath(dbkId, subscriptionId));
   }
 
   public async getActiveSubscription(dbkId: string): Promise<DbkSubscription | null> {
