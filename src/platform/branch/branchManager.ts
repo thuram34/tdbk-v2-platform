@@ -42,6 +42,19 @@ export class BranchManagerService {
     this.assertTenantAccess(context, dbkId, 'createHeadquartersBranch');
 
     const branchId = `${dbkId}_hq`;
+    const existingDurable = await branchRepository.getBranch(dbkId, branchId);
+    if (existingDurable) {
+      if (existingDurable.dbkId !== dbkId || !existingDurable.isHeadquarters) {
+        throw new KernelError('CONFLICT', `Branch '${branchId}' conflicts with existing durable branch`, 409, context.requestId);
+      }
+      let tenantBranches = this.branchStore.get(dbkId);
+      if (!tenantBranches) {
+        tenantBranches = new Map();
+        this.branchStore.set(dbkId, tenantBranches);
+      }
+      tenantBranches.set(branchId, existingDurable);
+      return existingDurable;
+    }
     const branch: DbkBranch = {
       branchId,
       dbkId,
@@ -93,6 +106,20 @@ export class BranchManagerService {
     }
   ): Promise<DbkBranch> {
     this.assertTenantAccess(context, dbkId, 'createSecondaryBranch');
+
+    const existingDurable = await branchRepository.getBranch(dbkId, branchData.branchId);
+    if (existingDurable) {
+      if (existingDurable.dbkId !== dbkId || existingDurable.isHeadquarters) {
+        throw new KernelError('CONFLICT', `Branch '${branchData.branchId}' conflicts with existing durable branch`, 409, context.requestId);
+      }
+      let tenantBranches = this.branchStore.get(dbkId);
+      if (!tenantBranches) {
+        tenantBranches = new Map();
+        this.branchStore.set(dbkId, tenantBranches);
+      }
+      tenantBranches.set(branchData.branchId, existingDurable);
+      return existingDurable;
+    }
 
     let tenantBranches = this.branchStore.get(dbkId);
     if (!tenantBranches) {
