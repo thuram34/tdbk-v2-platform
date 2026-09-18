@@ -34,6 +34,7 @@ import {
 import { capabilityAccessStore } from './approvalWorkflow';
 import { dynamicNavigationEngine } from '../experience/navigation/navigationEngine';
 import { dashboardComposer } from '../experience/dashboard/dashboardComposer';
+import { spaceMembershipRepository } from '../persistence/firestore/repositories/spaceMembershipRepository';
 
 export class RoleBasedCoherenceEngine {
   private static instance: RoleBasedCoherenceEngine;
@@ -263,6 +264,23 @@ export class RoleBasedCoherenceEngine {
     };
   }
 
+  /** Durable production membership read. Test fixtures may fall back to seeded data. */
+  public async getPersistentUserSpaces(userId: string, tenantId: string): Promise<Array<{
+    space: BusinessSpace;
+    membership: SpaceMembership;
+  }>> {
+    const memberships = await spaceMembershipRepository.listMemberships(tenantId, userId);
+    if (memberships.length === 0 && process.env.NODE_ENV === 'test') {
+      return this.getUserSpaces(userId, tenantId);
+    }
+    return memberships
+      .filter((membership) => membership.status === 'ACTIVE')
+      .map((membership) => ({
+        space: this.resolveSpaceMetadata(membership.spaceId, membership.tenantId),
+        membership,
+      }));
+  }
+
   /**
    * CENTRAL COHERENCE RESOLUTION METHOD
    * Resolves the 10 dimensions of the role-based experience:
@@ -292,7 +310,7 @@ export class RoleBasedCoherenceEngine {
     const workspace = await workspaceManager.compileWorkspaceState(context, targetDbkId);
 
     // 2. Resolve User Spaces & Memberships
-    const userSpacesWithMemberships = this.getUserSpaces(principal.id, targetDbkId);
+    const userSpacesWithMemberships = await this.getPersistentUserSpaces(principal.id, targetDbkId);
     
     // Choose active space
     let activeSpaceItem = userSpacesWithMemberships.find((s) => s.space.spaceId === options?.targetSpaceId);
