@@ -336,7 +336,7 @@ class WorkflowEngineService {
 
     try {
       workflow.status = 'RUNNING';
-      await workflowInstanceRepository.saveWorkflow(workflow.tenantId, workflow.workflowId, workflow);
+      await workflowInstanceRepository.saveWorkflow(workflow.tenantId, workflow.workflowId, workflow, workerId);
 
     while (workflow.currentStepIndex < workflow.steps.length) {
       const step = workflow.steps[workflow.currentStepIndex];
@@ -363,7 +363,7 @@ class WorkflowEngineService {
           }
         );
 
-        await workflowInstanceRepository.saveWorkflow(workflow.tenantId, workflow.workflowId, workflow);
+        await workflowInstanceRepository.saveWorkflow(workflow.tenantId, workflow.workflowId, workflow, workerId);
         return workflow;
       }
 
@@ -389,7 +389,7 @@ class WorkflowEngineService {
             step.status = 'WAITING';
             step.failureClassification = 'WAITING_FOR_EXTERNAL_RESULT';
             workflow.status = 'WAITING';
-            await workflowInstanceRepository.saveWorkflow(workflow.tenantId, workflow.workflowId, workflow);
+            await workflowInstanceRepository.saveWorkflow(workflow.tenantId, workflow.workflowId, workflow, workerId);
             return workflow;
           }
 
@@ -451,13 +451,13 @@ class WorkflowEngineService {
             metadata: workflow.metadata,
           };
           const failedRecord = this.buildLifecycleOutboxRecord(failedEnvelope);
-          await workflowInstanceRepository.saveWorkflowWithOutbox(workflow.tenantId, workflow.workflowId, workflow, failedRecord);
+          await workflowInstanceRepository.saveWorkflowWithOutbox(workflow.tenantId, workflow.workflowId, workflow, failedRecord, workerId);
           await eventBus.publish(failedEnvelope);
           return workflow;
         }
       } else {
         workflow.currentStepIndex++;
-        await workflowInstanceRepository.saveWorkflow(workflow.tenantId, workflow.workflowId, workflow);
+        await workflowInstanceRepository.saveWorkflow(workflow.tenantId, workflow.workflowId, workflow, workerId);
       }
     }
 
@@ -485,7 +485,8 @@ class WorkflowEngineService {
       workflow.tenantId,
       workflow.workflowId,
       workflow,
-      completedRecord
+      completedRecord,
+      workerId
     );
 
     auditLogger.logEvent(
