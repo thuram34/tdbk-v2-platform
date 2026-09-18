@@ -297,6 +297,61 @@ export class AiCommandBoundary {
       throw new KernelError('NOT_FOUND', `Proposal ${proposalId} not found`, 404, ctx.requestId);
     }
 
+    // Crash recovery: EXECUTING is a durable state. Before rejecting a retry,
+    // reconstruct whether the authoritative command already committed. This closes
+    // the crash window between the domain mutation and proposal finalization.
+    if (proposal.status === 'EXECUTING') {
+      const executionRecordId = proposal.executionResult?.recordId;
+      if (proposal.proposalType === 'PROPOSE_RECORD_PAYMENT') {
+        const transactionId = String(executionRecordId || proposal.suggestedPayload.transactionId || `txn_ai_${proposalId}`);
+        const recovered = await financialTransactionService.get(tenantId, transactionId);
+        if (recovered?.status === 'POSTED') {
+          await receiptService.createFromPostedTransaction(tenantId, transactionId, ctx.principal.id);
+          const recoveredProposal = await aiProposalRepository.transitionProposal(
+            tenantId, proposalId, 'EXECUTING', 'APPROVED', ctx.principal.id, proposal.suggestedPayload,
+            {
+              executionResult: {
+                success: true,
+                executedCommand: proposal.proposalType,
+                recordId: transactionId,
+                executedAt: recovered.postedAt || new Date().toISOString(),
+              },
+            }
+          );
+          return { success: true, proposal: recoveredProposal, recordId: transactionId };
+        }
+      }
+
+      if (proposal.proposalType === 'PROPOSE_ADMIT_STUDENT' || proposal.proposalType === 'PROPOSE_BOOK_WAYBILL') {
+        const entityType = proposal.proposalType === 'PROPOSE_ADMIT_STUDENT' ? 'student_records' : 'waybill_booking';
+        const records = await entityEngine.listPersistentRecords(ctx, tenantId, entityType, proposal.branchId);
+        const recovered = executionRecordId
+          ? records.find((record) => record.id === executionRecordId)
+          : undefined;
+        if (recovered) {
+          const recoveredProposal = await aiProposalRepository.transitionProposal(
+            tenantId, proposalId, 'EXECUTING', 'APPROVED', ctx.principal.id, proposal.suggestedPayload,
+            {
+              executionResult: {
+                success: true,
+                executedCommand: proposal.proposalType,
+                recordId: recovered.id,
+                executedAt: recovered.updatedAt,
+              },
+            }
+          );
+          return { success: true, proposal: recoveredProposal, recordId: recovered.id };
+        }
+      }
+
+      throw new KernelError(
+        'CONFLICT',
+        `Proposal '${proposalId}' is EXECUTING and has no recoverable authoritative result yet.`,
+        409,
+        ctx.requestId
+      );
+    }
+
     if (proposal.status !== 'PENDING_REVIEW') {
       throw new KernelError(
         'ILLEGAL_STATE_TRANSITION' as any,
@@ -358,7 +413,7 @@ export class AiCommandBoundary {
       switch (proposal.proposalType) {
         case 'PROPOSE_ADMIT_STUDENT': {
           const student = await entityEngine.createPersistentRecord(ctx, tenantId, 'student_records', {
-            admissionNo: finalPayload.admissionNumber || `ADM-${Date.now()}`,
+            id: executionRecordId || `ai_student_${proposalId}`,\n            admissionNo: finalPayload.admissionNumber || `ADM-${Date.now()}`,
             fullName: finalPayload.studentName || 'Student Name',
             grade: finalPayload.gradeLevel || 'Grade 1',
             branchId: proposal.branchId,
@@ -369,7 +424,7 @@ export class AiCommandBoundary {
         }
         case 'PROPOSE_BOOK_WAYBILL': {
           const wb = await entityEngine.createPersistentRecord(ctx, tenantId, 'waybill_booking', {
-            waybillNo: finalPayload.waybillNumber || `WB-${Date.now()}`,
+            id: executionRecordId || `ai_waybill_${proposalId}`,\n            waybillNo: finalPayload.waybillNumber || `WB-${Date.now()}`,
             consignor: finalPayload.consignor || 'Consignor',
             consignee: finalPayload.consignee || 'Consignee',
             weightKg: finalPayload.weightKg || 100,
