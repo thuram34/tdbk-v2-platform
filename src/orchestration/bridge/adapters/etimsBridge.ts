@@ -71,32 +71,7 @@ export class EtimsBridge implements Bridge<EtimsInvoiceRequest, any, any> {
       throw new KernelError('VALIDATION_ERROR', `Unsupported eTIMS operation: '${operation}'`, 400, context.requestId);
     }
 
-    // Generate KRA Internal Control Number (ICN) & QR Signature
-    const kraIcn = `KRA${Date.now()}${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
-    const kraQr = `https://etims.kra.go.ke/verify?icn=${kraIcn}`;
-
-    const normalized: NormalizedBridgeResult<any> = {
-      status: 'SUCCESS',
-      provider: this.provider,
-      providerReference: kraIcn,
-      amount: payload.totalAmount,
-      currency: 'KES',
-      occurredAt: new Date().toISOString(),
-      correlationId: context.correlationId,
-      data: {
-        invoiceNumber: payload.invoiceNumber,
-        kraIcn,
-        kraQrCode: kraQr,
-        taxAmount: payload.taxAmount,
-        verificationStatus: 'CERTIFIED',
-      },
-    };
-
-    auditLogger.logEvent('BRIDGE_EXECUTION', context.principal.id, 'BRIDGE_RESPONSE_RECEIVED', `bridge:${this.bridgeId}`, 'ALLOWED', {
-      tenantId,
-      requestId: context.requestId,
-      details: { providerReference: kraIcn, status: normalized.status },
-    });
+    throw new KernelError('INTEGRATION_UNAVAILABLE', 'eTIMS provider client is not connected; no synthetic tax invoice may be issued', 503, context.requestId);
 
     // Publish event
     publishBridgeEvent({
