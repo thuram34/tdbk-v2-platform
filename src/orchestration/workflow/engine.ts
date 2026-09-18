@@ -699,6 +699,7 @@ class WorkflowEngineService {
       leaseOwner: durable.leaseOwner,
       leaseUntil: durable.leaseUntil,
       deliveredAt: durable.deliveredAt,
+      updatedAt: durable.updatedAt,
     };
   }
 
