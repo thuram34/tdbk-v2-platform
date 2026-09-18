@@ -55,7 +55,7 @@ export const OwnerPortfolioView: React.FC<OwnerPortfolioViewProps> = ({
   const [legalName, setLegalName] = useState<string>('');
   const [dbkId, setDbkId] = useState<string>('');
   const [blueprintId, setBlueprintId] = useState<string>('school_v1');
-  const [subscriptionTier, setSubscriptionTier] = useState<string>('PROFESSIONAL');
+  const [subscriptionTier, setSubscriptionTier] = useState<string>('FOUNDATION');
   const [branchName, setBranchName] = useState<string>('Headquarters');
 
   const blueprints = [
@@ -243,7 +243,7 @@ export const OwnerPortfolioView: React.FC<OwnerPortfolioViewProps> = ({
                       </div>
                       <div className="flex items-center gap-1.5">
                         <Sparkles className="w-4 h-4 text-neutral-400" />
-                        <span>Tier: {dbk.subscriptionTier || 'PRO'}</span>
+                        <span>Tier: {dbk.subscriptionTier || 'FOUNDATION'}</span>
                       </div>
                     </div>
                   </div>
@@ -358,8 +358,10 @@ export const OwnerPortfolioView: React.FC<OwnerPortfolioViewProps> = ({
                     onChange={(e) => setSubscriptionTier(e.target.value)}
                     className="w-full px-3 py-2 text-sm bg-neutral-50 border border-neutral-300 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-neutral-900"
                   >
-                    <option value="STANDARD">Standard</option>
-                    <option value="PROFESSIONAL">Professional</option>
+                    <option value="FREE">Free</option>
+                    <option value="FOUNDATION">Foundation</option>
+                    <option value="GROWTH">Growth</option>
+                    <option value="PRO">Pro</option>
                     <option value="ENTERPRISE">Enterprise</option>
                   </select>
                 </div>
