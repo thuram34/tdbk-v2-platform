@@ -234,7 +234,7 @@ export class Phase2TestRunner {
     // P2_TEST_04: Blueprint-compatible capability discovery -> PASS
     // -----------------------------------------------------------------
     try {
-      const surface = discoveryEngine.discoverCapabilitiesForDbk(schoolCtx, 'tenant_school_01');
+      const surface = await discoveryEngine.discoverCapabilitiesForDbk(schoolCtx, 'tenant_school_01');
       const hasAcademics = surface.items.some((i) => i.capability.capabilityId === 'school_academics');
       addResult(
         'P2_TEST_04',
@@ -252,7 +252,7 @@ export class Phase2TestRunner {
     // P2_TEST_05: Blueprint-incompatible capability unavailable -> PASS
     // -----------------------------------------------------------------
     try {
-      const surface = discoveryEngine.discoverCapabilitiesForDbk(hardwareCtx, 'tenant_hardware_01');
+      const surface = await discoveryEngine.discoverCapabilitiesForDbk(hardwareCtx, 'tenant_hardware_01');
       const hasAcademics = surface.items.some((i) => i.capability.capabilityId === 'school_academics');
       addResult(
         'P2_TEST_05',
