@@ -16,6 +16,7 @@ import { eventBus } from '../events/eventBus';
 import { EventEnvelope } from '../events/types';
 import { workflowInstanceRepository } from '../../persistence/firestore/repositories/workflowInstanceRepository';
 import { outboxEngine } from '../outbox/outboxEngine';
+import { outboxRepository } from '../../persistence/firestore/repositories/outboxRepository';
 
 class WorkflowEngineService {
   private workflows: Map<string, WorkflowInstance> = new Map();
@@ -482,20 +483,14 @@ class WorkflowEngineService {
       );
     }
 
-    const result = await outboxEngine.processTenantOutbox(
+    await outboxEngine.processTenantOutbox(
       tenantId,
       `workflow-worker-${context.principal.id}`
     );
 
-    // Return the durable records that this invocation successfully delivered.
-    const durableRecords = await Promise.all(
-      (await import('../../persistence/firestore/repositories/outboxRepository')).outboxRepository
-        .listOutbox(tenantId, 'DELIVERED')
-    );
-
-    const delivered = new Set(durableRecords.map((record) => record.eventId));
+    // Return the durable delivered records for this tenant.
+    const durableRecords = await outboxRepository.listOutbox(tenantId, 'DELIVERED');
     return durableRecords
-      .filter((record) => delivered.has(record.eventId))
       .map((record) => ({
         outboxId: `outbox_${record.eventId}`,
         eventId: record.eventId,
