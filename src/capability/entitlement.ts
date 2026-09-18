@@ -6,6 +6,7 @@
 
 import { SubscriptionTier, EntitlementStatus, CapabilityDefinition } from './types';
 import { capabilityRegistry } from './registry';
+import { dbkRegistry } from '../platform/dbkRegistry';
 
 export class EntitlementEngineService {
   private static readonly TIER_HIERARCHY: Record<SubscriptionTier, number> = {
@@ -18,51 +19,51 @@ export class EntitlementEngineService {
 
   private dbkSubscriptionStore: Map<string, SubscriptionTier> = new Map();
 
-  /**
-   * Sets the subscription tier for a DBK.
-   */
+  /** Legacy test-only setter. Production entitlement is stored on the durable DBK identity. */
   public setDbkSubscriptionTier(dbkId: string, tier: SubscriptionTier): void {
     this.dbkSubscriptionStore.set(dbkId, tier);
   }
 
-  /**
-   * Retrieves the subscription tier for a DBK (defaults to FOUNDATION).
-   */
+  /** Legacy synchronous accessor retained for deterministic tests. */
   public getDbkSubscriptionTier(dbkId: string): SubscriptionTier {
     return this.dbkSubscriptionStore.get(dbkId) || 'FOUNDATION';
   }
 
-  /**
-   * Checks if current subscription tier meets or exceeds required minimum tier.
-   */
+  /** Authoritative production read. Process memory is never the source of truth. */
+  public async getPersistentDbkSubscriptionTier(dbkId: string): Promise<SubscriptionTier> {
+    const dbk = await dbkRegistry.getDbkInternal(dbkId);
+    return dbk?.subscriptionTier || 'FOUNDATION';
+  }
+
+  /** Authoritative production entitlement evaluation. */
+  public async evaluatePersistentEntitlement(
+    dbkId: string,
+    capability: CapabilityDefinition | string
+  ): Promise<EntitlementStatus> {
+    const capDef = typeof capability === 'string'
+      ? capabilityRegistry.getCapability(capability) || undefined
+      : capability;
+    const currentTier = await this.getPersistentDbkSubscriptionTier(dbkId);
+    const minimumTier = capDef?.entitlementRequirements?.minimumTier || 'FOUNDATION';
+    return this.isTierSatisfied(currentTier, minimumTier) ? 'ENTITLED' : 'UPGRADE_REQUIRED';
+  }
+
   public isTierSatisfied(currentTier: SubscriptionTier, minimumTier: SubscriptionTier): boolean {
     const currentLevel = EntitlementEngineService.TIER_HIERARCHY[currentTier] || 10;
     const requiredLevel = EntitlementEngineService.TIER_HIERARCHY[minimumTier] || 10;
     return currentLevel >= requiredLevel;
   }
 
-  /**
-   * Evaluates entitlement status for a capability given a DBK's current subscription tier.
-   */
+  /** Legacy synchronous evaluation retained for deterministic tests. */
   public evaluateEntitlement(dbkId: string, capability: CapabilityDefinition | string): EntitlementStatus {
-    let capDef: CapabilityDefinition | undefined;
-    if (typeof capability === 'string') {
-      capDef = capabilityRegistry.getCapability(capability) || undefined;
-    } else {
-      capDef = capability;
-    }
+    const capDef = typeof capability === 'string'
+      ? capabilityRegistry.getCapability(capability) || undefined
+      : capability;
     const currentTier = this.getDbkSubscriptionTier(dbkId);
     const minimumTier = capDef?.entitlementRequirements?.minimumTier || 'FOUNDATION';
-
-    if (this.isTierSatisfied(currentTier, minimumTier)) {
-      return 'ENTITLED';
-    }
-    return 'UPGRADE_REQUIRED';
+    return this.isTierSatisfied(currentTier, minimumTier) ? 'ENTITLED' : 'UPGRADE_REQUIRED';
   }
 
-  /**
-   * Clears subscription store for automated testing.
-   */
   public clearStoreForTesting(): void {
     this.dbkSubscriptionStore.clear();
   }
