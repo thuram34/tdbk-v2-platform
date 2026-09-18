@@ -34,7 +34,7 @@ export async function handleSubscriptionPaymentConfirmed(event: EventEnvelope): 
       roles: ['TDBK_MASTER_ADMIN'],
       permissions: ['*'],
       authTime: Math.floor(Date.now() / 1000),
-      tokenSource: 'INTERNAL',
+      tokenSource: 'SERVICE_KEY' as const,
     },
     tenantContext: { tenantId: dbkId },
     branchContext: null,
