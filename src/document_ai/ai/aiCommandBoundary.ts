@@ -431,30 +431,55 @@ export class AiCommandBoundary {
           break;
         }
         case 'PROPOSE_RECORD_PAYMENT': {
-          const transactionId = String(finalPayload.transactionId || `txn_ai_${proposalId}`);
-          const providerReference = String(finalPayload.providerReference || finalPayload.mpesaReceiptNumber || transactionId);
-          const amount = Number(finalPayload.amount);
-          if (!Number.isFinite(amount) || amount <= 0) throw new KernelError('VALIDATION_ERROR', 'AI payment proposal requires a positive amount', 400, ctx.requestId);
-          const now = new Date().toISOString();
-          const transaction = {
-            transactionId,
-            tenantId,
-            branchId: proposal.branchId,
-            source: 'MPESA' as const,
-            providerReference,
-            amount,
-            currency: String(finalPayload.currency || 'KES'),
-            status: 'POSTED' as const,
-            description: String(finalPayload.description || 'AI-approved payment'),
-            correlationId: ctx.correlationId || proposalId,
-            createdAt: now,
-            postedAt: now,
-            reversedAt: null,
-          };
-          await ledgerService.post(transaction, [
-            { entryId: `${transactionId}_receivable`, transactionId, tenantId, account: 'RECEIVABLES:PAYMENTS', entryType: 'DEBIT', amount, currency: transaction.currency, createdAt: now, immutable: true },
-            { entryId: `${transactionId}_cash`, transactionId, tenantId, account: 'CASH:MPESA', entryType: 'CREDIT', amount, currency: transaction.currency, createdAt: now, immutable: true },
-          ]);
+          // AI may authorize recording a payment, but it may never manufacture financial truth.
+          // A durable TDBK initiation/provider record must already exist.
+          const transactionId = String(finalPayload.transactionId || '');
+          const providerReference = String(finalPayload.providerReference || finalPayload.mpesaReceiptNumber || '');
+          if (!transactionId || !providerReference) {
+            throw new KernelError('VALIDATION_ERROR', 'AI payment proposal requires an existing transactionId and providerReference', 400, ctx.requestId);
+          }
+
+          const existing = await financialTransactionService.get(tenantId, transactionId);
+          if (!existing) {
+            throw new KernelError('NOT_FOUND', `Authoritative financial transaction '${transactionId}' not found; AI cannot create money from proposal data`, 404, ctx.requestId);
+          }
+          if (existing.source !== 'MPESA' || existing.providerReference !== providerReference) {
+            throw new KernelError('VALIDATION_ERROR', 'AI payment evidence does not match the authoritative M-Pesa transaction', 422, ctx.requestId);
+          }
+          if (existing.branchId !== proposal.branchId) {
+            throw new KernelError('AUTHORIZATION_ERROR', 'AI payment proposal branch does not match the authoritative transaction branch', 403, ctx.requestId);
+          }
+
+          const proposedAmount = finalPayload.amount === undefined ? existing.amount : Number(finalPayload.amount);
+          if (!Number.isFinite(proposedAmount) || proposedAmount !== existing.amount) {
+            throw new KernelError('VALIDATION_ERROR', 'AI payment amount does not match the authoritative transaction', 422, ctx.requestId);
+          }
+
+          const currency = String(finalPayload.currency || existing.currency);
+          if (currency !== existing.currency) {
+            throw new KernelError('VALIDATION_ERROR', 'AI payment currency does not match the authoritative transaction', 422, ctx.requestId);
+          }
+
+          if (existing.status === 'PENDING') {
+            const now = new Date().toISOString();
+            const posted = {
+              ...existing,
+              status: 'POSTED' as const,
+              postedAt: existing.postedAt || now,
+              description: String(finalPayload.description || existing.description || 'M-Pesa payment'),
+            };
+            await ledgerService.post(posted, [
+              { entryId: `${transactionId}_receivable`, transactionId, tenantId, account: 'RECEIVABLES:PAYMENTS', entryType: 'DEBIT', amount: existing.amount, currency: existing.currency, createdAt: now, immutable: true },
+              { entryId: `${transactionId}_cash`, transactionId, tenantId, account: 'CASH:MPESA', entryType: 'CREDIT', amount: existing.amount, currency: existing.currency, createdAt: now, immutable: true },
+            ]);
+          } else if (existing.status === 'RECONCILIATION_REQUIRED') {
+            const entries = await ledgerService.entries(tenantId, transactionId);
+            const confirmed = { ...existing, status: 'POSTED' as const, postedAt: existing.postedAt || new Date().toISOString() };
+            await reconciliationService.resolveConfirmed(confirmed, entries);
+          } else if (existing.status !== 'POSTED') {
+            throw new KernelError('ILLEGAL_STATE_TRANSITION', `Authoritative transaction '${transactionId}' cannot be recorded from state '${existing.status}'`, 400, ctx.requestId);
+          }
+
           await receiptService.createFromPostedTransaction(tenantId, transactionId, ctx.principal.id);
           executedRecordId = transactionId;
           break;
