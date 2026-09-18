@@ -407,7 +407,7 @@ export class AiCommandBoundary {
       switch (proposal.proposalType) {
         case 'PROPOSE_ADMIT_STUDENT': {
           const student = await entityEngine.createPersistentRecord(ctx, tenantId, 'student_records', {
-            id: executionRecordId || `ai_student_${proposalId}`,
+            id: `ai_student_${proposalId}`,
             admissionNo: finalPayload.admissionNumber || `ADM-${Date.now()}`,
             fullName: finalPayload.studentName || 'Student Name',
             grade: finalPayload.gradeLevel || 'Grade 1',
@@ -419,7 +419,7 @@ export class AiCommandBoundary {
         }
         case 'PROPOSE_BOOK_WAYBILL': {
           const wb = await entityEngine.createPersistentRecord(ctx, tenantId, 'waybill_booking', {
-            id: executionRecordId || `ai_waybill_${proposalId}`,
+            id: `ai_waybill_${proposalId}`,
             waybillNo: finalPayload.waybillNumber || `WB-${Date.now()}`,
             consignor: finalPayload.consignor || 'Consignor',
             consignee: finalPayload.consignee || 'Consignee',
@@ -506,32 +506,45 @@ export class AiCommandBoundary {
       }
     } catch (error: any) {
       // Never leave an approved proposal stranded in EXECUTING after a failed command.
-      const failedProposal = await aiProposalRepository.transitionProposal(
+      await aiProposalRepository.transitionProposal(
         tenantId,
         proposalId,
         'EXECUTING',
         'FAILED',
         ctx.principal.id,
+        undefined,
+        {
+          executionResult: {
+            success: false,
+            executedCommand: proposal.proposalType,
+            executedAt: new Date().toISOString(),
+          },
+          rejectionReason: error?.message || 'Authoritative command execution failed',
+        }
       );
-      failedProposal.executionResult = {
-        success: false,
-        executedCommand: failedProposal.proposalType,
-        executedAt: new Date().toISOString(),
-      };
-      failedProposal.rejectionReason = error?.message || 'Authoritative command execution failed';
-      await aiProposalRepository.saveProposal(tenantId, proposalId, failedProposal);
       throw error;
     }
-    proposal.status = 'APPROVED';
-    proposal.reviewedBy = ctx.principal.id;
-    proposal.reviewedAt = new Date().toISOString();
-    proposal.executionResult = {
-      success: true,
-      executedCommand: proposal.proposalType,
-      recordId: executedRecordId,
-      executedAt: new Date().toISOString(),
-    };
-    await aiProposalRepository.saveProposal(tenantId, proposalId, proposal);
+    const approvedProposal = await aiProposalRepository.transitionProposal(
+      tenantId,
+      proposalId,
+      'EXECUTING',
+      'APPROVED',
+      ctx.principal.id,
+      finalPayload,
+      {
+        executionResult: {
+          success: true,
+          executedCommand: proposal.proposalType,
+          recordId: executedRecordId,
+          executedAt: new Date().toISOString(),
+        },
+      }
+    );
+    proposal.status = approvedProposal.status;
+    proposal.reviewedBy = approvedProposal.reviewedBy;
+    proposal.reviewedAt = approvedProposal.reviewedAt;
+    proposal.suggestedPayload = approvedProposal.suggestedPayload;
+    proposal.executionResult = approvedProposal.executionResult;
 
     await auditLogger.persistEvent(auditLogger.logAuditEvent(ctx, {
       action: 'AI_PROPOSAL_APPROVED',
