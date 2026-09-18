@@ -187,6 +187,7 @@ export interface ISubscriptionRepository {
   getActiveSubscription(dbkId: string): Promise<DbkSubscription | null>;
   listSubscriptions(dbkId: string): Promise<DbkSubscription[]>;
   updateSubscriptionForDbk(dbkId: string, subscriptionId: string, patch: Partial<DbkSubscription>): Promise<DbkSubscription>;
+  activateIfPending(dbkId: string, subscriptionId: string, paymentReference?: string | null, provider?: string | null): Promise<{ subscription: DbkSubscription; transitioned: boolean }>;
 }
 
 export interface IDbkRegistryRepository {
