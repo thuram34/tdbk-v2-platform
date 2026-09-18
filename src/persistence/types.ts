@@ -282,7 +282,7 @@ export interface IOutboxRepository {
   getOutbox(tenantId: string, eventId: string): Promise<OutboxRecord | null>;
   listOutbox(tenantId: string, status?: OutboxStatus): Promise<OutboxRecord[]>;
   claimNextPending(tenantId: string, workerId: string, leaseDurationMs: number): Promise<OutboxRecord | null>;
-  updateStatus(tenantId: string, eventId: string, status: OutboxStatus, extra?: Partial<OutboxRecord>): Promise<void>;
+  updateStatus(tenantId: string, eventId: string, status: OutboxStatus, extra?: Partial<OutboxRecord>, expectedLeaseOwner?: string): Promise<void>;
   deleteOutbox(tenantId: string, eventId: string): Promise<void>;
 }
 
