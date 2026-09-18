@@ -106,6 +106,25 @@ export class WorkflowInstanceRepository implements IWorkflowInstanceRepository {
     });
   }
 
+  /** Renews only the active lease owned by this worker. */
+  public async renewExecutionLease(
+    tenantId: string,
+    workflowId: string,
+    owner: string,
+    leaseDurationMs: number
+  ): Promise<boolean> {
+    const path = this.getPath(tenantId, workflowId);
+    const leaseUntil = new Date(Date.now() + leaseDurationMs).toISOString();
+    return await firestoreClient.runTransaction(async (tx) => {
+      const workflow = await tx.get<WorkflowInstance>(path);
+      if (!workflow || workflow.executionLeaseOwner !== owner) return false;
+      const currentLeaseUntil = workflow.executionLeaseUntil ? Date.parse(workflow.executionLeaseUntil) : 0;
+      if (currentLeaseUntil <= Date.now()) return false;
+      await tx.update<WorkflowInstance>(path, { executionLeaseUntil: leaseUntil });
+      return true;
+    });
+  }
+
   /** Releases only the lease owned by this worker. */
   public async releaseExecutionLease(
     tenantId: string,
