@@ -6,6 +6,8 @@
 import { IAiProposalRepository } from '../../types';
 import { AiProposedAction } from '../../../document_ai/types';
 import { firestoreClient } from '../firestoreClient';
+import type { EventEnvelope } from '../../../orchestration/events/types';
+import type { OutboxRecord } from '../../types';
 
 export class AiProposalRepository implements IAiProposalRepository {
   private static instance: AiProposalRepository;
@@ -32,6 +34,23 @@ export class AiProposalRepository implements IAiProposalRepository {
       this.getPath(tenantId, proposalId),
       proposal as unknown as Record<string, unknown>
     );
+  }
+
+  /** Atomically persists an AI proposal and its lifecycle outbox event. */
+  public async saveProposalWithOutbox(
+    tenantId: string,
+    proposalId: string,
+    proposal: AiProposedAction,
+    event: EventEnvelope,
+    outboxRecord: OutboxRecord
+  ): Promise<void> {
+    await firestoreClient.runTransaction(async (transaction) => {
+      await transaction.set(this.getPath(tenantId, proposalId), proposal as unknown as Record<string, unknown>);
+      await transaction.set(
+        '/tenants/' + tenantId + '/outbox/' + event.eventId,
+        outboxRecord as unknown as Record<string, unknown>
+      );
+    });
   }
 
   public async getProposal(tenantId: string, proposalId: string): Promise<AiProposedAction | null> {
