@@ -563,8 +563,8 @@ class WorkflowEngineService {
             correlationId: workflow.correlationId,
             causationId: step.stepId,
             source: 'WorkflowEngine',
-            payload: { workflowId, failedStepId: step.stepId, reason: step.error }
-      metadata: {},
+            payload: { workflowId, failedStepId: step.stepId, reason: step.error },
+            metadata: {},
           };
           const failedRecord = this.buildLifecycleOutboxRecord(failedEnvelope);
           await workflowInstanceRepository.saveWorkflowWithOutbox(workflow.tenantId, workflow.workflowId, workflow, failedRecord, workerId);
@@ -591,7 +591,7 @@ class WorkflowEngineService {
       correlationId: workflow.correlationId,
       causationId: null,
       source: 'WorkflowEngine',
-      payload: { workflowId, status: 'COMPLETED' }
+      payload: { workflowId, status: 'COMPLETED' },
       metadata: {},
     };
 
