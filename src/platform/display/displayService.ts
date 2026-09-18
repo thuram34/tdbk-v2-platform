@@ -2,6 +2,7 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { firestoreClient } from '../../persistence/firestore/firestoreClient';
 import { buildSyncPlan, capabilitiesForNodeType, createDisplayCommand } from './displayEngine';
 import type { DisplayCommand, DisplayContent, DisplayNode, DisplayNodeType, DisplayScheduleEntry, DisplaySyncPlan } from './types';
+import { eventBus } from '../../orchestration/events/eventBus';
 
 export interface DisplayRegistrationInput {
   tenantId: string; siteId: string; name: string; nodeType: DisplayNodeType;
@@ -47,7 +48,9 @@ export class DisplayService {
     if(!node) throw new Error('DISPLAY_NOT_FOUND');
     const updated={...node,status:heartbeat.status,lastSeenAt:heartbeat.reportedAt,networkQuality:heartbeat.networkQuality,appVersion:heartbeat.appVersion,
       offlineCacheVersion:Math.max(node.offlineCacheVersion,heartbeat.cacheVersion),currentContentId:heartbeat.currentContentId};
-    await firestoreClient.set(path,updated); return updated;
+    await firestoreClient.set(path,updated);
+    await eventBus.publishEvent({ principal:{id:'DISPLAY_RUNTIME',tenantId:heartbeat.tenantId}, tenantContext:{tenantId:heartbeat.tenantId}, correlationId:`display_${heartbeat.displayId}` }, 'display.heartbeat.v1', { dbkId:heartbeat.tenantId, displayId:heartbeat.displayId, status:heartbeat.status, networkQuality:heartbeat.networkQuality, reportedAt:heartbeat.reportedAt });
+    return updated;
   }
   async getNode(tenantId:string,id:string){return firestoreClient.get<DisplayNode>(nodePath(tenantId,id));}
   async sync(tenantId:string,id:string):Promise<DisplaySyncPlan>{
