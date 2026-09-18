@@ -366,7 +366,7 @@ export class AiCommandBoundary {
     };
     await aiProposalRepository.saveProposal(tenantId, proposalId, proposal);
 
-    auditLogger.logAuditEvent(ctx, {
+    await auditLogger.persistEvent(auditLogger.logAuditEvent(ctx, {
       action: 'AI_PROPOSAL_APPROVED',
       targetResource: `proposal:${proposalId}`,
       outcome: 'ALLOWED',
@@ -375,7 +375,7 @@ export class AiCommandBoundary {
         executedRecordId,
         reviewedBy: ctx.principal.id,
       }
-    });
+    }));
 
     return {
       success: true,
