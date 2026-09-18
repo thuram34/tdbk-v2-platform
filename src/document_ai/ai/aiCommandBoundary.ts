@@ -377,7 +377,7 @@ export class AiCommandBoundary {
           const entries = await ledgerService.entries(tenantId, transactionId);
           if (existing.status === 'RECONCILIATION_REQUIRED') {
             const confirmed = { ...existing, status: 'POSTED' as const, postedAt: existing.postedAt || new Date().toISOString() };
-            await reconciliationService.confirmReconciled(ctx, confirmed, entries);
+            await reconciliationService.resolveConfirmed(confirmed, entries);
           } else if (existing.status !== 'POSTED') {
             throw new KernelError('ILLEGAL_STATE_TRANSITION', `Transaction '${transactionId}' cannot be reconciled from state '${existing.status}'`, 400, ctx.requestId);
           }
