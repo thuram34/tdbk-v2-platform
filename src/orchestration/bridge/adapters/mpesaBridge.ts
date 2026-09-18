@@ -476,6 +476,23 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
 
       await tx.set(claimPath, claimRecord);
 
+      if (normalized.status === 'FAILED') {
+        const transactionId = `mpesa_${stk.CheckoutRequestID}`;
+        const existingTransaction = await tx.get<any>(`/tenants/${idempotencyTenant}/financialTransactions/${transactionId}`);
+        if (!existingTransaction) throw new Error('M-Pesa failed callback has no authoritative pending transaction');
+        if (
+          existingTransaction.status !== 'PENDING' ||
+          existingTransaction.providerReference !== stk.CheckoutRequestID ||
+          existingTransaction.tenantId !== idempotencyTenant
+        ) {
+          throw new Error('M-Pesa failed callback conflicts with authoritative pending transaction');
+        }
+        await tx.update<any>(`/tenants/${idempotencyTenant}/financialTransactions/${transactionId}`, {
+          status: 'FAILED',
+          description: stk.ResultDesc || existingTransaction.description || 'M-Pesa payment failed',
+        });
+      }
+
       if (normalized.status === 'SUCCESS') {
         const transactionId = `mpesa_${stk.CheckoutRequestID}`;
         const now = new Date().toISOString();
