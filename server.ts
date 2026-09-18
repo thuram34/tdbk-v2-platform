@@ -51,6 +51,8 @@ import { SurfaceType } from './src/coherence/types';
 import { eventBus } from './src/orchestration/events/eventBus';
 import { pubSubConsumer } from './src/orchestration/events/pubsubConsumer';
 import { subscriptionRouter } from './src/platform/subscription/subscriptionRouter';
+import { displayService } from './src/platform/display/displayService';
+import type { DisplayNodeStatus } from './src/platform/display/types';
 
 async function startServer() {
   // Explicit bootstrap boundary: Seed demo DBKs only in development, preview, or explicit flag
@@ -1555,6 +1557,84 @@ async function startServer() {
       } else {
         res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: (err as Error).message } });
       }
+    }
+  });
+
+  // -------------------------------------------------------------
+  // UNIFIED DISPLAY ENGINE — DEVICE CONTROL PLANE
+  // -------------------------------------------------------------
+  app.post('/api/display/register', async (req: Request, res: Response) => {
+    try {
+      const { tenantId, siteId, name, nodeType, buildingId, roomId, capabilities } = req.body;
+      if (!tenantId || !siteId || !name || !nodeType) {
+        return res.status(400).json({ error: { code: 'DISPLAY_REGISTRATION_INVALID', message: 'tenantId, siteId, name and nodeType are required' } });
+      }
+      const context = await securityContextFactory.createSecurityContext({
+        authHeader: req.headers.authorization, targetTenantId: tenantId, ipAddress: req.ip,
+      });
+      tenantIsolation.assertTenantIsolation(context.principal, tenantId, 'REGISTER_DISPLAY', context.requestId);
+      const result = await displayService.register({ tenantId, siteId, name, nodeType, buildingId, roomId, capabilities });
+      return res.status(201).json({ status: 'SUCCESS', ...result });
+    } catch (err) {
+      if (err instanceof KernelError) return res.status(err.statusCode).json(err.toJSON());
+      return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: (err as Error).message } });
+    }
+  });
+
+  app.post('/api/display/pair', async (req: Request, res: Response) => {
+    try {
+      const { tenantId, pairingCode } = req.body;
+      if (!tenantId || !pairingCode) return res.status(400).json({ error: { code: 'PAIRING_REQUIRED', message: 'tenantId and pairingCode are required' } });
+      const result = await displayService.pair(tenantId, String(pairingCode));
+      return res.json({ status: 'SUCCESS', ...result });
+    } catch (err) {
+      if ((err as Error).message === 'DISPLAY_PAIRING_INVALID') return res.status(401).json({ error: { code: 'DISPLAY_PAIRING_INVALID', message: 'Pairing code is invalid or expired' } });
+      return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: (err as Error).message } });
+    }
+  });
+
+  app.post('/api/display/heartbeat', async (req: Request, res: Response) => {
+    try {
+      const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+      const auth = await displayService.authenticateDevice(token);
+      if (!auth) return res.status(401).json({ error: { code: 'DISPLAY_UNAUTHORIZED', message: 'Invalid display device credential' } });
+      const body = req.body;
+      if (body.displayId !== auth.displayId) return res.status(403).json({ error: { code: 'DISPLAY_SCOPE_MISMATCH', message: 'Credential is not valid for this display' } });
+      const node = await displayService.heartbeat({ ...body, tenantId: auth.tenantId, displayId: auth.displayId });
+      return res.json({ status: 'SUCCESS', node });
+    } catch (err) {
+      if ((err as Error).message === 'DISPLAY_NOT_FOUND') return res.status(404).json({ error: { code: 'DISPLAY_NOT_FOUND', message: 'Display not found' } });
+      return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: (err as Error).message } });
+    }
+  });
+
+  app.get('/api/display/:displayId/sync', async (req: Request, res: Response) => {
+    try {
+      const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+      const auth = await displayService.authenticateDevice(token);
+      if (!auth || auth.displayId !== req.params.displayId) return res.status(401).json({ error: { code: 'DISPLAY_UNAUTHORIZED', message: 'Invalid display credential' } });
+      const plan = await displayService.sync(auth.tenantId, auth.displayId);
+      return res.json({ status: 'SUCCESS', plan });
+    } catch (err) {
+      if ((err as Error).message === 'DISPLAY_NOT_FOUND') return res.status(404).json({ error: { code: 'DISPLAY_NOT_FOUND', message: 'Display not found' } });
+      return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: (err as Error).message } });
+    }
+  });
+
+  app.post('/api/display/:displayId/commands', async (req: Request, res: Response) => {
+    try {
+      const context = await securityContextFactory.createSecurityContext({
+        authHeader: req.headers.authorization, targetTenantId: req.body.tenantId, ipAddress: req.ip,
+      });
+      const tenantId = req.body.tenantId as string;
+      tenantIsolation.assertTenantIsolation(context.principal, tenantId, 'CONTROL_DISPLAY', context.requestId);
+      if (req.params.displayId !== req.body.displayId) return res.status(400).json({ error: { code: 'DISPLAY_SCOPE_MISMATCH', message: 'displayId mismatch' } });
+      const command = await displayService.issueCommand(tenantId, req.params.displayId, req.body.type, req.body.payload || {});
+      return res.status(201).json({ status: 'SUCCESS', command });
+    } catch (err) {
+      if (err instanceof KernelError) return res.status(err.statusCode).json(err.toJSON());
+      if ((err as Error).message === 'DISPLAY_NOT_FOUND') return res.status(404).json({ error: { code: 'DISPLAY_NOT_FOUND', message: 'Display not found' } });
+      return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: (err as Error).message } });
     }
   });
 
