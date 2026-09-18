@@ -341,6 +341,7 @@ class WorkflowEngineService {
             step.status = 'WAITING';
             step.failureClassification = 'WAITING_FOR_EXTERNAL_RESULT';
             workflow.status = 'WAITING';
+            await workflowInstanceRepository.saveWorkflow(workflow.tenantId, workflow.workflowId, workflow);
             return workflow;
           }
 
