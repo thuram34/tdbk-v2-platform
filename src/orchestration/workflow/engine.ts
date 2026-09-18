@@ -158,14 +158,6 @@ class WorkflowEngineService {
   ): Promise<WorkflowInstance> {
     // Durable creation must commit business state before publishing its lifecycle signal.
     const workflow = this.createWorkflow(context, workflowType, workflowVersion, stepDefinitions, metadata, false);
-    try {
-      await workflowInstanceRepository.saveWorkflow(workflow.tenantId, workflow.workflowId, workflow);
-    } catch (error) {
-      // Never leave a process-local phantom workflow after durable creation fails.
-      this.workflows.delete(workflow.workflowId);
-      throw error;
-    }
-
     const startedEnvelope: EventEnvelope = {
       eventId: `evt_${workflow.workflowId}_started`,
       eventType: 'workflow.started.v1',
@@ -181,7 +173,15 @@ class WorkflowEngineService {
       metadata: workflow.metadata,
     };
 
-    await outboxEngine.enqueueEvent(workflow.tenantId, startedEnvelope, undefined, context.principal.id);
+    const startedRecord: OutboxRecord = {
+      eventId: startedEnvelope.eventId, tenantId: workflow.tenantId, branchId: workflow.branchId,
+      eventType: startedEnvelope.eventType, eventVersion: startedEnvelope.eventVersion,
+      occurredAt: startedEnvelope.occurredAt, correlationId: startedEnvelope.correlationId,
+      causationId: startedEnvelope.causationId, source: startedEnvelope.source, payload: startedEnvelope.payload,
+      status: 'PENDING', attemptCount: 0, availableAt: workflow.startedAt, createdAt: workflow.startedAt,
+      updatedAt: workflow.startedAt, leaseOwner: null, leaseUntil: null, lastError: null, deliveredAt: null,
+    };
+    await workflowInstanceRepository.saveWorkflowWithOutbox(workflow.tenantId, workflow.workflowId, workflow, startedRecord);
     await eventBus.publish(startedEnvelope);
     return workflow;
   }
