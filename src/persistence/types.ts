@@ -92,6 +92,7 @@ export interface FinancialTransaction {
   branchId: string | null;
   source: 'MPESA' | 'BANK' | 'CASH' | 'ETIMS' | 'OTHER';
   providerReference: string;
+  providerReceiptReference?: string | null;
   amount: number;
   currency: string;
   status: FinancialTransactionStatus;
