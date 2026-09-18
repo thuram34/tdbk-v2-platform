@@ -19,6 +19,7 @@ import { PLATFORM_MODULE_CATALOG, PLATFORM_WORKFLOW_CATALOG } from './moduleRegi
 import {
   BusinessSpace,
   SpaceMembership,
+  SpaceType,
   CoherentExperienceResolution,
   FormalCapabilityDefinition,
   BusinessModuleDefinition,
@@ -177,6 +178,10 @@ export class RoleBasedCoherenceEngine {
   /**
    * Helper to resolve space metadata
    */
+  private resolveSpaceMetadata(spaceId: string, tenantId: string): BusinessSpace {
+    return { spaceId, tenantId, organizationName: tenantId, spaceName: spaceId, spaceType: 'REGIONAL_OFFICE', sector: 'OTHER' as any, isHeadquarters: false, status: 'ACTIVE' };
+  }
+
   private async resolvePersistentSpaceMetadata(spaceId: string, tenantId: string): Promise<BusinessSpace> {
     const dbk = await dbkRegistry.getDbkInternal(tenantId);
     if (!dbk || dbk.dbkId !== tenantId) {
