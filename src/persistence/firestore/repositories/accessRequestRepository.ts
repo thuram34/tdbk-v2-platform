@@ -9,7 +9,8 @@
 import { IAccessRequestRepository } from '../../types';
 import { CapabilityAccessRequest, AccessRequestStatus } from '../../../coherence/types';
 import { firestoreClient } from '../firestoreClient';
-import type { EventEnvelope, OutboxRecord } from '../../types';
+import type { EventEnvelope } from '../../../orchestration/events/types';
+import type { OutboxRecord } from '../../types';
 
 export class AccessRequestRepository implements IAccessRequestRepository {
   private static instance: AccessRequestRepository;
