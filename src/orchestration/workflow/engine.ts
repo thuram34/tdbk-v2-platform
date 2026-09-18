@@ -403,7 +403,43 @@ class WorkflowEngineService {
       let stepSuccess = false;
 
       while (step.attemptCount < maxAttempts && !stepSuccess) {
-        step.attemptCount++;
+        if (leaseLost) {
+          throw new KernelError('CONFLICT', 'Workflow execution lease was lost; refusing to execute a stale step.', 409, context.requestId);
+        }
+
+        const execution = await workflowStepExecutionRepository.claimExecution(
+          workflow.tenantId,
+          workflow.workflowId,
+          step.stepId,
+          step.executionKey!,
+          workerId,
+          300000
+        );
+
+        if (!execution) {
+          throw new KernelError('CONFLICT', `Workflow step '${step.stepId}' is currently executing on another worker.`, 409, context.requestId);
+        }
+
+        // A completed durable execution is authoritative after restart. Rehydrate
+        // its result and advance without invoking the external side effect again.
+        if (execution.status === 'COMPLETED') {
+          step.attemptCount = Math.max(step.attemptCount, execution.attemptCount);
+          step.status = 'COMPLETED';
+          step.output = execution.output || {};
+          step.completedAt = execution.completedAt || new Date().toISOString();
+          stepSuccess = true;
+          break;
+        }
+
+        if (execution.status === 'FAILED') {
+          step.attemptCount = Math.max(step.attemptCount, execution.attemptCount);
+          step.status = 'FAILED';
+          step.error = execution.error || 'Durable step execution failed';
+          step.failureClassification = 'PERMANENT';
+          break;
+        }
+
+        step.attemptCount = Math.max(step.attemptCount + 1, execution.attemptCount);
         try {
           const result = await handler({
             workflow,
@@ -426,6 +462,12 @@ class WorkflowEngineService {
             step.status = 'WAITING';
             step.failureClassification = 'WAITING_FOR_EXTERNAL_RESULT';
             workflow.status = 'WAITING';
+            await workflowStepExecutionRepository.failExecution(
+              workflow.tenantId,
+              step.executionKey!,
+              workerId,
+              result.error || 'Waiting for external result'
+            );
             await workflowInstanceRepository.saveWorkflow(workflow.tenantId, workflow.workflowId, workflow, workerId);
             return workflow;
           }
@@ -434,19 +476,39 @@ class WorkflowEngineService {
             step.status = 'COMPLETED';
             step.output = result.output || {};
             step.completedAt = new Date().toISOString();
+            await workflowStepExecutionRepository.completeExecution(
+              workflow.tenantId,
+              step.executionKey!,
+              workerId,
+              step.output
+            );
             stepSuccess = true;
           } else {
             step.error = result.error || 'Step execution failed';
             step.failureClassification = result.failureClassification || 'TRANSIENT';
-
-            if (step.failureClassification === 'PERMANENT') {
-              break; // Do not retry permanent errors
+            if (step.failureClassification === 'PERMANENT' || step.attemptCount >= maxAttempts) {
+              await workflowStepExecutionRepository.failExecution(
+                workflow.tenantId,
+                step.executionKey!,
+                workerId,
+                step.error
+              );
+              break;
             }
           }
         } catch (err: any) {
           if (leaseLost) throw err;
           step.error = err.message || 'Exception during step execution';
           step.failureClassification = 'TRANSIENT';
+          if (step.attemptCount >= maxAttempts) {
+            await workflowStepExecutionRepository.failExecution(
+              workflow.tenantId,
+              step.executionKey!,
+              workerId,
+              step.error
+            );
+            break;
+          }
         }
       }
 
