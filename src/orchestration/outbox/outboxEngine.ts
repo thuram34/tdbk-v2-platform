@@ -115,7 +115,7 @@ export class OutboxEngine {
           requestHash: record.eventId,
           status: 'IN_PROGRESS',
           createdAt: new Date().toISOString(),
-          expiresAt: new Date(Date.now() + 86400000 * 7).toISOString(),
+          expiresAt: new Date(Date.now() + leaseDurationMs).toISOString(),
         });
 
         if (idempotencyClaim === 'COMPLETED') {
