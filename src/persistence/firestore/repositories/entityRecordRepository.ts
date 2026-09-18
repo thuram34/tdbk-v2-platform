@@ -29,19 +29,11 @@ export class EntityRecordRepository implements IEntityRecordRepository {
     recordId: string,
     record: ExperienceEntityRecord
   ): Promise<void> {
-    const path = this.getPath(tenantId, capabilityId, recordId);
-    // Deterministic command retries must not overwrite an already-created
-    // authoritative record with a newly generated timestamp/payload.
-    const existing = await firestoreClient.get<ExperienceEntityRecord>(path);
-    if (existing) {
-      if (existing.entityType !== capabilityId || existing.id !== recordId) {
-        throw new Error(`Entity record identity conflict for '${recordId}'`);
-      }
-      return;
-    }
-    await firestoreClient.set(path, record as unknown as Record<string, unknown>);
+    await firestoreClient.set(
+      this.getPath(tenantId, capabilityId, recordId),
+      record as unknown as Record<string, unknown>
+    );
   }
-
   public async createIfAbsent(
     tenantId: string,
     capabilityId: string,
