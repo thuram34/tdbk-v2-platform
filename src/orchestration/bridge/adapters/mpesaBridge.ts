@@ -288,7 +288,7 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
       correlationId: normalized.correlationId,
       causationId: stk.CheckoutRequestID,
       source: 'MpesaBridge',
-      payload: normalized,
+      payload: normalized as unknown as Record<string, unknown>,
       metadata: {},
     });
 
