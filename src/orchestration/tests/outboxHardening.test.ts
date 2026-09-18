@@ -225,6 +225,60 @@ describe('TDBK V2 — Transactional Outbox & Event Delivery Reliability Hardenin
     expect(record?.status).toBe('DEAD_LETTER');
   });
 
+  it('OUTBOX_CRASH: expired delivery lease can recover after handler success but before completion', async () => {
+    const eventId = 'evt_crash_' + Date.now();
+    await outboxEngine.enqueueEvent(tenantId, {
+      eventId,
+      eventType: 'payment.confirmed.v1',
+      eventVersion: 'v1',
+      occurredAt: new Date().toISOString(),
+      tenantId,
+      branchId: 'branch_hq',
+      principalId: 'usr_admin',
+      correlationId: 'corr_crash',
+      causationId: null,
+      source: 'test',
+      payload: { amount: 1000 },
+      metadata: {},
+    });
+
+    // First worker successfully performs the handler side effect, then the process
+    // dies before it can complete the durable delivery/idempotency record.
+    let executions = 0;
+    const first = await outboxRepository.claimNextPending(tenantId, 'worker_crashed', 1);
+    expect(first).not.toBeNull();
+
+    const idempotencyPath = `/tenants/${tenantId}/idempotency/outbox_delivery_${eventId}`;
+    await firestoreClient.set(idempotencyPath, {
+      idempotencyKey: `outbox_delivery_${eventId}`,
+      tenantId,
+      action: 'OUTBOX_DELIVERY',
+      requestHash: eventId,
+      status: 'IN_PROGRESS',
+      createdAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() - 1000).toISOString(),
+    });
+    executions++;
+
+    const outboxPath = `/tenants/${tenantId}/outbox/${eventId}`;
+    const crashed = await firestoreClient.get<any>(outboxPath);
+    crashed.leaseUntil = new Date(Date.now() - 1000).toISOString();
+    await firestoreClient.set(outboxPath, crashed);
+
+    const second = await outboxEngine.processTenantOutbox(
+      tenantId,
+      'worker_recovered',
+      30000,
+      async () => {
+        executions++;
+      }
+    );
+
+    expect(second.succeeded).toBe(1);
+    expect(executions).toBe(2);
+    expect((await outboxRepository.getOutbox(tenantId, eventId))?.status).toBe('DELIVERED');
+  });
+
   it('OUTBOX_11, 12 & 13: Duplicate eventId & idempotent consumer execution', async () => {
     const eventId = 'evt_11_' + Date.now();
     await outboxEngine.enqueueEvent(tenantId, {
