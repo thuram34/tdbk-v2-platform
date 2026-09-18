@@ -1,5 +1,6 @@
 /** TDBK V2 — payment-to-subscription bridge. */
 import { EventEnvelope } from '../../orchestration/events/types';
+import { SecurityContext } from '../../kernel/types';
 import { subscriptionRepository } from '../../persistence/firestore/repositories/subscriptionRepository';
 import { dbkRegistry } from '../dbkRegistry';
 
@@ -22,7 +23,7 @@ export async function handleSubscriptionPaymentConfirmed(event: EventEnvelope): 
 
   if (!result.transitioned) return;
 
-  const context = {
+  const context: SecurityContext = {
     requestId: `subpay_${event.eventId}`,
     correlationId: event.correlationId,
     timestamp: new Date().toISOString(),
