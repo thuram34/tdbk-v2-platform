@@ -36,6 +36,15 @@ export class ReceiptRepository implements IReceiptRepository {
       ) {
         throw new Error(`Receipt identity conflict for '${receipt.receiptId}'`);
       }
+
+      // Repair-safe idempotency: a prior process may have committed the receipt
+      // and died before the outbox write in an older implementation. Ensure the
+      // durable notification exists without ever creating a second receipt.
+      const outboxPath = `/tenants/${tenantId}/outbox/${outboxRecord.eventId}`;
+      const existingOutbox = await transaction.get<OutboxRecord>(outboxPath);
+      if (!existingOutbox) {
+        await transaction.set(outboxPath, outboxRecord);
+      }
       return false;
     }
 
