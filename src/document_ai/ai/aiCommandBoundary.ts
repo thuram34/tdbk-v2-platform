@@ -264,6 +264,23 @@ export class AiCommandBoundary {
 
     const finalPayload = adjustedPayload || proposal.suggestedPayload;
 
+    // Perform all caller authorization checks before reserving the proposal.
+    // A failed authorization must never leave a proposal stranded in EXECUTING.
+    switch (proposal.proposalType) {
+      case 'PROPOSE_ADMIT_STUDENT':
+        if (!rbacEngine.hasPermission(ctx.principal, 'school:write') && !ctx.principal.isMaster) {
+          throw new KernelError('AUTHORIZATION_ERROR', 'Permission school:write required', 403, ctx.requestId);
+        }
+        break;
+      case 'PROPOSE_BOOK_WAYBILL':
+        if (!rbacEngine.hasPermission(ctx.principal, 'waybill:write') && !ctx.principal.isMaster) {
+          throw new KernelError('AUTHORIZATION_ERROR', 'Permission waybill:write required', 403, ctx.requestId);
+        }
+        break;
+      default:
+        break;
+    }
+
     // Atomically reserve the proposal before executing the authoritative command.
     // This prevents two reviewers/processes from executing the same proposal concurrently.
     const executingProposal = await aiProposalRepository.transitionProposal(
@@ -283,9 +300,6 @@ export class AiCommandBoundary {
     // Route to authoritative engine based on proposal type and verify permissions
     switch (proposal.proposalType) {
       case 'PROPOSE_ADMIT_STUDENT': {
-        if (!rbacEngine.hasPermission(ctx.principal, 'school:write') && !ctx.principal.isMaster) {
-          throw new KernelError('AUTHORIZATION_ERROR', 'Permission school:write required', 403, ctx.requestId);
-        }
         const student = await entityEngine.createPersistentRecord(ctx, tenantId, 'student_records', {
           admissionNo: finalPayload.admissionNumber || `ADM-${Date.now()}`,
           fullName: finalPayload.studentName || 'Student Name',
@@ -298,9 +312,6 @@ export class AiCommandBoundary {
       }
 
       case 'PROPOSE_BOOK_WAYBILL': {
-        if (!rbacEngine.hasPermission(ctx.principal, 'waybill:write') && !ctx.principal.isMaster) {
-          throw new KernelError('AUTHORIZATION_ERROR', 'Permission waybill:write required', 403, ctx.requestId);
-        }
         const wb = await entityEngine.createPersistentRecord(ctx, tenantId, 'waybill_booking', {
           waybillNo: finalPayload.waybillNumber || `WB-${Date.now()}`,
           consignor: finalPayload.consignor || 'Consignor',
