@@ -149,7 +149,8 @@ export type ProposalStatus =
   | 'APPROVED'
   | 'REJECTED'
   | 'SUPERSEDED'
-  | 'EXECUTED';
+  | 'EXECUTED'
+  | 'FAILED';
 
 export interface AiProposedAction {
   proposalId: string;
