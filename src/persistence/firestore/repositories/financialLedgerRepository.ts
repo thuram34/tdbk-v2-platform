@@ -160,6 +160,21 @@ export class FinancialLedgerRepository implements IFinancialLedgerRepository {
     });
   }
 
+  public async failPendingTransaction(tenantId: string, transactionId: string, reason: string): Promise<void> {
+    await firestoreClient.runTransaction(async (tx) => {
+      const path = this.transactionPath(tenantId, transactionId);
+      const existing = await tx.get<FinancialTransaction>(path);
+      if (!existing) throw new Error('Pending transaction not found');
+      if (existing.tenantId !== tenantId) throw new Error('Financial transaction tenant mismatch');
+      if (existing.status === 'FAILED') return;
+      if (existing.status !== 'PENDING') throw new Error('Only PENDING transactions can be failed');
+      await tx.update<FinancialTransaction>(path, {
+        status: 'FAILED',
+        description: `${existing.description} [${reason}]`,
+      });
+    });
+  }
+
   public async postTransaction(transaction: FinancialTransaction, entries: LedgerEntry[]): Promise<void> {
     this.assertBalanced(transaction, entries);
     if (transaction.status !== 'POSTED') throw new Error('Posted transaction must have POSTED status');
