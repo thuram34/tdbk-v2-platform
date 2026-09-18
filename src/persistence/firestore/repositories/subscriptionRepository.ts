@@ -52,23 +52,19 @@ export class SubscriptionRepository implements ISubscriptionRepository {
     return subscriptions.filter((subscription) => subscription.dbkId === dbkId);
   }
 
-  public async updateSubscriptionForDbk(
-    dbkId: string,
+  public async updateSubscription(
     subscriptionId: string,
     patch: Partial<DbkSubscription>,
   ): Promise<DbkSubscription> {
-    const current = await this.getSubscriptionForDbk(dbkId, subscriptionId);
-    if (!current) throw new Error(\`Subscription '\${subscriptionId}' not found.\`);
-    const updated: DbkSubscription = {
-      ...current,
-      ...patch,
-      subscriptionId: current.subscriptionId,
-      dbkId: current.dbkId,
-      updatedAt: new Date().toISOString(),
-    };
+    if (!patch.dbkId) throw new Error('Subscription update requires dbkId for tenant-safe access.');
+    const current = await this.getSubscription(subscriptionId, patch.dbkId);
+    if (!current) throw new Error('Subscription not found.');
+    this.assertBoundary(patch.dbkId, current);
+    const updated: DbkSubscription = { ...current, ...patch, subscriptionId: current.subscriptionId, dbkId: current.dbkId, updatedAt: new Date().toISOString() };
     await this.saveSubscription(updated);
     return updated;
   }
+
 }
 
 export const subscriptionRepository = SubscriptionRepository.getInstance();
