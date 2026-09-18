@@ -15,6 +15,7 @@ import { configManager } from '../../../kernel/configuration/configManager';
 import { KernelError } from '../../../kernel/errors/kernelErrors';
 import { publishBridgeEvent } from '../bridgeEventPublisher';
 import { connectorConnectionRepository } from '../../../persistence/firestore/repositories/connectorConnectionRepository';
+import { idempotencyRepository } from '../../../persistence/firestore/repositories/idempotencyRepository';
 
 export interface MpesaSTKPushRequest {
   phoneNumber: string;
@@ -48,19 +49,13 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
   public readonly capabilityId = 'mpesa_bridge';
   public readonly version = 'v1.0';
 
-  private processedCallbacks: Set<string> = new Set();
-  private pendingTransactions: Map<string, { tenantId: string; correlationId?: string }> = new Map();
-
+  
   private get secretPasskey(): string {
     const secrets = configManager.getPrivateSecrets();
     if (!secrets.mpesaPasskey && process.env.NODE_ENV === 'production') {
       throw new KernelError('INTERNAL_ERROR', 'MPESA_PASSKEY is required in production environment', 500, 'system');
     }
     return secrets.mpesaPasskey || 'safaricom_secret_passkey_123_fallback';
-  }
-
-  public registerPendingTransaction(checkoutRequestId: string, tenantId: string, correlationId?: string): void {
-    this.pendingTransactions.set(checkoutRequestId, { tenantId, correlationId });
   }
 
   public async health(context: SecurityContext): Promise<{ status: BridgeHealthStatus; details?: Record<string, unknown> }> {
@@ -129,8 +124,6 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
     }
 
     const checkoutReqId = `ws_CO_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-    this.pendingTransactions.set(checkoutReqId, { tenantId, correlationId: context.correlationId });
-
     const normalizedResult: NormalizedBridgeResult<any> = {
       status: 'PENDING',
       provider: this.provider,
@@ -235,18 +228,27 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
       throw new KernelError('VALIDATION_ERROR', 'Unknown provider reference cannot mutate tenant state', 404, context.requestId);
     }
 
-    const callbackKey = `${stk.CheckoutRequestID}_${stk.ResultCode}`;
-
-    if (this.processedCallbacks.has(callbackKey)) {
+    const callbackKey = `mpesa_callback_${stk.CheckoutRequestID}_${stk.ResultCode}`;
+    const idempotencyTenant = callbackTenant || requestTenant || 'unknown';
+    const existing = await idempotencyRepository.getIdempotencyRecord(idempotencyTenant, callbackKey);
+    if (existing?.status === 'COMPLETED') {
       auditLogger.logEvent('BRIDGE_EXECUTION', context.principal.id, 'BRIDGE_CALLBACK_RECEIVED', `bridge:${this.bridgeId}`, 'ALLOWED', {
-        tenantId: context.tenantContext?.tenantId || null,
+        tenantId: idempotencyTenant,
         requestId: context.requestId,
         details: { providerReference: stk.CheckoutRequestID, duplicate: true },
       });
       return this.normalizeResponse(rawCallback);
     }
 
-    this.processedCallbacks.add(callbackKey);
+    await idempotencyRepository.saveIdempotencyRecord(idempotencyTenant, callbackKey, {
+      idempotencyKey: callbackKey,
+      tenantId: idempotencyTenant,
+      action: 'MPESA_CALLBACK',
+      requestHash: `${stk.CheckoutRequestID}:${stk.ResultCode}`,
+      status: 'COMPLETED',
+      createdAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 86400000 * 7).toISOString(),
+    });
 
     const callbackTenant = rawCallback.tenantId || context.tenantContext?.tenantId;
     const requestTenant = context.tenantContext?.tenantId || context.principal.tenantId;
