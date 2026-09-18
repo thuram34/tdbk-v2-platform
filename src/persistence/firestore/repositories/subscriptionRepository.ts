@@ -65,6 +65,14 @@ export class SubscriptionRepository implements ISubscriptionRepository {
     return updated;
   }
 
+  public async getSubscriptionForDbk(dbkId: string, subscriptionId: string): Promise<DbkSubscription | null> {
+    return this.getSubscription(subscriptionId, dbkId);
+  }
+
+  public async updateSubscriptionForDbk(dbkId: string, subscriptionId: string, patch: Partial<DbkSubscription>): Promise<DbkSubscription> {
+    return this.updateSubscription(subscriptionId, { ...patch, dbkId });
+  }
+
 }
 
 export const subscriptionRepository = SubscriptionRepository.getInstance();
