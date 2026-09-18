@@ -697,7 +697,7 @@ export async function runPhase4TestSuite(): Promise<Phase4TestSummary> {
       branchContext: null,
       correlationId: 'corr_p4_log',
     };
-    const surface = discoveryEngine.discoverCapabilitiesForDbk(logCtx, 'tenant_p4_logistics_01');
+    const surface = await discoveryEngine.discoverCapabilitiesForDbk(logCtx, 'tenant_p4_logistics_01');
     const fleetCap = surface.availableCapabilities.find((c) => c.capabilityId === 'fleet_tracking');
     if (!fleetCap) {
       throw new Error('Logistics DBK failed to discover Fleet Tracking capability');
