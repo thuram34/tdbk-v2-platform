@@ -297,49 +297,64 @@ export class AiCommandBoundary {
     proposal.suggestedPayload = executingProposal.suggestedPayload;
     let executedRecordId: string | undefined;
 
-    // Route to authoritative engine based on proposal type and verify permissions
-    switch (proposal.proposalType) {
-      case 'PROPOSE_ADMIT_STUDENT': {
-        const student = await entityEngine.createPersistentRecord(ctx, tenantId, 'student_records', {
-          admissionNo: finalPayload.admissionNumber || `ADM-${Date.now()}`,
-          fullName: finalPayload.studentName || 'Student Name',
-          grade: finalPayload.gradeLevel || 'Grade 1',
-          branchId: proposal.branchId,
-          sourceDocId: proposal.documentId,
-        });
-        executedRecordId = student.recordId;
-        break;
+    try {
+      // Route to authoritative engine based on proposal type.
+      switch (proposal.proposalType) {
+        case 'PROPOSE_ADMIT_STUDENT': {
+          const student = await entityEngine.createPersistentRecord(ctx, tenantId, 'student_records', {
+            admissionNo: finalPayload.admissionNumber || `ADM-${Date.now()}`,
+            fullName: finalPayload.studentName || 'Student Name',
+            grade: finalPayload.gradeLevel || 'Grade 1',
+            branchId: proposal.branchId,
+            sourceDocId: proposal.documentId,
+          });
+          executedRecordId = student.recordId;
+          break;
+        }
+        case 'PROPOSE_BOOK_WAYBILL': {
+          const wb = await entityEngine.createPersistentRecord(ctx, tenantId, 'waybill_booking', {
+            waybillNo: finalPayload.waybillNumber || `WB-${Date.now()}`,
+            consignor: finalPayload.consignor || 'Consignor',
+            consignee: finalPayload.consignee || 'Consignee',
+            weightKg: finalPayload.weightKg || 100,
+            status: 'PENDING_DISPATCH',
+            branchId: proposal.branchId,
+          });
+          executedRecordId = wb.recordId;
+          break;
+        }
+        case 'PROPOSE_CREATE_INVOICE':
+        case 'PROPOSE_RECORD_PAYMENT':
+        case 'PROPOSE_RECONCILE_TRANSACTION':
+        default: {
+          const record = await entityEngine.createPersistentRecord(ctx, tenantId, 'pos_register', {
+            ...finalPayload,
+            approvedBy: ctx.principal.id,
+            sourceProposalId: proposalId,
+            branchId: proposal.branchId,
+          });
+          executedRecordId = record.recordId;
+          break;
+        }
       }
-
-      case 'PROPOSE_BOOK_WAYBILL': {
-        const wb = await entityEngine.createPersistentRecord(ctx, tenantId, 'waybill_booking', {
-          waybillNo: finalPayload.waybillNumber || `WB-${Date.now()}`,
-          consignor: finalPayload.consignor || 'Consignor',
-          consignee: finalPayload.consignee || 'Consignee',
-          weightKg: finalPayload.weightKg || 100,
-          status: 'PENDING_DISPATCH',
-          branchId: proposal.branchId,
-        });
-        executedRecordId = wb.recordId;
-        break;
-      }
-
-      case 'PROPOSE_CREATE_INVOICE':
-      case 'PROPOSE_RECORD_PAYMENT':
-      case 'PROPOSE_RECONCILE_TRANSACTION':
-      default: {
-        // Generic entity recording or ledger dispatch
-        const record = await entityEngine.createPersistentRecord(ctx, tenantId, 'pos_register', {
-          ...finalPayload,
-          approvedBy: ctx.principal.id,
-          sourceProposalId: proposalId,
-          branchId: proposal.branchId,
-        });
-        executedRecordId = record.recordId;
-        break;
-      }
+    } catch (error: any) {
+      // Never leave an approved proposal stranded in EXECUTING after a failed command.
+      const failedProposal = await aiProposalRepository.transitionProposal(
+        tenantId,
+        proposalId,
+        'EXECUTING',
+        'FAILED',
+        ctx.principal.id,
+      );
+      failedProposal.executionResult = {
+        success: false,
+        executedCommand: failedProposal.proposalType,
+        executedAt: new Date().toISOString(),
+      };
+      failedProposal.rejectionReason = error?.message || 'Authoritative command execution failed';
+      await aiProposalRepository.saveProposal(tenantId, proposalId, failedProposal);
+      throw error;
     }
-
     proposal.status = 'APPROVED';
     proposal.reviewedBy = ctx.principal.id;
     proposal.reviewedAt = new Date().toISOString();
