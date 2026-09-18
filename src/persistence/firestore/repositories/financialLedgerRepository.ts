@@ -115,6 +115,51 @@ export class FinancialLedgerRepository implements IFinancialLedgerRepository {
     });
   }
 
+  public async bindPendingTransaction(
+    tenantId: string,
+    pendingTransactionId: string,
+    boundTransaction: FinancialTransaction,
+  ): Promise<void> {
+    this.assertValidTransaction(boundTransaction);
+    if (boundTransaction.status !== 'PENDING') throw new Error('Bound M-Pesa transaction must remain PENDING');
+    if (boundTransaction.tenantId !== tenantId) throw new Error('Pending transaction tenant mismatch');
+
+    await firestoreClient.runTransaction(async (tx) => {
+      const sourcePath = this.transactionPath(tenantId, pendingTransactionId);
+      const targetPath = this.transactionPath(tenantId, boundTransaction.transactionId);
+      const source = await tx.get<FinancialTransaction>(sourcePath);
+      if (!source) throw new Error('Pending initiation transaction not found');
+      if (source.tenantId !== tenantId || source.status !== 'PENDING') {
+        throw new Error('Pending initiation transaction is not bindable');
+      }
+      if (source.amount !== boundTransaction.amount || source.currency !== boundTransaction.currency) {
+        throw new Error('Bound transaction amount/currency conflicts with initiation');
+      }
+
+      const existing = await tx.get<FinancialTransaction>(targetPath);
+      if (existing) {
+        if (
+          existing.status === 'PENDING' &&
+          existing.amount === boundTransaction.amount &&
+          existing.currency === boundTransaction.currency &&
+          existing.providerReference === boundTransaction.providerReference
+        ) {
+          await tx.delete(sourcePath);
+          return;
+        }
+        throw new Error('Conflicting bound M-Pesa transaction already exists');
+      }
+
+      await tx.set(targetPath, {
+        ...source,
+        ...boundTransaction,
+        tenantId,
+        status: 'PENDING',
+      });
+      await tx.delete(sourcePath);
+    });
+  }
+
   public async postTransaction(transaction: FinancialTransaction, entries: LedgerEntry[]): Promise<void> {
     this.assertBalanced(transaction, entries);
     if (transaction.status !== 'POSTED') throw new Error('Posted transaction must have POSTED status');
