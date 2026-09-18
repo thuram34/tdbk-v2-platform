@@ -74,7 +74,7 @@ export class SubscriptionRepository implements ISubscriptionRepository {
     return await firestoreClient.runTransaction(async (tx) => {
       const path = this.getPath(dbkId, subscriptionId);
       const current = await tx.get<DbkSubscription>(path);
-      if (!current) throw new Error(\`Subscription '\${subscriptionId}' not found.\`);
+      if (!current) throw new Error(`Subscription '${subscriptionId}' not found.`);
       this.assertBoundary(dbkId, current);
 
       if (paymentReference && current.paymentReference && current.paymentReference !== paymentReference) {
