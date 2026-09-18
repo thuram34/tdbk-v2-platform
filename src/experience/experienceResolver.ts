@@ -177,7 +177,7 @@ export class ExperienceResolver {
           req.payload as any,
         );
 
-        auditLogger.logAuditEvent(context, {
+        await auditLogger.persistEvent(auditLogger.logAuditEvent(context, {
           action: 'SALE_EXECUTED',
           targetResource: `dbk:${req.targetDbkId}`,
           outcome: 'ALLOWED',
@@ -187,7 +187,7 @@ export class ExperienceResolver {
             eventId: saleResult.eventId,
             idempotent: saleResult.idempotent,
           },
-        });
+        }));
 
         return {
           success: true,
