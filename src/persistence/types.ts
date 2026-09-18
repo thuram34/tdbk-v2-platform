@@ -229,8 +229,8 @@ export interface IAiConversationRepository {
 }
 
 export interface IWorkflowInstanceRepository {
-  saveWorkflow(tenantId: string, workflowId: string, workflow: WorkflowInstance): Promise<void>;
-  saveWorkflowWithOutbox(tenantId: string, workflowId: string, workflow: WorkflowInstance, event: OutboxRecord): Promise<void>;
+  saveWorkflow(tenantId: string, workflowId: string, workflow: WorkflowInstance, expectedLeaseOwner?: string): Promise<void>;
+  saveWorkflowWithOutbox(tenantId: string, workflowId: string, workflow: WorkflowInstance, event: OutboxRecord, expectedLeaseOwner?: string): Promise<void>;
   getWorkflow(tenantId: string, workflowId: string): Promise<WorkflowInstance | null>;
   listWorkflows(tenantId: string): Promise<WorkflowInstance[]>;
   claimExecutionLease(tenantId: string, workflowId: string, owner: string, leaseDurationMs: number): Promise<WorkflowInstance | null>;
