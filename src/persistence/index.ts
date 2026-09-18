@@ -19,3 +19,5 @@ export * from './firestore/repositories/auditRepository';
 export * from './firestore/repositories/accessRequestRepository';
 export * from './firestore/repositories/tdbkIdentityRepository';
 export * from './firestore/repositories/connectorConnectionRepository';
+
+export * from './firestore/repositories/financialLedgerRepository';
