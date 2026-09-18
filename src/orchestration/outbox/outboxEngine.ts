@@ -123,7 +123,7 @@ export class OutboxEngine {
             deliveredAt: new Date().toISOString(),
             leaseOwner: null,
             leaseUntil: null,
-          });
+          }, workerId);
           succeeded++;
           continue;
         }
@@ -133,7 +133,7 @@ export class OutboxEngine {
             availableAt: new Date(Date.now() + 1000).toISOString(),
             leaseOwner: null,
             leaseUntil: null,
-          });
+          }, workerId);
           continue;
         }
 
@@ -166,7 +166,7 @@ export class OutboxEngine {
           deliveredAt: new Date().toISOString(),
           leaseOwner: null,
           leaseUntil: null,
-        });
+        }, workerId);
 
         auditLogger.logEvent(
           'WORKFLOW_EXECUTION',
@@ -192,7 +192,7 @@ export class OutboxEngine {
             lastError: errorMessage,
             leaseOwner: null,
             leaseUntil: null,
-          });
+          }, workerId);
 
           auditLogger.logEvent(
             'WORKFLOW_EXECUTION',
@@ -211,7 +211,7 @@ export class OutboxEngine {
             availableAt: availableAtIso,
             leaseOwner: null,
             leaseUntil: null,
-          });
+          }, workerId);
 
           auditLogger.logEvent(
             'WORKFLOW_EXECUTION',
