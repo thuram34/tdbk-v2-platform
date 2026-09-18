@@ -32,9 +32,9 @@ export class BlueprintCompiler {
   /**
    * Compiles an operational workspace definition for a given DBK.
    */
-  public compileWorkspace(securityContext: SecurityContext, dbkId: string): CompiledWorkspace {
+  public async compileWorkspace(securityContext: SecurityContext, dbkId: string): Promise<CompiledWorkspace> {
     // 1. Fetch Business DNA for target DBK (enforces tenant security & access controls)
-    const dna = businessDnaManager.getBusinessDna(securityContext, dbkId);
+    const dna = await businessDnaManager.getPersistentBusinessDna(securityContext, dbkId);
 
     // 2. Resolve target Blueprint from Registry
     const blueprint = blueprintRegistry.getBlueprint(
