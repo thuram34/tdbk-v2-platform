@@ -369,6 +369,19 @@ export class AiCommandBoundary {
     const finalPayload = adjustedPayload || proposal.suggestedPayload;
     let executedRecordId: string | null = null;
 
+    // Atomically reserve the proposal before executing any authoritative command.
+    // This is the concurrency boundary: only the reviewer who wins PENDING_REVIEW -> EXECUTING
+    // may perform the command. If execution fails, the catch below can safely finalize EXECUTING -> FAILED.
+    const executingProposal = await aiProposalRepository.transitionProposal(
+      tenantId,
+      proposalId,
+      'PENDING_REVIEW',
+      'EXECUTING',
+      ctx.principal.id,
+      finalPayload,
+    );
+    proposal.status = executingProposal.status;
+
     // Perform all caller authorization checks before reserving the proposal.
     // A failed authorization must never leave a proposal stranded in EXECUTING.
     switch (proposal.proposalType) {
