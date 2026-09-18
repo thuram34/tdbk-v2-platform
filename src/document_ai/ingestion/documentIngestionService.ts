@@ -14,7 +14,6 @@ import crypto from 'crypto';
 import { 
   DocumentMetadata, 
   DocumentType, 
-  DocumentStatus, 
   DocumentRetentionPolicy 
 } from '../types';
 import { SecurityContext } from '../../kernel/types';
@@ -22,7 +21,6 @@ import { tenantIsolation } from '../../kernel/tenancy/tenantIsolation';
 import { KernelError } from '../../kernel/errors/kernelErrors';
 import { auditLogger } from '../../kernel/audit/auditLogger';
 import { documentStore } from '../storage/documentStore';
-import { eventBus } from '../../orchestration/events/eventBus';
 import { outboxEngine } from '../../orchestration/outbox/outboxEngine';
 import { dbkRegistry } from '../../platform/dbkRegistry';
 
@@ -173,7 +171,7 @@ export class DocumentIngestionService {
     };
 
     // 7. Store document
-    documentStore.saveDocument(ctx, metadata);
+    await documentStore.persistDocument(ctx, metadata);
     await documentStore.persistRawContent(ctx, metadata, rawContent);
 
     // 8. Audit event
