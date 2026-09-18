@@ -159,7 +159,7 @@ export class AiCommandBoundary {
       suggestedPayload: params.suggestedPayload,
     });
     if (params.branchId) {
-      const branch = branchManager.getBranch(ctx, params.tenantId, params.branchId);
+      const branch = await branchManager.getPersistentBranch(ctx, params.tenantId, params.branchId);
       if (!branch) {
         throw new KernelError('VALIDATION_ERROR', `Branch '${params.branchId}' does not exist for tenant '${params.tenantId}'`, 400, ctx.requestId);
       }
