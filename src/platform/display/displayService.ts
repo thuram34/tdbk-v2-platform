@@ -65,6 +65,7 @@ export class DisplayService {
     const node=await this.getNode(tenantId,id); if(!node) throw new Error('DISPLAY_NOT_FOUND');
     const command=createDisplayCommand(tenantId,id,type,payload);
     await firestoreClient.set(`/tenants/${tenantId}/displayCommands/${command.commandId}`,command);
+    await eventBus.publishEvent({ principal:{id:'DISPLAY_CONTROL_PLANE',tenantId}, tenantContext:{tenantId}, correlationId:command.commandId }, 'display.command.issued.v1', { dbkId:tenantId, displayId:id, commandId:command.commandId, type:type });
     return command;
   }
 }
