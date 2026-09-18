@@ -7,14 +7,15 @@ import {
   WorkflowInstance,
   WorkflowStep,
   StepHandler,
-  OutboxRecord,
 } from './types';
+import type { OutboxRecord } from '../../persistence/types';
 import { SecurityContext } from '../../kernel/types';
 import { auditLogger } from '../../kernel/audit/auditLogger';
 import { KernelError } from '../../kernel/errors/kernelErrors';
 import { eventBus } from '../events/eventBus';
 import { EventEnvelope } from '../events/types';
 import { workflowInstanceRepository } from '../../persistence/firestore/repositories/workflowInstanceRepository';
+import { outboxEngine } from '../outbox/outboxEngine';
 import { outboxRepository } from '../../persistence/firestore/repositories/outboxRepository';
 
 class WorkflowEngineService {
