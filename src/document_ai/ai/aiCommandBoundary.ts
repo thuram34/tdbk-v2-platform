@@ -348,7 +348,7 @@ export class AiCommandBoundary {
 
     if (proposal.status !== 'PENDING_REVIEW') {
       throw new KernelError(
-        'ILLEGAL_STATE_TRANSITION' as any,
+        'CONFLICT' as any,
         `Cannot approve proposal in state ${proposal.status}`,
         400,
         ctx.requestId
@@ -381,7 +381,7 @@ export class AiCommandBoundary {
         }
         break;
       case 'PROPOSE_CREATE_INVOICE':
-        throw new KernelError('NOT_IMPLEMENTED', 'Invoice proposals require the authoritative invoice engine; no generic POS fallback is permitted.', 501, ctx.requestId);
+        throw new KernelError('INTEGRATION_UNAVAILABLE', 'Invoice proposals require the authoritative invoice engine; no generic POS fallback is permitted.', 501, ctx.requestId);
       default:
         throw new KernelError('VALIDATION_ERROR', `Unsupported AI proposal type '${proposal.proposalType}'`, 400, ctx.requestId);
     }
@@ -465,7 +465,7 @@ export class AiCommandBoundary {
             // an unconfirmed PENDING transaction into ledger truth. Only the provider
             // callback/reconciliation boundary may establish POSTED financial state.
             throw new KernelError(
-              'ILLEGAL_STATE_TRANSITION',
+              'CONFLICT',
               "M-Pesa transaction '" + transactionId + "' is still PENDING; provider confirmation is required before AI can record it",
               409,
               ctx.requestId
@@ -475,7 +475,7 @@ export class AiCommandBoundary {
             const confirmed = { ...existing, status: 'POSTED' as const, postedAt: existing.postedAt || new Date().toISOString() };
             await reconciliationService.resolveConfirmed(confirmed, entries);
           } else if (existing.status !== 'POSTED') {
-            throw new KernelError('ILLEGAL_STATE_TRANSITION', `Authoritative transaction '${transactionId}' cannot be recorded from state '${existing.status}'`, 400, ctx.requestId);
+            throw new KernelError('CONFLICT', `Authoritative transaction '${transactionId}' cannot be recorded from state '${existing.status}'`, 400, ctx.requestId);
           }
 
           await receiptService.createFromPostedTransaction(tenantId, transactionId, ctx.principal.id);
@@ -492,13 +492,13 @@ export class AiCommandBoundary {
             const confirmed = { ...existing, status: 'POSTED' as const, postedAt: existing.postedAt || new Date().toISOString() };
             await reconciliationService.resolveConfirmed(confirmed, entries);
           } else if (existing.status !== 'POSTED') {
-            throw new KernelError('ILLEGAL_STATE_TRANSITION', `Transaction '${transactionId}' cannot be reconciled from state '${existing.status}'`, 400, ctx.requestId);
+            throw new KernelError('CONFLICT', `Transaction '${transactionId}' cannot be reconciled from state '${existing.status}'`, 400, ctx.requestId);
           }
           executedRecordId = transactionId;
           break;
         }
         case 'PROPOSE_CREATE_INVOICE':
-          throw new KernelError('NOT_IMPLEMENTED', 'Invoice proposals require the authoritative invoice engine; no generic POS fallback is permitted.', 501, ctx.requestId);
+          throw new KernelError('INTEGRATION_UNAVAILABLE', 'Invoice proposals require the authoritative invoice engine; no generic POS fallback is permitted.', 501, ctx.requestId);
         default:
           throw new KernelError('VALIDATION_ERROR', `Unsupported AI proposal type '${proposal.proposalType}'`, 400, ctx.requestId);
       }
@@ -577,7 +577,7 @@ export class AiCommandBoundary {
 
     if (proposal.status !== 'PENDING_REVIEW') {
       throw new KernelError(
-        'ILLEGAL_STATE_TRANSITION' as any,
+        'CONFLICT' as any,
         `Cannot reject proposal in state ${proposal.status}`,
         400,
         ctx.requestId
