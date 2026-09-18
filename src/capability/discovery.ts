@@ -42,7 +42,7 @@ export class DiscoveryEngineService {
       .filter((r) => r.state === 'ENABLED' || r.state === 'CONFIGURED')
       .map((r) => r.capabilityId);
 
-    const items: DiscoveryResultItem[] = compatibleCaps.map((cap) => {
+    const items: DiscoveryResultItem[] = await Promise.all(compatibleCaps.map(async (cap) => {
       const rec = recordMap.get(cap.capabilityId);
 
       // Entitlement status
