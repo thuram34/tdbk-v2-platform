@@ -16,6 +16,7 @@ import { KernelError } from '../../../kernel/errors/kernelErrors';
 import { publishBridgeEvent } from '../bridgeEventPublisher';
 import { connectorConnectionRepository } from '../../../persistence/firestore/repositories/connectorConnectionRepository';
 import { idempotencyRepository } from '../../../persistence/firestore/repositories/idempotencyRepository';
+import { financialLedgerRepository } from '../../../persistence/firestore/repositories/financialLedgerRepository';
 
 export interface MpesaSTKPushRequest {
   phoneNumber: string;
@@ -146,7 +147,7 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
       details: { providerReference: checkoutReqId, status: normalizedResult.status },
     });
 
-    publishBridgeEvent({
+    await publishBridgeEvent({
       eventId: `evt_mpesa_${checkoutReqId}`,
       eventType: 'payment.pending.v1',
       eventVersion: 'v1',
@@ -252,6 +253,34 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
       return this.normalizeResponse(rawCallback);
     }
 
+    const normalized = this.normalizeResponse(rawCallback);
+
+    if (normalized.status === 'SUCCESS') {
+      const transactionId = `mpesa_${stk.CheckoutRequestID}`;
+      const now = new Date().toISOString();
+      await financialLedgerRepository.postTransaction(
+        {
+          transactionId,
+          tenantId: idempotencyTenant,
+          branchId: context.branchContext?.branchId || null,
+          source: 'MPESA',
+          providerReference: normalized.providerReference,
+          amount: normalized.amount || 0,
+          currency: normalized.currency || 'KES',
+          status: 'POSTED',
+          description: stk.ResultDesc || 'M-Pesa payment received',
+          correlationId: normalized.correlationId,
+          createdAt: now,
+          postedAt: now,
+          reversedAt: null,
+        },
+        [
+          { entryId: `${transactionId}_debit`, transactionId, tenantId: idempotencyTenant, account: 'CASH:MPESA', entryType: 'DEBIT', amount: normalized.amount || 0, currency: normalized.currency || 'KES', createdAt: now, immutable: true },
+          { entryId: `${transactionId}_credit`, transactionId, tenantId: idempotencyTenant, account: 'RECEIVABLES:PAYMENTS', entryType: 'CREDIT', amount: normalized.amount || 0, currency: normalized.currency || 'KES', createdAt: now, immutable: true },
+        ]
+      );
+    }
+
     await idempotencyRepository.saveIdempotencyRecord(idempotencyTenant, callbackKey, {
       idempotencyKey: callbackKey,
       tenantId: idempotencyTenant,
@@ -262,8 +291,6 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
       expiresAt: new Date(Date.now() + 86400000 * 7).toISOString(),
     });
 
-
-    const normalized = this.normalizeResponse(rawCallback);
 
     auditLogger.logEvent('BRIDGE_EXECUTION', context.principal.id, 'BRIDGE_CALLBACK_RECEIVED', `bridge:${this.bridgeId}`, 'ALLOWED', {
       tenantId: callbackTenant || null,
