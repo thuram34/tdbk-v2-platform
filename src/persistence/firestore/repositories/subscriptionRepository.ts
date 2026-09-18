@@ -52,21 +52,21 @@ export class SubscriptionRepository implements ISubscriptionRepository {
     return subscriptions.filter((subscription) => subscription.dbkId === dbkId);
   }
 
-  public async updateSubscription(
+  public async updateSubscriptionForDbk(
+    dbkId: string,
     subscriptionId: string,
     patch: Partial<DbkSubscription>,
   ): Promise<DbkSubscription> {
-    if (!patch.dbkId) throw new Error('Subscription update requires dbkId for tenant-safe access.');
-    const current = await firestoreClient.get<DbkSubscription>(
-      this.getPath(patch.dbkId, subscriptionId),
-    );
-    if (!current) throw new Error(`Subscription '${subscriptionId}' not found.`);
-    this.assertBoundary(patch.dbkId, current);
-    const updated: DbkSubscription = { ...current, ...patch, subscriptionId: current.subscriptionId, dbkId: current.dbkId, updatedAt: new Date().toISOString() };
-    await firestoreClient.set(
-      this.getPath(current.dbkId, subscriptionId),
-      updated as unknown as Record<string, unknown>,
-    );
+    const current = await this.getSubscriptionForDbk(dbkId, subscriptionId);
+    if (!current) throw new Error(\`Subscription '\${subscriptionId}' not found.\`);
+    const updated: DbkSubscription = {
+      ...current,
+      ...patch,
+      subscriptionId: current.subscriptionId,
+      dbkId: current.dbkId,
+      updatedAt: new Date().toISOString(),
+    };
+    await this.saveSubscription(updated);
     return updated;
   }
 }
