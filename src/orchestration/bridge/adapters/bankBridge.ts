@@ -12,7 +12,7 @@ import {
 import { SecurityContext } from '../../../kernel/types';
 import { auditLogger } from '../../../kernel/audit/auditLogger';
 import { KernelError } from '../../../kernel/errors/kernelErrors';
-import { eventBus } from '../../events/eventBus';
+import { publishBridgeEvent } from '../bridgeEventPublisher';
 import { connectorConnectionRepository } from '../../../persistence/firestore/repositories/connectorConnectionRepository';
 
 export interface BankTransferRequest {
@@ -110,7 +110,7 @@ export class BankBridge implements Bridge<BankTransferRequest, any, any> {
       });
     }
 
-    eventBus.publish({
+    publishBridgeEvent({
       eventId: `evt_bank_${bankRef}`,
       eventType: 'payment.initiated.v1',
       eventVersion: 'v1',
