@@ -237,6 +237,7 @@ export interface IWorkflowInstanceRepository {
   getWorkflow(tenantId: string, workflowId: string): Promise<WorkflowInstance | null>;
   listWorkflows(tenantId: string): Promise<WorkflowInstance[]>;
   claimExecutionLease(tenantId: string, workflowId: string, owner: string, leaseDurationMs: number): Promise<WorkflowInstance | null>;
+  renewExecutionLease(tenantId: string, workflowId: string, owner: string, leaseDurationMs: number): Promise<boolean>;
   releaseExecutionLease(tenantId: string, workflowId: string, owner: string): Promise<void>;
 }
 
