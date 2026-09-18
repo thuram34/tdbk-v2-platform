@@ -79,6 +79,7 @@ class WorkflowEngineService {
       completedAt: null,
       error: null,
       compensationStepId: s.compensationStepId,
+      executionKey: undefined,
     }));
 
     const workflow: WorkflowInstance = {
@@ -236,13 +237,9 @@ class WorkflowEngineService {
     // Production execution is Firestore-authoritative. The in-memory map remains
     // a hot cache and test/runtime compatibility layer, but a restart must not
     // make a durable workflow disappear.
-    let workflow = this.workflows.get(workflowId);
-    if (!workflow) {
-      workflow = await workflowInstanceRepository.getWorkflow(requestTenant, workflowId) ?? undefined;
-      if (workflow) {
-        this.workflows.set(workflowId, workflow);
-      }
-    }
+    const durableWorkflow = await workflowInstanceRepository.getWorkflow(requestTenant, workflowId);
+    let workflow = durableWorkflow ?? this.workflows.get(workflowId);
+    if (workflow) this.workflows.set(workflowId, workflow);
 
     if (!workflow) {
       throw new KernelError(
@@ -279,8 +276,19 @@ class WorkflowEngineService {
       return workflow;
     }
 
-    workflow.status = 'RUNNING';
-    await workflowInstanceRepository.saveWorkflow(workflow.tenantId, workflow.workflowId, workflow);
+    const workerId = 'workflow-' + context.principal.id + '-' + context.requestId;
+    const durableExecution = durableWorkflow
+      ? await workflowInstanceRepository.claimExecutionLease(workflow.tenantId, workflow.workflowId, workerId, 30000)
+      : workflow;
+    if (!durableExecution) {
+      throw new KernelError('CONFLICT', 'Workflow is currently executing', 409, context.requestId);
+    }
+    workflow = durableExecution;
+    this.workflows.set(workflow.workflowId, workflow);
+
+    try {
+      workflow.status = 'RUNNING';
+      await workflowInstanceRepository.saveWorkflow(workflow.tenantId, workflow.workflowId, workflow);
 
     while (workflow.currentStepIndex < workflow.steps.length) {
       const step = workflow.steps[workflow.currentStepIndex];
@@ -307,10 +315,12 @@ class WorkflowEngineService {
           }
         );
 
+        await workflowInstanceRepository.saveWorkflow(workflow.tenantId, workflow.workflowId, workflow);
         return workflow;
       }
 
       step.status = 'RUNNING';
+      step.executionKey = step.executionKey || ('exec_' + workflow.workflowId + '_' + step.stepId);
       if (!step.startedAt) step.startedAt = new Date().toISOString();
 
       let maxAttempts = step.retryPolicy?.maxAttempts || 3;
@@ -324,6 +334,7 @@ class WorkflowEngineService {
             step,
             input: step.input,
             correlationId: workflow.correlationId,
+            executionKey: step.executionKey!,
           });
 
           if (result.status === 'WAITING' || result.failureClassification === 'WAITING_FOR_EXTERNAL_RESULT') {
@@ -438,6 +449,11 @@ class WorkflowEngineService {
     await eventBus.publish(completedEnvelope);
 
     return workflow;
+    } finally {
+      if (durableWorkflow) {
+        await workflowInstanceRepository.releaseExecutionLease(workflow.tenantId, workflow.workflowId, workerId);
+      }
+    }
   }
 
   /**
