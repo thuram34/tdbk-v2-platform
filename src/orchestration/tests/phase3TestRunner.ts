@@ -19,6 +19,7 @@ import { auditLogger } from '../../kernel/audit/auditLogger';
 import { phase0TestRunner } from '../../kernel/tests/phase0TestRunner';
 import { Phase1TestRunner } from '../../blueprint/tests/phase1TestRunner';
 import { Phase2TestRunner } from '../../capability/tests/phase2TestRunner';
+import { financialLedgerRepository } from '../../persistence/firestore/repositories/financialLedgerRepository';
 
 export interface Phase3TestResult {
   id: string;
@@ -479,10 +480,11 @@ export class Phase3TestRunner {
     // P3_TEST_16: Duplicate provider callback is idempotent
     // -----------------------------------------------------------------
     try {
-      mpesaAdapter.registerPendingTransaction('CO_DUP_TEST', 'tenant_school_a', 'corr_cb_dup');
-      mpesaAdapter.registerPendingTransaction('CO_FORGE_1', 'tenant_school_a', 'corr_forge');
-      mpesaAdapter.registerPendingTransaction('CO_CROSS_1', 'tenant_school_a', 'corr_cross');
-      mpesaAdapter.registerPendingTransaction('CO_TEST_30', 'tenant_school_a', 'corr_test_30');
+      await financialLedgerRepository.savePendingTransaction({
+        transactionId: 'txn_mpesa_CO_DUP_TEST', tenantId: 'tenant_school_a', branchId: null,
+        source: 'MPESA', providerReference: 'CO_DUP_TEST', amount: 100, currency: 'KES', status: 'PENDING',
+        description: 'test', correlationId: 'corr_cb_dup', createdAt: new Date().toISOString(), postedAt: null, reversedAt: null,
+      });
 
       const rawCb = {
         Body: { stkCallback: { MerchantRequestID: 'MR_TEST', CheckoutRequestID: 'CO_DUP_TEST', ResultCode: 0, ResultDesc: 'Success', CallbackMetadata: { Item: [{ Name: 'Amount', Value: 100 }] } } },
@@ -773,6 +775,11 @@ export class Phase3TestRunner {
     // P3_TEST_30: M-Pesa mock callback verification flow
     // -----------------------------------------------------------------
     try {
+      await financialLedgerRepository.savePendingTransaction({
+        transactionId: 'txn_mpesa_CO_TEST_30', tenantId: 'tenant_school_a', branchId: null,
+        source: 'MPESA', providerReference: 'CO_TEST_30', amount: 100, currency: 'KES', status: 'PENDING',
+        description: 'test', correlationId: 'corr_test_30', createdAt: new Date().toISOString(), postedAt: null, reversedAt: null,
+      });
       const rawCb = {
         Body: { stkCallback: { MerchantRequestID: 'MR_TEST', CheckoutRequestID: 'CO_TEST_30', ResultCode: 0, ResultDesc: 'The service request is processed successfully.', CallbackMetadata: { Item: [{ Name: 'Amount', Value: 3500 }] } } },
         signature: 'VALID_SIG',
