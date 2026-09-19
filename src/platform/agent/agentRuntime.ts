@@ -22,6 +22,7 @@ const EXECUTABLE_ACTIONS = new Set([
   'DISABLE_CAPABILITY',
   'PROVISION_DBK',
   'COMPOSE_BUSINESS',
+  'ACTIVATE_BUSINESS',
 ]);
 
 export class TdbkAgentRuntime {
