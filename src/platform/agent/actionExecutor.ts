@@ -1,4 +1,3 @@
-import { rbacEngine } from '../../kernel/authorization/rbacEngine';
 import { dbkLifecycleManager } from '../lifecycle/lifecycleManager';
 import { durableJobRuntime } from '../runtime/durableJobRuntime';
 import { AgentAction, AgentActionResult, AgentInstruction } from './types';
