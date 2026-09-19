@@ -35,7 +35,7 @@ export class TdbkInstructionParser {
       });
     };
 
-    if (/\\b(compose|reconcile|synchronize|sync|align).*\\b(business|capabilities|modules)\\b/.test(text) || /\\bcompose\\b.*\\bdbk\\b/.test(text)) {
+    if (/\b(compose|reconcile|synchronize|sync|align).*\\b(business|capabilities|modules)\b/.test(text) || /\bcompose\\b.*\\bdbk\b/.test(text)) {
       add(
         'COMPOSE_BUSINESS',
         'ADMIN',
