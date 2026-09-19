@@ -1,6 +1,7 @@
 import { dbkLifecycleManager } from '../lifecycle/lifecycleManager';
 import { durableJobRuntime } from '../runtime/durableJobRuntime';
 import { businessStateEngine } from '../businessState/businessStateEngine';
+import { dbkCapabilityManager } from '../../capability/dbkCapabilityManager';
 import { AgentAction, AgentActionResult, AgentInstruction } from './types';
 
 export class AgentActionExecutor {
@@ -26,6 +27,14 @@ export class AgentActionExecutor {
       case 'RESTORE_DBK':
         if (!tenantId) throw new Error('DBK target is required.');
         return this.completed(action, await dbkLifecycleManager.restoreDbk(instruction.context, tenantId, this.reason(instruction)));
+
+      case 'ENABLE_CAPABILITY':
+        if (!tenantId || !action.capabilityId) throw new Error('DBK and capability are required.');
+        return this.completed(action, await dbkCapabilityManager.enableCapabilityPersistent(instruction.context, tenantId, action.capabilityId, 'ENTITLED', false));
+
+      case 'DISABLE_CAPABILITY':
+        if (!tenantId || !action.capabilityId) throw new Error('DBK and capability are required.');
+        return this.completed(action, await dbkCapabilityManager.disableCapabilityPersistent(instruction.context, tenantId, action.capabilityId));
 
       case 'REBUILD_BUSINESS_STATE':
         if (!tenantId) throw new Error('Authoritative tenant context is required.');
