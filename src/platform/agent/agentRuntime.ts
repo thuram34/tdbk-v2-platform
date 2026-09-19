@@ -3,6 +3,7 @@ import { agentAuthorityPolicy } from './authorityPolicy';
 import { agentAudit } from './agentAudit';
 import { agentActionExecutor } from './actionExecutor';
 import { agentVerificationEngine } from './verificationEngine';
+import { agentRepairPlanner } from './repairPlanner';
 import { controlPlaneTool } from './tools/controlPlaneTool';
 import { businessStateTool } from './tools/businessStateTool';
 import { workflowTool } from './tools/workflowTool';
@@ -64,7 +65,9 @@ export class TdbkAgentRuntime {
           result = await agentActionExecutor.execute(instruction, action);
         } else {
           let data: unknown;
-          if (action.kind === 'INSPECT_PLATFORM' || action.kind === 'INSPECT_DBKS') {
+          if (action.kind === 'PLAN_SAFE_REPAIR') {
+            data = await agentRepairPlanner.plan(instruction.context);
+          } else if (action.kind === 'INSPECT_PLATFORM' || action.kind === 'INSPECT_DBKS') {
             data = await controlPlaneTool.execute(instruction.context);
           } else if (action.kind === 'INSPECT_WORKFLOWS') {
             data = await workflowTool.execute(instruction.context);
