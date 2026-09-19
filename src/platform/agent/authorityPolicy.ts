@@ -44,6 +44,19 @@ export class AgentAuthorityPolicy {
       return { allowed: true, reason: 'TDBK MASTER lifecycle authority verified.' };
     }
 
+    if (action.kind === 'PROVISION_DBK') {
+      try {
+        masterAuthority.assertOwnerOrMasterAuthority(
+          instruction.context.principal,
+          'agent.provisionDbk',
+          instruction.context.requestId,
+        );
+        return { allowed: true, reason: 'Business Owner or TDBK MASTER provisioning authority verified.' };
+      } catch (error) {
+        return { allowed: false, reason: error instanceof Error ? error.message : 'Business Owner or TDBK MASTER authority required for DBK provisioning.' };
+      }
+    }
+
     if (
       action.kind === 'ENABLE_CAPABILITY' ||
       action.kind === 'DISABLE_CAPABILITY' ||
