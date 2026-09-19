@@ -136,10 +136,56 @@ describe('TDBK command agent', () => {
       tenantId: 'shop_mombasa',
       legalName: 'Mombasa Retail',
       blueprintId: 'retail',
-      subscriptionTier: 'foundation',
+      subscriptionTier: 'FOUNDATION',
       authority: 'ADMIN',
       requiresAuthorization: true,
     });
+  });
+
+  it('parses blueprint-driven business composition commands', () => {
+    const parser = new TdbkInstructionParser();
+    const result = parser.parse({
+      instructionId: 'i_compose',
+      text: 'Compose business for DBK shop_mombasa',
+      context: {} as any,
+    });
+    expect(result.intent).toBe('BUSINESS_COMPOSITION');
+    expect(result.actions[0]).toMatchObject({
+      kind: 'COMPOSE_BUSINESS',
+      tenantId: 'shop_mombasa',
+      authority: 'ADMIN',
+      requiresAuthorization: true,
+    });
+  });
+
+  it('allows tenant-authorized business composition', async () => {
+    const policy = new AgentAuthorityPolicy();
+    const result = await policy.authorize({
+      instructionId: 'i_compose_auth',
+      text: 'Compose business for DBK shop_mombasa',
+      context: {
+        requestId: 'req_compose_auth',
+        principal: {
+          id: 'owner',
+          isMaster: false,
+          tenantId: 'shop_mombasa',
+          branchId: null,
+          roles: ['OWNER_OPERATOR'],
+          permissions: [],
+          authTime: Date.now(),
+          tokenSource: 'SESSION',
+        },
+      } as any,
+      requestedAuthority: 'ADMIN',
+    }, {
+      actionId: 'a_compose',
+      kind: 'COMPOSE_BUSINESS',
+      authority: 'ADMIN',
+      description: 'compose business',
+      requiresAuthorization: true,
+      tenantId: 'shop_mombasa',
+    });
+    expect(result.allowed).toBe(true);
   });
 
   it('requires owner or master authority for provisioning', async () => {
