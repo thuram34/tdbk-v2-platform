@@ -28,12 +28,13 @@ export class AgentExecutionRepository {
     return AgentExecutionRepository.instance;
   }
 
-  private path(tenantId: string, executionId: string): string {
-    return `/tenants/${tenantId}/agentExecutions/${executionId}`;
+  private path(tenantId: string | null, executionId: string): string {
+    return tenantId
+      ? `/tenants/${tenantId}/agentExecutions/${executionId}`
+      : `/system/agentExecutions/${executionId}`;
   }
 
   public async save(record: AgentExecutionRecord): Promise<void> {
-    if (!record.tenantId) throw new Error('Agent execution persistence requires a tenantId.');
     await firestoreClient.set(this.path(record.tenantId, record.executionId), record as unknown as Record<string, unknown>);
   }
 
