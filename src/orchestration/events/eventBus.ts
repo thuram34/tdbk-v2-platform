@@ -25,6 +25,7 @@ class EventBusService {
   private seedDefaultEventRegistry(): void {
     const defaultTypes = [
       { eventType: 'business.created.v1', version: 'v1', description: 'Business entity provisioned' },
+      { eventType: 'business.state.projected.v1', version: 'v1', description: 'Canonical DBK business state projection refreshed' },
       { eventType: 'branch.created.v1', version: 'v1', description: 'Business branch created' },
       { eventType: 'capability.enabled.v1', version: 'v1', description: 'DBK capability activated' },
       { eventType: 'capability.disabled.v1', version: 'v1', description: 'DBK capability deactivated' },
