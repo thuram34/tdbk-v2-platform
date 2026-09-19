@@ -1,5 +1,6 @@
 import { dbkRegistry } from '../dbkRegistry';
 import { businessStateEngine } from '../businessState/businessStateEngine';
+import { dbkCapabilityManager } from '../../capability/dbkCapabilityManager';
 import { AgentAction, AgentInstruction, AgentVerification } from './types';
 
 export class AgentVerificationEngine {
@@ -8,6 +9,15 @@ export class AgentVerificationEngine {
     action: AgentAction,
     data: unknown,
   ): Promise<AgentVerification> {
+    if (action.kind === 'ENABLE_CAPABILITY' || action.kind === 'DISABLE_CAPABILITY') {
+      const tenantId = action.tenantId || instruction.context.tenantContext?.tenantId || instruction.context.principal.tenantId;
+      if (!tenantId || !action.capabilityId) return { verified: false, summary: 'Capability verification requires an authoritative DBK and capability target.' };
+      const record = await dbkCapabilityManager.hydratePersistentCapability(instruction.context, tenantId, action.capabilityId);
+      const expected = action.kind === 'ENABLE_CAPABILITY' ? ['ENABLED', 'CONFIGURED'] : ['DISABLED'];
+      const verified = Boolean(record && expected.includes(record.state));
+      return { verified, summary: verified ? `Verified capability '${action.capabilityId}' is ${record?.state} for DBK '${tenantId}'.` : `Capability verification failed for '${action.capabilityId}' on DBK '${tenantId}'.`, data: { dbkId: tenantId, capabilityId: action.capabilityId, state: record?.state ?? null, executionResult: data } };
+    }
+
     if (action.kind === 'REBUILD_BUSINESS_STATE') {
       const tenantId = action.tenantId || instruction.context.tenantContext?.tenantId || instruction.context.principal.tenantId;
       if (!tenantId) return { verified: false, summary: 'Business-state repair verification requires an authoritative DBK target.' };
