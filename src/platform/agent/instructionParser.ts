@@ -13,6 +13,7 @@ export class TdbkInstructionParser {
       instruction.context.tenantContext?.tenantId ||
       instruction.context.principal.tenantId;
     const workflowId = this.extractIdentifier(text, /\b(wf_[a-z0-9_-]+)\b/i);
+    const capabilityId = this.extractIdentifier(text, /\bcapability[:\s_-]*([a-z0-9][a-z0-9_-]*)\b/i);
 
     const add = (
       kind: AgentAction['kind'],
@@ -33,7 +34,18 @@ export class TdbkInstructionParser {
       });
     };
 
-    if (/(recover|resume|retry).*\b(workflow|workflows|jobs|job)\b/.test(text)) {
+    if (/(enable|activate|install).*\bcapability\b/.test(text)) {
+      add('ENABLE_CAPABILITY', 'ADMIN', `Enable capability ${capabilityId || '(target required)'} for DBK ${targetTenantId || '(target required)'}.`, true, targetTenantId);
+      if (actions[actions.length - 1]) actions[actions.length - 1].capabilityId = capabilityId;
+      return { intent: 'CAPABILITY_ENABLE', actions };
+    }
+    if (/(disable|deactivate|remove).*\bcapability\b/.test(text)) {
+      add('DISABLE_CAPABILITY', 'ADMIN', `Disable capability ${capabilityId || '(target required)'} for DBK ${targetTenantId || '(target required)'}.`, true, targetTenantId);
+      if (actions[actions.length - 1]) actions[actions.length - 1].capabilityId = capabilityId;
+      return { intent: 'CAPABILITY_DISABLE', actions };
+    }
+
+    if (/(recover|resume|retry).*\b(workflow|workflows|jobs|job)\b/.test(text))
       add('RECOVER_WORKFLOWS', 'WORKFLOW', 'Recover and resume durable workflows for the authorized tenant.', true, targetTenantId);
       return { intent: 'WORKFLOW_RECOVERY', actions };
     }
