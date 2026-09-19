@@ -2,7 +2,7 @@
 import { firestoreClient } from '../firestoreClient';
 import { AgentRunResult } from '../../../platform/agent/types';
 
-export type AgentExecutionStatus = 'PLANNED' | 'EXECUTED' | 'PARTIAL' | 'FAILED' | 'AUTHORIZATION_REQUIRED';
+export type AgentExecutionStatus = 'PLANNED' | 'EXECUTED' | 'VERIFIED' | 'PARTIAL' | 'FAILED' | 'AUTHORIZATION_REQUIRED' | 'VERIFICATION_FAILED';
 
 export interface AgentExecutionRecord {
   executionId: string;
@@ -40,6 +40,10 @@ export class AgentExecutionRepository {
 
   public async get(tenantId: string, executionId: string): Promise<AgentExecutionRecord | null> {
     return firestoreClient.get<AgentExecutionRecord>(this.path(tenantId, executionId));
+  }
+
+  public async getSystem(executionId: string): Promise<AgentExecutionRecord | null> {
+    return firestoreClient.get<AgentExecutionRecord>(this.path(null, executionId));
   }
 
   public async list(tenantId: string): Promise<AgentExecutionRecord[]> {
