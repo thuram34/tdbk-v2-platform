@@ -343,7 +343,7 @@ class WorkflowEngineService {
     this.workflows.set(workflow.workflowId, workflow);
 
     workflow.status = 'RUNNING';
-      await workflowInstanceRepository.saveWorkflow(workflow.tenantId, workflow.workflowId, workflow, workerId);
+      await workflowInstanceRepository.saveWorkflow(workflow.tenantId, workflow.workflowId, workflow, durableWorkflow ? workerId : undefined);
 
       // Keep long-running workflows from losing their durable execution lease while
       // an external provider/step is still executing. The lease remains owned by
@@ -398,7 +398,7 @@ class WorkflowEngineService {
           }
         );
 
-        await workflowInstanceRepository.saveWorkflow(workflow.tenantId, workflow.workflowId, workflow, workerId);
+        await workflowInstanceRepository.saveWorkflow(workflow.tenantId, workflow.workflowId, workflow, durableWorkflow ? workerId : undefined);
         return workflow;
       }
 
@@ -481,7 +481,7 @@ class WorkflowEngineService {
             // Keep the durable execution in EXECUTING while the workflow is WAITING.
             // After lease expiry, recovery can reclaim the same executionKey and resume
             // the provider operation without manufacturing a second execution identity.
-            await workflowInstanceRepository.saveWorkflow(workflow.tenantId, workflow.workflowId, workflow, workerId);
+            await workflowInstanceRepository.saveWorkflow(workflow.tenantId, workflow.workflowId, workflow, durableWorkflow ? workerId : undefined);
             return workflow;
           }
 
@@ -572,7 +572,7 @@ class WorkflowEngineService {
         }
       } else {
         workflow.currentStepIndex++;
-        await workflowInstanceRepository.saveWorkflow(workflow.tenantId, workflow.workflowId, workflow, workerId);
+        await workflowInstanceRepository.saveWorkflow(workflow.tenantId, workflow.workflowId, workflow, durableWorkflow ? workerId : undefined);
       }
     }
 
