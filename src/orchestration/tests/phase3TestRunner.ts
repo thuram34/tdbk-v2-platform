@@ -799,10 +799,10 @@ export class Phase3TestRunner {
     }
 
     // -----------------------------------------------------------------
-    // P3_TEST_31: eTIMS mock submission flow
+    // P3_TEST_31: eTIMS provider boundary refuses synthetic submission
     // -----------------------------------------------------------------
     try {
-      const res = await etimsAdapter.execute(tenantAContext, 'SUBMIT_INVOICE', {
+      await etimsAdapter.execute(tenantAContext, 'SUBMIT_INVOICE', {
         invoiceNumber: 'INV-2026-001',
         totalAmount: 11600,
         taxAmount: 1600,
@@ -810,13 +810,20 @@ export class Phase3TestRunner {
       });
       results.push({
         id: 'P3_TEST_31',
-        name: 'eTIMS mock submission flow',
-        passed: res.status === 'SUCCESS' && res.providerReference.startsWith('KRA'),
-        expected: 'SUCCESS with KRA ICN',
-        actual: `status=${res.status}, icn=${res.providerReference}`,
+        name: 'eTIMS provider boundary refuses synthetic submission',
+        passed: false,
+        expected: 'INTEGRATION_UNAVAILABLE until authoritative provider is connected',
+        actual: 'Synthetic eTIMS submission was allowed',
       });
     } catch (e: any) {
-      results.push({ id: 'P3_TEST_31', name: 'eTIMS mock submission flow', passed: false, expected: 'Submitted', actual: e.message });
+      const passed = e?.message?.includes('eTIMS provider client is not connected');
+      results.push({
+        id: 'P3_TEST_31',
+        name: 'eTIMS provider boundary refuses synthetic submission',
+        passed,
+        expected: 'INTEGRATION_UNAVAILABLE until authoritative provider is connected',
+        actual: e?.message || String(e),
+      });
     }
 
     // -----------------------------------------------------------------
