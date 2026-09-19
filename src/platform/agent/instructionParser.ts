@@ -35,7 +35,18 @@ export class TdbkInstructionParser {
       });
     };
 
-    if (/\b(compose|reconcile|synchronize|sync|align).*\\b(business|capabilities|modules)\b/.test(text) || /\bcompose\\b.*\\bdbk\b/.test(text)) {
+    if (/\b(activate|initialize|make|prepare|operationalize).*\b(business|dbk)\b/.test(text) || /\bactivate\b.*\bdbk\b/.test(text)) {
+      add(
+        'ACTIVATE_BUSINESS',
+        'ADMIN',
+        `Activate the operational business runtime for DBK ${targetTenantId || '(target required)'}.`,
+        true,
+        targetTenantId,
+      );
+      return { intent: 'BUSINESS_ACTIVATION', actions };
+    }
+
+    if (/\b(compose|reconcile|synchronize|sync|align).*\b(business|capabilities|modules)\b/.test(text) || /\bcompose\b.*\bdbk\b/.test(text)) {
       add(
         'COMPOSE_BUSINESS',
         'ADMIN',
