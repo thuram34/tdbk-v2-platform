@@ -2,6 +2,7 @@ import { instructionParser } from './instructionParser';
 import { agentAuthorityPolicy } from './authorityPolicy';
 import { agentAudit } from './agentAudit';
 import { agentActionExecutor } from './actionExecutor';
+import { agentVerificationEngine } from './verificationEngine';
 import { controlPlaneTool } from './tools/controlPlaneTool';
 import { businessStateTool } from './tools/businessStateTool';
 import { workflowTool } from './tools/workflowTool';
@@ -19,6 +20,20 @@ const EXECUTABLE_ACTIONS = new Set([
 
 export class TdbkAgentRuntime {
   public async run(instruction: AgentInstruction): Promise<AgentRunResult> {
+    const tenantId = instruction.context.tenantContext?.tenantId || instruction.context.principal.tenantId || null;
+    const existing = tenantId
+      ? await agentExecutionRepository.get(tenantId, instruction.instructionId)
+      : await agentExecutionRepository.getSystem(instruction.instructionId);
+
+    if (existing && ['EXECUTED', 'VERIFIED', 'AUTHORIZATION_REQUIRED'].includes(existing.status)) {
+      return {
+        instructionId: existing.instructionId,
+        plan: existing.plan,
+        results: existing.results,
+        completedAt: existing.completedAt,
+      };
+    }
+
     const startedAt = new Date().toISOString();
     agentAudit.instruction(instruction);
     const parsed = instructionParser.parse(instruction);
@@ -44,33 +59,31 @@ export class TdbkAgentRuntime {
       }
 
       try {
-        let data: unknown;
+        let result;
         if (EXECUTABLE_ACTIONS.has(action.kind)) {
-          const result = await agentActionExecutor.execute(instruction, action);
-          results.push(result);
-          agentAudit.action(instruction, action, result);
-          continue;
-        }
-
-        if (action.kind === 'INSPECT_PLATFORM' || action.kind === 'INSPECT_DBKS') {
-          data = await controlPlaneTool.execute(instruction.context);
-        } else if (action.kind === 'INSPECT_WORKFLOWS') {
-          data = await workflowTool.execute(instruction.context);
-        } else if (action.kind === 'INSPECT_BUSINESS_STATE') {
-          const tenantId =
-            action.tenantId ||
-            instruction.context.tenantContext?.tenantId ||
-            instruction.context.principal.tenantId;
-          if (!tenantId) throw new Error('Business-state inspection requires a tenant context.');
-          data = await businessStateTool.execute(instruction.context, tenantId);
+          result = await agentActionExecutor.execute(instruction, action);
         } else {
-          data = {
-            planned: true,
-            message: 'No mutation was executed for this action.',
-          };
+          let data: unknown;
+          if (action.kind === 'INSPECT_PLATFORM' || action.kind === 'INSPECT_DBKS') {
+            data = await controlPlaneTool.execute(instruction.context);
+          } else if (action.kind === 'INSPECT_WORKFLOWS') {
+            data = await workflowTool.execute(instruction.context);
+          } else if (action.kind === 'INSPECT_BUSINESS_STATE') {
+            const target = action.tenantId || instruction.context.tenantContext?.tenantId || instruction.context.principal.tenantId;
+            if (!target) throw new Error('Business-state inspection requires a tenant context.');
+            data = await businessStateTool.execute(instruction.context, target);
+          } else {
+            data = { planned: true, message: 'No mutation was executed for this action.' };
+          }
+          result = { actionId: action.actionId, status: 'COMPLETED' as const, data };
         }
 
-        const result = { actionId: action.actionId, status: 'COMPLETED' as const, data };
+        if (result.status === 'COMPLETED') {
+          const verification = await agentVerificationEngine.verify(instruction, action, result.data);
+          result = { ...result, verification };
+          if (!verification.verified) result.status = 'FAILED';
+        }
+
         results.push(result);
         agentAudit.action(instruction, action, result);
       } catch (error) {
@@ -86,22 +99,21 @@ export class TdbkAgentRuntime {
 
     const hasFailure = results.some((result) => result.status === 'FAILED');
     const needsAuthorization = results.some((result) => result.status === 'AUTHORIZATION_REQUIRED');
+    const hasUnverified = results.some((result) => result.verification && !result.verification.verified);
     const completedAt = new Date().toISOString();
     const result: AgentRunResult = { instructionId: instruction.instructionId, plan, results, completedAt };
 
-    const tenantId = instruction.context.tenantContext?.tenantId || instruction.context.principal.tenantId || null;
-    const branchId = instruction.context.branchContext?.branchId || instruction.context.principal.branchId || null;
     const status = hasFailure
-      ? 'FAILED'
+      ? (hasUnverified ? 'VERIFICATION_FAILED' : 'FAILED')
       : needsAuthorization
         ? 'AUTHORIZATION_REQUIRED'
-        : 'EXECUTED';
+        : 'VERIFIED';
 
     await agentExecutionRepository.save({
       executionId: instruction.instructionId,
       instructionId: instruction.instructionId,
       tenantId,
-      branchId,
+      branchId: instruction.context.branchContext?.branchId || instruction.context.principal.branchId || null,
       principalId: instruction.context.principal.id,
       instruction: instruction.text.slice(0, 2000),
       intent: plan.intent,
