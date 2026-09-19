@@ -44,13 +44,29 @@ export class AgentAuthorityPolicy {
       return { allowed: true, reason: 'TDBK MASTER lifecycle authority verified.' };
     }
 
-    if (action.kind === 'ENABLE_CAPABILITY' || action.kind === 'DISABLE_CAPABILITY' || action.kind === 'REBUILD_BUSINESS_STATE') {
-      if (!tenantId) return { allowed: false, reason: 'Authoritative tenant context is required for business-state repair.' };
+    if (
+      action.kind === 'ENABLE_CAPABILITY' ||
+      action.kind === 'DISABLE_CAPABILITY' ||
+      action.kind === 'REBUILD_BUSINESS_STATE' ||
+      action.kind === 'ENSURE_HEADQUARTERS_BRANCH' ||
+      action.kind === 'REFRESH_DBK_TOPOLOGY'
+    ) {
+      if (!tenantId) return { allowed: false, reason: 'Authoritative tenant context is required for DBK mutation.' };
       try {
-        masterAuthority.assertTenantAuthority(instruction.context, tenantId, 'agent.businessStateRepair');
-        return { allowed: true, reason: 'Tenant authority verified for agent-controlled tenant mutation.' };
+        masterAuthority.assertTenantAuthority(instruction.context, tenantId, 'agent.dbkConstruction');
+        return { allowed: true, reason: 'Tenant authority verified for agent-controlled DBK construction/repair.' };
       } catch (error) {
-        return { allowed: false, reason: error instanceof Error ? error.message : 'Tenant authority required for agent-controlled tenant mutation.' };
+        return { allowed: false, reason: error instanceof Error ? error.message : 'Tenant authority required for agent-controlled DBK mutation.' };
+      }
+    }
+
+    if (action.kind === 'RECOMPILE_WORKSPACE') {
+      if (!tenantId) return { allowed: false, reason: 'Authoritative tenant context is required for workspace compilation.' };
+      try {
+        masterAuthority.assertTenantAuthority(instruction.context, tenantId, 'agent.workspaceCompilation');
+        return { allowed: true, reason: 'Tenant authority verified for workspace compilation.' };
+      } catch (error) {
+        return { allowed: false, reason: error instanceof Error ? error.message : 'Tenant authority required for workspace compilation.' };
       }
     }
 
