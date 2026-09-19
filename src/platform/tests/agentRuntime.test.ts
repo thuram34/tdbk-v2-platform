@@ -142,6 +142,52 @@ describe('TDBK command agent', () => {
     });
   });
 
+  it('parses end-to-end business activation commands', () => {
+    const parser = new TdbkInstructionParser();
+    const result = parser.parse({
+      instructionId: 'i_activate_business',
+      text: 'Activate business for DBK shop_mombasa',
+      context: {} as any,
+    });
+    expect(result.intent).toBe('BUSINESS_ACTIVATION');
+    expect(result.actions[0]).toMatchObject({
+      kind: 'ACTIVATE_BUSINESS',
+      tenantId: 'shop_mombasa',
+      authority: 'ADMIN',
+      requiresAuthorization: true,
+    });
+  });
+
+  it('allows tenant-authorized business activation', async () => {
+    const policy = new AgentAuthorityPolicy();
+    const result = await policy.authorize({
+      instructionId: 'i_activate_auth',
+      text: 'Activate business for DBK shop_mombasa',
+      context: {
+        requestId: 'req_activate_auth',
+        principal: {
+          id: 'owner',
+          isMaster: false,
+          tenantId: 'shop_mombasa',
+          branchId: null,
+          roles: ['OWNER_OPERATOR'],
+          permissions: [],
+          authTime: Date.now(),
+          tokenSource: 'SESSION',
+        },
+      } as any,
+      requestedAuthority: 'ADMIN',
+    }, {
+      actionId: 'a_activate',
+      kind: 'ACTIVATE_BUSINESS',
+      authority: 'ADMIN',
+      description: 'activate business',
+      requiresAuthorization: true,
+      tenantId: 'shop_mombasa',
+    });
+    expect(result.allowed).toBe(true);
+  });
+
   it('parses blueprint-driven business composition commands', () => {
     const parser = new TdbkInstructionParser();
     const result = parser.parse({
