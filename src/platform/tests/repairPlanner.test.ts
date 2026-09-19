@@ -21,7 +21,7 @@ describe('TDBK repair planner', () => {
           outbox: {} as any,
         },
       ],
-    }, {} as any);
+    });
 
     expect(result.findings).toHaveLength(1);
     expect(result.findings[0]).toMatchObject({
