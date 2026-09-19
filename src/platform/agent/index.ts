@@ -3,3 +3,4 @@ export * from './instructionParser';
 export * from './authorityPolicy';
 export * from './agentRuntime';
 export * from './agentAudit';
+export * from './actionExecutor';
