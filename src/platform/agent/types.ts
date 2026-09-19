@@ -1,0 +1,42 @@
+/** TDBK V2 — COMMAND AGENT CONTRACTS */
+import { SecurityContext } from '../../kernel/types';
+
+export type AgentAuthority = 'OBSERVE' | 'DIAGNOSE' | 'SAFE_REPAIR' | 'WORKFLOW' | 'BUSINESS' | 'CONNECTOR' | 'ADMIN' | 'MASTER';
+export type AgentActionKind = 'INSPECT_PLATFORM' | 'INSPECT_DBKS' | 'INSPECT_BUSINESS_STATE' | 'INSPECT_WORKFLOWS' | 'PLAN_SAFE_REPAIR';
+
+export interface AgentInstruction {
+  instructionId: string;
+  text: string;
+  context: SecurityContext;
+  requestedAuthority?: AgentAuthority;
+}
+
+export interface AgentAction {
+  actionId: string;
+  kind: AgentActionKind;
+  authority: AgentAuthority;
+  tenantId?: string;
+  description: string;
+  requiresAuthorization: boolean;
+}
+
+export interface AgentPlan {
+  instructionId: string;
+  intent: string;
+  actions: AgentAction[];
+  generatedAt: string;
+}
+
+export interface AgentActionResult {
+  actionId: string;
+  status: 'COMPLETED' | 'AUTHORIZATION_REQUIRED' | 'FAILED';
+  data?: unknown;
+  error?: string;
+}
+
+export interface AgentRunResult {
+  instructionId: string;
+  plan: AgentPlan;
+  results: AgentActionResult[];
+  completedAt: string;
+}
