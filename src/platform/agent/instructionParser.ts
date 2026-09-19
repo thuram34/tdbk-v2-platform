@@ -173,15 +173,15 @@ export class TdbkInstructionParser {
 
   private extractBridgeId(text: string): string | undefined {
     const aliases: Array<[RegExp, string]> = [
-      [/\\bmpesa\\b/i, 'bridge_mpesa'],
-      [/\\betims\\b/i, 'bridge_etims'],
-      [/\\bwhatsapp\\b/i, 'bridge_whatsapp'],
-      [/\\bemail\\b/i, 'bridge_email'],
-      [/\\bsms\\b/i, 'bridge_sms'],
-      [/\\bbank\\b/i, 'bridge_bank'],
+      [/\bmpesa\b/i, 'bridge_mpesa'],
+      [/\betims\b/i, 'bridge_etims'],
+      [/\bwhatsapp\b/i, 'bridge_whatsapp'],
+      [/\bemail\b/i, 'bridge_email'],
+      [/\bsms\b/i, 'bridge_sms'],
+      [/\bbank\b/i, 'bridge_bank'],
     ];
     for (const [pattern, bridgeId] of aliases) if (pattern.test(text)) return bridgeId;
-    return this.extractIdentifier(text, /\\bbridge[:\\s_-]*([a-z0-9][a-z0-9_-]*)\\b/i);
+    return this.extractIdentifier(text, /\bbridge[:\\s_-]*([a-z0-9][a-z0-9_-]*)\b/i);
   }
 
   private extractIdentifier(text: string, pattern: RegExp): string | undefined {
