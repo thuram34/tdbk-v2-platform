@@ -20,6 +20,7 @@ const EXECUTABLE_ACTIONS = new Set([
   'REBUILD_BUSINESS_STATE',
   'ENABLE_CAPABILITY',
   'DISABLE_CAPABILITY',
+  'PROVISION_DBK',
 ]);
 
 export class TdbkAgentRuntime {
