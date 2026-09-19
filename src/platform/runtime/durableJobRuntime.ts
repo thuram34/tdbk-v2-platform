@@ -7,6 +7,7 @@
 import { SecurityContext } from '../../kernel/types';
 import { idempotencyRepository } from '../../persistence/firestore/repositories/idempotencyRepository';
 import { workflowEngine } from '../../orchestration/workflow/engine';
+import { workflowInstanceRepository } from '../../persistence/firestore/repositories/workflowInstanceRepository';
 import { WorkflowInstance } from '../../orchestration/workflow/types';
 
 export interface DurableJobRequest {
@@ -46,12 +47,11 @@ export class DurableJobRuntime {
     const key = `durable_job:${request.idempotencyKey}`;
     const existing = await idempotencyRepository.getIdempotencyRecord(tenantId, key);
     if (existing?.status === 'COMPLETED' && existing.responsePayload?.workflowId) {
-      const workflow = await workflowEngine.recoverTenantWorkflows(context);
-      const recovered = workflow.find((item) => item.workflowId === existing.responsePayload!.workflowId);
+      const workflow = await workflowInstanceRepository.getWorkflow(tenantId, String(existing.responsePayload.workflowId));
       return {
         workflowId: String(existing.responsePayload.workflowId),
         tenantId,
-        status: recovered?.status || 'COMPLETED',
+        status: workflow?.status || 'COMPLETED',
         isIdempotentReplay: true,
       };
     }
