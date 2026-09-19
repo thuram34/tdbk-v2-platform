@@ -566,7 +566,7 @@ class WorkflowEngineService {
             metadata: {},
           };
           const failedRecord = this.buildLifecycleOutboxRecord(failedEnvelope);
-          await workflowInstanceRepository.saveWorkflowWithOutbox(workflow.tenantId, workflow.workflowId, workflow, failedRecord, workerId);
+          await workflowInstanceRepository.saveWorkflowWithOutbox(workflow.tenantId, workflow.workflowId, workflow, failedRecord, durableWorkflow ? workerId : undefined);
           await eventBus.publish(failedEnvelope);
           return workflow;
         }
@@ -601,7 +601,7 @@ class WorkflowEngineService {
       workflow.workflowId,
       workflow,
       completedRecord,
-      workerId
+      durableWorkflow ? workerId : undefined
     );
 
     auditLogger.logEvent(
