@@ -57,6 +57,16 @@ export class AgentAuthorityPolicy {
       }
     }
 
+    if (action.kind === 'COMPOSE_BUSINESS') {
+      if (!tenantId) return { allowed: false, reason: 'Authoritative tenant context is required for business composition.' };
+      try {
+        masterAuthority.assertTenantAuthority(instruction.context, tenantId, 'agent.businessComposition');
+        return { allowed: true, reason: 'Tenant authority verified for blueprint-driven business composition.' };
+      } catch (error) {
+        return { allowed: false, reason: error instanceof Error ? error.message : 'Tenant authority required for business composition.' };
+      }
+    }
+
     if (
       action.kind === 'ENABLE_CAPABILITY' ||
       action.kind === 'DISABLE_CAPABILITY' ||
