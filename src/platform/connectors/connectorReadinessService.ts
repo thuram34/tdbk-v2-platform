@@ -2,6 +2,7 @@ import { SecurityContext } from '../../kernel/types';
 import { connectorConnectionRepository } from '../../persistence/firestore/repositories/connectorConnectionRepository';
 import { bridgeRegistry } from '../../orchestration/bridge/registry';
 import { ConnectorConnectionStatus } from '../../persistence/types';
+import { connectionHub } from '../../orchestration/bridge/connectionHub';
 
 export interface ConnectorReadinessItem {
   bridgeId: string;
@@ -59,12 +60,10 @@ class ConnectorReadinessService {
       };
     }
 
-    const configured = await (await import('../../orchestration/bridge/connectionHub')).connectionHub.setStatus(
-      context, bridgeId, 'CONFIGURED', true,
-    );
+    const configured = await connectionHub.setStatus(context, bridgeId, 'CONFIGURED', true);
     let healthStatus = configured.lastHealthStatus;
     try {
-      const health = await (await import('../../orchestration/bridge/connectionHub')).connectionHub.health(context, bridgeId);
+      const health = await connectionHub.health(context, bridgeId);
       healthStatus = health.status;
     } catch (error) {
       healthStatus = 'ERROR';
