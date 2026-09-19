@@ -2,7 +2,8 @@ import { AgentAction, AgentInstruction } from './types';
 
 export class TdbkInstructionParser {
   public parse(instruction: AgentInstruction): { intent: string; actions: AgentAction[] } {
-    const text = instruction.text.trim().toLowerCase();
+    const rawText = instruction.text.trim();
+    const text = rawText.toLowerCase();
     const actions: AgentAction[] = [];
 
     const explicitTenantId =
@@ -60,10 +61,11 @@ export class TdbkInstructionParser {
 
     if (/\b(provision|onboard)\b/.test(text)) {
       const provisionId = explicitTenantId;
-      const legalNameMatch = text.match(/\b(?:legal\s+name|name)[:\s]+(.+?)(?=\s+(?:blueprint|tier|subscription|hq|headquarters)[:\s]|$)/i);
+      const legalNameMatch = rawText.match(/\b(?:legal\s+name|name)[:\s]+(.+?)(?=\s+(?:blueprint|tier|subscription|hq|headquarters)[:\s]|$)/i);
       const blueprintId = this.extractIdentifier(text, /\bblueprint[:\s_-]*([a-z0-9][a-z0-9_-]*)\b/i);
       const blueprintVersion = this.extractIdentifier(text, /\bversion[:\s_-]*([0-9][a-z0-9._-]*)\b/i);
-      const tier = this.extractIdentifier(text, /\b(?:tier|subscription)[:\s_-]*(free|foundation|growth|pro|enterprise)\b/i) as AgentAction['subscriptionTier'];
+      const tierValue = this.extractIdentifier(text, /\b(?:tier|subscription)[:\s_-]*(free|foundation|growth|pro|enterprise)\b/i);
+      const tier = tierValue ? tierValue.toUpperCase() as AgentAction['subscriptionTier'] : undefined;
       const primaryBranchNameMatch = text.match(/\b(?:hq|headquarters)[:\s]+(.+?)(?=\s+(?:blueprint|tier|subscription|name|legal\s+name)[:\s]|$)/i);
 
       if (!provisionId || !legalNameMatch?.[1] || !blueprintId) {
