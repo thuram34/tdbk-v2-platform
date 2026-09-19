@@ -58,9 +58,33 @@ export class TdbkInstructionParser {
       return { intent: 'RECOMPILE_WORKSPACE', actions };
     }
 
-    if (/\b(provision|onboard)\b/.test(text)) {
-      add('INSPECT_DBKS', 'OBSERVE', 'Inspect DBKs before provisioning; provisioning requires the dedicated provisioning contract and parameters.');
-      return { intent: 'PROVISIONING_REQUEST_DETECTED', actions };
+    if (/\\b(provision|onboard)\\b/.test(text)) {
+      const provisionId = explicitTenantId;
+      const legalNameMatch = text.match(/\\b(?:legal\\s+name|name)[:\\s]+(.+?)(?=\\s+(?:blueprint|tier|subscription|hq|headquarters)[:\\s]|$)/i);
+      const blueprintId = this.extractIdentifier(text, /\\bblueprint[:\\s_-]*([a-z0-9][a-z0-9_-]*)\\b/i);
+      const blueprintVersion = this.extractIdentifier(text, /\\bversion[:\\s_-]*([0-9][a-z0-9._-]*)\\b/i);
+      const tier = this.extractIdentifier(text, /\\b(?:tier|subscription)[:\\s_-]*(free|foundation|growth|pro|enterprise)\\b/i) as AgentAction['subscriptionTier'];
+      const primaryBranchNameMatch = text.match(/\\b(?:hq|headquarters)[:\\s]+(.+?)(?=\\s+(?:blueprint|tier|subscription|name|legal\\s+name)[:\\s]|$)/i);
+
+      if (!provisionId || !legalNameMatch?.[1] || !blueprintId) {
+        add('INSPECT_DBKS', 'OBSERVE', 'Provisioning request is missing dbk, legal name, or blueprint parameters; inspect before construction.');
+        return { intent: 'PROVISIONING_REQUEST_INCOMPLETE', actions };
+      }
+
+      add(
+        'PROVISION_DBK',
+        'ADMIN',
+        `Provision DBK ${provisionId} using blueprint ${blueprintId}.`,
+        true,
+        provisionId,
+      );
+      const action = actions[actions.length - 1];
+      action.legalName = legalNameMatch[1].trim();
+      action.blueprintId = blueprintId;
+      action.blueprintVersion = blueprintVersion;
+      action.subscriptionTier = tier;
+      action.primaryBranchName = primaryBranchNameMatch?.[1]?.trim();
+      return { intent: 'DBK_PROVISIONING', actions };
     }
 
     if (/(recover|resume|retry).*\b(workflow|workflows|jobs|job)\b/.test(text)) {
