@@ -161,25 +161,34 @@ export class BusinessCompositionService {
   }
 
   public async compose(context: SecurityContext, dbkId: string): Promise<BusinessCompositionResult> {
-    const initial = await this.plan(context, dbkId);
+    let currentPlan = await this.plan(context, dbkId);
     const appliedCapabilityIds: string[] = [];
+    const applied = new Set<string>();
 
-    // Apply only additive, entitlement-checked, dependency-ready activations.
-    // No composition pass disables or suspends an existing capability.
-    for (const capabilityId of initial.executableCapabilityIds) {
-      const definition = capabilityRegistry.getCapability(capabilityId);
-      if (!definition) continue;
-      await dbkCapabilityManager.enableCapabilityPersistent(
-        context,
-        dbkId,
-        capabilityId,
-        'ENTITLED',
-        definition.configurationSchema.requiresConfiguration,
-      );
-      appliedCapabilityIds.push(capabilityId);
+    // Apply in dependency-ready passes. This lets the composition engine construct
+    // dependency chains deterministically without bypassing the capability manager.
+    for (let pass = 0; pass < 20 && currentPlan.executableCapabilityIds.length > 0; pass++) {
+      const executable = currentPlan.executableCapabilityIds.filter((id) => !applied.has(id));
+      if (executable.length === 0) break;
+
+      for (const capabilityId of executable) {
+        const definition = capabilityRegistry.getCapability(capabilityId);
+        if (!definition) continue;
+        await dbkCapabilityManager.enableCapabilityPersistent(
+          context,
+          dbkId,
+          capabilityId,
+          'ENTITLED',
+          definition.configurationSchema.requiresConfiguration,
+        );
+        applied.add(capabilityId);
+        appliedCapabilityIds.push(capabilityId);
+      }
+
+      currentPlan = await this.plan(context, dbkId);
     }
 
-    const finalPlan = await this.plan(context, dbkId);
+    const finalPlan = currentPlan;
     return { plan: finalPlan, appliedCapabilityIds };
   }
 
