@@ -7,3 +7,4 @@ export * from './operations';
 export * from './agent';
 
 export * from './composition';
+export * from './connectors';
