@@ -4,3 +4,4 @@ export * from './businessState';
 export * from './runtime';
 export * from './controlPlane';
 export * from './operations';
+export * from './agent';
