@@ -185,6 +185,21 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
 
     if (process.env.NODE_ENV !== 'production') {
       const checkoutReqId = `mock_CO_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      await financialLedgerRepository.savePendingTransaction({
+        transactionId: `mpesa_${checkoutReqId}`,
+        tenantId,
+        branchId: context.branchContext?.branchId || null,
+        source: 'MPESA',
+        providerReference: checkoutReqId,
+        amount: payload.amount,
+        currency: 'KES',
+        status: 'PENDING',
+        description: payload.transactionDesc,
+        correlationId: context.correlationId || context.requestId,
+        createdAt: new Date().toISOString(),
+        postedAt: null,
+        reversedAt: null,
+      });
       return {
         status: 'PENDING',
         provider: this.provider,
