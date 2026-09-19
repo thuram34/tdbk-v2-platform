@@ -35,6 +35,19 @@ export class TdbkInstructionParser {
       });
     };
 
+    if (/\b(connect|activate|enable|configure)\b.*\b(mpesa|etims|whatsapp|email|sms|bank|bridge|connector|integration)\b/.test(text)) {
+      const bridgeId = this.extractBridgeId(text);
+      add(
+        'ACTIVATE_CONNECTOR',
+        'CONNECTOR',
+        `Activate connector ${bridgeId || '(bridge required)'} for DBK ${targetTenantId || '(target required)'}.`,
+        true,
+        targetTenantId,
+      );
+      if (actions[actions.length - 1]) actions[actions.length - 1].bridgeId = bridgeId;
+      return { intent: 'CONNECTOR_ACTIVATION', actions };
+    }
+
     if (/\b(connectors?|bridges?|integrations?)\b/.test(text) && /\b(inspect|check|status|readiness|health|connections?|list)\b/.test(text)) {
       add(
         'INSPECT_CONNECTORS',
@@ -156,6 +169,19 @@ export class TdbkInstructionParser {
     if (/(platform|health|system|tdbk)/.test(text) && actions.length === 0) add('INSPECT_PLATFORM', 'OBSERVE', 'Inspect the TDBK control plane and platform health.');
     if (actions.length === 0) add('INSPECT_PLATFORM', 'OBSERVE', 'Inspect the TDBK control plane and platform health.');
     return { intent: 'TDBK_OPERATIONAL_INSPECTION', actions };
+  }
+
+  private extractBridgeId(text: string): string | undefined {
+    const aliases: Array<[RegExp, string]> = [
+      [/\\bmpesa\\b/i, 'bridge_mpesa'],
+      [/\\betims\\b/i, 'bridge_etims'],
+      [/\\bwhatsapp\\b/i, 'bridge_whatsapp'],
+      [/\\bemail\\b/i, 'bridge_email'],
+      [/\\bsms\\b/i, 'bridge_sms'],
+      [/\\bbank\\b/i, 'bridge_bank'],
+    ];
+    for (const [pattern, bridgeId] of aliases) if (pattern.test(text)) return bridgeId;
+    return this.extractIdentifier(text, /\\bbridge[:\\s_-]*([a-z0-9][a-z0-9_-]*)\\b/i);
   }
 
   private extractIdentifier(text: string, pattern: RegExp): string | undefined {
