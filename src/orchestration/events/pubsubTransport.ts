@@ -32,7 +32,7 @@ export class PubSubTransport {
   public async publish(event: EventEnvelope): Promise<string> {
     // GitHub CI and unit tests intentionally do not have Google ADC. Keep the
     // transport contract deterministic there; production still publishes to Pub/Sub.
-    if (process.env.NODE_ENV === 'test') {
+    if (process.env.NODE_ENV === 'test' || process.env.VITEST === 'true' || process.env.TDBK_PERSISTENCE_DRIVER === 'test_memory') {
       return `test-pubsub-${event.eventId}`;
     }
     const data = Buffer.from(JSON.stringify(event));
