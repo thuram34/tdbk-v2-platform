@@ -82,6 +82,47 @@ describe('TDBK command agent', () => {
     expect(result.actions[0].kind).toBe('DISABLE_CAPABILITY');
   });
 
+  it('parses DBK construction commands for headquarters and topology repair', () => {
+    const parser = new TdbkInstructionParser();
+
+    const hq = parser.parse({
+      instructionId: 'i_hq',
+      text: 'Ensure headquarters branch for DBK shop_mombasa',
+      context: {} as any,
+    });
+    expect(hq.intent).toBe('ENSURE_HEADQUARTERS_BRANCH');
+    expect(hq.actions[0]).toMatchObject({
+      kind: 'ENSURE_HEADQUARTERS_BRANCH',
+      tenantId: 'shop_mombasa',
+      authority: 'ADMIN',
+      requiresAuthorization: true,
+    });
+
+    const topology = parser.parse({
+      instructionId: 'i_topology',
+      text: 'Refresh branch topology for DBK shop_mombasa',
+      context: {} as any,
+    });
+    expect(topology.intent).toBe('REFRESH_DBK_TOPOLOGY');
+    expect(topology.actions[0].kind).toBe('REFRESH_DBK_TOPOLOGY');
+  });
+
+  it('parses workspace recompilation commands', () => {
+    const parser = new TdbkInstructionParser();
+    const result = parser.parse({
+      instructionId: 'i_workspace',
+      text: 'Recompile workspace for DBK shop_mombasa',
+      context: {} as any,
+    });
+    expect(result.intent).toBe('RECOMPILE_WORKSPACE');
+    expect(result.actions[0]).toMatchObject({
+      kind: 'RECOMPILE_WORKSPACE',
+      tenantId: 'shop_mombasa',
+      authority: 'DIAGNOSE',
+      requiresAuthorization: true,
+    });
+  });
+
   it('requires stronger requested authority before executing a mutation', async () => {
     const policy = new AgentAuthorityPolicy();
     const result = await policy.authorize(
@@ -147,6 +188,46 @@ describe('TDBK command agent', () => {
     );
     expect(result.allowed).toBe(false);
     expect(result.reason).toContain('TDBK MASTER');
+  });
+
+  it('allows tenant-authorized DBK construction', async () => {
+    const policy = new AgentAuthorityPolicy();
+    const result = await policy.authorize(
+      {
+        instructionId: 'i6',
+        text: 'Ensure headquarters branch for DBK shop_mombasa',
+        context: {
+          requestId: 'req_i6',
+          principal: {
+            id: 'owner',
+            email: 'owner@example.com',
+            isMaster: false,
+            tenantId: 'shop_mombasa',
+            branchId: null,
+            roles: ['OWNER_OPERATOR'],
+            permissions: ['branch:create'],
+            authTime: Date.now(),
+            tokenSource: 'SESSION',
+          },
+          tenantContext: {
+            tenantId: 'shop_mombasa',
+            name: 'Shop Mombasa',
+            blueprintId: 'retail',
+            status: 'ACTIVE',
+          },
+        } as any,
+        requestedAuthority: 'ADMIN',
+      },
+      {
+        actionId: 'a1',
+        kind: 'ENSURE_HEADQUARTERS_BRANCH',
+        authority: 'ADMIN',
+        description: 'ensure HQ',
+        requiresAuthorization: true,
+        tenantId: 'shop_mombasa',
+      },
+    );
+    expect(result.allowed).toBe(true);
   });
 
   it('allows an authenticated master lifecycle command', async () => {
