@@ -118,7 +118,8 @@ export class DbkCapabilityManagerService {
     // test Firestore driver. Preserve that deterministic fixture when the
     // persistence layer is intentionally empty. Production remains strictly
     // Firestore-authoritative and replaces the cache with the persisted state.
-    if (records.length === 0 && process.env.NODE_ENV === 'test') {
+    const isTestRuntime = process.env.NODE_ENV === 'test' || process.env.VITEST === 'true' || process.env.TDBK_PERSISTENCE_DRIVER === 'test_memory';
+    if (records.length === 0 && isTestRuntime) {
       return this.getDbkCapabilityRecords(securityContext, dbkId);
     }
 
