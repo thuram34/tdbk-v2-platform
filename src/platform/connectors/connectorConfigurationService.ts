@@ -121,6 +121,11 @@ class ConnectorConfigurationService {
     return { connection, created: !existing, configurationVersion };
   }
 
+  public async list(context: SecurityContext, tenantId: string): Promise<ConnectorConnection[]> {
+    await masterAuthority.assertTenantAuthority(context, tenantId, 'LIST_CONNECTOR_CONFIGURATION');
+    return connectorConnectionRepository.listConnections(tenantId);
+  }
+
   public async get(context: SecurityContext, tenantId: string, bridgeId: string): Promise<ConnectorConnection | null> {
     await masterAuthority.assertTenantAuthority(context, tenantId, 'READ_CONNECTOR_CONFIGURATION');
     if (!bridgeRegistry.getBridgeDefinition(bridgeId)) {
