@@ -21,7 +21,8 @@ export class ReconciliationRepository implements IReconciliationRepository {
   public async markRequired(
     tenantId: string,
     transactionId: string,
-    expectedStatus: FinancialTransactionStatus
+    expectedStatus: FinancialTransactionStatus,
+    updates: Partial<Pick<FinancialTransaction, 'providerReference' | 'description'>> = {},
   ): Promise<FinancialTransaction> {
     return firestoreClient.runTransaction(async (tx) => {
       const path = this.path(tenantId, transactionId);
@@ -40,10 +41,20 @@ export class ReconciliationRepository implements IReconciliationRepository {
         );
       }
 
-      if (current.status === 'RECONCILIATION_REQUIRED') return current;
+      if (updates.providerReference && !updates.providerReference.trim()) {
+        throw new Error('Reconciliation provider reference cannot be empty');
+      }
+
+      if (current.status === 'RECONCILIATION_REQUIRED') {
+        if (updates.providerReference && current.providerReference !== updates.providerReference) {
+          throw new Error('Reconciliation-required provider reference cannot be changed');
+        }
+        return current;
+      }
 
       const updated: FinancialTransaction = {
         ...current,
+        ...updates,
         status: 'RECONCILIATION_REQUIRED',
       };
       await tx.set(path, updated);
