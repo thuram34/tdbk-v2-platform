@@ -8,6 +8,7 @@ import { workspaceManager } from '../workspace/workspaceManager';
 import { provisioningService } from '../provisioning/provisioningService';
 import { businessCompositionService } from '../composition/businessCompositionService';
 import { connectorReadinessService } from '../connectors/connectorReadinessService';
+import { connectorReadinessService } from '../connectors/connectorReadinessService';
 import { AgentAction, AgentActionResult, AgentInstruction } from './types';
 
 export class AgentActionExecutor {
@@ -21,6 +22,14 @@ export class AgentActionExecutor {
       case 'INSPECT_CONNECTORS': {
         if (!tenantId) throw new Error('Authoritative DBK target is required for connector inspection.');
         return this.completed(action, await connectorReadinessService.inspect(instruction.context, tenantId));
+      }
+
+      case 'ACTIVATE_CONNECTOR': {
+        if (!tenantId || !action.bridgeId) throw new Error('DBK and bridge are required for connector activation.');
+        return this.completed(
+          action,
+          await connectorReadinessService.activate(instruction.context, tenantId, action.bridgeId),
+        );
       }
 
       case 'ACTIVATE_BUSINESS': {
