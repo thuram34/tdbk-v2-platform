@@ -19,8 +19,11 @@ export class AgentAuthorityPolicy {
       return { allowed: false, reason: 'Authenticated principal required.' };
     }
 
-    if (action.requiresAuthorization) {
+    if (action.requiresAuthorization && !masterAuthority.isMasterAdmin(instruction.context.principal)) {
       const requested = instruction.requestedAuthority || 'OBSERVE';
+      if (!(requested in rank)) {
+        return { allowed: false, reason: `Unknown agent authority '${requested}'.` };
+      }
       if (rank[requested] < rank[action.authority]) {
         return {
           allowed: false,
