@@ -54,6 +54,34 @@ describe('TDBK command agent', () => {
     expect(result.actions[0].kind).toBe('RECOVER_WORKFLOWS');
   });
 
+  it('parses a capability mutation with explicit DBK and capability targets', () => {
+    const parser = new TdbkInstructionParser();
+    const result = parser.parse({
+      instructionId: 'i_cap',
+      text: 'Enable capability pos for DBK shop_mombasa',
+      context: {} as any,
+    });
+    expect(result.intent).toBe('CAPABILITY_ENABLE');
+    expect(result.actions[0]).toMatchObject({
+      kind: 'ENABLE_CAPABILITY',
+      tenantId: 'shop_mombasa',
+      capabilityId: 'pos',
+      authority: 'ADMIN',
+      requiresAuthorization: true,
+    });
+  });
+
+  it('parses capability disable commands', () => {
+    const parser = new TdbkInstructionParser();
+    const result = parser.parse({
+      instructionId: 'i_cap_disable',
+      text: 'Disable capability pos for DBK shop_mombasa',
+      context: {} as any,
+    });
+    expect(result.intent).toBe('CAPABILITY_DISABLE');
+    expect(result.actions[0].kind).toBe('DISABLE_CAPABILITY');
+  });
+
   it('requires stronger requested authority before executing a mutation', async () => {
     const policy = new AgentAuthorityPolicy();
     const result = await policy.authorize(
