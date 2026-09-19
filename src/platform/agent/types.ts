@@ -10,6 +10,8 @@ export type AgentActionKind =
   | 'INSPECT_WORKFLOWS'
   | 'PLAN_SAFE_REPAIR'
   | 'REBUILD_BUSINESS_STATE'
+  | 'ENABLE_CAPABILITY'
+  | 'DISABLE_CAPABILITY'
   | 'SUSPEND_DBK'
   | 'REACTIVATE_DBK'
   | 'ARCHIVE_DBK'
@@ -30,6 +32,7 @@ export interface AgentAction {
   authority: AgentAuthority;
   tenantId?: string;
   workflowId?: string;
+  capabilityId?: string;
   description: string;
   requiresAuthorization: boolean;
 }
