@@ -18,7 +18,7 @@ describe('TDBK permanent foundation contracts', () => {
       payload: { dbkId: 'dbk_test', snapshotId: 'state_dbk_test_1', version: 1 },
       metadata: {},
     };
-    expect(eventBus.validateEnvelope(event).valid).toBe(true);
+    expect(eventBus.validateEnvelope(event)).toEqual({ valid: true });
   });
 
   it('defines an immutable-shaped canonical business snapshot', () => {
