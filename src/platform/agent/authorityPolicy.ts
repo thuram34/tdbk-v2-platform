@@ -57,6 +57,16 @@ export class AgentAuthorityPolicy {
       }
     }
 
+    if (action.kind === 'ACTIVATE_BUSINESS') {
+      if (!tenantId) return { allowed: false, reason: 'Authoritative tenant context is required for business activation.' };
+      try {
+        masterAuthority.assertTenantAuthority(instruction.context, tenantId, 'agent.businessActivation');
+        return { allowed: true, reason: 'Tenant authority verified for end-to-end business activation.' };
+      } catch (error) {
+        return { allowed: false, reason: error instanceof Error ? error.message : 'Tenant authority required for business activation.' };
+      }
+    }
+
     if (action.kind === 'COMPOSE_BUSINESS') {
       if (!tenantId) return { allowed: false, reason: 'Authoritative tenant context is required for business composition.' };
       try {
