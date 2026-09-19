@@ -9,6 +9,7 @@ export type AgentActionKind =
   | 'INSPECT_BUSINESS_STATE'
   | 'INSPECT_WORKFLOWS'
   | 'INSPECT_CONNECTORS'
+  | 'ACTIVATE_CONNECTOR'
   | 'PLAN_SAFE_REPAIR'
   | 'PROVISION_DBK'
   | 'COMPOSE_BUSINESS'
@@ -40,6 +41,7 @@ export interface AgentAction {
   tenantId?: string;
   workflowId?: string;
   capabilityId?: string;
+  bridgeId?: string;
   legalName?: string;
   blueprintId?: string;
   blueprintVersion?: string;
