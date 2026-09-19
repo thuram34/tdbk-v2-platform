@@ -123,6 +123,57 @@ describe('TDBK command agent', () => {
     });
   });
 
+  it('parses complete DBK provisioning commands', () => {
+    const parser = new TdbkInstructionParser();
+    const result = parser.parse({
+      instructionId: 'i_provision',
+      text: 'Provision DBK shop_mombasa name: Mombasa Retail blueprint: retail tier: foundation',
+      context: {} as any,
+    });
+    expect(result.intent).toBe('DBK_PROVISIONING');
+    expect(result.actions[0]).toMatchObject({
+      kind: 'PROVISION_DBK',
+      tenantId: 'shop_mombasa',
+      legalName: 'Mombasa Retail',
+      blueprintId: 'retail',
+      subscriptionTier: 'foundation',
+      authority: 'ADMIN',
+      requiresAuthorization: true,
+    });
+  });
+
+  it('requires owner or master authority for provisioning', async () => {
+    const policy = new AgentAuthorityPolicy();
+    const result = await policy.authorize({
+      instructionId: 'i_provision_auth',
+      text: 'Provision DBK shop_mombasa name: Mombasa Retail blueprint: retail',
+      context: {
+        requestId: 'req_provision_auth',
+        principal: {
+          id: 'owner',
+          isMaster: false,
+          tenantId: null,
+          branchId: null,
+          roles: ['OWNER_OPERATOR'],
+          permissions: [],
+          authTime: Date.now(),
+          tokenSource: 'SESSION',
+        },
+      } as any,
+      requestedAuthority: 'ADMIN',
+    }, {
+      actionId: 'a_provision',
+      kind: 'PROVISION_DBK',
+      authority: 'ADMIN',
+      description: 'provision',
+      requiresAuthorization: true,
+      tenantId: 'shop_mombasa',
+      legalName: 'Mombasa Retail',
+      blueprintId: 'retail',
+    });
+    expect(result.allowed).toBe(true);
+  });
+
   it('requires stronger requested authority before executing a mutation', async () => {
     const policy = new AgentAuthorityPolicy();
     const result = await policy.authorize(
