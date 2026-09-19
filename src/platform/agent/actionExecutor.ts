@@ -7,6 +7,7 @@ import { branchManager } from '../branch/branchManager';
 import { workspaceManager } from '../workspace/workspaceManager';
 import { provisioningService } from '../provisioning/provisioningService';
 import { businessCompositionService } from '../composition/businessCompositionService';
+import { connectorReadinessService } from '../connectors/connectorReadinessService';
 import { AgentAction, AgentActionResult, AgentInstruction } from './types';
 
 export class AgentActionExecutor {
@@ -17,6 +18,11 @@ export class AgentActionExecutor {
       instruction.context.principal.tenantId;
 
     switch (action.kind) {
+      case 'INSPECT_CONNECTORS': {
+        if (!tenantId) throw new Error('Authoritative DBK target is required for connector inspection.');
+        return this.completed(action, await connectorReadinessService.inspect(instruction.context, tenantId));
+      }
+
       case 'ACTIVATE_BUSINESS': {
         if (!tenantId) throw new Error('Authoritative DBK target is required for business activation.');
         const dbk = await dbkRegistry.getDbk(instruction.context, tenantId);
