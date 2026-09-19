@@ -6,6 +6,7 @@ import { dbkRegistry } from '../dbkRegistry';
 import { branchManager } from '../branch/branchManager';
 import { workspaceManager } from '../workspace/workspaceManager';
 import { provisioningService } from '../provisioning/provisioningService';
+import { businessCompositionService } from '../composition/businessCompositionService';
 import { AgentAction, AgentActionResult, AgentInstruction } from './types';
 
 export class AgentActionExecutor {
@@ -16,6 +17,11 @@ export class AgentActionExecutor {
       instruction.context.principal.tenantId;
 
     switch (action.kind) {
+      case 'COMPOSE_BUSINESS': {
+        if (!tenantId) throw new Error('Authoritative DBK target is required for business composition.');
+        return this.completed(action, await businessCompositionService.compose(instruction.context, tenantId));
+      }
+
       case 'PROVISION_DBK': {
         if (!tenantId || !action.legalName || !action.blueprintId) {
           throw new Error('DBK, legal name, and blueprint are required for provisioning.');
