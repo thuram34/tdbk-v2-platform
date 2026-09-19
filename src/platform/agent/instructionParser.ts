@@ -38,9 +38,9 @@ export class TdbkInstructionParser {
     if (/\b(connectors?|bridges?|integrations?)\b/.test(text) && /\b(inspect|check|status|readiness|health|connections?|list)\b/.test(text)) {
       add(
         'INSPECT_CONNECTORS',
-        'OBSERVE',
+        'CONNECTOR',
         `Inspect connector and bridge readiness for DBK ${targetTenantId || '(target required)'}.`,
-        false,
+        true,
         targetTenantId,
       );
       return { intent: 'CONNECTOR_READINESS_INSPECTION', actions };
