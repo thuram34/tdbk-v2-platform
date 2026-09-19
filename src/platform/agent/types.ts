@@ -40,10 +40,17 @@ export interface AgentPlan {
   generatedAt: string;
 }
 
+export interface AgentVerification {
+  verified: boolean;
+  summary: string;
+  data?: unknown;
+}
+
 export interface AgentActionResult {
   actionId: string;
   status: 'COMPLETED' | 'AUTHORIZATION_REQUIRED' | 'FAILED';
   data?: unknown;
+  verification?: AgentVerification;
   error?: string;
 }
 
