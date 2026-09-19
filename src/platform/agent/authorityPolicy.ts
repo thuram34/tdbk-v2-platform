@@ -44,13 +44,13 @@ export class AgentAuthorityPolicy {
       return { allowed: true, reason: 'TDBK MASTER lifecycle authority verified.' };
     }
 
-    if (action.kind === 'REBUILD_BUSINESS_STATE') {
+    if (action.kind === 'ENABLE_CAPABILITY' || action.kind === 'DISABLE_CAPABILITY' || action.kind === 'REBUILD_BUSINESS_STATE') {
       if (!tenantId) return { allowed: false, reason: 'Authoritative tenant context is required for business-state repair.' };
       try {
         masterAuthority.assertTenantAuthority(instruction.context, tenantId, 'agent.businessStateRepair');
-        return { allowed: true, reason: 'Tenant authority verified for business-state repair.' };
+        return { allowed: true, reason: 'Tenant authority verified for agent-controlled tenant mutation.' };
       } catch (error) {
-        return { allowed: false, reason: error instanceof Error ? error.message : 'Tenant authority required for business-state repair.' };
+        return { allowed: false, reason: error instanceof Error ? error.message : 'Tenant authority required for agent-controlled tenant mutation.' };
       }
     }
 
