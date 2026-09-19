@@ -710,7 +710,7 @@ export class Phase3TestRunner {
       results.push({
         id: 'P3_TEST_26',
         name: 'Outbox/delivery record is idempotent',
-        passed: rec.eventId === 'outbox_evt_outbox_26' && processed.some((p) => p.eventId === rec.eventId && p.status === 'DELIVERED'),
+        passed: rec.eventId === 'evt_outbox_26' && processed.some((p) => p.eventId === rec.eventId && p.status === 'DELIVERED'),
         expected: 'DELIVERED outbox record',
         actual: `outboxId=${rec.eventId}, processedCount=${processed.length}`,
       });
