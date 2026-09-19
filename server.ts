@@ -51,6 +51,7 @@ import { SurfaceType } from './src/coherence/types';
 import { eventBus } from './src/orchestration/events/eventBus';
 import { pubSubConsumer } from './src/orchestration/events/pubsubConsumer';
 import { subscriptionRouter } from './src/platform/subscription/subscriptionRouter';
+import { tdbkAgentRuntime } from './src/platform/agent/agentRuntime';
 
 async function startServer() {
   // Explicit bootstrap boundary: Seed demo DBKs only in development, preview, or explicit flag
@@ -138,6 +139,48 @@ async function startServer() {
       } else {
         res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: (err as Error).message } });
       }
+    }
+  });
+
+  // -------------------------------------------------------------
+  // TDBK COMMAND AGENT
+  // Authenticated instruction entry point. The agent may inspect and
+  // diagnose within the caller's security context; mutation-capable
+  // actions remain explicitly authorization-gated by the agent policy.
+  // -------------------------------------------------------------
+  app.post('/api/agent/command', async (req: Request, res: Response) => {
+    try {
+      const authHeader = req.headers.authorization;
+      const context = await securityContextFactory.createSecurityContext({
+        authHeader,
+        targetTenantId: req.body?.tenantId,
+        targetBranchId: req.body?.branchId,
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+      });
+
+      const text = typeof req.body?.instruction === 'string' ? req.body.instruction.trim() : '';
+      if (!text) {
+        return res.status(400).json({
+          error: { code: 'VALIDATION_ERROR', message: 'instruction is required' },
+        });
+      }
+
+      const result = await tdbkAgentRuntime.run({
+        instructionId: context.requestId,
+        text,
+        context,
+        requestedAuthority: req.body?.requestedAuthority,
+      });
+
+      return res.json({ status: 'SUCCESS', result });
+    } catch (err) {
+      if (err instanceof KernelError) {
+        return res.status(err.statusCode).json(err.toJSON());
+      }
+      return res.status(500).json({
+        error: { code: 'INTERNAL_ERROR', message: (err as Error).message },
+      });
     }
   });
 
