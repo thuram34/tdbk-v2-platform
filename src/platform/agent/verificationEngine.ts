@@ -13,6 +13,34 @@ export class AgentVerificationEngine {
   ): Promise<AgentVerification> {
     const tenantId = action.tenantId || instruction.context.tenantContext?.tenantId || instruction.context.principal.tenantId;
 
+    if (action.kind === 'PROVISION_DBK') {
+      if (!tenantId) return { verified: false, summary: 'Provisioning verification requires an authoritative DBK target.' };
+      const dbk = await dbkRegistry.getDbk(instruction.context, tenantId);
+      const branches = await branchManager.listPersistentBranches(instruction.context, tenantId);
+      const provisioningResult = data as { success?: boolean; status?: string; workflowId?: string } | undefined;
+      const verified = Boolean(
+        dbk &&
+        dbk.dbkId === tenantId &&
+        dbk.status === 'ACTIVE' &&
+        branches.some((branch) => branch.dbkId === tenantId && branch.isHeadquarters && branch.status === 'ACTIVE') &&
+        provisioningResult?.success === true,
+      );
+      return {
+        verified,
+        summary: verified
+          ? `Verified DBK '${tenantId}' is ACTIVE with an ACTIVE headquarters branch after provisioning.`
+          : `Provisioning verification failed for DBK '${tenantId}': authoritative identity, ACTIVE status, or headquarters branch is missing.`,
+        data: {
+          dbkId: tenantId,
+          status: dbk?.status ?? null,
+          branchCount: branches.length,
+          hasActiveHeadquarters: branches.some((branch) => branch.isHeadquarters && branch.status === 'ACTIVE'),
+          workflowId: provisioningResult?.workflowId ?? null,
+          executionResult: data,
+        },
+      };
+    }
+
     if (action.kind === 'ENABLE_CAPABILITY' || action.kind === 'DISABLE_CAPABILITY') {
       if (!tenantId || !action.capabilityId) return { verified: false, summary: 'Capability verification requires an authoritative DBK and capability target.' };
       const record = await dbkCapabilityManager.hydratePersistentCapability(instruction.context, tenantId, action.capabilityId);
