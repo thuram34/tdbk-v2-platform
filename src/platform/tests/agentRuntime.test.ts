@@ -33,7 +33,23 @@ describe('TDBK command agent', () => {
   it('requires stronger requested authority before executing a mutation', async () => {
     const policy = new AgentAuthorityPolicy();
     const result = await policy.authorize(
-      { instructionId: 'i3', text: 'Suspend DBK shop_mombasa', context: {} as any, requestedAuthority: 'OBSERVE' },
+      {
+        instructionId: 'i3',
+        text: 'Suspend DBK shop_mombasa',
+        context: {
+          principal: {
+            id: 'user',
+            isMaster: false,
+            tenantId: 'shop_mombasa',
+            branchId: null,
+            roles: ['OWNER_OPERATOR'],
+            permissions: ['*'],
+            authTime: Date.now(),
+            tokenSource: 'SESSION',
+          },
+        },
+        requestedAuthority: 'OBSERVE',
+      } as any,
       {
         actionId: 'a1',
         kind: 'SUSPEND_DBK',
