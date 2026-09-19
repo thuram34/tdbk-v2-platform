@@ -17,6 +17,7 @@ const EXECUTABLE_ACTIONS = new Set([
   'RESTORE_DBK',
   'RECOVER_WORKFLOWS',
   'EXECUTE_WORKFLOW',
+  'REBUILD_BUSINESS_STATE',
 ]);
 
 export class TdbkAgentRuntime {
