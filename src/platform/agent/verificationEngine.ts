@@ -41,6 +41,40 @@ export class AgentVerificationEngine {
       };
     }
 
+    if (action.kind === 'COMPOSE_BUSINESS') {
+      if (!tenantId) return { verified: false, summary: 'Business composition verification requires an authoritative DBK target.' };
+      const composition = data as {
+        plan?: { items?: Array<{ capabilityId: string; outcome: string; currentState: string | null }> };
+        appliedCapabilityIds?: string[];
+      } | undefined;
+      if (!composition?.plan?.items) {
+        return { verified: false, summary: `Business composition returned no authoritative plan for DBK '${tenantId}'.` };
+      }
+
+      const reloaded = await dbkCapabilityManager.hydratePersistentCapabilities(instruction.context, tenantId);
+      const records = new Map(reloaded.map((record) => [record.capabilityId, record]));
+      const invalid = composition.plan.items.filter((item) => {
+        const record = records.get(item.capabilityId);
+        if (item.outcome === 'ENABLED' || item.outcome === 'ALREADY_ACTIVE') {
+          return !record || !['ENABLED', 'CONFIGURED'].includes(record.state);
+        }
+        return false;
+      });
+      const verified = invalid.length === 0;
+      return {
+        verified,
+        summary: verified
+          ? `Verified blueprint-driven business composition for DBK '${tenantId}'; additive activations are durable and no existing capability was disabled.`
+          : `Business composition verification failed for DBK '${tenantId}'; ${invalid.length} expected active capability state(s) were not durable.`,
+        data: {
+          dbkId: tenantId,
+          appliedCapabilityIds: composition.appliedCapabilityIds || [],
+          invalidCapabilityIds: invalid.map((item) => item.capabilityId),
+          executionResult: data,
+        },
+      };
+    }
+
     if (action.kind === 'ENABLE_CAPABILITY' || action.kind === 'DISABLE_CAPABILITY') {
       if (!tenantId || !action.capabilityId) return { verified: false, summary: 'Capability verification requires an authoritative DBK and capability target.' };
       const record = await dbkCapabilityManager.hydratePersistentCapability(instruction.context, tenantId, action.capabilityId);
