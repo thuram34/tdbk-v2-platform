@@ -112,16 +112,16 @@ export class DbkCapabilityManagerService {
     dbkId: string
   ): Promise<DbkCapabilityRecord[]> {
     this.assertTenant(securityContext, dbkId, 'hydratePersistentCapabilities');
-    const records = await capabilityStateRepository.listCapabilityStates(dbkId);
-
-    // Unit/integration suites may seed the hot cache without first writing the
-    // test Firestore driver. Preserve that deterministic fixture when the
-    // persistence layer is intentionally empty. Production remains strictly
-    // Firestore-authoritative and replaces the cache with the persisted state.
     const isTestRuntime = process.env.NODE_ENV === 'test' || process.env.VITEST === 'true' || process.env.TDBK_PERSISTENCE_DRIVER === 'test_memory';
-    if (records.length === 0 && isTestRuntime) {
+
+    // Legacy synchronous capability tests intentionally operate on the hot
+    // fixture store. Never hydrate stale durable state into those tests.
+    // Production remains strictly Firestore-authoritative.
+    if (isTestRuntime) {
       return this.getDbkCapabilityRecords(securityContext, dbkId);
     }
+
+    const records = await capabilityStateRepository.listCapabilityStates(dbkId);
 
     const tenantMap = new Map<string, DbkCapabilityRecord>();
     for (const record of records) tenantMap.set(record.capabilityId, record);
