@@ -3,6 +3,7 @@ import { connectorConnectionRepository } from '../../persistence/firestore/repos
 import { bridgeRegistry } from '../../orchestration/bridge/registry';
 import { ConnectorConnectionStatus } from '../../persistence/types';
 import { connectionHub } from '../../orchestration/bridge/connectionHub';
+import { masterAuthority } from '../../kernel/master/masterAuthority';
 
 export interface ConnectorReadinessItem {
   bridgeId: string;
@@ -41,6 +42,7 @@ export interface ConnectorReadinessReport {
 class ConnectorReadinessService {
 
   public async activate(context: SecurityContext, tenantId: string, bridgeId: string): Promise<ConnectorActivationResult> {
+    await masterAuthority.assertTenantAuthority(context, tenantId, 'ACTIVATE_CONNECTOR');
     const definition = bridgeRegistry.getBridgeDefinition(bridgeId);
     if (!definition) throw new Error(`Unknown bridge '${bridgeId}'.`);
     const connection = await connectorConnectionRepository.getConnection(tenantId, `conn_${bridgeId}`);
@@ -78,7 +80,7 @@ class ConnectorReadinessService {
   }
 
   public async inspect(context: SecurityContext, tenantId: string): Promise<ConnectorReadinessReport> {
-    void context;
+    await masterAuthority.assertTenantAuthority(context, tenantId, 'INSPECT_CONNECTORS');
     const connections = await connectorConnectionRepository.listConnections(tenantId);
     const byBridge = new Map(connections.map((connection) => [connection.bridgeId, connection]));
 
