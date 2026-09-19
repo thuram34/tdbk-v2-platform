@@ -1,5 +1,7 @@
 name: TDBK V2 CI
 
+# Production-readiness verification trigger: run full gate on main.
+
 on:
   workflow_dispatch:
   push:
