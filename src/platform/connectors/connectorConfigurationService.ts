@@ -50,7 +50,7 @@ class ConnectorConfigurationService {
       if (typeof parameters[key] !== 'string') {
         throw new KernelError('VALIDATION_ERROR', `Invalid connector parameter '${key}'.`, 400, context.requestId);
       }
-      if (/secret|password|token|passkey|consumer_secret|api_key/i.test(key)) {
+      if (/secret|password|token|passkey|consumer.*key|api.*key/i.test(key)) {
         throw new KernelError(
           'VALIDATION_ERROR',
           `Secret-bearing parameter '${key}' must be supplied as a secret reference, not a raw value.`,
