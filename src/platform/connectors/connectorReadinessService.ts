@@ -17,6 +17,16 @@ export interface ConnectorReadinessItem {
   blockers: string[];
 }
 
+export interface ConnectorActivationResult {
+  tenantId: string;
+  bridgeId: string;
+  status: string;
+  enabled: boolean;
+  healthStatus: string;
+  ready: boolean;
+  blockers: string[];
+}
+
 export interface ConnectorReadinessReport {
   tenantId: string;
   generatedAt: string;
@@ -28,6 +38,46 @@ export interface ConnectorReadinessReport {
 }
 
 class ConnectorReadinessService {
+
+  public async activate(context: SecurityContext, tenantId: string, bridgeId: string): Promise<ConnectorActivationResult> {
+    const definition = bridgeRegistry.getBridgeDefinition(bridgeId);
+    if (!definition) throw new Error(`Unknown bridge '${bridgeId}'.`);
+    const connection = await connectorConnectionRepository.getConnection(tenantId, `conn_${bridgeId}`);
+    if (!connection) throw new Error(`Bridge '${bridgeId}' has no durable connection for DBK '${tenantId}'.`);
+
+    const blockers: string[] = [];
+    if (definition.status === 'MOCK') blockers.push('BRIDGE_IMPLEMENTATION_IS_MOCK');
+    if (!bridgeRegistry.getBridgeInstance(bridgeId)) blockers.push('BRIDGE_ADAPTER_NOT_REGISTERED');
+    const missingConfiguration = definition.configurationRequirements.filter(
+      (key) => !(key in connection.parameters) && !(key in connection.secretRefs),
+    );
+    if (missingConfiguration.length) blockers.push(`MISSING_CONFIGURATION:${missingConfiguration.join(',')}`);
+    if (blockers.length) {
+      return {
+        tenantId, bridgeId, status: connection.status, enabled: connection.enabled,
+        healthStatus: connection.lastHealthStatus, ready: false, blockers,
+      };
+    }
+
+    const configured = await (await import('../../orchestration/bridge/connectionHub')).connectionHub.setStatus(
+      context, bridgeId, 'CONFIGURED', true,
+    );
+    let healthStatus = configured.lastHealthStatus;
+    try {
+      const health = await (await import('../../orchestration/bridge/connectionHub')).connectionHub.health(context, bridgeId);
+      healthStatus = health.status;
+    } catch (error) {
+      healthStatus = 'ERROR';
+      blockers.push(error instanceof Error ? error.message : 'HEALTH_CHECK_FAILED');
+    }
+
+    if (healthStatus !== 'HEALTHY') blockers.push(`HEALTH_${healthStatus}`);
+    return {
+      tenantId, bridgeId, status: 'CONFIGURED', enabled: true,
+      healthStatus, ready: blockers.length === 0, blockers,
+    };
+  }
+
   public async inspect(context: SecurityContext, tenantId: string): Promise<ConnectorReadinessReport> {
     void context;
     const connections = await connectorConnectionRepository.listConnections(tenantId);
