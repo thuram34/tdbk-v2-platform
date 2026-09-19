@@ -776,8 +776,8 @@ export class Phase3TestRunner {
     // -----------------------------------------------------------------
     try {
       await financialLedgerRepository.savePendingTransaction({
-        transactionId: 'txn_mpesa_CO_TEST_30', tenantId: 'tenant_school_a', branchId: null,
-        source: 'MPESA', providerReference: 'CO_TEST_30', amount: 100, currency: 'KES', status: 'PENDING',
+        transactionId: 'mpesa_CO_TEST_30', tenantId: 'tenant_school_a', branchId: null,
+        source: 'MPESA', providerReference: 'CO_TEST_30', amount: 3500, currency: 'KES', status: 'PENDING',
         description: 'test', correlationId: 'corr_test_30', createdAt: new Date().toISOString(), postedAt: null, reversedAt: null,
       });
       const rawCb = {
