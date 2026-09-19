@@ -142,6 +142,54 @@ describe('TDBK command agent', () => {
     });
   });
 
+  it('parses connector activation commands', () => {
+    const parser = new TdbkInstructionParser();
+    const result = parser.parse({
+      instructionId: 'i_connector_activate',
+      text: 'Activate M-Pesa connector for DBK shop_mombasa',
+      context: {} as any,
+    });
+    expect(result.intent).toBe('CONNECTOR_ACTIVATION');
+    expect(result.actions[0]).toMatchObject({
+      kind: 'ACTIVATE_CONNECTOR',
+      tenantId: 'shop_mombasa',
+      bridgeId: 'bridge_mpesa',
+      authority: 'CONNECTOR',
+      requiresAuthorization: true,
+    });
+  });
+
+  it('allows tenant-authorized connector activation', async () => {
+    const policy = new AgentAuthorityPolicy();
+    const result = await policy.authorize({
+      instructionId: 'i_connector_auth',
+      text: 'Activate M-Pesa connector for DBK shop_mombasa',
+      context: {
+        requestId: 'req_connector_auth',
+        principal: {
+          id: 'owner',
+          isMaster: false,
+          tenantId: 'shop_mombasa',
+          branchId: null,
+          roles: ['OWNER_OPERATOR'],
+          permissions: [],
+          authTime: Date.now(),
+          tokenSource: 'SESSION',
+        },
+      } as any,
+      requestedAuthority: 'CONNECTOR',
+    }, {
+      actionId: 'a_connector',
+      kind: 'ACTIVATE_CONNECTOR',
+      authority: 'CONNECTOR',
+      description: 'activate connector',
+      requiresAuthorization: true,
+      tenantId: 'shop_mombasa',
+      bridgeId: 'bridge_mpesa',
+    });
+    expect(result.allowed).toBe(true);
+  });
+
   it('parses end-to-end business activation commands', () => {
     const parser = new TdbkInstructionParser();
     const result = parser.parse({
