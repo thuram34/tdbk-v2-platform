@@ -29,6 +29,7 @@ export interface ConnectorReadinessReport {
 
 class ConnectorReadinessService {
   public async inspect(context: SecurityContext, tenantId: string): Promise<ConnectorReadinessReport> {
+    void context;
     const connections = await connectorConnectionRepository.listConnections(tenantId);
     const byBridge = new Map(connections.map((connection) => [connection.bridgeId, connection]));
 
@@ -40,6 +41,12 @@ class ConnectorReadinessService {
       if (definition.status === 'MOCK') blockers.push('BRIDGE_IMPLEMENTATION_IS_MOCK');
       if (!bridgeRegistry.getBridgeInstance(definition.bridgeId)) blockers.push('BRIDGE_ADAPTER_NOT_REGISTERED');
       if (connection && connection.status !== 'CONFIGURED') blockers.push(`CONNECTION_STATUS_${connection.status}`);
+      if (connection) {
+        const missingConfiguration = definition.configurationRequirements.filter(
+          (key) => !(key in connection.parameters) && !(key in connection.secretRefs),
+        );
+        if (missingConfiguration.length > 0) blockers.push(`MISSING_CONFIGURATION:${missingConfiguration.join(',')}`);
+      }
       if (connection && !connection.enabled) blockers.push('CONNECTION_DISABLED');
       if (connection && connection.lastHealthStatus !== 'HEALTHY') blockers.push(`HEALTH_${connection.lastHealthStatus}`);
 
