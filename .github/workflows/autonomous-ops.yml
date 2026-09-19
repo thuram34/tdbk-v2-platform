@@ -1,0 +1,51 @@
+name: TDBK Autonomous Operations
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_run:
+    workflows: ["TDBK V2 CI"]
+    types: [completed]
+
+permissions:
+  contents: read
+  actions: write
+  issues: write
+
+jobs:
+  ops:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Inspect triggering CI run
+        if: ${{ github.event_name == 'workflow_run' }}
+        env:
+          RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          echo "CI run: $RUN_ID"
+          echo "Conclusion: ${{ github.event.workflow_run.conclusion }}"
+
+      - name: Retry failed CI jobs once
+        if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.run_attempt == 1 }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          REPO: ${{ github.repository }}
+        run: gh run rerun "$RUN_ID" --failed --repo "$REPO"
+
+      - name: Record unresolved CI failure
+        if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.run_attempt > 1 }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          gh issue create --repo "$REPO"             --title "Autonomous Ops: CI failure requires engineering action"             --body "TDBK Autonomous Operations retried the failed CI run once. The failure remains unresolved. Review the workflow logs before making production changes."
+
+      - name: Report healthy completion
+        if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' }}
+        run: echo "TDBK CI is healthy. No repair action required."
+
+      - name: Scheduled control-plane checkpoint
+        if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
+        run: echo "Scheduled TDBK operations checkpoint completed; runtime mutation remains authorization-gated."
