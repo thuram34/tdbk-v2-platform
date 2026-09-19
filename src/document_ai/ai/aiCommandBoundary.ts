@@ -410,9 +410,13 @@ export class AiCommandBoundary {
     try {
       switch (proposal.proposalType) {
         case 'PROPOSE_ADMIT_STUDENT': {
+          const studentPayload = {
+            ...finalPayload,
+            admissionNo: finalPayload.admissionNo || finalPayload.admissionNumber,
+          };
           const student = await entityEngine.createPersistentRecord(ctx, tenantId, 'student_records', {
             id: `ai_student_${proposalId}`,
-            ...finalPayload,
+            ...studentPayload,
             branchId: proposal.branchId,
           });
           executedRecordId = student.recordId;
