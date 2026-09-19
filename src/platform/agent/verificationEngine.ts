@@ -7,6 +7,22 @@ export class AgentVerificationEngine {
     action: AgentAction,
     data: unknown,
   ): Promise<AgentVerification> {
+    if (action.kind === 'REBUILD_BUSINESS_STATE') {
+      const tenantId = action.tenantId || instruction.context.tenantContext?.tenantId || instruction.context.principal.tenantId;
+      if (!tenantId) return { verified: false, summary: 'Business-state repair verification requires an authoritative DBK target.' };
+      const current = await dbkRegistry.getDbk(instruction.context, tenantId);
+      if (!current) return { verified: false, summary: `DBK '${tenantId}' could not be read during repair verification.` };
+      const snapshot = await (await import('../businessState/businessStateEngine')).businessStateEngine.getCurrent(instruction.context, tenantId);
+      const verified = Boolean(snapshot && snapshot.version > 0 && snapshot.dbkId === tenantId);
+      return {
+        verified,
+        summary: verified
+          ? `Verified canonical business state exists for DBK '${tenantId}' at version ${snapshot?.version}.`
+          : `Verification failed: canonical business state is still missing for DBK '${tenantId}'.`,
+        data: { dbkId: tenantId, stateVersion: snapshot?.version ?? null, executionResult: data },
+      };
+    }
+
     if (!['SUSPEND_DBK', 'REACTIVATE_DBK', 'ARCHIVE_DBK', 'RESTORE_DBK'].includes(action.kind)) {
       return {
         verified: true,
