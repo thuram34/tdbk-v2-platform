@@ -41,6 +41,36 @@ export class AgentVerificationEngine {
       };
     }
 
+    if (action.kind === 'ACTIVATE_CONNECTOR') {
+      if (!tenantId || !action.bridgeId) {
+        return { verified: false, summary: 'Connector activation verification requires an authoritative DBK and bridge target.' };
+      }
+      const result = data as {
+        tenantId?: string;
+        bridgeId?: string;
+        ready?: boolean;
+        status?: string;
+        enabled?: boolean;
+        healthStatus?: string;
+        blockers?: string[];
+      } | undefined;
+      const verified = Boolean(
+        result?.tenantId === tenantId &&
+        result?.bridgeId === action.bridgeId &&
+        result.ready === true &&
+        result.enabled === true &&
+        result.status === 'CONFIGURED' &&
+        result.healthStatus === 'HEALTHY',
+      );
+      return {
+        verified,
+        summary: verified
+          ? `Verified connector '${action.bridgeId}' is CONFIGURED, ENABLED, and HEALTHY for DBK '${tenantId}'.`
+          : `Connector activation verification failed for '${action.bridgeId}' on DBK '${tenantId}'.`,
+        data: { dbkId: tenantId, bridgeId: action.bridgeId, executionResult: data },
+      };
+    }
+
     if (action.kind === 'ACTIVATE_BUSINESS') {
       if (!tenantId) return { verified: false, summary: 'Business activation verification requires an authoritative DBK target.' };
       const dbk = await dbkRegistry.getDbk(instruction.context, tenantId);
