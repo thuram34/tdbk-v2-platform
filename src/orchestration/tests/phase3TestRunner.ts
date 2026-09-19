@@ -481,7 +481,7 @@ export class Phase3TestRunner {
     // -----------------------------------------------------------------
     try {
       await financialLedgerRepository.savePendingTransaction({
-        transactionId: 'txn_mpesa_CO_DUP_TEST', tenantId: 'tenant_school_a', branchId: null,
+        transactionId: 'mpesa_CO_DUP_TEST', tenantId: 'tenant_school_a', branchId: null,
         source: 'MPESA', providerReference: 'CO_DUP_TEST', amount: 100, currency: 'KES', status: 'PENDING',
         description: 'test', correlationId: 'corr_cb_dup', createdAt: new Date().toISOString(), postedAt: null, reversedAt: null,
       });
