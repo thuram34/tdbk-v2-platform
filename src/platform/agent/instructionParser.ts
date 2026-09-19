@@ -35,6 +35,17 @@ export class TdbkInstructionParser {
       });
     };
 
+    if (/\\b(compose|reconcile|synchronize|sync|align).*\\b(business|capabilities|modules)\\b/.test(text) || /\\bcompose\\b.*\\bdbk\\b/.test(text)) {
+      add(
+        'COMPOSE_BUSINESS',
+        'ADMIN',
+        `Compose the blueprint-driven operational capability set for DBK ${targetTenantId || '(target required)'} without disabling existing capabilities.`,
+        true,
+        targetTenantId,
+      );
+      return { intent: 'BUSINESS_COMPOSITION', actions };
+    }
+
     if (/(enable|activate|install).*\bcapability\b/.test(text)) {
       add('ENABLE_CAPABILITY', 'ADMIN', `Enable capability ${capabilityId || '(target required)'} for DBK ${targetTenantId || '(target required)'}.`, true, targetTenantId);
       if (actions[actions.length - 1]) actions[actions.length - 1].capabilityId = capabilityId;
