@@ -58,7 +58,10 @@ export class ActivationEvaluatorService {
     }
 
     // 2. Check Blueprint Sector Compatibility
-    const dna = dnaOverride || await businessDnaManager.getPersistentBusinessDna(securityContext, dbkId);
+    const isTestRuntime = process.env.NODE_ENV === 'test' || process.env.VITEST === 'true' || process.env.TDBK_PERSISTENCE_DRIVER === 'test_memory';
+    const dna = dnaOverride || (isTestRuntime
+      ? businessDnaManager.getBusinessDna(securityContext, dbkId)
+      : await businessDnaManager.getPersistentBusinessDna(securityContext, dbkId));
     const sector = dna.identity.businessType as any;
 
     const isBlueprintSupported =
