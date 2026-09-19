@@ -1,6 +1,8 @@
 import { dbkRegistry } from '../dbkRegistry';
 import { businessStateEngine } from '../businessState/businessStateEngine';
 import { dbkCapabilityManager } from '../../capability/dbkCapabilityManager';
+import { branchManager } from '../branch/branchManager';
+import { workspaceManager } from '../workspace/workspaceManager';
 import { AgentAction, AgentInstruction, AgentVerification } from './types';
 
 export class AgentVerificationEngine {
@@ -9,8 +11,9 @@ export class AgentVerificationEngine {
     action: AgentAction,
     data: unknown,
   ): Promise<AgentVerification> {
+    const tenantId = action.tenantId || instruction.context.tenantContext?.tenantId || instruction.context.principal.tenantId;
+
     if (action.kind === 'ENABLE_CAPABILITY' || action.kind === 'DISABLE_CAPABILITY') {
-      const tenantId = action.tenantId || instruction.context.tenantContext?.tenantId || instruction.context.principal.tenantId;
       if (!tenantId || !action.capabilityId) return { verified: false, summary: 'Capability verification requires an authoritative DBK and capability target.' };
       const record = await dbkCapabilityManager.hydratePersistentCapability(instruction.context, tenantId, action.capabilityId);
       const expected = action.kind === 'ENABLE_CAPABILITY' ? ['ENABLED', 'CONFIGURED'] : ['DISABLED'];
@@ -19,7 +22,6 @@ export class AgentVerificationEngine {
     }
 
     if (action.kind === 'REBUILD_BUSINESS_STATE') {
-      const tenantId = action.tenantId || instruction.context.tenantContext?.tenantId || instruction.context.principal.tenantId;
       if (!tenantId) return { verified: false, summary: 'Business-state repair verification requires an authoritative DBK target.' };
       const current = await dbkRegistry.getDbk(instruction.context, tenantId);
       if (!current) return { verified: false, summary: `DBK '${tenantId}' could not be read during repair verification.` };
@@ -34,6 +36,47 @@ export class AgentVerificationEngine {
       };
     }
 
+    if (action.kind === 'ENSURE_HEADQUARTERS_BRANCH') {
+      if (!tenantId) return { verified: false, summary: 'Headquarters verification requires an authoritative DBK target.' };
+      const hq = await branchManager.getPersistentBranch(instruction.context, tenantId, `${tenantId}_hq`);
+      const verified = Boolean(hq && hq.dbkId === tenantId && hq.isHeadquarters && hq.status === 'ACTIVE');
+      return {
+        verified,
+        summary: verified
+          ? `Verified headquarters branch '${tenantId}_hq' is ACTIVE for DBK '${tenantId}'.`
+          : `Verification failed: headquarters branch '${tenantId}_hq' is not active for DBK '${tenantId}'.`,
+        data: { dbkId: tenantId, branchId: hq?.branchId ?? null, executionResult: data },
+      };
+    }
+
+    if (action.kind === 'REFRESH_DBK_TOPOLOGY') {
+      if (!tenantId) return { verified: false, summary: 'Topology verification requires an authoritative DBK target.' };
+      const dbk = await dbkRegistry.getDbk(instruction.context, tenantId);
+      const branches = await branchManager.listPersistentBranches(instruction.context, tenantId);
+      const verified = Boolean(dbk && JSON.stringify(dbk.branchTopology) === JSON.stringify(branches));
+      return {
+        verified,
+        summary: verified
+          ? `Verified DBK '${tenantId}' branchTopology matches authoritative branch storage.`
+          : `Verification failed: DBK '${tenantId}' branchTopology does not match authoritative branch storage.`,
+        data: { dbkId: tenantId, branchCount: branches.length, executionResult: data },
+      };
+    }
+
+    if (action.kind === 'RECOMPILE_WORKSPACE') {
+      if (!tenantId) return { verified: false, summary: 'Workspace verification requires an authoritative DBK target.' };
+      const workspace = await workspaceManager.compileWorkspaceState(instruction.context, tenantId);
+      const dbk = await dbkRegistry.getDbk(instruction.context, tenantId);
+      const verified = Boolean(workspace && dbk && workspace.dbkId === dbk.dbkId && workspace.status === dbk.status);
+      return {
+        verified,
+        summary: verified
+          ? `Verified workspace projection for DBK '${tenantId}' compiles from authoritative DBK state.`
+          : `Workspace verification failed for DBK '${tenantId}'.`,
+        data: { dbkId: tenantId, workspaceVersion: workspace.workspaceVersion, executionResult: data },
+      };
+    }
+
     if (!['SUSPEND_DBK', 'REACTIVATE_DBK', 'ARCHIVE_DBK', 'RESTORE_DBK'].includes(action.kind)) {
       return {
         verified: true,
@@ -41,10 +84,6 @@ export class AgentVerificationEngine {
       };
     }
 
-    const tenantId =
-      action.tenantId ||
-      instruction.context.tenantContext?.tenantId ||
-      instruction.context.principal.tenantId;
     if (!tenantId) {
       return { verified: false, summary: 'Postcondition verification requires an authoritative DBK target.' };
     }
