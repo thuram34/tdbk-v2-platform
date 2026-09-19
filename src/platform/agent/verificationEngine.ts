@@ -41,6 +41,42 @@ export class AgentVerificationEngine {
       };
     }
 
+    if (action.kind === 'ACTIVATE_BUSINESS') {
+      if (!tenantId) return { verified: false, summary: 'Business activation verification requires an authoritative DBK target.' };
+      const dbk = await dbkRegistry.getDbk(instruction.context, tenantId);
+      const branches = await branchManager.listPersistentBranches(instruction.context, tenantId);
+      const workspace = await workspaceManager.compileWorkspaceState(instruction.context, tenantId);
+      const result = data as {
+        headquartersReady?: boolean;
+        composition?: { appliedCapabilityIds?: string[]; plan?: { items?: Array<{ capabilityId: string; outcome: string }> } };
+      } | undefined;
+      const activeHq = branches.some((branch) => branch.isHeadquarters && branch.status === 'ACTIVE');
+      const verified = Boolean(
+        dbk &&
+        dbk.status === 'ACTIVE' &&
+        activeHq &&
+        workspace &&
+        workspace.dbkId === tenantId &&
+        result?.headquartersReady === true &&
+        result?.composition?.plan,
+      );
+      return {
+        verified,
+        summary: verified
+          ? `Verified DBK '${tenantId}' is operationally activated: ACTIVE identity, ACTIVE headquarters, durable composition, and workspace compilation are present.`
+          : `Business activation verification failed for DBK '${tenantId}'.`,
+        data: {
+          dbkId: tenantId,
+          status: dbk?.status ?? null,
+          branchCount: branches.length,
+          hasActiveHeadquarters: activeHq,
+          workspaceVersion: workspace?.workspaceVersion ?? null,
+          appliedCapabilityIds: result?.composition?.appliedCapabilityIds || [],
+          executionResult: data,
+        },
+      };
+    }
+
     if (action.kind === 'COMPOSE_BUSINESS') {
       if (!tenantId) return { verified: false, summary: 'Business composition verification requires an authoritative DBK target.' };
       const composition = data as {
