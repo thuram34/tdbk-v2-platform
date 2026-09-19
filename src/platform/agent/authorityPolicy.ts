@@ -44,6 +44,16 @@ export class AgentAuthorityPolicy {
       return { allowed: true, reason: 'TDBK MASTER lifecycle authority verified.' };
     }
 
+    if (action.kind === 'REBUILD_BUSINESS_STATE') {
+      if (!tenantId) return { allowed: false, reason: 'Authoritative tenant context is required for business-state repair.' };
+      try {
+        masterAuthority.assertTenantAuthority(instruction.context, tenantId, 'agent.businessStateRepair');
+        return { allowed: true, reason: 'Tenant authority verified for business-state repair.' };
+      } catch (error) {
+        return { allowed: false, reason: error instanceof Error ? error.message : 'Tenant authority required for business-state repair.' };
+      }
+    }
+
     if (action.kind === 'RECOVER_WORKFLOWS' || action.kind === 'EXECUTE_WORKFLOW') {
       if (!tenantId) return { allowed: false, reason: 'Authoritative tenant context is required for workflow mutation.' };
 
