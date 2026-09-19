@@ -18,6 +18,7 @@ import { financialLedgerRepository } from '../../../persistence/firestore/reposi
 import { outboxEngine } from '../../outbox/outboxEngine';
 import { firestoreClient } from '../../../persistence/firestore/firestoreClient';
 import { resolveConnectorSecret } from '../connectorSecretResolver';
+import { reconciliationService } from '../../../finance/reconciliationService';
 
 export interface MpesaSTKPushRequest {
   phoneNumber: string;
@@ -238,6 +239,8 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
       reversedAt: null,
     });
 
+    let providerCheckoutRequestId: string | null = null;
+
     try {
       const authHeader = Buffer.from(`${consumerKey}:${consumerSecret}`).toString('base64');
       const tokenResponse = await fetch(`${baseUrl.replace(/\/$/, '')}${oauthPath}`, {
@@ -280,6 +283,7 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
       }
 
       const checkoutRequestId = String(providerBody.CheckoutRequestID);
+      providerCheckoutRequestId = checkoutRequestId;
       const merchantRequestId = String(providerBody.MerchantRequestID || '');
       const boundTransaction = {
         transactionId: `mpesa_${checkoutRequestId}`,
@@ -338,12 +342,28 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
         },
       };
     } catch (error: any) {
-      await financialLedgerRepository.failPendingTransaction(
-        tenantId,
-        initiationId,
-        error?.message || 'M-Pesa provider initiation failed'
-      ).catch(() => undefined);
-      throw new KernelError('INTEGRATION_UNAVAILABLE', error?.message || 'M-Pesa provider initiation failed', 503, context.requestId);
+      const reason = error?.message || 'M-Pesa provider initiation failed';
+
+      // The provider may have accepted the request even if the local bind failed.
+      // Never convert that ambiguous outcome to FAILED: preserve the provider
+      // reference so callback/reconciliation can recover the payment.
+      if (providerCheckoutRequestId) {
+        await reconciliationService.markRequired(tenantId, initiationId, 'PENDING', {
+          providerReference: providerCheckoutRequestId,
+          description: payload.transactionDesc + ' [Provider accepted; local binding failed: ' + reason + ']',
+        }).catch(() => undefined);
+      } else {
+        await financialLedgerRepository.failPendingTransaction(tenantId, initiationId, reason).catch(() => undefined);
+      }
+
+      throw new KernelError(
+        'INTEGRATION_UNAVAILABLE',
+        providerCheckoutRequestId
+          ? 'M-Pesa request was accepted by the provider but local persistence is uncertain; reconciliation is required'
+          : reason,
+        503,
+        context.requestId
+      );
     }
   }
 
@@ -430,6 +450,7 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
     const idempotencyTenant = callbackTenant || requestTenant || 'unknown';
     const normalized = this.normalizeResponse(rawCallback);
     let initiatedBranchId: string | null = context.branchContext?.branchId || null;
+    let authoritativeTransactionId = `mpesa_${stk.CheckoutRequestID}`;
 
     // In production, a callback is only a claim about a previously initiated payment.
     // The initiation path must durably record the checkout request before provider contact.
@@ -441,13 +462,33 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
       if (!connection || !connection.enabled || connection.status !== 'CONFIGURED') {
         throw new KernelError('INTEGRATION_UNAVAILABLE', 'M-Pesa callback rejected: tenant connection is not configured', 503, context.requestId);
       }
-      const initiated = await firestoreClient.get<any>(
-        `/tenants/${requestTenant}/financialTransactions/mpesa_${stk.CheckoutRequestID}`
-      );
-      if (!initiated || initiated.tenantId !== requestTenant || initiated.providerReference !== stk.CheckoutRequestID || initiated.status !== 'PENDING') {
+      const boundPath = `/tenants/${requestTenant}/financialTransactions/mpesa_${stk.CheckoutRequestID}`;
+      let initiated = await firestoreClient.get<any>(boundPath);
+
+      // Crash-recovery path: provider accepted the request, but the process died
+      // before bindPendingTransaction completed. The initiation record remains
+      // authoritative and is marked RECONCILIATION_REQUIRED with the provider ref.
+      if (!initiated) {
+        const candidates = await firestoreClient.listCollection<any>(
+          `/tenants/${requestTenant}/financialTransactions`
+        );
+        initiated = candidates.find((record) =>
+          record?.tenantId === requestTenant &&
+          record?.providerReference === stk.CheckoutRequestID &&
+          record?.status === 'RECONCILIATION_REQUIRED'
+        ) || null;
+      }
+
+      if (
+        !initiated ||
+        initiated.tenantId !== requestTenant ||
+        initiated.providerReference !== stk.CheckoutRequestID ||
+        !['PENDING', 'RECONCILIATION_REQUIRED'].includes(initiated.status)
+      ) {
         throw new KernelError('VALIDATION_ERROR', 'M-Pesa callback rejected: checkout request was not durably initiated by TDBK', 422, context.requestId);
       }
       initiatedBranchId = initiated.branchId || null;
+      authoritativeTransactionId = initiated.transactionId;
       if (normalized.status === 'SUCCESS' && Number(initiated.amount) !== Number(normalized.amount)) {
         throw new KernelError('VALIDATION_ERROR', 'M-Pesa callback amount does not match the initiated transaction', 422, context.requestId);
       }
@@ -477,7 +518,7 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
       await tx.set(claimPath, claimRecord);
 
       if (normalized.status === 'FAILED') {
-        const transactionId = `mpesa_${stk.CheckoutRequestID}`;
+        const transactionId = authoritativeTransactionId;
         const existingTransaction = await tx.get<any>(`/tenants/${idempotencyTenant}/financialTransactions/${transactionId}`);
         if (!existingTransaction) throw new Error('M-Pesa failed callback has no authoritative pending transaction');
         if (
@@ -494,7 +535,7 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
       }
 
       if (normalized.status === 'SUCCESS') {
-        const transactionId = `mpesa_${stk.CheckoutRequestID}`;
+        const transactionId = authoritativeTransactionId;
         const now = new Date().toISOString();
         const existingTransaction = await tx.get<any>(`/tenants/${idempotencyTenant}/financialTransactions/${transactionId}`);
         if (!existingTransaction) {
