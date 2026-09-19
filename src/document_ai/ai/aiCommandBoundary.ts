@@ -413,6 +413,7 @@ export class AiCommandBoundary {
           const studentPayload = {
             ...finalPayload,
             admissionNo: finalPayload.admissionNo || finalPayload.admissionNumber,
+            fullName: finalPayload.fullName || finalPayload.studentName,
           };
           const student = await entityEngine.createPersistentRecord(ctx, tenantId, 'student_records', {
             id: `ai_student_${proposalId}`,
