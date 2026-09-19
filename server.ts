@@ -211,6 +211,65 @@ async function startServer() {
   });
 
   // -------------------------------------------------------------
+  // TDBK CONNECTOR CONFIGURATION PLANE
+  // Configuration accepts only non-secret parameters and secret references.
+  // Raw secret material is rejected by the configuration service.
+  // -------------------------------------------------------------
+  app.post('/api/connectors/configure', async (req: Request, res: Response) => {
+    try {
+      const context = await securityContextFactory.createSecurityContext({
+        authHeader: req.headers.authorization,
+        targetTenantId: req.body?.tenantId,
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+      });
+      const { connectorConfigurationService } = await import('./src/platform/connectors/connectorConfigurationService');
+      const result = await connectorConfigurationService.configure(context, req.body);
+      return res.status(result.created ? 201 : 200).json({ status: 'SUCCESS', ...result });
+    } catch (err) {
+      if (err instanceof KernelError) return res.status(err.statusCode).json(err.toJSON());
+      return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: (err as Error).message } });
+    }
+  });
+
+  app.get('/api/connectors/:tenantId', async (req: Request, res: Response) => {
+    try {
+      const { tenantId } = req.params;
+      const context = await securityContextFactory.createSecurityContext({
+        authHeader: req.headers.authorization,
+        targetTenantId: tenantId,
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+      });
+      const { connectorConfigurationService } = await import('./src/platform/connectors/connectorConfigurationService');
+      const connections = await connectorConfigurationService.list(context, tenantId);
+      return res.json({ status: 'SUCCESS', connections });
+    } catch (err) {
+      if (err instanceof KernelError) return res.status(err.statusCode).json(err.toJSON());
+      return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: (err as Error).message } });
+    }
+  });
+
+  app.get('/api/connectors/:tenantId/:bridgeId', async (req: Request, res: Response) => {
+    try {
+      const { tenantId, bridgeId } = req.params;
+      const context = await securityContextFactory.createSecurityContext({
+        authHeader: req.headers.authorization,
+        targetTenantId: tenantId,
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+      });
+      const { connectorConfigurationService } = await import('./src/platform/connectors/connectorConfigurationService');
+      const connection = await connectorConfigurationService.get(context, tenantId, bridgeId);
+      if (!connection) return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Connector connection not found' } });
+      return res.json({ status: 'SUCCESS', connection });
+    } catch (err) {
+      if (err instanceof KernelError) return res.status(err.statusCode).json(err.toJSON());
+      return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: (err as Error).message } });
+    }
+  });
+
+  // -------------------------------------------------------------
   // MASTER & TENANT VERIFICATION ENDPOINTS
   // -------------------------------------------------------------
   app.get('/api/master/verify', async (req: Request, res: Response) => {
