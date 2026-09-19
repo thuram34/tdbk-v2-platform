@@ -35,6 +35,17 @@ export class TdbkInstructionParser {
       });
     };
 
+    if (/\b(connectors?|bridges?|integrations?)\b/.test(text) && /\b(inspect|check|status|readiness|health|connections?|list)\b/.test(text)) {
+      add(
+        'INSPECT_CONNECTORS',
+        'OBSERVE',
+        `Inspect connector and bridge readiness for DBK ${targetTenantId || '(target required)'}.`,
+        false,
+        targetTenantId,
+      );
+      return { intent: 'CONNECTOR_READINESS_INSPECTION', actions };
+    }
+
     if (/\b(activate|initialize|make|prepare|operationalize).*\b(business|dbk)\b/.test(text) || /\bactivate\b.*\bdbk\b/.test(text)) {
       add(
         'ACTIVATE_BUSINESS',
