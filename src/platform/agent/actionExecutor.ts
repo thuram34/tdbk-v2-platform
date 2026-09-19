@@ -8,7 +8,6 @@ import { workspaceManager } from '../workspace/workspaceManager';
 import { provisioningService } from '../provisioning/provisioningService';
 import { businessCompositionService } from '../composition/businessCompositionService';
 import { connectorReadinessService } from '../connectors/connectorReadinessService';
-import { connectorReadinessService } from '../connectors/connectorReadinessService';
 import { AgentAction, AgentActionResult, AgentInstruction } from './types';
 
 export class AgentActionExecutor {
