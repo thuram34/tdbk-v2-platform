@@ -87,8 +87,8 @@ export class BusinessCompositionService {
       }
 
       const blueprintSupported =
-        definition.supportedBlueprints.includes('ALL') ||
-        definition.supportedBlueprints.includes(blueprint.sector) ||
+        (definition.supportedBlueprints as string[]).includes('ALL') ||
+        (definition.supportedBlueprints as string[]).includes(blueprint.sector) ||
         blueprint.supportedCapabilities.some((capability) => capability.id === capabilityId);
 
       const record = byId.get(capabilityId);
