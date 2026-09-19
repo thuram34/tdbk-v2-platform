@@ -81,14 +81,22 @@ export class ReceiptService {
         deliveredAt: null,
       };
 
-      await receiptRepository.createIfAbsent(
+      const created = await receiptRepository.createIfAbsent(
         tenantId,
         receipt,
         transaction,
         outboxRecord
       );
 
-      return receipt;
+      if (created) return receipt;
+
+      const existing = await transaction.get<FinancialReceipt>(
+        `/tenants/${tenantId}/receipts/${receipt.receiptId}`
+      );
+      if (!existing) {
+        throw new Error(`Receipt '${receipt.receiptId}' disappeared during idempotent creation`);
+      }
+      return existing;
     });
   }
 
