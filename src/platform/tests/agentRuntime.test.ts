@@ -159,6 +159,16 @@ describe('TDBK command agent', () => {
     });
   });
 
+  it('parses arbitrary registered bridge IDs without truncating their first character', () => {
+    const parser = new TdbkInstructionParser();
+    const result = parser.parse({
+      instructionId: 'i_generic_connector_activate',
+      text: 'Activate bridge stripe for DBK shop_mombasa',
+      context: {} as any,
+    });
+    expect(result.actions[0].bridgeId).toBe('stripe');
+  });
+
   it('allows tenant-authorized connector activation', async () => {
     const policy = new AgentAuthorityPolicy();
     const result = await policy.authorize({
@@ -218,7 +228,7 @@ describe('TDBK command agent', () => {
           isMaster: false,
           tenantId: 'shop_mombasa',
           branchId: null,
-          roles: ['OWNER_OPERATOR'],
+          roles: ['BUSINESS_OWNER'],
           permissions: [],
           authTime: Date.now(),
           tokenSource: 'SESSION',
@@ -294,7 +304,7 @@ describe('TDBK command agent', () => {
           isMaster: false,
           tenantId: null,
           branchId: null,
-          roles: ['OWNER_OPERATOR'],
+          roles: ['BUSINESS_OWNER'],
           permissions: [],
           authTime: Date.now(),
           tokenSource: 'SESSION',
@@ -379,6 +389,27 @@ describe('TDBK command agent', () => {
     );
     expect(result.allowed).toBe(false);
     expect(result.reason).toContain('TDBK MASTER');
+  });
+
+  it('does not let a tenant staff member escalate a mutation using requested authority', async () => {
+    const policy = new AgentAuthorityPolicy();
+    const result = await policy.authorize({
+      instructionId: 'i_staff_escalation',
+      text: 'Disable capability pos for DBK shop_mombasa',
+      context: {
+        requestId: 'req_staff_escalation',
+        principal: {
+          id: 'staff', isMaster: false, tenantId: 'shop_mombasa', branchId: null,
+          roles: ['STAFF'], permissions: [], authTime: Date.now(), tokenSource: 'SESSION',
+        },
+      } as any,
+      requestedAuthority: 'ADMIN',
+    }, {
+      actionId: 'a_staff_escalation', kind: 'DISABLE_CAPABILITY', authority: 'ADMIN',
+      description: 'disable capability', requiresAuthorization: true, tenantId: 'shop_mombasa', capabilityId: 'pos',
+    });
+    expect(result.allowed).toBe(false);
+    expect(result.reason).toContain('capabilities:write');
   });
 
   it('allows tenant-authorized DBK construction', async () => {

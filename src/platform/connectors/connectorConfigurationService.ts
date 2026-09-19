@@ -8,6 +8,7 @@
 import { SecurityContext } from '../../kernel/types';
 import { KernelError } from '../../kernel/errors/kernelErrors';
 import { masterAuthority } from '../../kernel/master/masterAuthority';
+import { rbacEngine } from '../../kernel/authorization/rbacEngine';
 import { auditLogger } from '../../kernel/audit/auditLogger';
 import { ConnectorConnection, ConnectorSecretReference } from '../../persistence/types';
 import { connectorConnectionRepository } from '../../persistence/firestore/repositories/connectorConnectionRepository';
@@ -28,6 +29,21 @@ export interface ConnectorConfigurationResult {
 }
 
 class ConnectorConfigurationService {
+  private assertConfigurationWriteAuthority(context: SecurityContext): void {
+    const principal = context.principal;
+    const isConnectorAdministrator = principal.roles.some((role) =>
+      ['TENANT_ADMIN', 'OWNER_OPERATOR', 'BUSINESS_OWNER'].includes(role),
+    );
+    if (!isConnectorAdministrator && !rbacEngine.hasPermission(principal, 'connectors:write')) {
+      throw new KernelError(
+        'AUTHORIZATION_ERROR',
+        "Connector configuration requires the 'connectors:write' permission or tenant administrator role.",
+        403,
+        context.requestId,
+      );
+    }
+  }
+
   private validateSecretReference(key: string, reference: ConnectorSecretReference, requestId: string): void {
     if (!reference || reference.provider !== 'GCP_SECRET_MANAGER') {
       throw new KernelError('VALIDATION_ERROR', `Secret reference '${key}' must use GCP_SECRET_MANAGER.`, 400, requestId);
@@ -47,6 +63,9 @@ class ConnectorConfigurationService {
     const required = new Set(definition.configurationRequirements);
 
     for (const key of Object.keys(parameters)) {
+      if (!required.has(key)) {
+        throw new KernelError('VALIDATION_ERROR', `Connector parameter '${key}' is not declared by bridge '${definition.bridgeId}'.`, 400, context.requestId);
+      }
       if (typeof parameters[key] !== 'string') {
         throw new KernelError('VALIDATION_ERROR', `Invalid connector parameter '${key}'.`, 400, context.requestId);
       }
@@ -77,6 +96,7 @@ class ConnectorConfigurationService {
   public async configure(context: SecurityContext, request: ConfigureConnectorRequest): Promise<ConnectorConfigurationResult> {
     if (!request.tenantId) throw new KernelError('VALIDATION_ERROR', 'tenantId is required.', 400, context.requestId);
     await masterAuthority.assertTenantAuthority(context, request.tenantId, 'CONFIGURE_CONNECTOR');
+    this.assertConfigurationWriteAuthority(context);
 
     const definition = bridgeRegistry.getBridgeDefinition(request.bridgeId);
     if (!definition) throw new KernelError('VALIDATION_ERROR', `Unknown bridge '${request.bridgeId}'.`, 404, context.requestId);

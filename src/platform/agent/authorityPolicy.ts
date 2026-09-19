@@ -14,6 +14,31 @@ const rank: Record<AgentAuthority, number> = {
 };
 
 export class AgentAuthorityPolicy {
+  private async authorizeTenantMutation(
+    instruction: AgentInstruction,
+    tenantId: string,
+    actionName: string,
+    permissions: string[],
+  ): Promise<{ allowed: boolean; reason: string }> {
+    const principal = instruction.context.principal;
+    try {
+      await masterAuthority.assertTenantAuthority(instruction.context, tenantId, actionName);
+    } catch (error) {
+      return { allowed: false, reason: error instanceof Error ? error.message : 'Tenant authority required.' };
+    }
+
+    const administrativeRoles = ['TENANT_ADMIN', 'OWNER_OPERATOR', 'BUSINESS_OWNER'];
+    const hasAdministrativeRole = principal.roles.some((role) => administrativeRoles.includes(role));
+    const hasRequiredPermission = permissions.some((permission) => rbacEngine.hasPermission(principal, permission));
+    if (!hasAdministrativeRole && !hasRequiredPermission) {
+      return {
+        allowed: false,
+        reason: `Mutation requires one of [${permissions.join(', ')}] or a tenant administrator role.`,
+      };
+    }
+    return { allowed: true, reason: 'Tenant mutation authority verified against principal permissions/role.' };
+  }
+
   public async authorize(instruction: AgentInstruction, action: AgentAction): Promise<{ allowed: boolean; reason: string }> {
     if (!instruction.context.principal) {
       return { allowed: false, reason: 'Authenticated principal required.' };
@@ -59,12 +84,7 @@ export class AgentAuthorityPolicy {
 
     if (action.kind === 'ACTIVATE_CONNECTOR') {
       if (!tenantId) return { allowed: false, reason: 'Authoritative tenant context is required for connector activation.' };
-      try {
-        masterAuthority.assertTenantAuthority(instruction.context, tenantId, 'agent.connectorActivation');
-        return { allowed: true, reason: 'Tenant authority verified for connector activation.' };
-      } catch (error) {
-        return { allowed: false, reason: error instanceof Error ? error.message : 'Tenant authority required for connector activation.' };
-      }
+      return this.authorizeTenantMutation(instruction, tenantId, 'agent.connectorActivation', ['connectors:write']);
     }
 
     if (action.kind === 'INSPECT_CONNECTORS') {
@@ -79,22 +99,12 @@ export class AgentAuthorityPolicy {
 
     if (action.kind === 'ACTIVATE_BUSINESS') {
       if (!tenantId) return { allowed: false, reason: 'Authoritative tenant context is required for business activation.' };
-      try {
-        masterAuthority.assertTenantAuthority(instruction.context, tenantId, 'agent.businessActivation');
-        return { allowed: true, reason: 'Tenant authority verified for end-to-end business activation.' };
-      } catch (error) {
-        return { allowed: false, reason: error instanceof Error ? error.message : 'Tenant authority required for business activation.' };
-      }
+      return this.authorizeTenantMutation(instruction, tenantId, 'agent.businessActivation', ['dbk:write']);
     }
 
     if (action.kind === 'COMPOSE_BUSINESS') {
       if (!tenantId) return { allowed: false, reason: 'Authoritative tenant context is required for business composition.' };
-      try {
-        masterAuthority.assertTenantAuthority(instruction.context, tenantId, 'agent.businessComposition');
-        return { allowed: true, reason: 'Tenant authority verified for blueprint-driven business composition.' };
-      } catch (error) {
-        return { allowed: false, reason: error instanceof Error ? error.message : 'Tenant authority required for business composition.' };
-      }
+      return this.authorizeTenantMutation(instruction, tenantId, 'agent.businessComposition', ['dbk:write']);
     }
 
     if (
@@ -105,22 +115,15 @@ export class AgentAuthorityPolicy {
       action.kind === 'REFRESH_DBK_TOPOLOGY'
     ) {
       if (!tenantId) return { allowed: false, reason: 'Authoritative tenant context is required for DBK mutation.' };
-      try {
-        masterAuthority.assertTenantAuthority(instruction.context, tenantId, 'agent.dbkConstruction');
-        return { allowed: true, reason: 'Tenant authority verified for agent-controlled DBK construction/repair.' };
-      } catch (error) {
-        return { allowed: false, reason: error instanceof Error ? error.message : 'Tenant authority required for agent-controlled DBK mutation.' };
-      }
+      const permission = action.kind === 'ENABLE_CAPABILITY' || action.kind === 'DISABLE_CAPABILITY'
+        ? 'capabilities:write'
+        : 'dbk:write';
+      return this.authorizeTenantMutation(instruction, tenantId, 'agent.dbkConstruction', [permission]);
     }
 
     if (action.kind === 'RECOMPILE_WORKSPACE') {
       if (!tenantId) return { allowed: false, reason: 'Authoritative tenant context is required for workspace compilation.' };
-      try {
-        masterAuthority.assertTenantAuthority(instruction.context, tenantId, 'agent.workspaceCompilation');
-        return { allowed: true, reason: 'Tenant authority verified for workspace compilation.' };
-      } catch (error) {
-        return { allowed: false, reason: error instanceof Error ? error.message : 'Tenant authority required for workspace compilation.' };
-      }
+      return this.authorizeTenantMutation(instruction, tenantId, 'agent.workspaceCompilation', ['workspace:write']);
     }
 
     if (action.kind === 'RECOVER_WORKFLOWS' || action.kind === 'EXECUTE_WORKFLOW') {
@@ -140,19 +143,6 @@ export class AgentAuthorityPolicy {
       return result.allowed
         ? { allowed: true, reason: result.reason }
         : { allowed: false, reason: result.reason };
-    }
-
-    if (action.authority === 'MASTER') {
-      try {
-        masterAuthority.assertMasterAuthority(
-          instruction.context.principal,
-          'agent.masterAction',
-          instruction.context.requestId,
-        );
-        return { allowed: true, reason: 'TDBK MASTER authority verified.' };
-      } catch {
-        return { allowed: false, reason: 'TDBK MASTER authority required.' };
-      }
     }
 
     if (!action.requiresAuthorization) {

@@ -46,10 +46,6 @@ export class AgentExecutionRepository {
     return firestoreClient.get<AgentExecutionRecord>(this.path(null, executionId));
   }
 
-  public async getSystem(executionId: string): Promise<AgentExecutionRecord | null> {
-    return firestoreClient.get<AgentExecutionRecord>(this.path(null, executionId));
-  }
-
   public async list(tenantId: string): Promise<AgentExecutionRecord[]> {
     return firestoreClient.listCollection<AgentExecutionRecord>(`/tenants/${tenantId}/agentExecutions`);
   }

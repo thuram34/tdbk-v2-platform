@@ -1,7 +1,7 @@
 import { SecurityContext } from '../../kernel/types';
 import { connectorConnectionRepository } from '../../persistence/firestore/repositories/connectorConnectionRepository';
 import { bridgeRegistry } from '../../orchestration/bridge/registry';
-import { ConnectorConnectionStatus } from '../../persistence/types';
+import { ConnectorConnectionStatus, ConnectorHealthStatus } from '../../persistence/types';
 import { connectionHub } from '../../orchestration/bridge/connectionHub';
 import { masterAuthority } from '../../kernel/master/masterAuthority';
 
@@ -63,10 +63,10 @@ class ConnectorReadinessService {
     }
 
     const configured = await connectionHub.setStatus(context, bridgeId, 'CONFIGURED', true);
-    let healthStatus = configured.lastHealthStatus;
+    let healthStatus: ConnectorHealthStatus = configured.lastHealthStatus;
     try {
       const health = await connectionHub.health(context, bridgeId);
-      healthStatus = health.status;
+      healthStatus = health.status === 'DEGRADED' ? 'ERROR' : health.status;
     } catch (error) {
       healthStatus = 'ERROR';
       blockers.push(error instanceof Error ? error.message : 'HEALTH_CHECK_FAILED');
@@ -84,7 +84,7 @@ class ConnectorReadinessService {
     const connections = await connectorConnectionRepository.listConnections(tenantId);
     const byBridge = new Map(connections.map((connection) => [connection.bridgeId, connection]));
 
-    const items = bridgeRegistry.listBridgeDefinitions().map((definition) => {
+    const items: ConnectorReadinessItem[] = bridgeRegistry.listBridgeDefinitions().map((definition) => {
       const connection = byBridge.get(definition.bridgeId);
       const blockers: string[] = [];
 
@@ -107,9 +107,9 @@ class ConnectorReadinessService {
         capabilityId: definition.capabilityId,
         implementationStatus: definition.status,
         requiredParameters: [...definition.configurationRequirements],
-        connectionStatus: connection?.status || 'MISSING',
+        connectionStatus: connection?.status ?? 'MISSING',
         enabled: connection?.enabled || false,
-        healthStatus: connection?.lastHealthStatus || 'UNKNOWN',
+        healthStatus: connection?.lastHealthStatus ?? 'UNKNOWN',
         adapterRegistered: Boolean(bridgeRegistry.getBridgeInstance(definition.bridgeId)),
         ready: blockers.length === 0,
         blockers,

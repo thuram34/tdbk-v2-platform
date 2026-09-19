@@ -51,7 +51,7 @@ describe('TDBK repair planner', () => {
           outbox: {} as any,
         },
       ],
-    }, {} as any);
+    });
 
     expect(result.findings).toHaveLength(0);
     expect(result.safeToExecute).toBe(false);

@@ -12,7 +12,7 @@ export class TdbkInstructionParser {
     const targetTenantId =
       explicitTenantId ||
       instruction.context.tenantContext?.tenantId ||
-      instruction.context.principal.tenantId;
+      instruction.context.principal?.tenantId;
     const workflowId = this.extractIdentifier(text, /\b(wf_[a-z0-9_-]+)\b/i);
     const capabilityId = this.extractIdentifier(text, /\bcapability[:\s_-]*([a-z0-9][a-z0-9_-]*)\b/i);
 
@@ -173,7 +173,7 @@ export class TdbkInstructionParser {
 
   private extractBridgeId(text: string): string | undefined {
     const aliases: Array<[RegExp, string]> = [
-      [/\bmpesa\b/i, 'bridge_mpesa'],
+      [/\bm[-\s]?pesa\b/i, 'bridge_mpesa'],
       [/\betims\b/i, 'bridge_etims'],
       [/\bwhatsapp\b/i, 'bridge_whatsapp'],
       [/\bemail\b/i, 'bridge_email'],
@@ -181,7 +181,7 @@ export class TdbkInstructionParser {
       [/\bbank\b/i, 'bridge_bank'],
     ];
     for (const [pattern, bridgeId] of aliases) if (pattern.test(text)) return bridgeId;
-    return this.extractIdentifier(text, /\bbridge[:\\s_-]*([a-z0-9][a-z0-9_-]*)\b/i);
+    return this.extractIdentifier(text, /\bbridge[:\s_-]*([a-z0-9][a-z0-9_-]*)\b/i);
   }
 
   private extractIdentifier(text: string, pattern: RegExp): string | undefined {
