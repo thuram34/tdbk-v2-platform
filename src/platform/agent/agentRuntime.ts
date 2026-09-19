@@ -23,6 +23,8 @@ const EXECUTABLE_ACTIONS = new Set([
   'PROVISION_DBK',
   'COMPOSE_BUSINESS',
   'ACTIVATE_BUSINESS',
+  'INSPECT_CONNECTORS',
+  'ACTIVATE_CONNECTOR',
 ]);
 
 export class TdbkAgentRuntime {
