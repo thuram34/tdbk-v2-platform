@@ -2,7 +2,19 @@
 import { SecurityContext } from '../../kernel/types';
 
 export type AgentAuthority = 'OBSERVE' | 'DIAGNOSE' | 'SAFE_REPAIR' | 'WORKFLOW' | 'BUSINESS' | 'CONNECTOR' | 'ADMIN' | 'MASTER';
-export type AgentActionKind = 'INSPECT_PLATFORM' | 'INSPECT_DBKS' | 'INSPECT_BUSINESS_STATE' | 'INSPECT_WORKFLOWS' | 'PLAN_SAFE_REPAIR';
+
+export type AgentActionKind =
+  | 'INSPECT_PLATFORM'
+  | 'INSPECT_DBKS'
+  | 'INSPECT_BUSINESS_STATE'
+  | 'INSPECT_WORKFLOWS'
+  | 'PLAN_SAFE_REPAIR'
+  | 'SUSPEND_DBK'
+  | 'REACTIVATE_DBK'
+  | 'ARCHIVE_DBK'
+  | 'RESTORE_DBK'
+  | 'RECOVER_WORKFLOWS'
+  | 'EXECUTE_WORKFLOW';
 
 export interface AgentInstruction {
   instructionId: string;
@@ -16,6 +28,7 @@ export interface AgentAction {
   kind: AgentActionKind;
   authority: AgentAuthority;
   tenantId?: string;
+  workflowId?: string;
   description: string;
   requiresAuthorization: boolean;
 }
