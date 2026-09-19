@@ -1,5 +1,6 @@
 import { dbkLifecycleManager } from '../lifecycle/lifecycleManager';
 import { durableJobRuntime } from '../runtime/durableJobRuntime';
+import { businessStateEngine } from '../businessState/businessStateEngine';
 import { AgentAction, AgentActionResult, AgentInstruction } from './types';
 
 export class AgentActionExecutor {
@@ -25,6 +26,10 @@ export class AgentActionExecutor {
       case 'RESTORE_DBK':
         if (!tenantId) throw new Error('DBK target is required.');
         return this.completed(action, await dbkLifecycleManager.restoreDbk(instruction.context, tenantId, this.reason(instruction)));
+
+      case 'REBUILD_BUSINESS_STATE':
+        if (!tenantId) throw new Error('Authoritative tenant context is required.');
+        return this.completed(action, await businessStateEngine.project(instruction.context, tenantId));
 
       case 'RECOVER_WORKFLOWS':
         if (!tenantId) throw new Error('Authoritative tenant context is required.');
