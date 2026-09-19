@@ -57,6 +57,16 @@ export class AgentAuthorityPolicy {
       }
     }
 
+    if (action.kind === 'INSPECT_CONNECTORS') {
+      if (!tenantId) return { allowed: false, reason: 'Authoritative tenant context is required for connector inspection.' };
+      try {
+        masterAuthority.assertTenantAuthority(instruction.context, tenantId, 'agent.connectorInspection');
+        return { allowed: true, reason: 'Tenant authority verified for connector readiness inspection.' };
+      } catch (error) {
+        return { allowed: false, reason: error instanceof Error ? error.message : 'Tenant authority required for connector inspection.' };
+      }
+    }
+
     if (action.kind === 'ACTIVATE_BUSINESS') {
       if (!tenantId) return { allowed: false, reason: 'Authoritative tenant context is required for business activation.' };
       try {
