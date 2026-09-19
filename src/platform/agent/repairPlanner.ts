@@ -20,10 +20,10 @@ export interface AgentRepairPlan {
 export class AgentRepairPlanner {
   public async plan(context: SecurityContext): Promise<AgentRepairPlan> {
     const snapshot = await tdbkControlPlane.getSnapshot(context);
-    return this.planFromSnapshot(snapshot, context);
+    return this.planFromSnapshot(snapshot);
   }
 
-  public planFromSnapshot(snapshot: TdbkControlPlaneSnapshot, context: SecurityContext): AgentRepairPlan {
+  public planFromSnapshot(snapshot: TdbkControlPlaneSnapshot): AgentRepairPlan {
     const findings: AgentRepairFinding[] = snapshot.dbks
       .filter((dbk) => dbk.status !== 'ARCHIVED' && dbk.stateVersion === null)
       .map((dbk, index) => ({
