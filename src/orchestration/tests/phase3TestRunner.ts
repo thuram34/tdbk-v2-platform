@@ -763,7 +763,7 @@ export class Phase3TestRunner {
       results.push({
         id: 'P3_TEST_29',
         name: 'M-Pesa mock initiation flow',
-        passed: res.status === 'PENDING' && res.providerReference.startsWith('ws_CO_'),
+        passed: res.status === 'PENDING' && res.providerReference.startsWith('mock_CO_'),
         expected: 'PENDING with checkoutRequestId',
         actual: `status=${res.status}, ref=${res.providerReference}`,
       });
