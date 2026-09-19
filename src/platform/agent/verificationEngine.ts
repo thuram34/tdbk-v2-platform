@@ -1,4 +1,5 @@
 import { dbkRegistry } from '../dbkRegistry';
+import { businessStateEngine } from '../businessState/businessStateEngine';
 import { AgentAction, AgentInstruction, AgentVerification } from './types';
 
 export class AgentVerificationEngine {
@@ -12,7 +13,7 @@ export class AgentVerificationEngine {
       if (!tenantId) return { verified: false, summary: 'Business-state repair verification requires an authoritative DBK target.' };
       const current = await dbkRegistry.getDbk(instruction.context, tenantId);
       if (!current) return { verified: false, summary: `DBK '${tenantId}' could not be read during repair verification.` };
-      const snapshot = await (await import('../businessState/businessStateEngine')).businessStateEngine.getCurrent(instruction.context, tenantId);
+      const snapshot = await businessStateEngine.getCurrent(instruction.context, tenantId);
       const verified = Boolean(snapshot && snapshot.version > 0 && snapshot.dbkId === tenantId);
       return {
         verified,
