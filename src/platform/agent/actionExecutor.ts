@@ -5,6 +5,7 @@ import { dbkCapabilityManager } from '../../capability/dbkCapabilityManager';
 import { dbkRegistry } from '../dbkRegistry';
 import { branchManager } from '../branch/branchManager';
 import { workspaceManager } from '../workspace/workspaceManager';
+import { provisioningService } from '../provisioning/provisioningService';
 import { AgentAction, AgentActionResult, AgentInstruction } from './types';
 
 export class AgentActionExecutor {
@@ -15,6 +16,25 @@ export class AgentActionExecutor {
       instruction.context.principal.tenantId;
 
     switch (action.kind) {
+      case 'PROVISION_DBK': {
+        if (!tenantId || !action.legalName || !action.blueprintId) {
+          throw new Error('DBK, legal name, and blueprint are required for provisioning.');
+        }
+        return this.completed(
+          action,
+          await provisioningService.provisionDbk(instruction.context, {
+            dbkId: tenantId,
+            legalName: action.legalName,
+            blueprintId: action.blueprintId,
+            ...(action.blueprintVersion ? { blueprintVersion: action.blueprintVersion } : {}),
+            ...(action.subscriptionTier ? { subscriptionTier: action.subscriptionTier } : {}),
+            ...(action.primaryBranchName ? { primaryBranchName: action.primaryBranchName } : {}),
+            idempotencyKey: `agent_${instruction.instructionId}_${tenantId}`,
+            correlationId: instruction.context.correlationId,
+          }),
+        );
+      }
+
       case 'SUSPEND_DBK':
         if (!tenantId) throw new Error('DBK target is required.');
         return this.completed(action, await dbkLifecycleManager.suspendDbk(instruction.context, tenantId, this.reason(instruction)));
