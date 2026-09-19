@@ -52,6 +52,7 @@ import { eventBus } from './src/orchestration/events/eventBus';
 import { pubSubConsumer } from './src/orchestration/events/pubsubConsumer';
 import { subscriptionRouter } from './src/platform/subscription/subscriptionRouter';
 import { tdbkAgentRuntime } from './src/platform/agent/agentRuntime';
+import { agentExecutionRepository } from './src/persistence/firestore/repositories/agentExecutionRepository';
 
 async function startServer() {
   // Explicit bootstrap boundary: Seed demo DBKs only in development, preview, or explicit flag
@@ -181,6 +182,31 @@ async function startServer() {
       return res.status(500).json({
         error: { code: 'INTERNAL_ERROR', message: (err as Error).message },
       });
+    }
+  });
+
+  app.get('/api/agent/executions', async (req: Request, res: Response) => {
+    try {
+      const authHeader = req.headers.authorization;
+      const tenantId = req.query.tenantId as string;
+      const context = await securityContextFactory.createSecurityContext({
+        authHeader,
+        targetTenantId: tenantId,
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+      });
+      const effectiveTenantId = context.tenantContext?.tenantId || context.principal.tenantId;
+      if (!effectiveTenantId) {
+        return res.status(400).json({
+          error: { code: 'TENANT_REQUIRED', message: 'tenantId is required for execution history.' },
+        });
+      }
+      tenantIsolation.assertTenantIsolation(context.principal, effectiveTenantId, 'READ_AGENT_EXECUTIONS', context.requestId);
+      const executions = await agentExecutionRepository.list(effectiveTenantId);
+      return res.json({ status: 'SUCCESS', executions });
+    } catch (err) {
+      if (err instanceof KernelError) return res.status(err.statusCode).json(err.toJSON());
+      return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Unable to read agent execution history' } });
     }
   });
 
