@@ -2,6 +2,9 @@ import { dbkLifecycleManager } from '../lifecycle/lifecycleManager';
 import { durableJobRuntime } from '../runtime/durableJobRuntime';
 import { businessStateEngine } from '../businessState/businessStateEngine';
 import { dbkCapabilityManager } from '../../capability/dbkCapabilityManager';
+import { dbkRegistry } from '../dbkRegistry';
+import { branchManager } from '../branch/branchManager';
+import { workspaceManager } from '../workspace/workspaceManager';
 import { AgentAction, AgentActionResult, AgentInstruction } from './types';
 
 export class AgentActionExecutor {
@@ -39,6 +42,30 @@ export class AgentActionExecutor {
       case 'REBUILD_BUSINESS_STATE':
         if (!tenantId) throw new Error('Authoritative tenant context is required.');
         return this.completed(action, await businessStateEngine.project(instruction.context, tenantId));
+
+      case 'ENSURE_HEADQUARTERS_BRANCH':
+        if (!tenantId) throw new Error('Authoritative DBK target is required.');
+        return this.completed(
+          action,
+          await branchManager.createHeadquartersBranch(instruction.context, tenantId, 'Headquarters'),
+        );
+
+      case 'REFRESH_DBK_TOPOLOGY': {
+        if (!tenantId) throw new Error('Authoritative DBK target is required.');
+        const dbk = await dbkRegistry.getDbk(instruction.context, tenantId);
+        if (!dbk) throw new Error(`DBK '${tenantId}' not found.`);
+        const branches = await branchManager.listPersistentBranches(instruction.context, tenantId);
+        dbk.branchTopology = branches;
+        await dbkRegistry.saveDbk(instruction.context, dbk);
+        return this.completed(action, { dbkId: tenantId, branchCount: branches.length, branches });
+      }
+
+      case 'RECOMPILE_WORKSPACE':
+        if (!tenantId) throw new Error('Authoritative DBK target is required.');
+        return this.completed(
+          action,
+          await workspaceManager.compileWorkspaceState(instruction.context, tenantId),
+        );
 
       case 'RECOVER_WORKFLOWS':
         if (!tenantId) throw new Error('Authoritative tenant context is required.');
