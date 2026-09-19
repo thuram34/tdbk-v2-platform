@@ -46,12 +46,6 @@ export interface AgentVerification {
   data?: unknown;
 }
 
-export interface AgentVerification {
-  verified: boolean;
-  summary: string;
-  data?: unknown;
-}
-
 export interface AgentActionResult {
   actionId: string;
   status: 'COMPLETED' | 'AUTHORIZATION_REQUIRED' | 'FAILED';
