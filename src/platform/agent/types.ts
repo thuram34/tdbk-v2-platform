@@ -9,6 +9,7 @@ export type AgentActionKind =
   | 'INSPECT_BUSINESS_STATE'
   | 'INSPECT_WORKFLOWS'
   | 'PLAN_SAFE_REPAIR'
+  | 'PROVISION_DBK'
   | 'REBUILD_BUSINESS_STATE'
   | 'ENABLE_CAPABILITY'
   | 'DISABLE_CAPABILITY'
@@ -36,6 +37,11 @@ export interface AgentAction {
   tenantId?: string;
   workflowId?: string;
   capabilityId?: string;
+  legalName?: string;
+  blueprintId?: string;
+  blueprintVersion?: string;
+  subscriptionTier?: 'FREE' | 'FOUNDATION' | 'GROWTH' | 'PRO' | 'ENTERPRISE';
+  primaryBranchName?: string;
   description: string;
   requiresAuthorization: boolean;
 }
