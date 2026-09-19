@@ -30,6 +30,30 @@ describe('TDBK command agent', () => {
     });
   });
 
+  it('prefers an explicit DBK target over ambient tenant context', () => {
+    const parser = new TdbkInstructionParser();
+    const result = parser.parse({
+      instructionId: 'i_target',
+      text: 'Suspend DBK shop_mombasa',
+      context: {
+        principal: { tenantId: 'wrong_tenant' },
+        tenantContext: { tenantId: 'wrong_tenant' },
+      } as any,
+    });
+    expect(result.actions[0].tenantId).toBe('shop_mombasa');
+  });
+
+  it('does not confuse workflow resume with DBK reactivation', () => {
+    const parser = new TdbkInstructionParser();
+    const result = parser.parse({
+      instructionId: 'i_workflow_resume',
+      text: 'Resume workflow wf_123',
+      context: {} as any,
+    });
+    expect(result.intent).toBe('WORKFLOW_RECOVERY');
+    expect(result.actions[0].kind).toBe('RECOVER_WORKFLOWS');
+  });
+
   it('requires stronger requested authority before executing a mutation', async () => {
     const policy = new AgentAuthorityPolicy();
     const result = await policy.authorize(
