@@ -17,6 +17,34 @@ export class AgentActionExecutor {
       instruction.context.principal.tenantId;
 
     switch (action.kind) {
+      case 'ACTIVATE_BUSINESS': {
+        if (!tenantId) throw new Error('Authoritative DBK target is required for business activation.');
+        const dbk = await dbkRegistry.getDbk(instruction.context, tenantId);
+        if (!dbk) throw new Error(`DBK '${tenantId}' not found.`);
+        if (dbk.status !== 'ACTIVE') throw new Error(`DBK '${tenantId}' is ${dbk.status}; only ACTIVE DBKs can be operationally activated.`);
+
+        const hq = await branchManager.getPersistentBranch(instruction.context, tenantId, `${tenantId}_hq`);
+        if (!hq || hq.status !== 'ACTIVE' || !hq.isHeadquarters) {
+          await branchManager.createHeadquartersBranch(instruction.context, tenantId, 'Headquarters');
+        }
+
+        const branches = await branchManager.listPersistentBranches(instruction.context, tenantId);
+        dbk.branchTopology = branches;
+        await dbkRegistry.saveDbk(instruction.context, dbk);
+
+        const composition = await businessCompositionService.compose(instruction.context, tenantId);
+        const workspace = await workspaceManager.compileWorkspaceState(instruction.context, tenantId);
+
+        return this.completed(action, {
+          dbkId: tenantId,
+          status: dbk.status,
+          headquartersReady: true,
+          branchCount: branches.length,
+          composition,
+          workspace,
+        });
+      }
+
       case 'COMPOSE_BUSINESS': {
         if (!tenantId) throw new Error('Authoritative DBK target is required for business composition.');
         return this.completed(action, await businessCompositionService.compose(instruction.context, tenantId));
