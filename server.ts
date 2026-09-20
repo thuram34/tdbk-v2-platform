@@ -1077,7 +1077,7 @@ async function startServer() {
         ipAddress: req.ip,
       });
 
-      const spaces = roleBasedCoherenceEngine.getUserSpaces(context.principal.id, dbkId);
+      const spaces = await roleBasedCoherenceEngine.getPersistentUserSpaces(context.principal.id, dbkId);
       res.json({ status: 'SUCCESS', spaces });
     } catch (err) {
       if (err instanceof KernelError) {
@@ -1214,7 +1214,7 @@ async function startServer() {
       );
 
       if (!masterAuthority.isMasterAdmin(context.principal)) {
-        const memberships = roleBasedCoherenceEngine.getUserSpaces(context.principal.id, tenantId);
+        const memberships = await roleBasedCoherenceEngine.getPersistentUserSpaces(context.principal.id, tenantId);
         const hasSpaceAccess = memberships.some((item) => item.space.spaceId === spaceId);
         if (!hasSpaceAccess) {
           throw new AuthorizationError(
