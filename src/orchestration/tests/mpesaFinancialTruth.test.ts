@@ -104,6 +104,47 @@ describe('M-Pesa callback financial atomicity', () => {
   });
 
 
+
+
+  it('rejects a reused callback idempotency key when the provider result changes', async () => {
+    const bridge = new MpesaBridge();
+    await bridge.handleCallback(context(), callback());
+
+    const conflicting = callback();
+    conflicting.Body.stkCallback.ResultCode = 1032;
+    conflicting.Body.stkCallback.ResultDesc = 'Conflicting provider result';
+
+    await expect(bridge.handleCallback(context(), conflicting)).rejects.toThrow(
+      'idempotency key conflicts with a different provider result'
+    );
+
+    const tx = await firestoreClient.get<any>(
+      `/tenants/${tenantId}/financialTransactions/mpesa_${checkoutRequestId}`
+    );
+    expect(tx?.status).toBe('POSTED');
+    expect(tx?.providerReceiptReference).toBe('QAB123XYZ');
+  });
+
+  it('rejects provider-supplied tenant metadata that conflicts with authoritative request tenant', async () => {
+    const bridge = new MpesaBridge();
+    const crossTenant = callback();
+    crossTenant.tenantId = 'tenant_attacker';
+
+    await expect(bridge.handleCallback(context(), crossTenant)).rejects.toThrow(
+      'Cross-Tenant Mutation Denied'
+    );
+
+    const attackerTransaction = await firestoreClient.get<any>(
+      `/tenants/tenant_attacker/financialTransactions/mpesa_${checkoutRequestId}`
+    );
+    expect(attackerTransaction).toBeNull();
+
+    const authoritativeTransaction = await firestoreClient.get<any>(
+      `/tenants/${tenantId}/financialTransactions/mpesa_${checkoutRequestId}`
+    );
+    expect(authoritativeTransaction?.status).toBe('PENDING');
+  });
+
   it('persists a failed provider callback as FAILED without creating ledger entries', async () => {
     const bridge = new MpesaBridge();
     const failed = callback();
