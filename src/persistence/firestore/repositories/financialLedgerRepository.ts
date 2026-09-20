@@ -37,6 +37,10 @@ export class FinancialLedgerRepository implements IFinancialLedgerRepository {
     return `${this.ledgerPath(tenantId, transactionId)}/entries/${entryId}`;
   }
 
+  private outboxPath(tenantId: string, eventId: string): string {
+    return `/tenants/${tenantId}/outbox/${eventId}`;
+  }
+
   private assertValidTransaction(transaction: FinancialTransaction): void {
     if (!transaction.tenantId || !transaction.transactionId) throw new Error('Financial transaction identity is required');
     if (!Number.isFinite(transaction.amount) || transaction.amount <= 0) throw new Error('Financial transaction amount must be positive');
