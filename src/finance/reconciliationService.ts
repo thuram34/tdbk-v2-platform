@@ -7,8 +7,9 @@ export class ReconciliationService {
     tenantId: string,
     transactionId: string,
     expectedStatus: FinancialTransactionStatus = 'PENDING',
+    updates: Partial<Pick<FinancialTransaction, 'providerReference' | 'description'>> = {},
   ): Promise<FinancialTransaction> {
-    return reconciliationRepository.markRequired(tenantId, transactionId, expectedStatus);
+    return reconciliationRepository.markRequired(tenantId, transactionId, expectedStatus, updates);
   }
 
   /**
