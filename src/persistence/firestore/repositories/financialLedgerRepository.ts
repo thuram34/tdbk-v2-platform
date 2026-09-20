@@ -13,6 +13,7 @@ import {
   FinancialTransaction,
   LedgerEntry,
   FirestoreTransaction,
+  OutboxRecord,
 } from '../../types';
 import { firestoreClient } from '../firestoreClient';
 
@@ -41,6 +42,54 @@ export class FinancialLedgerRepository implements IFinancialLedgerRepository {
     return `/tenants/${tenantId}/outbox/${eventId}`;
   }
 
+  private buildFinancialOutboxRecord(
+    transaction: FinancialTransaction,
+    eventType: 'payment.posted.v1' | 'payment.reversed.v1',
+    causationId: string,
+  ): OutboxRecord {
+    const occurredAt = transaction.postedAt ?? transaction.createdAt;
+    return {
+      eventId: `evt_${eventType.replace(/[^a-z0-9]+/gi, '_')}_${transaction.transactionId}`,
+      tenantId: transaction.tenantId,
+      branchId: transaction.branchId,
+      eventType,
+      eventVersion: 'v1',
+      occurredAt,
+      correlationId: transaction.correlationId,
+      causationId,
+      source: 'TDBK_FINANCE_TRUTH_LAYER',
+      payload: {
+        transactionId: transaction.transactionId,
+        providerReference: transaction.providerReference,
+        amount: transaction.amount,
+        currency: transaction.currency,
+        status: transaction.status,
+        reversalOfTransactionId: transaction.reversalOfTransactionId ?? null,
+      },
+      status: 'PENDING',
+      attemptCount: 0,
+      availableAt: occurredAt,
+      createdAt: occurredAt,
+      updatedAt: occurredAt,
+      leaseOwner: null,
+      leaseUntil: null,
+      lastError: null,
+      deliveredAt: null,
+    };
+  }
+
+  private async ensureFinancialOutbox(
+    tx: FirestoreTransaction,
+    transaction: FinancialTransaction,
+    eventType: 'payment.posted.v1' | 'payment.reversed.v1',
+    causationId: string,
+  ): Promise<void> {
+    const record = this.buildFinancialOutboxRecord(transaction, eventType, causationId);
+    const path = this.outboxPath(transaction.tenantId, record.eventId);
+    const existing = await tx.get<OutboxRecord>(path);
+    if (!existing) await tx.set(path, record);
+  }
+
   private assertValidTransaction(transaction: FinancialTransaction): void {
     if (!transaction.tenantId || !transaction.transactionId) throw new Error('Financial transaction identity is required');
     if (!Number.isFinite(transaction.amount) || transaction.amount <= 0) throw new Error('Financial transaction amount must be positive');
@@ -50,7 +99,15 @@ export class FinancialLedgerRepository implements IFinancialLedgerRepository {
 
   private assertBalanced(transaction: FinancialTransaction, entries: LedgerEntry[]): void {
     this.assertValidTransaction(transaction);
-    if (!entries.length) throw new Error('A financial transaction requires ledger entries');
+    if (entries.length < 2) throw new Error('A financial transaction requires at least one debit and one credit entry');
+
+    const entryIds = new Set<string>();
+    for (const entry of entries) {
+      if (!entry.entryId || entryIds.has(entry.entryId)) throw new Error('Ledger entry IDs must be unique');
+      entryIds.add(entry.entryId);
+    }
+    if (!entries.some((entry) => entry.entryType === 'DEBIT')) throw new Error('A financial transaction requires at least one debit entry');
+    if (!entries.some((entry) => entry.entryType === 'CREDIT')) throw new Error('A financial transaction requires at least one credit entry');
 
     const debit = entries.filter((entry) => entry.entryType === 'DEBIT').reduce((sum, entry) => sum + entry.amount, 0);
     const credit = entries.filter((entry) => entry.entryType === 'CREDIT').reduce((sum, entry) => sum + entry.amount, 0);
@@ -66,6 +123,7 @@ export class FinancialLedgerRepository implements IFinancialLedgerRepository {
         entry.currency !== transaction.currency ||
         !Number.isFinite(entry.amount) ||
         entry.amount <= 0 ||
+        !entry.account ||
         entry.immutable !== true
       ) {
         throw new Error('Invalid immutable ledger entry');
@@ -198,13 +256,32 @@ export class FinancialLedgerRepository implements IFinancialLedgerRepository {
           const existingEntries = await Promise.all(
             entries.map((entry) => tx.get<LedgerEntry>(this.entryPath(transaction.tenantId, transaction.transactionId, entry.entryId)))
           );
-          if (existingEntries.every((entry) => entry !== null)) return;
+          if (existingEntries.every((entry) => entry !== null)) {
+            const matches = existingEntries.every((existing, index) => {
+              const requested = entries[index];
+              return !!existing &&
+                existing.entryId === requested.entryId &&
+                existing.transactionId === requested.transactionId &&
+                existing.tenantId === requested.tenantId &&
+                existing.account === requested.account &&
+                existing.entryType === requested.entryType &&
+                existing.amount === requested.amount &&
+                existing.currency === requested.currency &&
+                existing.immutable === true;
+            });
+            if (matches) {
+              await this.ensureFinancialOutbox(tx, transaction, 'payment.posted.v1', transaction.providerReference);
+              return;
+            }
+            throw new Error('Posted financial transaction has conflicting immutable ledger entries');
+          }
           throw new Error('Posted financial transaction is missing immutable ledger entries');
         }
         throw new Error('Financial transaction already exists in a non-posted or conflicting state');
       }
 
       await this.writePostedState(tx, transaction, entries);
+      await this.ensureFinancialOutbox(tx, transaction, 'payment.posted.v1', transaction.providerReference);
     });
   }
 
@@ -360,6 +437,7 @@ export class FinancialLedgerRepository implements IFinancialLedgerRepository {
         reversedAt: reversalTransaction.postedAt,
       });
       await this.writePostedState(tx, reversalTransaction, reversalEntries);
+      await this.ensureFinancialOutbox(tx, reversalTransaction, 'payment.reversed.v1', reversalTransaction.providerReference);
     });
   }
 
