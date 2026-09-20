@@ -34,6 +34,8 @@ class EventBusService {
       { eventType: 'payment.initiated.v1', version: 'v1', description: 'Financial payment request initiated' },
       { eventType: 'payment.pending.v1', version: 'v1', description: 'Financial payment pending external callback' },
       { eventType: 'payment.confirmed.v1', version: 'v1', description: 'Financial payment confirmed and posted' },
+      { eventType: 'payment.posted.v1', version: 'v1', description: 'Financial payment posted to the authoritative ledger' },
+      { eventType: 'payment.reversed.v1', version: 'v1', description: 'Financial payment reversed by authoritative counter-entry' },
       { eventType: 'payment.failed.v1', version: 'v1', description: 'Financial payment failed or rejected' },
       { eventType: 'receipt.created.v1', version: 'v1', description: 'Authoritative financial receipt created' },
       { eventType: 'document.created.v1', version: 'v1', description: 'Business document generated' },
