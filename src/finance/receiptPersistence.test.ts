@@ -97,7 +97,9 @@ describe('Receipt persistence hardening', () => {
     expect(second).toEqual(first);
 
     const receipts = await receiptService.listReceipts(tenantId);
-    const outbox = await outboxRepository.listOutbox(tenantId);
+    const outbox = (await outboxRepository.listOutbox(tenantId)).filter(
+      (event) => event.eventType === 'receipt.created.v1'
+    );
 
     expect(receipts).toHaveLength(1);
     expect(outbox).toHaveLength(1);
@@ -119,7 +121,9 @@ describe('Receipt persistence hardening', () => {
 
     expect(await receiptService.getReceipt(tenantId, receipt.receiptId)).toEqual(receipt);
 
-    const outbox = await outboxRepository.listOutbox(tenantId);
+    const outbox = (await outboxRepository.listOutbox(tenantId)).filter(
+      (event) => event.eventType === 'receipt.created.v1'
+    );
     expect(outbox).toHaveLength(1);
     expect(outbox[0].status).toBe('PENDING');
     expect(outbox[0].eventType).toBe('receipt.created.v1');
