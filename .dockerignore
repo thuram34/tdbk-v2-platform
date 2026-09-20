@@ -12,3 +12,16 @@ build
 .DS_Store
 README.md
 bun.lock
+
+# Never send local credentials, signing keys, certificates, or cloud service
+# account material into a Docker build context.
+*.pem
+*.key
+*.p12
+*.pfx
+*service-account*.json
+*serviceaccount*.json
+*credentials*.json
+*google-credentials*.json
+firebase-debug.log
+.runtimeconfig.json
