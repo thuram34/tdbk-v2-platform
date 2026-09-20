@@ -105,6 +105,20 @@ describe('Financial truth layer', () => {
     ).toEqual(ledgerEntries[0]);
   });
 
+  it('rejects conflicting ledger entries on repeated posting', async () => {
+    const transaction = postedTransaction('txn_conflict_001');
+    await financialLedgerRepository.postTransaction(transaction, entries(transaction.transactionId));
+
+    await expect(
+      financialLedgerRepository.postTransaction(
+        transaction,
+        entries(transaction.transactionId).map((entry) =>
+          entry.entryType === 'CREDIT' ? { ...entry, amount: 1499 } : entry
+        )
+      )
+    ).rejects.toThrow('conflicting immutable ledger entries');
+  });
+
   it('reverses by creating counter-entries and never edits posted entries', async () => {
     const original = postedTransaction('txn_reverse_001');
     const originalEntries = entries(original.transactionId);
