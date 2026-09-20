@@ -3,6 +3,7 @@ import { firestoreClient } from '../persistence/firestore/firestoreClient';
 import { financialLedgerRepository } from '../persistence/firestore/repositories/financialLedgerRepository';
 import { financialTransactionService } from './transactionService';
 import { ledgerService } from './ledgerService';
+import { outboxRepository } from '../persistence/firestore/repositories/outboxRepository';
 
 const tenantId = 'tenant_finance_test';
 
@@ -98,6 +99,9 @@ describe('Financial truth layer', () => {
     expect(stored?.status).toBe('POSTED');
     expect(storedEntries).toHaveLength(2);
     expect(storedEntries.reduce((sum, e) => sum + (e.entryType === 'DEBIT' ? e.amount : -e.amount), 0)).toBe(0);
+    const postedEvent = await outboxRepository.getOutbox(tenantId, `evt_payment_posted_v1_${transaction.transactionId}`);
+    expect(postedEvent?.eventType).toBe('payment.posted.v1');
+    expect(postedEvent?.status).toBe('PENDING');
     expect(
       await firestoreClient.get(
         `/tenants/${tenantId}/ledgerTransactions/${transaction.transactionId}/entries/${ledgerEntries[0].entryId}`
@@ -137,8 +141,21 @@ describe('Financial truth layer', () => {
 
     expect(originalStored?.status).toBe('REVERSED');
     expect(reversal.reversalOfTransactionId).toBe(original.transactionId);
+    const reversalEvent = await outboxRepository.getOutbox(tenantId, `evt_payment_reversed_v1_${reversal.transactionId}`);
+    expect(reversalEvent?.eventType).toBe('payment.reversed.v1');
+    expect(reversalEvent?.payload.reversalOfTransactionId).toBe(original.transactionId);
     expect(reversalEntries).toHaveLength(2);
     expect(originalStoredEntries).toEqual(originalEntries);
+  });
+
+  it('does not leave financial truth committed without its outbox event', async () => {
+    const transaction = postedTransaction('txn_outbox_atomic_001');
+    const invalidEntries = entries(transaction.transactionId).map((entry) =>
+      entry.entryType === 'CREDIT' ? { ...entry, amount: 1499 } : entry
+    );
+    await expect(financialLedgerRepository.postTransaction(transaction, invalidEntries)).rejects.toThrow('Debit total must equal credit total');
+    expect(await financialLedgerRepository.getTransaction(tenantId, transaction.transactionId)).toBeNull();
+    expect(await outboxRepository.getOutbox(tenantId, `evt_payment_posted_v1_${transaction.transactionId}`)).toBeNull();
   });
 
   it('reconstructs financial state after a simulated server restart', async () => {
