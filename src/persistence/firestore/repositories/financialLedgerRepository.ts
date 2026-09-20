@@ -409,7 +409,7 @@ export class FinancialLedgerRepository implements IFinancialLedgerRepository {
             existing.immutable === true;
         });
         if (!matches) throw new Error('Existing reversal has conflicting immutable ledger entries');
-        await this.ensureFinancialOutbox(tx, reversalTransaction, 'payment.reversed.v1', transaction.providerReference);
+        await this.ensureFinancialOutbox(tx, reversalTransaction, 'payment.reversed.v1', reversalTransaction.providerReference);
         return;
       }
 
@@ -418,7 +418,7 @@ export class FinancialLedgerRepository implements IFinancialLedgerRepository {
         reversedAt: reversalTransaction.postedAt,
       });
       await this.writePostedState(tx, reversalTransaction, reversalEntries);
-      await this.ensureFinancialOutbox(tx, reversalTransaction, 'payment.reversed.v1', transaction.providerReference);
+      await this.ensureFinancialOutbox(tx, reversalTransaction, 'payment.reversed.v1', reversalTransaction.providerReference);
     });
   }
 
