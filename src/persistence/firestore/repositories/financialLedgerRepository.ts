@@ -46,7 +46,22 @@ export class FinancialLedgerRepository implements IFinancialLedgerRepository {
 
   private assertBalanced(transaction: FinancialTransaction, entries: LedgerEntry[]): void {
     this.assertValidTransaction(transaction);
-    if (!entries.length) throw new Error('A financial transaction requires ledger entries');
+    if (entries.length < 2) throw new Error('A financial transaction requires at least one debit and one credit entry');
+
+    const entryIds = new Set<string>();
+    for (const entry of entries) {
+      if (!entry.entryId || entryIds.has(entry.entryId)) {
+        throw new Error('Ledger entry IDs must be unique');
+      }
+      entryIds.add(entry.entryId);
+    }
+
+    if (!entries.some((entry) => entry.entryType === 'DEBIT')) {
+      throw new Error('A financial transaction requires at least one debit entry');
+    }
+    if (!entries.some((entry) => entry.entryType === 'CREDIT')) {
+      throw new Error('A financial transaction requires at least one credit entry');
+    }
 
     const debit = entries.filter((entry) => entry.entryType === 'DEBIT').reduce((sum, entry) => sum + entry.amount, 0);
     const credit = entries.filter((entry) => entry.entryType === 'CREDIT').reduce((sum, entry) => sum + entry.amount, 0);
@@ -62,6 +77,7 @@ export class FinancialLedgerRepository implements IFinancialLedgerRepository {
         entry.currency !== transaction.currency ||
         !Number.isFinite(entry.amount) ||
         entry.amount <= 0 ||
+        !entry.account ||
         entry.immutable !== true
       ) {
         throw new Error('Invalid immutable ledger entry');
