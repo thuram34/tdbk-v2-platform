@@ -11,6 +11,7 @@ RUN npm ci
 COPY . .
 
 # Firebase Web Client configuration is embedded by Vite at build time.
+# These are public client configuration values, not server credentials.
 ARG VITE_FIREBASE_API_KEY
 ARG VITE_FIREBASE_AUTH_DOMAIN
 ARG VITE_FIREBASE_PROJECT_ID
@@ -31,6 +32,11 @@ RUN npm run build
 RUN npm prune --omit=dev
 
 ENV NODE_ENV=production
+
+# Cloud Run does not require root. Run the application with the unprivileged
+# Node image user so an application-layer compromise does not become root in
+# the container.
+USER node
 
 EXPOSE 8080
 
