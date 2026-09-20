@@ -210,7 +210,24 @@ export class FinancialLedgerRepository implements IFinancialLedgerRepository {
           const existingEntries = await Promise.all(
             entries.map((entry) => tx.get<LedgerEntry>(this.entryPath(transaction.tenantId, transaction.transactionId, entry.entryId)))
           );
-          if (existingEntries.every((entry) => entry !== null)) return;
+          if (existingEntries.every((entry) => entry !== null)) {
+            const matches = existingEntries.every((existing, index) => {
+              const requested = entries[index];
+              if (!existing) return false;
+              return (
+                existing.entryId === requested.entryId &&
+                existing.transactionId === requested.transactionId &&
+                existing.tenantId === requested.tenantId &&
+                existing.account === requested.account &&
+                existing.entryType === requested.entryType &&
+                existing.amount === requested.amount &&
+                existing.currency === requested.currency &&
+                existing.immutable === true
+              );
+            });
+            if (matches) return;
+            throw new Error('Posted financial transaction has conflicting immutable ledger entries');
+          }
           throw new Error('Posted financial transaction is missing immutable ledger entries');
         }
         throw new Error('Financial transaction already exists in a non-posted or conflicting state');
@@ -306,9 +323,36 @@ export class FinancialLedgerRepository implements IFinancialLedgerRepository {
       const reversalPath = this.transactionPath(tenantId, reversalTransaction.transactionId);
       const existingReversal = await tx.get<FinancialTransaction>(reversalPath);
       if (existingReversal) {
-        if (existingReversal.reversalOfTransactionId !== transactionId) {
+        if (
+          existingReversal.reversalOfTransactionId !== transactionId ||
+          existingReversal.amount !== reversalTransaction.amount ||
+          existingReversal.currency !== reversalTransaction.currency ||
+          existingReversal.providerReference !== reversalTransaction.providerReference
+        ) {
           throw new Error('Conflicting reversal transaction identity');
         }
+
+        const existingReversalEntries = await Promise.all(
+          reversalEntries.map((entry) =>
+            tx.get<LedgerEntry>(
+              this.entryPath(tenantId, reversalTransaction.transactionId, entry.entryId)
+            )
+          )
+        );
+        if (!existingReversalEntries.every((entry) => entry !== null)) {
+          throw new Error('Existing reversal is missing immutable ledger entries');
+        }
+        const matches = existingReversalEntries.every((existing, index) => {
+          const requested = reversalEntries[index];
+          return !!existing &&
+            existing.entryId === requested.entryId &&
+            existing.account === requested.account &&
+            existing.entryType === requested.entryType &&
+            existing.amount === requested.amount &&
+            existing.currency === requested.currency &&
+            existing.immutable === true;
+        });
+        if (!matches) throw new Error('Existing reversal has conflicting immutable ledger entries');
         return;
       }
 
