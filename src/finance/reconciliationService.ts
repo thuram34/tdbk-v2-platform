@@ -7,8 +7,9 @@ export class ReconciliationService {
     tenantId: string,
     transactionId: string,
     expectedStatus: FinancialTransactionStatus = 'PENDING',
+    updates: Partial<Pick<FinancialTransaction, 'providerReference' | 'description'>> = {},
   ): Promise<FinancialTransaction> {
-    return reconciliationRepository.markRequired(tenantId, transactionId, expectedStatus);
+    return reconciliationRepository.markRequired(tenantId, transactionId, expectedStatus, updates);
   }
 
   /**
@@ -49,9 +50,6 @@ export class ReconciliationService {
       );
     }
 
-    // Validate the provider confirmation against authoritative transaction identity
-    // before any ledger-balance checks. A changed amount/reference/currency/branch is
-    // an identity conflict, not a ledger-shape error.
     const identityFields: Array<keyof FinancialTransaction> = ['tenantId', 'transactionId', 'branchId', 'providerReference', 'currency', 'amount'];
     const identityConflict = identityFields.some((field) => current[field] !== transaction[field]);
     if (identityConflict) {
