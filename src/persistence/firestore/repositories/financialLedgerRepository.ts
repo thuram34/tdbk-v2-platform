@@ -13,6 +13,7 @@ import {
   FinancialTransaction,
   LedgerEntry,
   FirestoreTransaction,
+  OutboxRecord,
 } from '../../types';
 import { firestoreClient } from '../firestoreClient';
 
@@ -35,6 +36,57 @@ export class FinancialLedgerRepository implements IFinancialLedgerRepository {
 
   private entryPath(tenantId: string, transactionId: string, entryId: string): string {
     return `${this.ledgerPath(tenantId, transactionId)}/entries/${entryId}`;
+  }
+  private outboxPath(tenantId: string, eventId: string): string {
+    return `/tenants/${tenantId}/outbox/${eventId}`;
+  }
+
+  private buildFinancialOutboxRecord(
+    transaction: FinancialTransaction,
+    eventType: 'payment.posted.v1' | 'payment.reversed.v1',
+    causationId: string,
+  ): OutboxRecord {
+    const occurredAt = transaction.postedAt ?? transaction.createdAt;
+    return {
+      eventId: `evt_${eventType.replace(/[^a-z0-9]+/gi, '_')}_${transaction.transactionId}`,
+      tenantId: transaction.tenantId,
+      branchId: transaction.branchId,
+      eventType,
+      eventVersion: 'v1',
+      occurredAt,
+      correlationId: transaction.correlationId,
+      causationId,
+      source: 'TDBK_FINANCE_TRUTH_LAYER',
+      payload: {
+        transactionId: transaction.transactionId,
+        providerReference: transaction.providerReference,
+        amount: transaction.amount,
+        currency: transaction.currency,
+        status: transaction.status,
+        reversalOfTransactionId: transaction.reversalOfTransactionId ?? null,
+      },
+      status: 'PENDING',
+      attemptCount: 0,
+      availableAt: occurredAt,
+      createdAt: occurredAt,
+      updatedAt: occurredAt,
+      leaseOwner: null,
+      leaseUntil: null,
+      lastError: null,
+      deliveredAt: null,
+    };
+  }
+
+  private async ensureFinancialOutbox(
+    tx: FirestoreTransaction,
+    transaction: FinancialTransaction,
+    eventType: 'payment.posted.v1' | 'payment.reversed.v1',
+    causationId: string,
+  ): Promise<void> {
+    const record = this.buildFinancialOutboxRecord(transaction, eventType, causationId);
+    const path = this.outboxPath(transaction.tenantId, record.eventId);
+    const existing = await tx.get<OutboxRecord>(path);
+    if (!existing) await tx.set(path, record);
   }
 
   private assertValidTransaction(transaction: FinancialTransaction): void {
@@ -225,7 +277,10 @@ export class FinancialLedgerRepository implements IFinancialLedgerRepository {
                 existing.immutable === true
               );
             });
-            if (matches) return;
+            if (matches) {
+              await this.ensureFinancialOutbox(tx, transaction, 'payment.posted.v1', transaction.providerReference);
+              return;
+            }
             throw new Error('Posted financial transaction has conflicting immutable ledger entries');
           }
           throw new Error('Posted financial transaction is missing immutable ledger entries');
@@ -234,6 +289,7 @@ export class FinancialLedgerRepository implements IFinancialLedgerRepository {
       }
 
       await this.writePostedState(tx, transaction, entries);
+      await this.ensureFinancialOutbox(tx, transaction, 'payment.posted.v1', transaction.providerReference);
     });
   }
 
@@ -353,6 +409,7 @@ export class FinancialLedgerRepository implements IFinancialLedgerRepository {
             existing.immutable === true;
         });
         if (!matches) throw new Error('Existing reversal has conflicting immutable ledger entries');
+        await this.ensureFinancialOutbox(tx, reversalTransaction, 'payment.reversed.v1', transaction.providerReference);
         return;
       }
 
@@ -361,6 +418,7 @@ export class FinancialLedgerRepository implements IFinancialLedgerRepository {
         reversedAt: reversalTransaction.postedAt,
       });
       await this.writePostedState(tx, reversalTransaction, reversalEntries);
+      await this.ensureFinancialOutbox(tx, reversalTransaction, 'payment.reversed.v1', transaction.providerReference);
     });
   }
 
