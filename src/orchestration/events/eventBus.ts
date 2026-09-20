@@ -6,6 +6,7 @@
 import { EventEnvelope, EventRegistration, EventHandler, EventPublishResult } from './types';
 import { KernelError } from '../../kernel/errors/kernelErrors';
 import { handleSubscriptionPaymentConfirmed } from '../../platform/subscription/subscriptionPaymentHandler';
+import { eventProcessingRepository } from '../../persistence/firestore/repositories/eventProcessingRepository';
 
 class EventBusService {
   private eventRegistry: Map<string, EventRegistration> = new Map();
@@ -46,7 +47,6 @@ class EventBusService {
       { eventType: 'external.request.created.v1', version: 'v1', description: 'Bridge external request generated' },
       { eventType: 'external.request.succeeded.v1', version: 'v1', description: 'Bridge external request succeeded' },
       { eventType: 'external.request.failed.v1', version: 'v1', description: 'Bridge external request failed' },
-      // Phase 4 Platform Lifecycle Events
       { eventType: 'dbk.provisioning_requested.v1', version: 'v1', description: 'DBK provisioning requested' },
       { eventType: 'dbk.provisioning_requested.v1', version: 'v1.0', description: 'DBK provisioning requested v1.0' },
       { eventType: 'dbk.provisioning_started.v1', version: 'v1', description: 'DBK provisioning started' },
@@ -65,10 +65,8 @@ class EventBusService {
       { eventType: 'dbk.reactivated.v1', version: 'v1', description: 'DBK reactivated' },
       { eventType: 'dbk.archived.v1', version: 'v1', description: 'DBK archived' },
       { eventType: 'dbk.restored.v1', version: 'v1', description: 'DBK restored' },
-      // Phase 6 Document and AI Events
       { eventType: 'document.ingested.v1', version: 'v1', description: 'Document ingested and validated' },
       { eventType: 'ai.proposal_generated.v1', version: 'v1', description: 'AI proposal created and pending review' },
-      // Role-Based Coherence & Shared Contribution Events
       { eventType: 'attendance.recorded.v1', version: 'v1', description: 'Learner attendance recorded' },
       { eventType: 'pos.sale.completed.v1', version: 'v1', description: 'Counter POS sale completed' },
       { eventType: 'patient.triaged.v1', version: 'v1', description: 'Clinical patient triaged' },
@@ -76,6 +74,7 @@ class EventBusService {
       { eventType: 'contribution.recorded.v1', version: 'v1', description: 'Shared contribution recorded' },
       { eventType: 'capability.access_requested.v1', version: 'v1', description: 'Capability access requested' },
       { eventType: 'capability.access_approved.v1', version: 'v1', description: 'Capability access approved' },
+      { eventType: 'business.state.projected.v1', version: 'v1', description: 'Authoritative business state projection updated' },
     ];
 
     for (const item of defaultTypes) {
@@ -83,9 +82,6 @@ class EventBusService {
     }
   }
 
-  /**
-   * Registers a new event type and version contract.
-   */
   public registerEventType(eventType: string, version: string, description: string): void {
     const key = `${eventType}:${version}`;
     this.eventRegistry.set(key, {
@@ -97,9 +93,6 @@ class EventBusService {
     });
   }
 
-  /**
-   * Subscribes a handler function to a specific event type.
-   */
   public subscribe(eventType: string, handler: EventHandler): void {
     if (!this.subscribers.has(eventType)) {
       this.subscribers.set(eventType, new Set());
@@ -107,9 +100,6 @@ class EventBusService {
     this.subscribers.get(eventType)!.add(handler);
   }
 
-  /**
-   * Unsubscribes a handler from an event type.
-   */
   public unsubscribe(eventType: string, handler: EventHandler): void {
     const handlers = this.subscribers.get(eventType);
     if (handlers) {
@@ -117,9 +107,6 @@ class EventBusService {
     }
   }
 
-  /**
-   * Validates event envelope structural integrity and version contract.
-   */
   public validateEnvelope(event: any): { valid: boolean; error?: string } {
     if (!event || typeof event !== 'object') {
       return { valid: false, error: 'Event object must be a non-null object' };
@@ -141,7 +128,6 @@ class EventBusService {
       }
     }
 
-    // Verify event version type before using string methods.
     if (typeof event.eventVersion !== 'string') {
       return {
         valid: false,
@@ -149,7 +135,6 @@ class EventBusService {
       };
     }
 
-    // Verify version contract in registry
     const registryKey = `${event.eventType}:${event.eventVersion}`;
     const baseVersion = event.eventVersion.startsWith('v') ? event.eventVersion.substring(1) : event.eventVersion;
     const vPrefixed = `v${baseVersion}`;
@@ -169,7 +154,6 @@ class EventBusService {
       };
     }
 
-    // Verify occurredAt timestamp validity
     if (isNaN(Date.parse(event.occurredAt))) {
       return { valid: false, error: `Invalid ISO timestamp for occurredAt: '${event.occurredAt}'` };
     }
@@ -179,11 +163,14 @@ class EventBusService {
 
   /**
    * Publishes an event envelope across the server event bus.
-   * Enforces idempotency via eventId or idempotencyKey metadata.
+   *
+   * When the event belongs to a tenant, idempotency is durable in Firestore:
+   * a PROCESSING lease prevents concurrent delivery and a COMPLETED record
+   * suppresses duplicate delivery after process restart.
    */
   public async publish<T = Record<string, unknown>>(
     event: EventEnvelope<T>,
-    idempotencyKey?: string
+    idempotencyKey?: string,
   ): Promise<EventPublishResult> {
     const validation = this.validateEnvelope(event);
     if (!validation.valid) {
@@ -191,12 +178,14 @@ class EventBusService {
         'VALIDATION_ERROR',
         `Invalid Event Envelope: ${validation.error}`,
         400,
-        event.correlationId
+        event.correlationId,
       );
     }
 
-    // Idempotency Check
     const key = idempotencyKey || event.eventId;
+
+    // Fast-path process-local idempotency remains useful, but is not the
+    // authoritative source of truth for tenant-scoped durable events.
     if (this.processedEventIds.has(event.eventId) || this.processedIdempotencyKeys.has(key)) {
       return {
         published: false,
@@ -207,39 +196,65 @@ class EventBusService {
       };
     }
 
-    // Notify Subscribers
-    // A publish is only considered successful after every registered
-    // subscriber completes successfully. This preserves at-least-once
-    // delivery semantics for durable transports such as Pub/Sub.
+    const tenantId = event.tenantId || (event.payload as any)?.dbkId || null;
+    const durableWorkerId = `event-bus-${event.eventId}-${Math.random().toString(36).substring(2, 10)}`;
+    let durableClaimed = false;
+
+    if (tenantId) {
+      const claim = await eventProcessingRepository.claim(
+        tenantId,
+        event.eventId,
+        key,
+        durableWorkerId,
+      );
+
+      if (!claim.claimed) {
+        return {
+          published: false,
+          isDuplicate: true,
+          eventId: event.eventId,
+          subscribersNotified: 0,
+          reason: claim.record?.status === 'COMPLETED'
+            ? 'Duplicate event suppressed by durable idempotency store'
+            : 'Event delivery is already in progress',
+        };
+      }
+
+      durableClaimed = true;
+    }
+
     const handlers = this.subscribers.get(event.eventType) || new Set();
     let notifiedCount = 0;
 
-    for (const handler of handlers) {
-      try {
+    try {
+      for (const handler of handlers) {
         await handler(event as unknown as EventEnvelope);
         notifiedCount++;
-      } catch (err: any) {
-        console.error(`Error executing subscriber for event '${event.eventType}':`, err);
-        throw err;
       }
+
+      if (durableClaimed && tenantId) {
+        await eventProcessingRepository.complete(tenantId, event.eventId, durableWorkerId);
+      }
+
+      this.processedEventIds.add(event.eventId);
+      this.processedIdempotencyKeys.set(key, event as unknown as EventEnvelope);
+      this.eventHistory.push(event as unknown as EventEnvelope);
+
+      return {
+        published: true,
+        isDuplicate: false,
+        eventId: event.eventId,
+        subscribersNotified: notifiedCount,
+      };
+    } catch (err: any) {
+      if (durableClaimed && tenantId) {
+        await eventProcessingRepository.release(tenantId, event.eventId, durableWorkerId);
+      }
+      console.error(`Error executing subscriber for event '${event.eventType}':`, err);
+      throw err;
     }
-
-    // Mark processed only after all subscribers have completed successfully.
-    this.processedEventIds.add(event.eventId);
-    this.processedIdempotencyKeys.set(key, event as unknown as EventEnvelope);
-    this.eventHistory.push(event as unknown as EventEnvelope);
-
-    return {
-      published: true,
-      isDuplicate: false,
-      eventId: event.eventId,
-      subscribersNotified: notifiedCount,
-    };
   }
 
-  /**
-   * Convenience helper to construct and publish an event from SecurityContext.
-   */
   public async publishEvent<T = Record<string, unknown>>(
     context: { requestId?: string; correlationId?: string; principal?: { id: string; tenantId?: string | null; branchId?: string | null }; tenantContext?: { tenantId: string }; branchContext?: { branchId: string } },
     eventType: string,
@@ -266,9 +281,6 @@ class EventBusService {
     return this.publish(event);
   }
 
-  /**
-   * Returns recorded event history, optionally filtered by tenant ID.
-   */
   public getEventHistory(tenantId?: string): EventEnvelope[] {
     if (!tenantId) {
       return [...this.eventHistory];
@@ -276,16 +288,10 @@ class EventBusService {
     return this.eventHistory.filter((e) => e.tenantId === tenantId || (e.payload as any)?.dbkId === tenantId);
   }
 
-  /**
-   * Checks if an event ID or idempotency key has already been processed.
-   */
   public isProcessed(key: string): boolean {
     return this.processedEventIds.has(key) || this.processedIdempotencyKeys.has(key);
   }
 
-  /**
-   * Clears state stores for testing.
-   */
   public clearStoreForTesting(): void {
     this.processedEventIds.clear();
     this.processedIdempotencyKeys.clear();
