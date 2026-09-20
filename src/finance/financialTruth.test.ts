@@ -117,7 +117,7 @@ describe('Financial truth layer', () => {
       financialLedgerRepository.postTransaction(
         transaction,
         entries(transaction.transactionId).map((entry) =>
-          entry.entryType === 'CREDIT' ? { ...entry, amount: 1499 } : entry
+          entry.entryType === 'CREDIT' ? { ...entry, account: 'RECEIVABLES:CONFLICTING' } : entry
         )
       )
     ).rejects.toThrow('conflicting immutable ledger entries');
