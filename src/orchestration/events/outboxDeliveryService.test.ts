@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { firestoreClient } from '../../persistence/firestore/firestoreClient';
 import { outboxRepository } from '../../persistence/firestore/repositories/outboxRepository';
+import { eventProcessingRepository } from '../../persistence/firestore/repositories/eventProcessingRepository';
 import { eventBus } from './eventBus';
 import { outboxDeliveryService } from './outboxDeliveryService';
 import type { OutboxRecord } from '../../persistence/types';
@@ -108,5 +109,41 @@ describe('Durable outbox delivery', () => {
     const second = await outboxDeliveryService.deliverNext(tenantId, 'worker-2');
     expect(second.delivered).toBe(true);
     expect(received).toBe(1);
+  });
+
+  it('suppresses duplicate delivery after an event-bus restart', async () => {
+    let firstProcessReceived = 0;
+    eventBus.subscribe('payment.posted.v1', async () => {
+      firstProcessReceived++;
+    });
+
+    await outboxRepository.saveOutbox(tenantId, 'evt_delivery_004', record('evt_delivery_004'));
+
+    const first = await outboxDeliveryService.deliverNext(tenantId, 'worker-1');
+    expect(first.delivered).toBe(true);
+    expect(firstProcessReceived).toBe(1);
+
+    // Simulate a process restart: process-local EventBus state disappears,
+    // while Firestore durable processing state remains authoritative.
+    eventBus.clearStoreForTesting();
+
+    let restartedProcessReceived = 0;
+    eventBus.subscribe('payment.posted.v1', async () => {
+      restartedProcessReceived++;
+    });
+
+    await outboxRepository.updateStatus(
+      tenantId,
+      'evt_delivery_004',
+      'PENDING',
+      { availableAt: new Date().toISOString(), deliveredAt: null },
+    );
+
+    const second = await outboxDeliveryService.deliverNext(tenantId, 'worker-2');
+    expect(second.delivered).toBe(true);
+    expect(restartedProcessReceived).toBe(0);
+
+    const processing = await eventProcessingRepository.get(tenantId, 'evt_delivery_004');
+    expect(processing?.status).toBe('COMPLETED');
   });
 });
