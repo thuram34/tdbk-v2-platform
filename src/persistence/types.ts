@@ -134,7 +134,12 @@ export interface IReceiptRepository {
 }
 
 export interface IReconciliationRepository {
-  markRequired(tenantId: string, transactionId: string, expectedStatus: FinancialTransactionStatus): Promise<FinancialTransaction>;
+  markRequired(
+    tenantId: string,
+    transactionId: string,
+    expectedStatus: FinancialTransactionStatus,
+    updates?: Partial<Pick<FinancialTransaction, 'providerReference' | 'description'>>,
+  ): Promise<FinancialTransaction>;
   resolve(
     tenantId: string,
     transactionId: string,
