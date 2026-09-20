@@ -430,20 +430,27 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
       throw new KernelError('VALIDATION_ERROR', 'Unknown provider reference cannot mutate tenant state', 404, context.requestId);
     }
 
-    const callbackTenant = rawCallback.tenantId || context.tenantContext?.tenantId;
+    const callbackTenant = rawCallback.tenantId;
     const requestTenant = context.tenantContext?.tenantId || context.principal.tenantId;
 
-    if (callbackTenant && requestTenant && callbackTenant !== requestTenant && !context.principal.isMaster) {
+    if (!requestTenant) {
+      throw new KernelError('TENANT_ISOLATION_ERROR', 'M-Pesa callback denied: missing authoritative tenant context', 403, context.requestId);
+    }
+
+    // tenantId supplied inside a provider payload is untrusted metadata. It may be
+    // useful for diagnostics, but it can never select the Firestore tenant namespace.
+    // The authenticated request context is the sole tenant authority.
+    if (callbackTenant && callbackTenant !== requestTenant) {
       auditLogger.logEvent('TENANT_ISOLATION_VIOLATION', context.principal.id, 'MUTATE_STATE_CROSS_TENANT', `bridge:${this.bridgeId}`, 'DENIED', {
         tenantId: requestTenant,
         requestId: context.requestId,
         details: { targetTenant: callbackTenant },
       });
-      throw new KernelError('TENANT_ISOLATION_ERROR', `Cross-Tenant Mutation Denied: Callback for tenant '${callbackTenant}' cannot alter tenant '${requestTenant}'`, 403, context.requestId);
+      throw new KernelError('TENANT_ISOLATION_ERROR', `Cross-Tenant Mutation Denied: Callback tenant metadata '${callbackTenant}' does not match authoritative tenant '${requestTenant}'`, 403, context.requestId);
     }
 
     const callbackKey = `mpesa_callback_${stk.CheckoutRequestID}`;
-    const idempotencyTenant = callbackTenant || requestTenant || 'unknown';
+    const idempotencyTenant = requestTenant;
     const normalized = this.normalizeResponse(rawCallback);
     let initiatedBranchId: string | null = context.branchContext?.branchId || null;
 
@@ -485,9 +492,18 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
 
     const atomicResult = await firestoreClient.runTransaction(async (tx) => {
       const existing = await tx.get<any>(claimPath);
-      if (existing?.status === 'COMPLETED') return { claim: 'COMPLETED' as const };
-      if (existing?.status === 'IN_PROGRESS' && new Date(existing.expiresAt).getTime() > Date.now()) {
-        return { claim: 'IN_PROGRESS' as const };
+      if (existing) {
+        if (
+          existing.tenantId !== idempotencyTenant ||
+          existing.action !== 'MPESA_CALLBACK' ||
+          existing.requestHash !== claimRecord.requestHash
+        ) {
+          throw new Error('M-Pesa callback idempotency key conflicts with a different provider result');
+        }
+        if (existing.status === 'COMPLETED') return { claim: 'COMPLETED' as const };
+        if (existing.status === 'IN_PROGRESS' && new Date(existing.expiresAt).getTime() > Date.now()) {
+          return { claim: 'IN_PROGRESS' as const };
+        }
       }
 
       await tx.set(claimPath, claimRecord);
