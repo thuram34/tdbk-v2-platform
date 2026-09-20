@@ -222,11 +222,66 @@ export class FinancialLedgerRepository implements IFinancialLedgerRepository {
 
       if (existing.status === 'POSTED') {
         if (
-          existing.amount === transaction.amount &&
-          existing.currency === transaction.currency &&
-          existing.providerReference === transaction.providerReference
-        ) return;
-        throw new Error('Conflicting already-posted financial transaction');
+          existing.amount !== transaction.amount ||
+          existing.currency !== transaction.currency ||
+          existing.providerReference !== transaction.providerReference
+        ) {
+          throw new Error('Conflicting already-posted financial transaction');
+        }
+
+        // A POSTED transaction is authoritative, but derived state may be
+        // incomplete after a crash between durable writes in an older revision.
+        // Replays must reconstruct only missing immutable artifacts and must
+        // reject any conflicting artifact rather than silently accepting it.
+        const existingEntries = await Promise.all(
+          entries.map((entry) =>
+            tx.get<LedgerEntry>(this.entryPath(transaction.tenantId, transaction.transactionId, entry.entryId))
+          )
+        );
+
+        for (let index = 0; index < entries.length; index += 1) {
+          const expected = entries[index];
+          const actual = existingEntries[index];
+
+          if (!actual) {
+            await tx.set(this.entryPath(transaction.tenantId, transaction.transactionId, expected.entryId), expected);
+            continue;
+          }
+
+          if (
+            actual.transactionId !== expected.transactionId ||
+            actual.tenantId !== expected.tenantId ||
+            actual.account !== expected.account ||
+            actual.entryType !== expected.entryType ||
+            actual.amount !== expected.amount ||
+            actual.currency !== expected.currency ||
+            actual.immutable !== true
+          ) {
+            throw new Error('Existing immutable ledger entry conflicts with authoritative transaction');
+          }
+        }
+
+        if (outboxRecord) {
+          const outboxPath = this.outboxPath(transaction.tenantId, outboxRecord.eventId);
+          const existingOutbox = await tx.get<import('../../types').OutboxRecord>(outboxPath);
+
+          if (!existingOutbox) {
+            await tx.set(outboxPath, outboxRecord);
+          } else if (
+            existingOutbox.tenantId !== outboxRecord.tenantId ||
+            existingOutbox.eventType !== outboxRecord.eventType ||
+            existingOutbox.eventVersion !== outboxRecord.eventVersion ||
+            existingOutbox.causationId !== outboxRecord.causationId ||
+            existingOutbox.payload.transactionId !== outboxRecord.payload.transactionId ||
+            existingOutbox.payload.providerReference !== outboxRecord.payload.providerReference ||
+            existingOutbox.payload.amount !== outboxRecord.payload.amount ||
+            existingOutbox.payload.currency !== outboxRecord.payload.currency
+          ) {
+            throw new Error('Existing outbox record conflicts with authoritative transaction');
+          }
+        }
+
+        return;
       }
 
       if (existing.status !== 'RECONCILIATION_REQUIRED') {
