@@ -303,7 +303,17 @@ export class RoleBasedCoherenceEngine {
 
     // 3. Resolve Active Role & Membership in this space
     // If the caller requested an explicit role switch within authorized permissions, apply it
-    const activeRole = options?.activeRoleOverride || originalMembership.role || principal.roles[0] || 'GUEST';
+    const requestedRole = options?.activeRoleOverride;
+    if (requestedRole && requestedRole !== originalMembership.role) {
+      throw new KernelError(
+        'AUTHORIZATION_ERROR',
+        `Role override '${requestedRole}' is not authorized for space '${currentSpace.spaceId}'`,
+        403,
+        context.requestId
+      );
+    }
+
+    const activeRole = originalMembership.role || principal.roles[0] || 'GUEST';
     
     const friendlyRoleTitle = this.computeFriendlyRoleTitle(activeRole);
     const membership: SpaceMembership = {
