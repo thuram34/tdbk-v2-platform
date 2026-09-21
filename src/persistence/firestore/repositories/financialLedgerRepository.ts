@@ -274,8 +274,6 @@ export class FinancialLedgerRepository implements IFinancialLedgerRepository {
       const originalPath = this.transactionPath(tenantId, transactionId);
       const original = await tx.get<FinancialTransaction>(originalPath);
       if (!original) throw new Error('Original financial transaction not found');
-      if (original.status === 'REVERSED') return;
-      if (original.status !== 'POSTED') throw new Error('Only POSTED transactions can be reversed');
       if (original.tenantId !== tenantId) throw new Error('Cross-tenant reversal denied');
       if (reversalTransaction.amount !== original.amount || reversalTransaction.currency !== original.currency) throw new Error('Reversal amount/currency must match original transaction');
       const reversalPath = this.transactionPath(tenantId, reversalTransaction.transactionId);
