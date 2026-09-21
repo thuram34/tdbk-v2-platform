@@ -74,6 +74,8 @@ class EventBusService {
       { eventType: 'pos.sale.completed.v1', version: 'v1', description: 'Counter POS sale completed' },
       { eventType: 'patient.triaged.v1', version: 'v1', description: 'Clinical patient triaged' },
       { eventType: 'display.broadcast.v1', version: 'v1', description: 'Digital screen broadcast notice' },
+      { eventType: 'display.heartbeat.v1', version: 'v1', description: 'Display runtime heartbeat' },
+      { eventType: 'display.command.issued.v1', version: 'v1', description: 'Display command issued' },
       { eventType: 'contribution.recorded.v1', version: 'v1', description: 'Shared contribution recorded' },
       { eventType: 'capability.access_requested.v1', version: 'v1', description: 'Capability access requested' },
       { eventType: 'capability.access_approved.v1', version: 'v1', description: 'Capability access approved' },

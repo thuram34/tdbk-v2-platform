@@ -1,0 +1,98 @@
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import { firestoreClient } from '../../persistence/firestore/firestoreClient';
+import { buildSyncPlan, capabilitiesForNodeType, createDisplayCommand } from './displayEngine';
+import type { DisplayCommand, DisplayContent, DisplayNode, DisplayNodeType, DisplayScheduleEntry, DisplaySyncPlan } from './types';
+import { eventBus } from '../../orchestration/events/eventBus';
+import { registerDisplayProjector } from './displayProjector';
+
+export interface DisplayRegistrationInput {
+  tenantId: string; siteId: string; name: string; nodeType: DisplayNodeType;
+  buildingId?: string | null; roomId?: string | null; capabilities?: DisplayNode['capabilities'];
+}
+export interface DisplayRegistrationResult { node: DisplayNode; pairingCode: string; expiresAt: string; }
+export interface DisplayPairResult { displayId: string; deviceToken: string; }
+export interface DisplayAuthRecord { displayId: string; tenantId: string; tokenHash: string; }
+
+const nodePath=(tenantId:string,id:string)=>`/tenants/${tenantId}/displayNodes/${id}`;
+const contentPath=(tenantId:string,id:string)=>`/tenants/${tenantId}/displayContent/${id}`;
+const schedulePath=(tenantId:string,id:string)=>`/tenants/${tenantId}/displaySchedules/${id}`;
+const pairingPath=(tenantId:string,code:string)=>`/tenants/${tenantId}/displayPairings/${code}`;
+const tokenHash=(token:string)=>createHash('sha256').update(token).digest('hex');
+
+export class DisplayService {
+  async register(input:DisplayRegistrationInput):Promise<DisplayRegistrationResult>{
+    const displayId=`display_${randomUUID().replaceAll('-','').slice(0,20)}`;
+    const pairingCode=String(Math.floor(100000+Math.random()*900000));
+    const expiresAt=new Date(Date.now()+15*60_000).toISOString();
+    const node:DisplayNode={displayId,tenantId:input.tenantId,siteId:input.siteId,buildingId:input.buildingId??null,roomId:input.roomId??null,
+      name:input.name,nodeType:input.nodeType,capabilities:input.capabilities?.length?input.capabilities:capabilitiesForNodeType(input.nodeType),
+      status:'UNKNOWN',lastSeenAt:null,appVersion:null,networkQuality:'UNKNOWN',currentContentId:null,currentScheduleId:null,offlineCacheVersion:0};
+    await firestoreClient.runTransaction(async tx=>{ await tx.set(nodePath(input.tenantId,displayId),node); await tx.set(pairingPath(input.tenantId,pairingCode),{displayId,tenantId:input.tenantId,expiresAt,used:false}); });
+    return {node,pairingCode,expiresAt};
+  }
+  async pair(tenantId:string,code:string):Promise<DisplayPairResult>{
+    return firestoreClient.runTransaction(async tx=>{
+      const pair=await tx.get<{displayId:string;tenantId:string;expiresAt:string;used:boolean}>(pairingPath(tenantId,code));
+      if(!pair||pair.tenantId!==tenantId||pair.used||new Date(pair.expiresAt).getTime()<Date.now()) throw new Error('DISPLAY_PAIRING_INVALID');
+      const deviceToken=randomBytes(32).toString('hex');
+      await tx.update(pairingPath(tenantId,code),{used:true});
+      await tx.set(`/system/displayDeviceAuth/${tokenHash(deviceToken)}`,{displayId:pair.displayId,tenantId,tokenHash:tokenHash(deviceToken)});
+      return {displayId:pair.displayId,deviceToken};
+    });
+  }
+  async authenticateDevice(deviceToken:string):Promise<DisplayAuthRecord|null>{
+    const hash=tokenHash(deviceToken);
+    return firestoreClient.get<DisplayAuthRecord>(`/system/displayDeviceAuth/${hash}`);
+  }
+  async heartbeat(heartbeat:{displayId:string;tenantId:string;status:DisplayNode['status'];networkQuality:DisplayNode['networkQuality'];appVersion:string;cacheVersion:number;currentContentId:string|null;reportedAt:string}):Promise<DisplayNode>{
+    const path=nodePath(heartbeat.tenantId,heartbeat.displayId); const node=await firestoreClient.get<DisplayNode>(path);
+    if(!node) throw new Error('DISPLAY_NOT_FOUND');
+    const updated={...node,status:heartbeat.status,lastSeenAt:heartbeat.reportedAt,networkQuality:heartbeat.networkQuality,appVersion:heartbeat.appVersion,
+      offlineCacheVersion:Math.max(node.offlineCacheVersion,heartbeat.cacheVersion),currentContentId:heartbeat.currentContentId};
+    await firestoreClient.set(path,updated);
+    await eventBus.publishEvent({ principal:{id:'DISPLAY_RUNTIME',tenantId:heartbeat.tenantId}, tenantContext:{tenantId:heartbeat.tenantId}, correlationId:`display_${heartbeat.displayId}` }, 'display.heartbeat.v1', { dbkId:heartbeat.tenantId, displayId:heartbeat.displayId, status:heartbeat.status, networkQuality:heartbeat.networkQuality, reportedAt:heartbeat.reportedAt });
+    return updated;
+  }
+  async getNode(tenantId:string,id:string){return firestoreClient.get<DisplayNode>(nodePath(tenantId,id));}
+  async listNodes(tenantId:string):Promise<DisplayNode[]>{
+    return firestoreClient.listCollection<DisplayNode>(`/tenants/${tenantId}/displayNodes`);
+  }
+  async sync(tenantId:string,id:string):Promise<DisplaySyncPlan>{
+    const node=await this.getNode(tenantId,id); if(!node) throw new Error('DISPLAY_NOT_FOUND');
+    const [content,schedules,commands]=await Promise.all([
+      firestoreClient.listCollection<DisplayContent>(`/tenants/${tenantId}/displayContent`),
+      firestoreClient.listCollection<DisplayScheduleEntry>(`/tenants/${tenantId}/displaySchedules`),
+      firestoreClient.listCollection<DisplayCommand>(`/tenants/${tenantId}/displayCommands`)
+    ]);
+    const plan=buildSyncPlan(node,{tenantId,generatedAt:new Date().toISOString(),nodes:[node],content,schedules});
+    plan.commands=commands
+      .filter((command)=>command.displayId===id && (!command.status || command.status==='PENDING'))
+      .sort((a,b)=>a.issuedAt.localeCompare(b.issuedAt))
+      .slice(0,50);
+    if (plan.commands.length) {
+      await Promise.all(plan.commands.map((command)=>firestoreClient.update<DisplayCommand>(
+        `/tenants/${tenantId}/displayCommands/${command.commandId}`,
+        {status:'DELIVERED',deliveredAt:new Date().toISOString()}
+      )));
+      plan.commands=plan.commands.map((command)=>({...command,status:'DELIVERED',deliveredAt:new Date().toISOString()}));
+    }
+    return plan;
+  }
+  async acknowledgeCommand(tenantId:string,id:string,commandId:string,success=true,error?:string):Promise<DisplayCommand>{
+    const path=`/tenants/${tenantId}/displayCommands/${commandId}`;
+    const command=await firestoreClient.get<DisplayCommand>(path);
+    if(!command || command.tenantId!==tenantId || command.displayId!==id) throw new Error('DISPLAY_COMMAND_NOT_FOUND');
+    const updated={...command,status:success?'ACKNOWLEDGED':'FAILED',acknowledgedAt:new Date().toISOString(),error:error??null};
+    await firestoreClient.set(path,updated);
+    return updated;
+  }
+  async issueCommand(tenantId:string,id:string,type:DisplayCommand['type'],payload:Record<string,unknown>={}):Promise<DisplayCommand>{
+    const node=await this.getNode(tenantId,id); if(!node) throw new Error('DISPLAY_NOT_FOUND');
+    const command=createDisplayCommand(tenantId,id,type,payload);
+    await firestoreClient.set(`/tenants/${tenantId}/displayCommands/${command.commandId}`,command);
+    await eventBus.publishEvent({ principal:{id:'DISPLAY_CONTROL_PLANE',tenantId}, tenantContext:{tenantId}, correlationId:command.commandId }, 'display.command.issued.v1', { dbkId:tenantId, displayId:id, commandId:command.commandId, type:type });
+    return command;
+  }
+}
+export const displayService=new DisplayService();
+registerDisplayProjector();
