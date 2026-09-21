@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { TdbkInstructionParser } from '../agent/instructionParser';
 import { AgentAuthorityPolicy } from '../agent/authorityPolicy';
 
@@ -484,5 +484,46 @@ describe('TDBK command agent', () => {
       },
     );
     expect(result.allowed).toBe(true);
+  });
+});
+
+
+describe('TDBK command agent execution replay binding', () => {
+  it('rejects reuse of an execution id across principal or scope changes', async () => {
+    const { tdbkAgentRuntime } = await import('../agent/agentRuntime');
+    const { agentExecutionRepository } = await import('../../persistence/firestore/repositories/agentExecutionRepository');
+
+    vi.spyOn(agentExecutionRepository, 'get').mockResolvedValue({
+      executionId: 'replay-1',
+      instructionId: 'replay-1',
+      tenantId: 'tenant-a',
+      branchId: 'branch-a',
+      principalId: 'principal-a',
+      instruction: 'Inspect DBKs',
+      intent: 'TDBK_OPERATIONAL_INSPECTION',
+      status: 'VERIFIED',
+      plan: { instructionId: 'replay-1', intent: 'TDBK_OPERATIONAL_INSPECTION', actions: [], generatedAt: new Date().toISOString() },
+      results: [],
+      createdAt: new Date().toISOString(),
+      completedAt: new Date().toISOString(),
+    } as any);
+
+    await expect(
+      tdbkAgentRuntime.run({
+        instructionId: 'replay-1',
+        text: 'Inspect DBKs',
+        context: {
+          requestId: 'req-replay',
+          principal: {
+            id: 'principal-b',
+            tenantId: 'tenant-b',
+            branchId: 'branch-b',
+          },
+          tenantContext: { tenantId: 'tenant-b' },
+        } as any,
+      } as any),
+    ).rejects.toThrow('Agent instruction replay conflict');
+
+    vi.restoreAllMocks();
   });
 });
