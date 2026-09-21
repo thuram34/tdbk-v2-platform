@@ -24,6 +24,19 @@ export class ReceiptRepository implements IReceiptRepository {
     transaction: FirestoreTransaction,
     outboxRecord: OutboxRecord
   ): Promise<boolean> {
+    if (receipt.tenantId !== tenantId) {
+      throw new Error('Receipt tenant mismatch');
+    }
+    if (outboxRecord.tenantId !== tenantId) {
+      throw new Error('Receipt outbox tenant mismatch');
+    }
+    if (outboxRecord.eventType !== 'receipt.created.v1' || outboxRecord.eventVersion !== 'v1') {
+      throw new Error('Receipt outbox event identity mismatch');
+    }
+    if (outboxRecord.causationId !== receipt.transactionId) {
+      throw new Error('Receipt outbox causation identity mismatch');
+    }
+
     const path = this.path(tenantId, receipt.receiptId);
     const existing = await transaction.get<FinancialReceipt>(path);
     if (existing) {
@@ -42,7 +55,17 @@ export class ReceiptRepository implements IReceiptRepository {
       // durable notification exists without ever creating a second receipt.
       const outboxPath = `/tenants/${tenantId}/outbox/${outboxRecord.eventId}`;
       const existingOutbox = await transaction.get<OutboxRecord>(outboxPath);
-      if (!existingOutbox) {
+      if (existingOutbox) {
+        if (
+          existingOutbox.tenantId !== tenantId ||
+          existingOutbox.eventId !== outboxRecord.eventId ||
+          existingOutbox.eventType !== outboxRecord.eventType ||
+          existingOutbox.eventVersion !== outboxRecord.eventVersion ||
+          existingOutbox.causationId !== outboxRecord.causationId
+        ) {
+          throw new Error(`Receipt outbox identity conflict for '${outboxRecord.eventId}'`);
+        }
+      } else {
         await transaction.set(outboxPath, outboxRecord);
       }
       return false;
