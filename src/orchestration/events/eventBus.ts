@@ -6,6 +6,8 @@
 import { EventEnvelope, EventRegistration, EventHandler, EventPublishResult } from './types';
 import { KernelError } from '../../kernel/errors/kernelErrors';
 import { handleSubscriptionPaymentConfirmed } from '../../platform/subscription/subscriptionPaymentHandler';
+import { idempotencyRepository } from '../../persistence/firestore/repositories/idempotencyRepository';
+import { createHash } from 'node:crypto';
 
 class EventBusService {
   private eventRegistry: Map<string, EventRegistration> = new Map();
@@ -194,7 +196,8 @@ class EventBusService {
       );
     }
 
-    // Idempotency Check
+    // Durable idempotency is authoritative across process restarts. The local
+    // sets remain a hot-path cache, but never replace the durable claim.
     const key = idempotencyKey || event.eventId;
     if (this.processedEventIds.has(event.eventId) || this.processedIdempotencyKeys.has(key)) {
       return {
@@ -204,6 +207,28 @@ class EventBusService {
         subscribersNotified: 0,
         reason: 'Duplicate event detected by Idempotency Store',
       };
+    }
+
+    const durableTenantId = event.tenantId || '__system__';
+    const durableKey = createHash('sha256').update(key).digest('hex');
+    const durableRecord = {
+      idempotencyKey: key,
+      tenantId: durableTenantId,
+      action: 'EVENT_BUS_PUBLISH',
+      requestHash: createHash('sha256').update(JSON.stringify(event)).digest('hex'),
+      status: 'IN_PROGRESS' as const,
+      createdAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+    };
+    const claim = await idempotencyRepository.claimIdempotencyRecord(durableTenantId, durableKey, durableRecord);
+    if (claim === 'COMPLETED') {
+      await idempotencyRepository.completeIdempotencyRecord(durableTenantId, durableKey, { eventId: event.eventId });
+    this.processedEventIds.add(event.eventId);
+      this.processedIdempotencyKeys.set(key, event as unknown as EventEnvelope);
+      return { published: false, isDuplicate: true, eventId: event.eventId, subscribersNotified: 0, reason: 'Duplicate event detected by durable Idempotency Store' };
+    }
+    if (claim === 'IN_PROGRESS') {
+      return { published: false, isDuplicate: true, eventId: event.eventId, subscribersNotified: 0, reason: 'Event is already being processed by another worker' };
     }
 
     // Notify Subscribers
@@ -218,6 +243,7 @@ class EventBusService {
         await handler(event as unknown as EventEnvelope);
         notifiedCount++;
       } catch (err: any) {
+        await idempotencyRepository.failIdempotencyRecord(durableTenantId, durableKey, { error: err instanceof Error ? err.message : 'Unknown subscriber failure' });
         console.error(`Error executing subscriber for event '${event.eventType}':`, err);
         throw err;
       }

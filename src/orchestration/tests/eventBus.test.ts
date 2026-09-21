@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { eventBus } from '../events/eventBus';
 import type { EventEnvelope } from '../events/types';
+import { firestoreClient } from '../../persistence/firestore/firestoreClient';
 
 describe('TDBK V2 — EventBus Handler Failure Semantics', () => {
   beforeEach(() => {
+    firestoreClient.clearAllForTesting();
     eventBus.clearStoreForTesting();
     eventBus.registerEventType(
       'business.created',
@@ -109,5 +111,28 @@ describe('TDBK V2 — EventBus Handler Failure Semantics', () => {
     expect(retryResult.subscribersNotified).toBe(1);
     expect(retryableHandler).toHaveBeenCalledTimes(2);
     expect(eventBus.isProcessed(event.eventId)).toBe(true);
+  });
+});
+
+
+describe('TDBK V2 — Durable EventBus Idempotency', () => {
+  it('suppresses the same event after an in-memory store reset', async () => {
+    const event: EventEnvelope = {
+      eventId: 'eventbus_durable_restart_01', eventType: 'business.created', eventVersion: 'v1',
+      occurredAt: new Date().toISOString(), tenantId: 'tenant_eventbus_durable', branchId: 'branch_hq',
+      principalId: 'usr_test', correlationId: 'corr_durable_01', causationId: null, source: 'eventbus-test',
+      payload: { test: true }, metadata: {},
+    };
+    const handler = vi.fn(async () => {});
+    eventBus.registerEventType('business.created', 'v1', 'durable restart test');
+    eventBus.subscribe('business.created', handler);
+    await eventBus.publish(event);
+    expect(handler).toHaveBeenCalledTimes(1);
+    eventBus.clearStoreForTesting();
+    eventBus.registerEventType('business.created', 'v1', 'durable restart test');
+    eventBus.subscribe('business.created', handler);
+    const replay = await eventBus.publish(event);
+    expect(replay.isDuplicate).toBe(true);
+    expect(handler).toHaveBeenCalledTimes(1);
   });
 });
