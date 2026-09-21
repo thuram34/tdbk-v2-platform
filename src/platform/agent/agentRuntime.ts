@@ -37,7 +37,20 @@ export class TdbkAgentRuntime {
       ? await agentExecutionRepository.get(tenantId, instruction.instructionId)
       : await agentExecutionRepository.getSystem(instruction.instructionId);
 
-    if (existing && ['EXECUTED', 'VERIFIED', 'AUTHORIZATION_REQUIRED'].includes(existing.status)) {
+    if (existing && ['EXECUTED', 'VERIFIED'].includes(existing.status)) {
+      const currentTenantId = tenantId;
+      const currentBranchId =
+        instruction.context.branchContext?.branchId || instruction.context.principal.branchId || null;
+      if (
+        existing.principalId !== instruction.context.principal.id ||
+        existing.tenantId !== currentTenantId ||
+        existing.branchId !== currentBranchId ||
+        existing.instruction !== instruction.text.slice(0, 2000)
+      ) {
+        throw new Error(
+          'Agent instruction replay conflict: instructionId is already bound to a different principal, scope, or instruction.',
+        );
+      }
       return {
         instructionId: existing.instructionId,
         plan: existing.plan,
