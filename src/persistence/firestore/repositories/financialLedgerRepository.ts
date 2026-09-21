@@ -157,67 +157,37 @@ export class FinancialLedgerRepository implements IFinancialLedgerRepository {
   public async savePendingTransaction(transaction: FinancialTransaction): Promise<void> {
     this.assertValidTransaction(transaction);
     if (transaction.status !== 'PENDING') throw new Error('Pending transaction must have PENDING status');
-
     await firestoreClient.runTransaction(async (tx) => {
       const path = this.transactionPath(transaction.tenantId, transaction.transactionId);
       const existing = await tx.get<FinancialTransaction>(path);
-
       if (existing) {
-        if (
-          existing.providerReference !== transaction.providerReference ||
-          existing.amount !== transaction.amount ||
-          existing.currency !== transaction.currency
-        ) {
-          throw new Error('Conflicting financial transaction identity');
-        }
+        if (existing.providerReference !== transaction.providerReference || existing.amount !== transaction.amount || existing.currency !== transaction.currency) throw new Error('Conflicting financial transaction identity');
         return;
       }
-
       await tx.set(path, transaction);
     });
   }
 
-  public async bindPendingTransaction(
-    tenantId: string,
-    pendingTransactionId: string,
-    boundTransaction: FinancialTransaction,
-  ): Promise<void> {
+  public async bindPendingTransaction(tenantId: string, pendingTransactionId: string, boundTransaction: FinancialTransaction): Promise<void> {
     this.assertValidTransaction(boundTransaction);
     if (boundTransaction.status !== 'PENDING') throw new Error('Bound M-Pesa transaction must remain PENDING');
     if (boundTransaction.tenantId !== tenantId) throw new Error('Pending transaction tenant mismatch');
-
     await firestoreClient.runTransaction(async (tx) => {
       const sourcePath = this.transactionPath(tenantId, pendingTransactionId);
       const targetPath = this.transactionPath(tenantId, boundTransaction.transactionId);
       const source = await tx.get<FinancialTransaction>(sourcePath);
       if (!source) throw new Error('Pending initiation transaction not found');
-      if (source.tenantId !== tenantId || source.status !== 'PENDING') {
-        throw new Error('Pending initiation transaction is not bindable');
-      }
-      if (source.amount !== boundTransaction.amount || source.currency !== boundTransaction.currency) {
-        throw new Error('Bound transaction amount/currency conflicts with initiation');
-      }
-
+      if (source.tenantId !== tenantId || source.status !== 'PENDING') throw new Error('Pending initiation transaction is not bindable');
+      if (source.amount !== boundTransaction.amount || source.currency !== boundTransaction.currency) throw new Error('Bound transaction amount/currency conflicts with initiation');
       const existing = await tx.get<FinancialTransaction>(targetPath);
       if (existing) {
-        if (
-          existing.status === 'PENDING' &&
-          existing.amount === boundTransaction.amount &&
-          existing.currency === boundTransaction.currency &&
-          existing.providerReference === boundTransaction.providerReference
-        ) {
+        if (existing.status === 'PENDING' && existing.amount === boundTransaction.amount && existing.currency === boundTransaction.currency && existing.providerReference === boundTransaction.providerReference) {
           await tx.delete(sourcePath);
           return;
         }
         throw new Error('Conflicting bound M-Pesa transaction already exists');
       }
-
-      await tx.set(targetPath, {
-        ...source,
-        ...boundTransaction,
-        tenantId,
-        status: 'PENDING',
-      });
+      await tx.set(targetPath, { ...source, ...boundTransaction, tenantId, status: 'PENDING' });
       await tx.delete(sourcePath);
     });
   }
@@ -230,44 +200,22 @@ export class FinancialLedgerRepository implements IFinancialLedgerRepository {
       if (existing.tenantId !== tenantId) throw new Error('Financial transaction tenant mismatch');
       if (existing.status === 'FAILED') return;
       if (existing.status !== 'PENDING') throw new Error('Only PENDING transactions can be failed');
-      await tx.update<FinancialTransaction>(path, {
-        status: 'FAILED',
-        description: `${existing.description} [${reason}]`,
-      });
+      await tx.update<FinancialTransaction>(path, { status: 'FAILED', description: `${existing.description} [${reason}]` });
     });
   }
 
   public async postTransaction(transaction: FinancialTransaction, entries: LedgerEntry[]): Promise<void> {
     this.assertBalanced(transaction, entries);
     if (transaction.status !== 'POSTED') throw new Error('Posted transaction must have POSTED status');
-
     await firestoreClient.runTransaction(async (tx) => {
-      const existing = await tx.get<FinancialTransaction>(
-        this.transactionPath(transaction.tenantId, transaction.transactionId)
-      );
-
+      const existing = await tx.get<FinancialTransaction>(this.transactionPath(transaction.tenantId, transaction.transactionId));
       if (existing) {
-        if (
-          existing.status === 'POSTED' &&
-          existing.amount === transaction.amount &&
-          existing.currency === transaction.currency &&
-          existing.providerReference === transaction.providerReference
-        ) {
-          const existingEntries = await Promise.all(
-            entries.map((entry) => tx.get<LedgerEntry>(this.entryPath(transaction.tenantId, transaction.transactionId, entry.entryId)))
-          );
+        if (existing.status === 'POSTED' && existing.amount === transaction.amount && existing.currency === transaction.currency && existing.providerReference === transaction.providerReference) {
+          const existingEntries = await Promise.all(entries.map((entry) => tx.get<LedgerEntry>(this.entryPath(transaction.tenantId, transaction.transactionId, entry.entryId))));
           if (existingEntries.every((entry) => entry !== null)) {
-            const matches = existingEntries.every((existing, index) => {
+            const matches = existingEntries.every((existingEntry, index) => {
               const requested = entries[index];
-              return !!existing &&
-                existing.entryId === requested.entryId &&
-                existing.transactionId === requested.transactionId &&
-                existing.tenantId === requested.tenantId &&
-                existing.account === requested.account &&
-                existing.entryType === requested.entryType &&
-                existing.amount === requested.amount &&
-                existing.currency === requested.currency &&
-                existing.immutable === true;
+              return !!existingEntry && existingEntry.entryId === requested.entryId && existingEntry.transactionId === requested.transactionId && existingEntry.tenantId === requested.tenantId && existingEntry.account === requested.account && existingEntry.entryType === requested.entryType && existingEntry.amount === requested.amount && existingEntry.currency === requested.currency && existingEntry.immutable === true;
             });
             if (matches) {
               await this.ensureFinancialOutbox(tx, transaction, 'payment.posted.v1', transaction.providerReference);
@@ -279,163 +227,77 @@ export class FinancialLedgerRepository implements IFinancialLedgerRepository {
         }
         throw new Error('Financial transaction already exists in a non-posted or conflicting state');
       }
-
       await this.writePostedState(tx, transaction, entries);
       await this.ensureFinancialOutbox(tx, transaction, 'payment.posted.v1', transaction.providerReference);
     });
   }
 
-  public async confirmReconciledTransaction(
-    transaction: FinancialTransaction,
-    entries: LedgerEntry[],
-    outboxRecord?: import('../../types').OutboxRecord,
-  ): Promise<void> {
+  public async confirmReconciledTransaction(transaction: FinancialTransaction, entries: LedgerEntry[], outboxRecord?: import('../../types').OutboxRecord): Promise<void> {
     this.assertBalanced(transaction, entries);
     if (transaction.status !== 'POSTED') throw new Error('Confirmed transaction must have POSTED status');
     if (!transaction.postedAt) throw new Error('Confirmed transaction must have postedAt');
-
     await firestoreClient.runTransaction(async (tx) => {
       const path = this.transactionPath(transaction.tenantId, transaction.transactionId);
       const existing = await tx.get<FinancialTransaction>(path);
-
       if (!existing) throw new Error('Financial transaction not found for reconciliation confirmation');
       if (existing.tenantId !== transaction.tenantId) throw new Error('Financial transaction tenant mismatch');
-
       if (existing.status === 'POSTED') {
-        if (
-          existing.amount !== transaction.amount ||
-          existing.currency !== transaction.currency ||
-          existing.providerReference !== transaction.providerReference
-        ) {
-          throw new Error('Conflicting already-posted financial transaction');
-        }
-
-        // A POSTED transaction is authoritative, but derived state may be
-        // incomplete after a crash between durable writes in an older revision.
-        // Replays must reconstruct only missing immutable artifacts and must
-        // reject any conflicting artifact rather than silently accepting it.
-        const existingEntries = await Promise.all(
-          entries.map((entry) =>
-            tx.get<LedgerEntry>(this.entryPath(transaction.tenantId, transaction.transactionId, entry.entryId))
-          )
-        );
-
+        if (existing.amount !== transaction.amount || existing.currency !== transaction.currency || existing.providerReference !== transaction.providerReference) throw new Error('Conflicting already-posted financial transaction');
+        const existingEntries = await Promise.all(entries.map((entry) => tx.get<LedgerEntry>(this.entryPath(transaction.tenantId, transaction.transactionId, entry.entryId))));
         for (let index = 0; index < entries.length; index += 1) {
           const expected = entries[index];
           const actual = existingEntries[index];
-
-          if (!actual) {
-            await tx.set(this.entryPath(transaction.tenantId, transaction.transactionId, expected.entryId), expected);
-            continue;
-          }
-
-          if (
-            actual.transactionId !== expected.transactionId ||
-            actual.tenantId !== expected.tenantId ||
-            actual.account !== expected.account ||
-            actual.entryType !== expected.entryType ||
-            actual.amount !== expected.amount ||
-            actual.currency !== expected.currency ||
-            actual.immutable !== true
-          ) {
-            throw new Error('Existing immutable ledger entry conflicts with authoritative transaction');
-          }
+          if (!actual) { await tx.set(this.entryPath(transaction.tenantId, transaction.transactionId, expected.entryId), expected); continue; }
+          if (actual.transactionId !== expected.transactionId || actual.tenantId !== expected.tenantId || actual.account !== expected.account || actual.entryType !== expected.entryType || actual.amount !== expected.amount || actual.currency !== expected.currency || actual.immutable !== true) throw new Error('Existing immutable ledger entry conflicts with authoritative transaction');
         }
-
         if (outboxRecord) {
           const outboxPath = this.outboxPath(transaction.tenantId, outboxRecord.eventId);
           const existingOutbox = await tx.get<import('../../types').OutboxRecord>(outboxPath);
-
-          if (!existingOutbox) {
-            await tx.set(outboxPath, outboxRecord);
-          } else if (
-            existingOutbox.tenantId !== outboxRecord.tenantId ||
-            existingOutbox.eventType !== outboxRecord.eventType ||
-            existingOutbox.eventVersion !== outboxRecord.eventVersion ||
-            existingOutbox.causationId !== outboxRecord.causationId ||
-            existingOutbox.payload.transactionId !== outboxRecord.payload.transactionId ||
-            existingOutbox.payload.providerReference !== outboxRecord.payload.providerReference ||
-            existingOutbox.payload.amount !== outboxRecord.payload.amount ||
-            existingOutbox.payload.currency !== outboxRecord.payload.currency
-          ) {
-            throw new Error('Existing outbox record conflicts with authoritative transaction');
-          }
+          if (!existingOutbox) await tx.set(outboxPath, outboxRecord);
+          else if (existingOutbox.tenantId !== outboxRecord.tenantId || existingOutbox.eventType !== outboxRecord.eventType || existingOutbox.eventVersion !== outboxRecord.eventVersion || existingOutbox.causationId !== outboxRecord.causationId || existingOutbox.payload.transactionId !== outboxRecord.payload.transactionId || existingOutbox.payload.providerReference !== outboxRecord.payload.providerReference || existingOutbox.payload.amount !== outboxRecord.payload.amount || existingOutbox.payload.currency !== outboxRecord.payload.currency) throw new Error('Existing outbox record conflicts with authoritative transaction');
         }
-
         return;
       }
-
-      if (existing.status !== 'RECONCILIATION_REQUIRED') {
-        throw new Error(
-          `Only RECONCILIATION_REQUIRED transactions may be authoritatively confirmed; found '${existing.status}'`
-        );
-      }
-
-      if (
-        existing.amount !== transaction.amount ||
-        existing.currency !== transaction.currency ||
-        existing.providerReference !== transaction.providerReference
-      ) {
-        throw new Error('Reconciliation confirmation identity conflicts with original transaction');
-      }
-
-      const confirmed: FinancialTransaction = {
-        ...existing,
-        ...transaction,
-        transactionId: existing.transactionId,
-        tenantId: existing.tenantId,
-        status: 'POSTED',
-        postedAt: transaction.postedAt,
-        reversedAt: null,
-      };
-
+      if (existing.status !== 'RECONCILIATION_REQUIRED') throw new Error(`Only RECONCILIATION_REQUIRED transactions may be authoritatively confirmed; found '${existing.status}'`);
+      if (existing.amount !== transaction.amount || existing.currency !== transaction.currency || existing.providerReference !== transaction.providerReference) throw new Error('Reconciliation confirmation identity conflicts with original transaction');
+      const confirmed: FinancialTransaction = { ...existing, ...transaction, transactionId: existing.transactionId, tenantId: existing.tenantId, status: 'POSTED', postedAt: transaction.postedAt, reversedAt: null };
       await this.writePostedState(tx, confirmed, entries);
-      if (outboxRecord) {
-        await tx.set(
-          `/tenants/${transaction.tenantId}/outbox/${outboxRecord.eventId}`,
-          outboxRecord,
-        );
-      }
+      if (outboxRecord) await tx.set(`/tenants/${transaction.tenantId}/outbox/${outboxRecord.eventId}`, outboxRecord);
     });
   }
 
-  public async reverseTransaction(
-    tenantId: string,
-    transactionId: string,
-    reversalTransaction: FinancialTransaction,
-    reversalEntries: LedgerEntry[],
-  ): Promise<void> {
-    if (reversalTransaction.reversalOfTransactionId !== transactionId) {
-      throw new Error('Reversal must reference the original transaction');
-    }
+  public async reverseTransaction(tenantId: string, transactionId: string, reversalTransaction: FinancialTransaction, reversalEntries: LedgerEntry[]): Promise<void> {
+    if (reversalTransaction.reversalOfTransactionId !== transactionId) throw new Error('Reversal must reference the original transaction');
     this.assertBalanced(reversalTransaction, reversalEntries);
     if (reversalTransaction.status !== 'POSTED') throw new Error('Reversal transaction must be POSTED');
-
     await firestoreClient.runTransaction(async (tx) => {
       const originalPath = this.transactionPath(tenantId, transactionId);
       const original = await tx.get<FinancialTransaction>(originalPath);
-
       if (!original) throw new Error('Original financial transaction not found');
       if (original.status === 'REVERSED') return;
       if (original.status !== 'POSTED') throw new Error('Only POSTED transactions can be reversed');
       if (original.tenantId !== tenantId) throw new Error('Cross-tenant reversal denied');
-      if (reversalTransaction.amount !== original.amount || reversalTransaction.currency !== original.currency) {
-        throw new Error('Reversal amount/currency must match original transaction');
-      }
-
+      if (reversalTransaction.amount !== original.amount || reversalTransaction.currency !== original.currency) throw new Error('Reversal amount/currency must match original transaction');
       const reversalPath = this.transactionPath(tenantId, reversalTransaction.transactionId);
       const existingReversal = await tx.get<FinancialTransaction>(reversalPath);
       if (existingReversal) {
-        if (existingReversal.reversalOfTransactionId !== transactionId) {
-          throw new Error('Conflicting reversal transaction identity');
-        }
+        if (
+          existingReversal.reversalOfTransactionId !== transactionId ||
+          existingReversal.amount !== reversalTransaction.amount ||
+          existingReversal.currency !== reversalTransaction.currency ||
+          existingReversal.providerReference !== reversalTransaction.providerReference
+        ) throw new Error('Conflicting reversal transaction identity');
+        const existingEntries = await Promise.all(reversalEntries.map((entry) => tx.get<LedgerEntry>(this.entryPath(tenantId, reversalTransaction.transactionId, entry.entryId))));
+        if (!existingEntries.every((entry) => entry !== null)) throw new Error('Existing reversal is missing immutable ledger entries');
+        const matches = existingEntries.every((existingEntry, index) => {
+          const requested = reversalEntries[index];
+          return !!existingEntry && existingEntry.entryId === requested.entryId && existingEntry.account === requested.account && existingEntry.entryType === requested.entryType && existingEntry.amount === requested.amount && existingEntry.currency === requested.currency && existingEntry.immutable === true;
+        });
+        if (!matches) throw new Error('Existing reversal has conflicting immutable ledger entries');
+        await this.ensureFinancialOutbox(tx, reversalTransaction, 'payment.reversed.v1', reversalTransaction.providerReference);
         return;
       }
-
-      await tx.update<FinancialTransaction>(originalPath, {
-        status: 'REVERSED',
-        reversedAt: reversalTransaction.postedAt,
-      });
+      await tx.update<FinancialTransaction>(originalPath, { status: 'REVERSED', reversedAt: reversalTransaction.postedAt });
       await this.writePostedState(tx, reversalTransaction, reversalEntries);
       await this.ensureFinancialOutbox(tx, reversalTransaction, 'payment.reversed.v1', reversalTransaction.providerReference);
     });
@@ -446,9 +308,7 @@ export class FinancialLedgerRepository implements IFinancialLedgerRepository {
   }
 
   public async listEntries(tenantId: string, transactionId: string): Promise<LedgerEntry[]> {
-    return firestoreClient.listCollection<LedgerEntry>(
-      `${this.ledgerPath(tenantId, transactionId)}/entries`
-    );
+    return firestoreClient.listCollection<LedgerEntry>(`${this.ledgerPath(tenantId, transactionId)}/entries`);
   }
 }
 
