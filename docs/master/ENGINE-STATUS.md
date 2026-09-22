@@ -4,90 +4,147 @@
 2026-09-22
 
 ## Current Phase
-Provisioning Service Identity Authority Review
+Provisioning Service Identity Authority Decision
 
 ## Current Objective
-Resolve the provisioning workflow's internal service-identity authority question only. No DBK, Sokoni, public discovery, bridge, or unrelated Engine work is included in this cycle.
+Resolve the provisioning workflow's internal executor authority question only. No DBK, Sokoni, public discovery, bridge, or unrelated Engine work is included in this cycle.
 
 ## Completed
-- Completed the focused audit of the production-capable DBK provisioning workflow's synthetic internal principal.
-- Located the synthetic identity creation in `src/platform/provisioning/provisioningService.ts`, in `createStepContext()`.
-- Verified the public provisioning entrypoint authorizes the initiating principal before workflow creation with `masterAuthority.assertOwnerOrMasterAuthority(...)`.
-- Verified the workflow itself is created and executed with the initiating `SecurityContext`; therefore the workflow lifecycle's `principalId` and initial provisioning audit attribution preserve the initiating actor.
-- Enumerated the production provisioning steps that actually construct/use the synthetic context: `PROVISIONING_INITIALIZE_DNA`, `PROVISIONING_INITIALIZE_CAPABILITIES`, `PROVISIONING_INITIALIZE_BRANCHES`, `PROVISIONING_CREATE_WORKSPACE_STATE`, and `PROVISIONING_VERIFY_AND_ACTIVATE`.
-- Confirmed `PROVISIONING_VALIDATE_IDENTITY`, `PROVISIONING_VALIDATE_BLUEPRINT`, and `PROVISIONING_ASSIGN_ENTITLEMENT` do not consume the synthetic context.
-- Verified the synthetic principal is materially broad: `id=usr_master_provisioner`, `roles=['TDBK_MASTER_ADMIN']`, `permissions=['*']`, `isMaster=true`, `tokenSource='SERVICE_KEY'`, with `tenantId` set to the DBK being provisioned.
-- Verified `MasterAuthorityService` treats `isMaster=true` plus `TDBK_MASTER_ADMIN` as global platform authority. This means the synthetic identity is not a least-privilege tenant-scoped provisioning identity.
-- Verified internal service calls made with the synthetic context can therefore be attributed to `usr_master_provisioner`, while workflow-level start/completion/failure events continue to use the initiating principal from the workflow execution context.
-- Determined that the repository has no separate established Engine service-principal registry/permission model that would allow safely narrowing this synthetic identity without defining a new authority contract.
+- Re-read the prior Gate 01 finding at commit `1f4c6c577d175da3a5d6ea8398ea3f2beb3eed40`.
+- Inspected `src/platform/provisioning/provisioningService.ts`, `src/kernel/master/masterAuthority.ts`, `src/kernel/authorization/rbacEngine.ts`, `src/kernel/audit/auditLogger.ts`, and `src/orchestration/workflow/engine.ts`.
+- Confirmed `createStepContext()` is the sole inspected construction point for the synthetic provisioning executor.
+- Confirmed the public `provisionDbk()` boundary authorizes the initiating principal before creating the provisioning workflow.
+- Confirmed workflow creation/execution preserves the initiating `SecurityContext` for workflow lifecycle attribution and worker identity, while provisioning handlers replace it with the synthetic executor for selected internal operations.
+- Confirmed the synthetic executor is `usr_master_provisioner`, role `TDBK_MASTER_ADMIN`, permissions `['*']`, `isMaster=true`, `tokenSource='SERVICE_KEY'`.
+- Confirmed `MasterAuthorityService.isMasterAdmin()` recognizes `isMaster=true` + `TDBK_MASTER_ADMIN`, and RBAC treats Master authority as a global override.
+- Confirmed the target `tenantId` on the synthetic principal does not constrain Master authority; Master authorization is accepted before tenant-specific checks.
+- Confirmed provisioning steps using the synthetic executor include Business DNA binding, capability initialization/persistence, branch creation, workspace compilation, and final DBK activation.
+- Confirmed workflow lifecycle audit/events preserve the initiating principal, while the existing audit event schema has one `principalId`, so internal calls made with the synthetic executor are attributed to that executor.
+- Confirmed there is no already-established Engine service-principal registry, dedicated provisioning role, or least-privilege permission contract from which a safe replacement identity can be derived.
 
 ## In Progress
-- None. This single-task audit is complete.
+- None. This single-task decision review is stopped at the architectural decision boundary.
+
+## Decision
+**MASTER REVIEW REQUIRED — no existing authority model is sufficient to safely select A, B, or C without defining a new contract.**
+
+### Option A — dedicated least-privilege provisioning service authority
+This is the only model that can preserve the current internal-service execution semantics while removing the unjustified global `TDBK_MASTER_ADMIN` + `*` authority. However, implementing it requires a new Engine-owned service-principal contract defining identity registration, exact permissions, tenant/DBK scope, issuance/authentication, and authorization behavior. None of those contracts currently exist as an established authority in the repository. Therefore it cannot be safely implemented under the instruction to avoid inventing architecture.
+
+### Option B — initiating-principal authority
+This is not an established equivalent for the current workflow executor model. Direct propagation would cause provisioning steps to execute under the initiating Business Owner/Master identity rather than an internal executor. Existing provisioning operations include calls currently relying on Master-level authority, so propagation could change legitimate provisioning behavior. It also would not solve restart/recovery semantics unless the initiating execution identity were durably represented in the workflow authority. Therefore it cannot be selected as a safe correction from the current repository state.
+
+### Option C — another already-established Engine model
+No such model was found. The established workflow model preserves the initiating context at workflow execution/lifecycle boundaries, but it does not define a separate least-privilege service identity for internal provisioning steps. The existing Master model is global, not provisioning-scoped.
+
+## Authority Model
+Current model, as actually implemented:
+1. External provisioning request is authorized by `masterAuthority.assertOwnerOrMasterAuthority(context.principal, 'provisionDbk', ...)`.
+2. The provisioning workflow is created/executed with the initiating `SecurityContext`.
+3. Selected internal handlers construct a synthetic global Master executor.
+4. The synthetic executor is therefore an internal implementation identity, but its authority is broader than a provisioning-specific least-privilege authority.
+5. The target DBK tenant ID on that executor is metadata, not an effective restriction, because Master authorization is globally accepted.
+
+This is **not classified PASS as a final authority model**. It is classified **MASTER REVIEW REQUIRED**.
+
+## Initiating Actor vs Executor Semantics
+- Initiating actor: preserved at provisioning entry, DBK creation/lifecycle history, workflow creation, workflow lifecycle audit/events, and workflow execution context.
+- Internal executor: `usr_master_provisioner` for the five provisioning handlers that construct `createStepContext()`.
+- Audit limitation: `AuditEvent` contains a single `principalId`. Consequently, internal service-operation audit records identify the synthetic executor, while workflow-level events identify the initiating actor. There is no first-class actor/executor pair.
+- This does **not** justify redesigning the audit system in this task. Whether a dual attribution contract is required must follow the authority decision.
 
 ## Verified
-- Public provisioning authorization boundary: **PASS** — the initiating context is checked before the workflow is created.
-- Initiating actor preservation at workflow boundary: **PASS** — `createPersistentWorkflow()` and `executeWorkflow()` receive the original `SecurityContext`, and workflow audit/events use `context.principal.id`.
-- Synthetic internal executor existence: **PASS** — explicitly identified and bounded to the registered provisioning step handlers.
-- Synthetic executor least privilege: **MASTER REVIEW REQUIRED** — it is a global `TDBK_MASTER_ADMIN` with `*` permissions rather than a documented dedicated least-privilege service authority.
-- Initiating actor vs internal executor separation: **PARTIAL / MASTER REVIEW REQUIRED** — workflow lifecycle records preserve the initiating principal, but the existing `AuditLogger` has only one `principalId` field, so service calls made with the synthetic context are recorded under the synthetic executor rather than carrying a separate first-class initiating-actor field.
-- Propagating the initiating identity: **MASTER REVIEW REQUIRED** — direct propagation would change the authority assumptions of provisioning operations that currently rely on Master-level permissions, particularly branch creation and final activation.
-- Dedicated least-privilege provisioning service identity as the long-term model: **MASTER REVIEW REQUIRED** — architecturally preferable only if the Engine first establishes an authoritative service-principal/permission contract; the repository currently does not contain that contract.
-- Current temporary retention: **MASTER REVIEW REQUIRED** — the synthetic identity is not exposed as a public API principal in the inspected provisioning path, but its global authority and audit-attribution semantics prevent a PASS classification for production identity hardening.
-- Tests/typecheck/lint/build: **NOT EXECUTED** — connected repository tooling does not provide local npm command execution in this task. No passing result is claimed.
+- Provisioning entry authorization: **PASS** — initiating context is checked before workflow creation.
+- Workflow initiating-actor preservation: **PASS** — workflow lifecycle code uses the original execution context's principal.
+- Synthetic executor location: **PASS** — `createStepContext()` in `src/platform/provisioning/provisioningService.ts`.
+- Synthetic executor authority: **PASS as evidence** — it is globally recognized as `TDBK_MASTER_ADMIN` with `*` permissions.
+- Least-privilege provisioning authority: **MASTER REVIEW REQUIRED** — no established dedicated authority exists.
+- Initiating-principal substitution: **MASTER REVIEW REQUIRED** — not safe to implement without changing current authority assumptions.
+- Existing alternative Engine authority: **MASTER REVIEW REQUIRED** — none found.
+- Tests/typecheck/lint/build: **NOT EXECUTED** — connected repository tooling does not provide local npm command execution. No passing result is claimed.
 
 ## New Engine Contracts
-- None implemented. No speculative service-principal authority was introduced.
+None implemented.
+
+### Contract that would be required if Master selects Option A
+Before implementation, Master must explicitly authorize a new Engine-owned provisioning service-principal contract containing at minimum:
+- stable service-principal identity
+- non-human/service classification
+- exact provisioning permissions (no wildcard permission)
+- explicit tenant/DBK scope rules
+- authorization primitive used by provisioning steps
+- authentication/issuance mechanism for internal workflow execution
+- durable executor identity for workflow recovery
+- audit attribution rule distinguishing initiating actor from executing service identity, if required
+- prohibition on using the service identity for unrelated platform administration
+
+This is a definition of the missing contract, not an implementation or architectural assumption.
 
 ## Contracts Required by DBK
-- None introduced by this audit.
+None introduced by this task.
 
 ## Contracts Required by Sokoni
-- None introduced by this audit.
+None introduced by this task.
 
 ## Blocking Issues
-- The provisioning workflow uses a synthetic `TDBK_MASTER_ADMIN` executor with `permissions=['*']` rather than an explicitly documented least-privilege provisioning service identity.
-- Audit events have a single `principalId`; workflow lifecycle events preserve the initiating actor, but internal service-operation audits use the synthetic executor identity. A first-class actor/executor distinction is not currently established.
-- Propagating the initiating principal directly may break legitimate provisioning operations because some provisioning steps currently execute under global Master semantics.
-- The Engine currently lacks an established service-principal registry/permission contract from which a narrowly scoped provisioning identity could be derived.
+- Current synthetic executor is global Master authority rather than a documented provisioning-scoped authority.
+- No established least-privilege service-principal contract exists.
+- Direct initiating-principal propagation could change legitimate provisioning authorization behavior and recovery semantics.
+- Existing audit records distinguish the two identities only by event context, not through a first-class actor/executor pair.
 
 ## MASTER REVIEW REQUIRED
-- Decide whether provisioning should remain a dedicated Engine service-execution model or establish a new least-privilege service-principal authority model.
-- If a service identity remains authoritative, define its exact permissions and tenant/DBK scope instead of relying on `TDBK_MASTER_ADMIN` + `*`.
-- Decide whether audit architecture must represent both `initiatingActor` and `executingPrincipal` for internally executed workflows.
-- Decide whether provisioning operations currently requiring Master authority should remain service-authorized or be reworked to authorize the initiating actor per step.
+- Choose/authorize the authority contract: retain/rework service execution as a new least-privilege provisioning service principal, or explicitly authorize initiating-principal execution with the required durable workflow semantics.
+- If Option A is selected, approve the service-principal contract described above before code implementation.
+- If audit dual attribution is required by the selected authority model, authorize that narrowly scoped audit contract separately; no audit redesign was performed here.
 
 ## Risks / Architecture Concerns
-- `createStepContext()` is explicitly commented as a "mock master context". Despite that naming, it is used by production-capable provisioning handlers, so the identity is operational rather than merely test data.
-- `masterAuthority.isMasterAdmin()` grants global authority to any principal carrying both `isMaster=true` and the `TDBK_MASTER_ADMIN` role. The synthetic context satisfies both conditions.
-- The synthetic context's `tenantId` is set to the target DBK, but this does not constrain its authority because Master authority is globally accepted before tenant-specific checks.
-- Replacing the synthetic context with the initiating principal without an explicit authority analysis could make provisioning fail for legitimate Business Owner requests, because the current provisioning handlers invoke operations that may depend on Master-level authority.
-- No code workaround was applied because the requested task explicitly prohibits speculative security changes and the repository lacks a pre-existing least-privilege service-principal authority contract.
+- `createStepContext()` is named a mock context but is used by production-capable provisioning steps.
+- `MasterAuthorityService` makes `TDBK_MASTER_ADMIN` global, so attaching the target DBK as `tenantId` does not provide least-privilege isolation.
+- `RBACEngine` explicitly bypasses ordinary permission/tenant evaluation for Master principals, reinforcing that `permissions=['*']` is not the real limiting boundary.
+- The workflow engine already has durable execution/recovery, but a future dedicated service identity must survive recovery without reverting to an ad hoc process-local principal.
 
 ## Files / Areas Changed
-- `docs/master/ENGINE-STATUS.md` — updated with the focused provisioning service-identity audit and final classification.
+- `docs/master/ENGINE-STATUS.md` — updated with the final authority decision boundary.
 - No production source files changed.
 - No DBK files changed.
 - No Sokoni files changed.
 - No public discovery files changed.
 - No bridge files changed.
 
+## Verification Performed
+Repository inspection only; no code implementation was performed.
+
+Inspected:
+- `src/platform/provisioning/provisioningService.ts`
+- `src/kernel/master/masterAuthority.ts`
+- `src/kernel/authorization/rbacEngine.ts`
+- `src/kernel/audit/auditLogger.ts`
+- `src/orchestration/workflow/engine.ts`
+- relevant existing Gate 01 status/evidence
+
+Tests/typecheck/lint/build: **NOT EXECUTED** because local repository command execution is unavailable through the connected tooling.
+
+## Unresolved Issues
+- Authority model remains at the explicit Master decision boundary described above.
+- No code workaround was introduced.
+
 ## Next Recommended Engine Task
-Resolve the `MASTER REVIEW REQUIRED` provisioning service-principal authority decision and, only after that decision, implement the narrowly defined authority contract if authorized. Do not bundle audit attribution redesign or unrelated hardening into that task unless explicitly authorized.
+After Master resolves the authority decision, implement exactly the authorized provisioning service-identity contract (and focused tests) if a new contract is approved. Do not bundle audit redesign or unrelated hardening into that task.
 
 ## Dependency Handoffs
 
 ### DBK
-No dependency or implementation change. DBK must continue treating Engine provisioning authorization as authoritative and must not create a parallel provisioning identity model.
+No impact. No DBK code or authority was changed. DBK continues to consume Engine provisioning authority only.
 
 ### SOKONI
-No dependency or implementation change. Sokoni remains unaffected by this identity-authority review.
+No impact. No Sokoni code or authority was changed.
 
 ## Evidence
 - Repository: `thuram34/tdbk-v2-platform`.
-- `src/platform/provisioning/provisioningService.ts`: `createStepContext()` creates `usr_master_provisioner`, `TDBK_MASTER_ADMIN`, `permissions=['*']`, `isMaster=true`, `tokenSource='SERVICE_KEY'`; production-capable steps 3, 5, 6, 7 and 8 consume it.
-- `src/platform/provisioning/provisioningService.ts`: `provisionDbk()` authorizes the initiating context before workflow creation and passes the original context into `createPersistentWorkflow()` / `executeWorkflow()`.
-- `src/orchestration/workflow/engine.ts`: workflow start/completion/failure audits/events use `context.principal.id`; workflow execution is invoked with the original provisioning workflow context.
-- `src/kernel/master/masterAuthority.ts`: `isMasterAdmin()` recognizes `isMaster=true` plus `TDBK_MASTER_ADMIN`, and `assertTenantAuthority()` grants such principals global authority.
-- `src/kernel/audit/auditLogger.ts`: `AuditEvent` records a single `principalId`; there is no first-class executor/initiator pair.
-- Prior Gate 01 finding: `docs/PRODUCTION_HARDENING_GATE_01_2026-09-22.md`.
-- No local test/typecheck/lint/build execution evidence is available; no passing result is claimed.
+- Decision-review starting evidence: `1f4c6c577d175da3a5d6ea8398ea3f2beb3eed40`.
+- `src/platform/provisioning/provisioningService.ts`: synthetic executor construction and consuming provisioning handlers.
+- `src/kernel/master/masterAuthority.ts`: global Master recognition and tenant authority behavior.
+- `src/kernel/authorization/rbacEngine.ts`: Master override and wildcard permission behavior.
+- `src/kernel/audit/auditLogger.ts`: single `principalId` attribution model.
+- `src/orchestration/workflow/engine.ts`: initiating context preservation and durable workflow execution/recovery.
+- No test/typecheck/lint/build PASS is claimed without execution evidence.
