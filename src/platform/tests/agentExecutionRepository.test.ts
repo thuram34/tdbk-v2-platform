@@ -31,9 +31,13 @@ describe('AgentExecutionRepository durable execution claims', () => {
     expect(replay.record.status).toBe('VERIFIED');
   });
 
-  it('rejects execution id reuse across tenant or principal identity', async () => {
-    await agentExecutionRepository.claim(record(), 'owner_a');
-    await expect(agentExecutionRepository.claim({ ...record(), tenantId: 'attacker_tenant' }, 'owner_b')).rejects.toThrow('Agent execution identity conflict');
-    await expect(agentExecutionRepository.claim({ ...record(), principalId: 'attacker_principal' }, 'owner_c')).rejects.toThrow('Agent execution identity conflict');
+  it('keeps tenant execution ledgers isolated and rejects same-tenant principal reuse', async () => {
+    const first = await agentExecutionRepository.claim(record(), 'owner_a');
+    expect(first.status).toBe('ACQUIRED');
+    const otherTenant = await agentExecutionRepository.claim({ ...record(), tenantId: 'other_tenant' }, 'owner_b');
+    expect(otherTenant.status).toBe('ACQUIRED');
+    await expect(
+      agentExecutionRepository.claim({ ...record(), principalId: 'attacker_principal' }, 'owner_c'),
+    ).rejects.toThrow('Agent execution identity conflict');
   });
 });
