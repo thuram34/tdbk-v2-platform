@@ -13,6 +13,7 @@ Build the first Sokoni discovery experience around the technician journey while 
 - Phase 0 Engine dependency audit recorded.
 - Phase 1 Sokoni Experience Contract recorded in `docs/sokoni/PHASE1_EXPERIENCE_CONTRACT.md`.
 - Audited existing DBK experience projection, capability discovery, experience resolver, and transaction authority before implementation.
+- Read the current Engine and DBK status/handoff records and the active Engine public-discovery boundary contract before implementation.
 - Added the Sokoni discovery adapter boundary without creating a backend or marketplace authority.
 - Added a mobile-first technician discovery UX prototype for `"My computer is slow."`.
 - Added intent presentation, location selection UX, discovery results, provider detail, request CTA, and explicit Engine handoff placeholder.
@@ -28,6 +29,8 @@ Build the first Sokoni discovery experience around the technician journey while 
 - Existing DBK experience projection remains the DBK-facing authority and was not repurposed.
 - Existing capability discovery remains DBK capability discovery/activation authority and was not repurposed as marketplace search.
 - Existing DBK experience resolver and sale transaction authority were not modified.
+- Existing Engine public-discovery contract confirms that generic public discovery, publication, provider, product/service, availability and request/quote contracts remain blocked pending Master review.
+- Existing DBK status confirms DBK must consume Engine authority and must not invent a Sokoni API or public organization projection.
 - No Sokoni marketplace master records were created.
 - No Sokoni backend, search infrastructure, public discovery persistence, transaction logic, payment logic, or workflow logic was added.
 - The technician provider shown by the prototype is explicitly labelled as a reference/demo preview, not a claimed live provider.
@@ -35,7 +38,7 @@ Build the first Sokoni discovery experience around the technician journey while 
 
 ## Engine Contracts Consumed
 - Existing DBK/public entry surface only for navigation into the prototype.
-- Existing Engine/DBK architecture as documented by Phase 1; no new authoritative Engine contract was assumed.
+- Existing Engine/DBK architecture as documented by `docs/master/ENGINE-STATUS.md` and `docs/ENGINE_PUBLIC_DISCOVERY_CONTRACT.md`.
 - Future `SokoniPublicDiscoveryAdapter` is an experience boundary only and is not an Engine implementation.
 
 ## Engine Contracts Required
@@ -61,12 +64,11 @@ Build the first Sokoni discovery experience around the technician journey while 
 - Provider operational consequences must continue to return to DBK/Engine authority; Sokoni does not own provider operations.
 
 ## Blocking Issues
-- The prototype cannot claim live public discovery because GAP-05/GAP-06/GAP-18 remain unresolved.
+- The prototype cannot claim live public discovery because the Engine public-discovery contract explicitly says GAP-05/GAP-06/GAP-18 remain unresolved.
 - Provider identity/coverage/availability/trust cannot be represented as authoritative until GAP-04/GAP-08/GAP-09/GAP-17 are resolved.
 - Request creation is intentionally stopped at the handoff placeholder because GAP-10 is unresolved.
 - Quote/approval remains blocked by GAP-11.
 - Payment, receipt, and completion are not implemented in Sokoni and must remain Engine-owned.
-- `docs/master/ENGINE-STATUS.md` and `docs/master/DBK-STATUS.md` were requested for this task but are not present at those paths on the inspected branch; no replacement authority was inferred.
 
 ## MASTER REVIEW REQUIRED
 - GAP-20, GAP-05, GAP-06, GAP-18 for public discovery/search/matching.
@@ -115,5 +117,5 @@ Keep the UX boundary stable and wait for Master TDBK Engine resolution of GAP-20
 - UX commit: `8db17eb8ba595518eb0b6587c958c335a0b6d547`.
 - App integration commit: `84588d60d9ce2d2b7b451c64cbc0c114bf91c552`.
 - Focused test commit: `edb995d23ffd862ce324d6cd7b52af5aeb846d84`.
-- Status update follows those implementation commits on the same Sokoni branch.
+- Latest status commit: `4c725d39af8f37ff0c9753fab99fc81c607ec750` before this correction.
 - Automated test/typecheck/lint/build execution was attempted via the available runtime but could not be run because the environment could not clone/access the GitHub repository; therefore no passing runtime/build claim is made.
