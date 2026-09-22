@@ -1,23 +1,20 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useAuth } from '../../client/AuthContext';
 import {
-  Building2,
-  Plus,
-  ArrowRight,
-  ShieldCheck,
-  Sparkles,
-  Layers,
-  Store,
-  GraduationCap,
-  Pill,
-  Truck,
-  Stethoscope,
-  Hotel,
-  CheckCircle2,
   AlertCircle,
+  ArrowRight,
+  Building2,
+  CheckCircle2,
+  GraduationCap,
+  Hospital,
+  Hotel,
+  Layers,
   Loader2,
-  LayoutDashboard,
-  Cpu,
+  Pill,
+  Plus,
+  RefreshCw,
+  Store,
+  Truck,
 } from 'lucide-react';
 
 interface DbkItem {
@@ -33,365 +30,325 @@ interface DbkItem {
 
 interface OwnerPortfolioViewProps {
   dbks: DbkItem[];
+  isLoading?: boolean;
+  error?: string | null;
   onSelectDbk: (dbkId: string) => void;
   onRefreshDbks: () => void;
-  onOpenTestSuite: () => void;
-  onOpenCoherenceEngine?: () => void;
 }
+
+const getStatus = (status?: string) => {
+  const value = (status || 'ACTIVE').toUpperCase();
+  if (value.includes('PROVISION')) return { label: 'Setting up', tone: 'amber' };
+  if (value.includes('SUSPEND') || value.includes('INACTIVE') || value.includes('DISABLED')) {
+    return { label: 'Inactive', tone: 'neutral' };
+  }
+  if (value.includes('ERROR') || value.includes('FAILED')) return { label: 'Needs attention', tone: 'rose' };
+  return { label: 'Active', tone: 'emerald' };
+};
+
+const statusClasses: Record<string, string> = {
+  emerald: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  amber: 'bg-amber-50 text-amber-700 border-amber-200',
+  rose: 'bg-rose-50 text-rose-700 border-rose-200',
+  neutral: 'bg-neutral-100 text-neutral-600 border-neutral-200',
+};
+
+const getIndustryIcon = (blueprintId: string, sector: string) => {
+  const value = `${blueprintId} ${sector}`.toLowerCase();
+  if (value.includes('school') || value.includes('education')) return <GraduationCap className="h-6 w-6" />;
+  if (value.includes('clinic') || value.includes('health')) return <Hospital className="h-6 w-6" />;
+  if (value.includes('hotel') || value.includes('hospitality')) return <Hotel className="h-6 w-6" />;
+  if (value.includes('pharmacy') || value.includes('retail')) return <Pill className="h-6 w-6" />;
+  if (value.includes('logistics')) return <Truck className="h-6 w-6" />;
+  if (value.includes('hardware') || value.includes('commerce')) return <Store className="h-6 w-6" />;
+  return <Building2 className="h-6 w-6" />;
+};
+
+const createInternalDbkId = (name: string) =>
+  name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 80);
 
 export const OwnerPortfolioView: React.FC<OwnerPortfolioViewProps> = ({
   dbks,
+  isLoading = false,
+  error = null,
   onSelectDbk,
   onRefreshDbks,
-  onOpenTestSuite,
-  onOpenCoherenceEngine,
 }) => {
   const { getIdToken } = useAuth();
-  const [isRegisterOpen, setIsRegisterOpen] = useState<boolean>(false);
-  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
+  const [isRegisterOpen, setIsRegisterOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [organizationName, setOrganizationName] = useState('');
+  const [organizationType, setOrganizationType] = useState('school_v1');
+  const [primaryLocation, setPrimaryLocation] = useState('');
 
-  // Form state for registration
-  const [legalName, setLegalName] = useState<string>('');
-  const [dbkId, setDbkId] = useState<string>('');
-  const [blueprintId, setBlueprintId] = useState<string>('school_v1');
-  const [subscriptionTier, setSubscriptionTier] = useState<string>('FOUNDATION');
-  const [branchName, setBranchName] = useState<string>('Headquarters');
+  const organizationTypes = useMemo(() => [
+    { id: 'school_v1', label: 'School / Academy', sector: 'Education' },
+    { id: 'retail_v1', label: 'Pharmacy / Retail', sector: 'Retail' },
+    { id: 'hardware_v1', label: 'Hardware / General Commerce', sector: 'Commerce' },
+    { id: 'logistics_v1', label: 'Logistics & Fleet', sector: 'Logistics' },
+    { id: 'clinic_v1', label: 'Clinic / Medical Practice', sector: 'Healthcare' },
+  ], []);
 
-  const blueprints = [
-    { id: 'school_v1', label: 'School / Academy', icon: GraduationCap, sector: 'EDUCATION' },
-    { id: 'retail_v1', label: 'Pharmacy / Retail POS', icon: Pill, sector: 'RETAIL' },
-    { id: 'hardware_v1', label: 'Hardware / Inventory', icon: Store, sector: 'COMMERCE' },
-    { id: 'logistics_v1', label: 'Logistics & Fleet Dispatch', icon: Truck, sector: 'LOGISTICS' },
-    { id: 'clinic_v1', label: 'Clinic / Medical Practice', icon: Stethoscope, sector: 'HEALTHCARE' },
-  ];
+  const openRegistration = () => {
+    setFormError(null);
+    setOrganizationName('');
+    setPrimaryLocation('');
+    setIsRegisterOpen(true);
+  };
 
-  const handleRegister = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!legalName || !dbkId) {
-      setError('Legal name and DBK ID are required.');
+  const handleRegister = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const name = organizationName.trim();
+    if (!name) {
+      setFormError('Enter your organization name.');
+      return;
+    }
+
+    const internalDbkId = createInternalDbkId(name);
+    if (!internalDbkId) {
+      setFormError('Enter a valid organization name.');
       return;
     }
 
     setIsSubmitting(true);
-    setError(null);
+    setFormError(null);
 
     try {
       const idToken = await getIdToken(true);
+      if (!idToken) throw new Error('Your session has expired. Please sign in again.');
 
-      if (!idToken) {
-        throw new Error('Your session has expired. Please sign in again.');
-      }
-
-      const res = await fetch('/api/platform/provision', {
+      const response = await fetch('/api/platform/provision', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${idToken}`,
+          Authorization: `Bearer ${idToken}`,
         },
         body: JSON.stringify({
-          dbkId: dbkId.trim().toLowerCase().replace(/\s+/g, '_'),
-          legalName,
-          displayName: legalName,
-          blueprintId,
-          subscriptionTier,
-          primaryBranchName: branchName || 'Headquarters',
+          dbkId: internalDbkId,
+          legalName: name,
+          displayName: name,
+          blueprintId: organizationType,
+          subscriptionTier: 'FOUNDATION',
+          primaryBranchName: primaryLocation.trim() || 'Headquarters',
         }),
       });
 
-      const data = await res.json();
-      if (res.ok && data.result?.success) {
-        setIsRegisterOpen(false);
-        setLegalName('');
-        setDbkId('');
-        onRefreshDbks();
-        onSelectDbk(data.result.dbkId);
-      } else {
-        setError(data.error?.message || data.result?.error || 'Failed to provision business DBK.');
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.result?.success) {
+        setFormError(data.error?.message || data.result?.error || 'We could not set up your organization. Please try again.');
+        return;
       }
+
+      setIsRegisterOpen(false);
+      onRefreshDbks();
+      onSelectDbk(data.result.dbkId);
     } catch (err: any) {
-      setError(err?.message || 'Network error during provisioning.');
+      setFormError(err?.message || 'We could not connect to TDBK. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const autoGenerateId = (name: string) => {
-    const slug = name.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_');
-    setDbkId(slug);
-  };
-
-  const getBlueprintIcon = (bpId: string) => {
-    if (bpId.includes('school')) return <GraduationCap className="w-6 h-6 text-indigo-600" />;
-    if (bpId.includes('pos')) return <Pill className="w-6 h-6 text-emerald-600" />;
-    if (bpId.includes('inventory')) return <Store className="w-6 h-6 text-amber-600" />;
-    if (bpId.includes('logistics')) return <Truck className="w-6 h-6 text-blue-600" />;
-    if (bpId.includes('clinic')) return <Stethoscope className="w-6 h-6 text-rose-600" />;
-    return <Building2 className="w-6 h-6 text-neutral-600" />;
-  };
-
   return (
     <div className="min-h-screen bg-neutral-50 text-neutral-900 font-sans">
-      {/* Top Navigation Bar */}
-      <header className="bg-white border-b border-neutral-200 sticky top-0 z-30 px-6 py-4 flex items-center justify-between shadow-xs">
-        <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 rounded-xl bg-neutral-900 text-white flex items-center justify-center font-bold text-lg shadow-sm">
-            T
+      <header className="sticky top-0 z-30 border-b border-neutral-200 bg-white/95 backdrop-blur">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-neutral-900 text-lg font-bold text-white">T</div>
+            <div className="min-w-0">
+              <p className="truncate text-lg font-bold tracking-tight">My Organizations</p>
+              <p className="hidden text-xs text-neutral-500 sm:block">Manage your organizations from one place.</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-lg font-bold tracking-tight text-neutral-900 flex items-center gap-2">
-              TDBK V2 Owner Portfolio
-              <span className="text-xs bg-emerald-50 text-emerald-700 font-semibold px-2 py-0.5 rounded-full border border-emerald-200">
-                Authoritative Master
-              </span>
-            </h1>
-            <p className="text-xs text-neutral-500">Multi-Business Operations & SHA UI Control Hub</p>
-          </div>
-        </div>
-
-        <div className="flex items-center space-x-3">
-          {onOpenCoherenceEngine && (
-            <button
-              onClick={onOpenCoherenceEngine}
-              className="px-3.5 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 rounded-lg transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
-            >
-              <Layers className="w-4 h-4 text-indigo-200" />
-              Role-Based Coherence Engine
-            </button>
-          )}
           <button
-            onClick={onOpenTestSuite}
-            className="px-3.5 py-2 text-xs font-semibold text-neutral-700 bg-neutral-100 hover:bg-neutral-200 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
+            type="button"
+            onClick={openRegistration}
+            className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-neutral-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-neutral-800"
           >
-            <Cpu className="w-4 h-4 text-neutral-600" />
-            Multi-Business Test Suite
-          </button>
-          <button
-            onClick={() => setIsRegisterOpen(true)}
-            className="px-4 py-2 text-xs font-semibold text-white bg-neutral-900 hover:bg-neutral-800 rounded-lg shadow-sm transition-colors flex items-center gap-2 cursor-pointer"
-          >
-            <Plus className="w-4 h-4" />
-            Register Business
+            <Plus className="h-4 w-4" />
+            <span className="hidden sm:inline">Add organization</span>
+            <span className="sm:hidden">Add</span>
           </button>
         </div>
       </header>
 
-      {/* Main Content Area */}
-      <main className="max-w-7xl mx-auto px-6 py-10">
-        <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
-          <div>
-            <h2 className="text-2xl font-bold tracking-tight text-neutral-900">My Operated Businesses</h2>
-            <p className="text-sm text-neutral-500 mt-1">
-              Select a business workspace to enter its dedicated SHA UI projection. Each business maintains strict tenant isolation, independent Business DNA, and its own external bridge connections.
-            </p>
-          </div>
-          <div className="flex items-center gap-2 text-xs font-medium text-neutral-600 bg-white px-3 py-1.5 rounded-lg border border-neutral-200 shadow-2xs self-start">
-            <ShieldCheck className="w-4 h-4 text-emerald-600" />
-            <span>Multi-Tenant Authoritative Isolation Active</span>
-          </div>
-        </div>
+      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-10">
+        <section className="mb-8">
+          <p className="mb-2 text-sm font-semibold text-indigo-600">Your organizations</p>
+          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Manage your organizations</h1>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-neutral-600 sm:text-base">
+            Choose an organization to continue working, or add another organization to your portfolio.
+          </p>
+        </section>
 
-        {dbks.length === 0 ? (
-          /* Empty State */
-          <div className="bg-white rounded-2xl border border-neutral-200 p-12 text-center max-w-xl mx-auto shadow-xs mt-12">
-            <div className="w-16 h-16 bg-neutral-100 text-neutral-400 rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <Building2 className="w-8 h-8" />
+        {isLoading ? (
+          <div className="rounded-2xl border border-neutral-200 bg-white p-12 text-center shadow-sm">
+            <RefreshCw className="mx-auto h-7 w-7 animate-spin text-indigo-500" />
+            <h2 className="mt-4 text-lg font-semibold">Loading your organizations</h2>
+            <p className="mt-1 text-sm text-neutral-500">Getting the latest organization access from TDBK.</p>
+          </div>
+        ) : error ? (
+          <div className="rounded-2xl border border-rose-200 bg-rose-50 p-6 sm:p-8">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-rose-600" />
+              <div>
+                <h2 className="font-semibold text-rose-900">We could not load your organizations</h2>
+                <p className="mt-1 text-sm text-rose-800">{error}</p>
+                <button
+                  type="button"
+                  onClick={onRefreshDbks}
+                  className="mt-4 inline-flex items-center gap-2 rounded-lg bg-white px-3.5 py-2 text-sm font-semibold text-rose-900 ring-1 ring-inset ring-rose-200 hover:bg-rose-100"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  Try again
+                </button>
+              </div>
             </div>
-            <h3 className="text-lg font-bold text-neutral-900">Welcome to TDBK V2</h3>
-            <p className="text-sm text-neutral-500 mt-1 mb-6">
-              You currently have zero registered businesses in your operator portfolio. Register your first business to initialize its Business DNA and SHA UI projection.
+          </div>
+        ) : dbks.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-neutral-300 bg-white p-10 text-center shadow-sm sm:p-14">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-neutral-100 text-neutral-500">
+              <Building2 className="h-8 w-8" />
+            </div>
+            <h2 className="mt-5 text-xl font-bold">No organizations yet</h2>
+            <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-neutral-500">
+              Add your first organization and TDBK will guide you through setting it up.
             </p>
             <button
-              onClick={() => setIsRegisterOpen(true)}
-              className="px-5 py-2.5 text-sm font-semibold text-white bg-neutral-900 hover:bg-neutral-800 rounded-xl shadow-sm transition-colors inline-flex items-center gap-2"
+              type="button"
+              onClick={openRegistration}
+              className="mt-6 inline-flex items-center gap-2 rounded-xl bg-neutral-900 px-5 py-3 text-sm font-semibold text-white hover:bg-neutral-800"
             >
-              <Plus className="w-4 h-4" />
-              Register Your First Business
+              <Plus className="h-4 w-4" />
+              Add your first organization
             </button>
           </div>
         ) : (
-          /* Business Card Grid */
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
             {dbks.map((dbk) => {
+              const status = getStatus(dbk.status);
               const branchCount = dbk.branchTopology?.length || 1;
               return (
-                <div
-                  key={dbk.dbkId}
-                  className="bg-white rounded-2xl border border-neutral-200 p-6 shadow-xs hover:shadow-md transition-all flex flex-col justify-between group relative overflow-hidden"
-                >
-                  <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-neutral-800 to-neutral-600 opacity-0 group-hover:opacity-15 transition-opacity" />
-                  
-                  <div>
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="w-12 h-12 rounded-xl bg-neutral-100 flex items-center justify-center border border-neutral-200">
-                        {getBlueprintIcon(dbk.blueprintId)}
-                      </div>
-                      <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-neutral-100 text-neutral-700 border border-neutral-200 uppercase tracking-wide">
-                        {dbk.sector || 'OPERATIONAL'}
-                      </span>
+                <article key={dbk.dbkId} className="flex min-h-[250px] flex-col rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700">
+                      {getIndustryIcon(dbk.blueprintId, dbk.sector)}
                     </div>
-
-                    <h3 className="text-lg font-bold text-neutral-900 group-hover:text-black transition-colors">
-                      {dbk.displayName || dbk.legalName}
-                    </h3>
-                    <p className="text-xs text-neutral-500 mt-0.5 font-mono">ID: {dbk.dbkId}</p>
-
-                    <div className="mt-4 pt-4 border-t border-neutral-100 grid grid-cols-2 gap-2 text-xs text-neutral-600">
-                      <div className="flex items-center gap-1.5">
-                        <Layers className="w-4 h-4 text-neutral-400" />
-                        <span>{branchCount} {branchCount === 1 ? 'Branch' : 'Branches'}</span>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <Sparkles className="w-4 h-4 text-neutral-400" />
-                        <span>Tier: {dbk.subscriptionTier || 'FOUNDATION'}</span>
-                      </div>
-                    </div>
+                    <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${statusClasses[status.tone]}`}>
+                      {status.label}
+                    </span>
                   </div>
 
-                  <div className="mt-6 pt-4 border-t border-neutral-100 flex items-center justify-between">
-                    <span className="text-xs font-medium text-emerald-600 flex items-center gap-1">
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      {dbk.status || 'ACTIVE'}
+                  <div className="mt-5 min-w-0">
+                    <h2 className="truncate text-lg font-bold">{dbk.displayName || dbk.legalName}</h2>
+                    <p className="mt-1 text-sm text-neutral-500">{dbk.sector || 'Organization'}</p>
+                  </div>
+
+                  <div className="mt-5 flex items-center gap-4 border-t border-neutral-100 pt-4 text-xs text-neutral-500">
+                    <span className="inline-flex items-center gap-1.5">
+                      <Layers className="h-4 w-4" />
+                      {branchCount} {branchCount === 1 ? 'location' : 'locations'}
                     </span>
+                    <span className="inline-flex items-center gap-1.5">
+                      <CheckCircle2 className="h-4 w-4" />
+                      TDBK connected
+                    </span>
+                  </div>
+
+                  <div className="mt-auto pt-5">
                     <button
+                      type="button"
                       onClick={() => onSelectDbk(dbk.dbkId)}
-                      className="px-3.5 py-2 text-xs font-semibold text-neutral-900 bg-neutral-100 hover:bg-neutral-900 hover:text-white rounded-lg transition-colors flex items-center gap-1.5 shadow-2xs"
+                      disabled={status.label === 'Inactive'}
+                      className="flex w-full items-center justify-center gap-2 rounded-xl bg-neutral-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:bg-neutral-200 disabled:text-neutral-500"
                     >
-                      <span>Open SHA UI</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
+                      {status.label === 'Setting up' ? 'View setup' : 'Open organization'}
+                      <ArrowRight className="h-4 w-4" />
                     </button>
                   </div>
-                </div>
+                </article>
               );
             })}
 
-            {/* Add Business Card Tile */}
             <button
-              onClick={() => setIsRegisterOpen(true)}
-              className="bg-neutral-50 hover:bg-neutral-100 border-2 border-dashed border-neutral-300 rounded-2xl p-6 flex flex-col items-center justify-center text-center transition-all group min-h-[220px]"
+              type="button"
+              onClick={openRegistration}
+              className="flex min-h-[250px] flex-col items-center justify-center rounded-2xl border-2 border-dashed border-neutral-300 bg-neutral-50 p-6 text-center transition hover:border-neutral-400 hover:bg-white"
             >
-              <div className="w-12 h-12 rounded-xl bg-white border border-neutral-200 text-neutral-600 flex items-center justify-center mb-3 group-hover:scale-105 transition-transform shadow-2xs">
-                <Plus className="w-6 h-6" />
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white text-neutral-600 shadow-sm">
+                <Plus className="h-6 w-6" />
               </div>
-              <h4 className="text-sm font-bold text-neutral-800">Register Another Business</h4>
-              <p className="text-xs text-neutral-500 mt-1 max-w-xs">
-                Add a new school, pharmacy, hardware, or logistics entity to your portfolio.
-              </p>
+              <span className="mt-4 text-sm font-bold">Add another organization</span>
+              <span className="mt-1 max-w-xs text-xs leading-5 text-neutral-500">Schools, businesses, clinics, hotels, pharmacies and other supported organizations.</span>
             </button>
           </div>
         )}
       </main>
 
-      {/* Register Business Modal */}
       {isRegisterOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl border border-neutral-200 animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between pb-4 border-b border-neutral-200 mb-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="register-organization-title">
+          <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl sm:p-7">
+            <div className="flex items-start justify-between gap-4">
               <div>
-                <h3 className="text-lg font-bold text-neutral-900">Register New Business DBK</h3>
-                <p className="text-xs text-neutral-500">Initialize authoritative Business DNA and Provisioning Service</p>
+                <h2 id="register-organization-title" className="text-xl font-bold">Add an organization</h2>
+                <p className="mt-1 text-sm text-neutral-500">Tell TDBK a little about the organization you want to manage.</p>
               </div>
-              <button
-                onClick={() => setIsRegisterOpen(false)}
-                className="text-neutral-400 hover:text-neutral-700 text-sm font-semibold"
-              >
-                ✕
+              <button type="button" onClick={() => setIsRegisterOpen(false)} className="rounded-lg p-2 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700" aria-label="Close">
+                ×
               </button>
             </div>
 
-            {error && (
-              <div className="mb-4 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0" />
-                <span>{error}</span>
+            {formError && (
+              <div className="mt-5 flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>{formError}</span>
               </div>
             )}
 
-            <form onSubmit={handleRegister} className="space-y-4">
+            <form onSubmit={handleRegister} className="mt-6 space-y-5">
               <div>
-                <label className="block text-xs font-semibold text-neutral-700 mb-1">Business Legal Name</label>
+                <label htmlFor="organization-name" className="mb-1.5 block text-sm font-semibold">Organization name</label>
                 <input
-                  type="text"
+                  id="organization-name"
                   required
-                  value={legalName}
-                  onChange={(e) => {
-                    setLegalName(e.target.value);
-                    autoGenerateId(e.target.value);
-                  }}
+                  value={organizationName}
+                  onChange={(event) => setOrganizationName(event.target.value)}
                   placeholder="e.g. Hillcrest International School"
-                  className="w-full px-3 py-2 text-sm bg-neutral-50 border border-neutral-300 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-neutral-900"
+                  className="w-full rounded-xl border border-neutral-300 bg-white px-3.5 py-3 text-sm outline-none ring-indigo-500 focus:ring-2"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-neutral-700 mb-1">Canonical DBK ID (Tenant Slug)</label>
-                <input
-                  type="text"
-                  required
-                  value={dbkId}
-                  onChange={(e) => setDbkId(e.target.value)}
-                  placeholder="e.g. hillcrest_school"
-                  className="w-full px-3 py-2 text-sm font-mono bg-neutral-50 border border-neutral-300 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-neutral-900"
-                />
-                <p className="text-[11px] text-neutral-500 mt-1">Unique tenant identifier used for authoritative Firestore paths.</p>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-neutral-700 mb-1">Industry Blueprint / Sector</label>
+                <label htmlFor="organization-type" className="mb-1.5 block text-sm font-semibold">What kind of organization is this?</label>
                 <select
-                  value={blueprintId}
-                  onChange={(e) => setBlueprintId(e.target.value)}
-                  className="w-full px-3 py-2 text-sm bg-neutral-50 border border-neutral-300 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-neutral-900"
+                  id="organization-type"
+                  value={organizationType}
+                  onChange={(event) => setOrganizationType(event.target.value)}
+                  className="w-full rounded-xl border border-neutral-300 bg-white px-3.5 py-3 text-sm outline-none ring-indigo-500 focus:ring-2"
                 >
-                  {blueprints.map((bp) => (
-                    <option key={bp.id} value={bp.id}>
-                      {bp.label} ({bp.sector})
-                    </option>
+                  {organizationTypes.map((type) => (
+                    <option key={type.id} value={type.id}>{type.label}</option>
                   ))}
                 </select>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-neutral-700 mb-1">Subscription Tier</label>
-                  <select
-                    value={subscriptionTier}
-                    onChange={(e) => setSubscriptionTier(e.target.value)}
-                    className="w-full px-3 py-2 text-sm bg-neutral-50 border border-neutral-300 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-neutral-900"
-                  >
-                    <option value="FREE">Free</option>
-                    <option value="FOUNDATION">Foundation</option>
-                    <option value="GROWTH">Growth</option>
-                    <option value="PRO">Pro</option>
-                    <option value="ENTERPRISE">Enterprise</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-neutral-700 mb-1">HQ Branch Name</label>
-                  <input
-                    type="text"
-                    value={branchName}
-                    onChange={(e) => setBranchName(e.target.value)}
-                    placeholder="Headquarters"
-                    className="w-full px-3 py-2 text-sm bg-neutral-50 border border-neutral-300 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-neutral-900"
-                  />
-                </div>
+              <div>
+                <label htmlFor="primary-location" className="mb-1.5 block text-sm font-semibold">Primary location <span className="font-normal text-neutral-400">(optional)</span></label>
+                <input
+                  id="primary-location"
+                  value={primaryLocation}
+                  onChange={(event) => setPrimaryLocation(event.target.value)}
+                  placeholder="e.g. Mombasa"
+                  className="w-full rounded-xl border border-neutral-300 bg-white px-3.5 py-3 text-sm outline-none ring-indigo-500 focus:ring-2"
+                />
               </div>
 
-              <div className="pt-4 flex items-center justify-end space-x-3 border-t border-neutral-200 mt-6">
-                <button
-                  type="button"
-                  onClick={() => setIsRegisterOpen(false)}
-                  className="px-4 py-2 text-xs font-semibold text-neutral-600 bg-neutral-100 hover:bg-neutral-200 rounded-xl transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="px-5 py-2 text-xs font-semibold text-white bg-neutral-900 hover:bg-neutral-800 rounded-xl shadow-sm transition-colors flex items-center gap-2 disabled:opacity-50"
-                >
-                  {isSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                  <span>Provision Business DBK</span>
+              <div className="flex items-center justify-end gap-3 border-t border-neutral-100 pt-5">
+                <button type="button" onClick={() => setIsRegisterOpen(false)} className="rounded-xl px-4 py-2.5 text-sm font-semibold text-neutral-600 hover:bg-neutral-100">Cancel</button>
+                <button type="submit" disabled={isSubmitting} className="inline-flex items-center gap-2 rounded-xl bg-neutral-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-60">
+                  {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {isSubmitting ? 'Setting up…' : 'Continue'}
                 </button>
               </div>
             </form>
