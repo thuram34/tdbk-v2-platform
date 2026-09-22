@@ -5,6 +5,7 @@
 
 import { IIdempotencyRepository, IdempotencyClaimResult, IdempotencyRecord } from '../../types';
 import { firestoreClient } from '../firestoreClient';
+import { KernelError } from '../../../kernel/errors/kernelErrors';
 
 export class IdempotencyRepository implements IIdempotencyRepository {
   private static instance: IdempotencyRepository;
@@ -30,6 +31,19 @@ export class IdempotencyRepository implements IIdempotencyRepository {
     const path = this.getPath(tenantId, key);
     return await firestoreClient.runTransaction(async (transaction) => {
       const existing = await transaction.get<IdempotencyRecord>(path);
+
+      // requestHash is part of the established durable idempotency contract.
+      // A key must never be reused for a different request, including after
+      // an expired claim, because doing so would silently change the operation
+      // represented by the same durable idempotency key.
+      if (existing && existing.requestHash !== record.requestHash) {
+        throw new KernelError(
+          'VALIDATION_ERROR',
+          `Idempotency key '${key}' was already used for a different request.`,
+          409
+        );
+      }
+
       if (existing?.status === 'COMPLETED') return 'COMPLETED';
 
       if (existing?.status === 'IN_PROGRESS') {
