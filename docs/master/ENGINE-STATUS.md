@@ -4,147 +4,134 @@
 2026-09-22
 
 ## Current Phase
-Provisioning Service Identity Authority Decision
+Production Hardening Gate 02 — Runtime Readiness Audit
 
 ## Current Objective
-Resolve the provisioning workflow's internal executor authority question only. No DBK, Sokoni, public discovery, bridge, or unrelated Engine work is included in this cycle.
+Audit the existing `/api/health/ready` production-readiness boundary only, using the repository's already-established Firestore persistence path and without inventing a new readiness architecture.
 
 ## Completed
-- Re-read the prior Gate 01 finding at commit `1f4c6c577d175da3a5d6ea8398ea3f2beb3eed40`.
-- Inspected `src/platform/provisioning/provisioningService.ts`, `src/kernel/master/masterAuthority.ts`, `src/kernel/authorization/rbacEngine.ts`, `src/kernel/audit/auditLogger.ts`, and `src/orchestration/workflow/engine.ts`.
-- Confirmed `createStepContext()` is the sole inspected construction point for the synthetic provisioning executor.
-- Confirmed the public `provisionDbk()` boundary authorizes the initiating principal before creating the provisioning workflow.
-- Confirmed workflow creation/execution preserves the initiating `SecurityContext` for workflow lifecycle attribution and worker identity, while provisioning handlers replace it with the synthetic executor for selected internal operations.
-- Confirmed the synthetic executor is `usr_master_provisioner`, role `TDBK_MASTER_ADMIN`, permissions `['*']`, `isMaster=true`, `tokenSource='SERVICE_KEY'`.
-- Confirmed `MasterAuthorityService.isMasterAdmin()` recognizes `isMaster=true` + `TDBK_MASTER_ADMIN`, and RBAC treats Master authority as a global override.
-- Confirmed the target `tenantId` on the synthetic principal does not constrain Master authority; Master authorization is accepted before tenant-specific checks.
-- Confirmed provisioning steps using the synthetic executor include Business DNA binding, capability initialization/persistence, branch creation, workspace compilation, and final DBK activation.
-- Confirmed workflow lifecycle audit/events preserve the initiating principal, while the existing audit event schema has one `principalId`, so internal calls made with the synthetic executor are attributed to that executor.
-- Confirmed there is no already-established Engine service-principal registry, dedicated provisioning role, or least-privilege permission contract from which a safe replacement identity can be derived.
+- Continued from current `main` repository state `54f62db149acb1f302cdeb6d92e6107cb834a7a5`.
+- Confirmed the previous provisioning service-identity decision remains intentionally stopped at `MASTER REVIEW REQUIRED`; no provisioning identity code was altered.
+- Selected the documented P1 readiness boundary as the single Gate 02 target. The 2026-09-18 production audit identified `/api/health/ready` as synthetic and insufficient because it did not prove required runtime dependencies.
+- Inspected the current `/api/health/ready` HTTP boundary in `server.ts`.
+- Inspected `src/kernel/observability/health.ts` and verified readiness now attempts an authoritative Firestore read rather than relying solely on process uptime.
+- Inspected `src/persistence/firestore/firestoreClient.ts` and verified non-browser, non-test server execution uses the Google Cloud Firestore driver; test-memory persistence is not selected for server runtime.
+- Inspected `src/persistence/firestore/driver/googleCloudFirestoreDriver.ts` and verified Firestore `get()` returns `null` for a missing document rather than throwing.
+- Searched the repository for a producer/initializer of `/system/readiness`; none was found.
+- Verified current readiness therefore proves that a Firestore read operation can complete without error, but does not prove that the `/system/readiness` document exists or that event bus, secret configuration, or external bridge dependencies are ready.
+- Recorded the focused audit in `docs/PRODUCTION_HARDENING_GATE_02_2026-09-22.md`.
 
 ## In Progress
-- None. This single-task decision review is stopped at the architectural decision boundary.
+- None. Gate 02 is complete and stopped at the identified readiness-contract boundary.
 
-## Decision
-**MASTER REVIEW REQUIRED — no existing authority model is sufficient to safely select A, B, or C without defining a new contract.**
+## Selected Hardening Gate
+**Gate 02 — Runtime Readiness Authority**
 
-### Option A — dedicated least-privilege provisioning service authority
-This is the only model that can preserve the current internal-service execution semantics while removing the unjustified global `TDBK_MASTER_ADMIN` + `*` authority. However, implementing it requires a new Engine-owned service-principal contract defining identity registration, exact permissions, tenant/DBK scope, issuance/authentication, and authorization behavior. None of those contracts currently exist as an established authority in the repository. Therefore it cannot be safely implemented under the instruction to avoid inventing architecture.
+## Finding
+**PARTIAL**
 
-### Option B — initiating-principal authority
-This is not an established equivalent for the current workflow executor model. Direct propagation would cause provisioning steps to execute under the initiating Business Owner/Master identity rather than an internal executor. Existing provisioning operations include calls currently relying on Master-level authority, so propagation could change legitimate provisioning behavior. It also would not solve restart/recovery semantics unless the initiating execution identity were durably represented in the workflow authority. Therefore it cannot be selected as a safe correction from the current repository state.
+### PASS
+- `/api/health/ready` has an explicit readiness path and returns HTTP 503 when `getReadyStatus()` reports `DEGRADED`.
+- Production server readiness uses the authoritative Google Cloud Firestore driver through `firestoreClient`.
+- A Firestore read failure causes a degraded readiness result.
 
-### Option C — another already-established Engine model
-No such model was found. The established workflow model preserves the initiating context at workflow execution/lifecycle boundaries, but it does not define a separate least-privilege service identity for internal provisioning steps. The existing Master model is global, not provisioning-scoped.
+### PARTIAL
+- The readiness implementation initializes `kernel`, `tenancy`, `auth`, and `audit` as `true` without independently checking them.
+- Firestore readiness is inferred from a successful `get('/system/readiness')`; a missing document returns `null` and therefore still produces `HEALTHY`.
+- Event-bus availability is not checked.
+- Runtime secret configuration is not checked.
+- External bridge readiness is not checked.
 
-## Authority Model
-Current model, as actually implemented:
-1. External provisioning request is authorized by `masterAuthority.assertOwnerOrMasterAuthority(context.principal, 'provisionDbk', ...)`.
-2. The provisioning workflow is created/executed with the initiating `SecurityContext`.
-3. Selected internal handlers construct a synthetic global Master executor.
-4. The synthetic executor is therefore an internal implementation identity, but its authority is broader than a provisioning-specific least-privilege authority.
-5. The target DBK tenant ID on that executor is metadata, not an effective restriction, because Master authorization is globally accepted.
-
-This is **not classified PASS as a final authority model**. It is classified **MASTER REVIEW REQUIRED**.
-
-## Initiating Actor vs Executor Semantics
-- Initiating actor: preserved at provisioning entry, DBK creation/lifecycle history, workflow creation, workflow lifecycle audit/events, and workflow execution context.
-- Internal executor: `usr_master_provisioner` for the five provisioning handlers that construct `createStepContext()`.
-- Audit limitation: `AuditEvent` contains a single `principalId`. Consequently, internal service-operation audit records identify the synthetic executor, while workflow-level events identify the initiating actor. There is no first-class actor/executor pair.
-- This does **not** justify redesigning the audit system in this task. Whether a dual attribution contract is required must follow the authority decision.
+### MASTER REVIEW REQUIRED
+A broader readiness authority is not established in the repository. There is no existing producer/contract for `/system/readiness`, nor an existing dependency-health aggregation contract covering event bus, secrets, and bridges. Introducing those semantics would be architectural invention and was not performed.
 
 ## Verified
-- Provisioning entry authorization: **PASS** — initiating context is checked before workflow creation.
-- Workflow initiating-actor preservation: **PASS** — workflow lifecycle code uses the original execution context's principal.
-- Synthetic executor location: **PASS** — `createStepContext()` in `src/platform/provisioning/provisioningService.ts`.
-- Synthetic executor authority: **PASS as evidence** — it is globally recognized as `TDBK_MASTER_ADMIN` with `*` permissions.
-- Least-privilege provisioning authority: **MASTER REVIEW REQUIRED** — no established dedicated authority exists.
-- Initiating-principal substitution: **MASTER REVIEW REQUIRED** — not safe to implement without changing current authority assumptions.
-- Existing alternative Engine authority: **MASTER REVIEW REQUIRED** — none found.
+- Current repository main SHA at audit start: `54f62db149acb1f302cdeb6d92e6107cb834a7a5`.
+- Historical documented readiness gap: **CONFIRMED AS RELEVANT**, but implementation has partially evolved since the 2026-09-18 audit.
+- Process/readiness HTTP boundary: **PASS**.
+- Authoritative Firestore driver selection in production server runtime: **PASS**.
+- Firestore connectivity/read attempt: **PASS**.
+- Firestore readiness proof: **PARTIAL**.
+- Event bus readiness: **PARTIAL / NOT CHECKED**.
+- Secret readiness: **PARTIAL / NOT CHECKED**.
+- External bridge readiness: **PARTIAL / NOT CHECKED**.
+- Existing complete readiness authority contract: **MASTER REVIEW REQUIRED**.
 - Tests/typecheck/lint/build: **NOT EXECUTED** — connected repository tooling does not provide local npm command execution. No passing result is claimed.
 
 ## New Engine Contracts
-None implemented.
-
-### Contract that would be required if Master selects Option A
-Before implementation, Master must explicitly authorize a new Engine-owned provisioning service-principal contract containing at minimum:
-- stable service-principal identity
-- non-human/service classification
-- exact provisioning permissions (no wildcard permission)
-- explicit tenant/DBK scope rules
-- authorization primitive used by provisioning steps
-- authentication/issuance mechanism for internal workflow execution
-- durable executor identity for workflow recovery
-- audit attribution rule distinguishing initiating actor from executing service identity, if required
-- prohibition on using the service identity for unrelated platform administration
-
-This is a definition of the missing contract, not an implementation or architectural assumption.
+- None.
+- No readiness contract was invented.
 
 ## Contracts Required by DBK
-None introduced by this task.
+- None introduced by this gate.
+- DBK impact is zero because no DBK code or authority changed.
 
 ## Contracts Required by Sokoni
-None introduced by this task.
+- None introduced by this gate.
+- Sokoni impact is zero because no Sokoni code or authority changed.
 
 ## Blocking Issues
-- Current synthetic executor is global Master authority rather than a documented provisioning-scoped authority.
-- No established least-privilege service-principal contract exists.
-- Direct initiating-principal propagation could change legitimate provisioning authorization behavior and recovery semantics.
-- Existing audit records distinguish the two identities only by event context, not through a first-class actor/executor pair.
+- Current readiness semantics are insufficient to establish complete production dependency readiness.
+- `/system/readiness` has no repository-confirmed producer/contract; requiring its existence would require a new contract.
+- Event bus, runtime secret configuration, and external bridge readiness have no established aggregated readiness authority in the inspected implementation.
 
 ## MASTER REVIEW REQUIRED
-- Choose/authorize the authority contract: retain/rework service execution as a new least-privilege provisioning service principal, or explicitly authorize initiating-principal execution with the required durable workflow semantics.
-- If Option A is selected, approve the service-principal contract described above before code implementation.
-- If audit dual attribution is required by the selected authority model, authorize that narrowly scoped audit contract separately; no audit redesign was performed here.
+- Define/authorize the Engine's authoritative readiness dependency model before expanding `/api/health/ready` beyond the current Firestore connectivity attempt.
+- Decide whether a concrete Firestore readiness marker is an Engine contract or whether readiness should use an existing authoritative persistence operation instead.
+- Decide which event-bus, secret, and bridge dependencies are mandatory for the platform-level readiness state versus separately monitored operational components.
 
 ## Risks / Architecture Concerns
-- `createStepContext()` is named a mock context but is used by production-capable provisioning steps.
-- `MasterAuthorityService` makes `TDBK_MASTER_ADMIN` global, so attaching the target DBK as `tenantId` does not provide least-privilege isolation.
-- `RBACEngine` explicitly bypasses ordinary permission/tenant evaluation for Master principals, reinforcing that `permissions=['*']` is not the real limiting boundary.
-- The workflow engine already has durable execution/recovery, but a future dedicated service identity must survive recovery without reverting to an ad hoc process-local principal.
+- `/api/health/ready` can currently return `HEALTHY` when `/system/readiness` is absent, because the underlying Firestore `get()` treats a missing document as a normal null result.
+- Reporting `kernel`, `tenancy`, `auth`, and `audit` as `true` is currently declarative rather than evidence-based.
+- Expanding readiness by adding ad hoc probes would create a second operational authority unless aligned with an existing Engine contract.
 
 ## Files / Areas Changed
-- `docs/master/ENGINE-STATUS.md` — updated with the final authority decision boundary.
+- `docs/PRODUCTION_HARDENING_GATE_02_2026-09-22.md` — new durable Gate 02 audit evidence.
+- `docs/master/ENGINE-STATUS.md` — updated with Gate 02 findings and handoff.
 - No production source files changed.
+- No provisioning identity files changed.
 - No DBK files changed.
 - No Sokoni files changed.
 - No public discovery files changed.
-- No bridge files changed.
+- No payment or bridge files changed.
 
 ## Verification Performed
-Repository inspection only; no code implementation was performed.
+Repository inspection only.
 
-Inspected:
-- `src/platform/provisioning/provisioningService.ts`
-- `src/kernel/master/masterAuthority.ts`
-- `src/kernel/authorization/rbacEngine.ts`
-- `src/kernel/audit/auditLogger.ts`
-- `src/orchestration/workflow/engine.ts`
-- relevant existing Gate 01 status/evidence
+Exact areas inspected:
+- `server.ts`
+- `src/kernel/observability/health.ts`
+- `src/persistence/firestore/firestoreClient.ts`
+- `src/persistence/firestore/driver/googleCloudFirestoreDriver.ts`
+- `docs/PRODUCTION_AUDIT_2026-09-18.md`
+- existing `docs/master/ENGINE-STATUS.md`
 
-Tests/typecheck/lint/build: **NOT EXECUTED** because local repository command execution is unavailable through the connected tooling.
+Tests/typecheck/lint/build: **NOT EXECUTED** because local repository command execution is unavailable through connected tooling.
 
 ## Unresolved Issues
-- Authority model remains at the explicit Master decision boundary described above.
-- No code workaround was introduced.
+- Readiness remains **PARTIAL** until an authoritative dependency-readiness model is defined.
+- The provisioning service-identity decision remains independently at `MASTER REVIEW REQUIRED` and was not changed by this gate.
+- No production code workaround was introduced.
 
 ## Next Recommended Engine Task
-After Master resolves the authority decision, implement exactly the authorized provisioning service-identity contract (and focused tests) if a new contract is approved. Do not bundle audit redesign or unrelated hardening into that task.
+**STOP.** Gate 02 is complete. The next Engine task, when separately assigned by Master, should address the readiness authority decision identified here or another explicitly selected hardening gate. No next task was implemented or bundled into this cycle.
 
 ## Dependency Handoffs
 
 ### DBK
-No impact. No DBK code or authority was changed. DBK continues to consume Engine provisioning authority only.
+No impact. No DBK implementation or authority changed.
 
 ### SOKONI
-No impact. No Sokoni code or authority was changed.
+No impact. No Sokoni implementation or authority changed.
 
 ## Evidence
 - Repository: `thuram34/tdbk-v2-platform`.
-- Decision-review starting evidence: `1f4c6c577d175da3a5d6ea8398ea3f2beb3eed40`.
-- `src/platform/provisioning/provisioningService.ts`: synthetic executor construction and consuming provisioning handlers.
-- `src/kernel/master/masterAuthority.ts`: global Master recognition and tenant authority behavior.
-- `src/kernel/authorization/rbacEngine.ts`: Master override and wildcard permission behavior.
-- `src/kernel/audit/auditLogger.ts`: single `principalId` attribution model.
-- `src/orchestration/workflow/engine.ts`: initiating context preservation and durable workflow execution/recovery.
+- Audit starting main SHA: `54f62db149acb1f302cdeb6d92e6107cb834a7a5`.
+- Prior Gate 01 evidence: `docs/PRODUCTION_HARDENING_GATE_01_2026-09-22.md`.
+- Historical production audit: `docs/PRODUCTION_AUDIT_2026-09-18.md`.
+- HTTP readiness boundary: `server.ts`.
+- Readiness implementation: `src/kernel/observability/health.ts`.
+- Firestore authoritative client: `src/persistence/firestore/firestoreClient.ts`.
+- Google Cloud Firestore driver: `src/persistence/firestore/driver/googleCloudFirestoreDriver.ts`.
+- Gate 02 audit evidence: `docs/PRODUCTION_HARDENING_GATE_02_2026-09-22.md`.
 - No test/typecheck/lint/build PASS is claimed without execution evidence.
