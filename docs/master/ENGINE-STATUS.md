@@ -4,7 +4,7 @@
 2026-09-22
 
 ## Current Phase
-Production Hardening Gate 03 — Workflow Step Idempotency
+Production Hardening Gate 04 — External Side-Effect Idempotency
 
 ## Current Objective
 Harden one concrete workflow execution concurrency/idempotency boundary using the existing durable execution-key and lease authority. Do not redesign architecture or reopen provisioning identity, readiness, DBK, Sokoni, discovery, payment, or bridge work.
@@ -21,13 +21,14 @@ Harden one concrete workflow execution concurrency/idempotency boundary using th
 - Recorded the focused evidence in `docs/PRODUCTION_HARDENING_GATE_03_2026-09-22.md`.
 
 ## In Progress
-- None. Gate 03 is complete and stopped.
+- Gate 04 is **BLOCKED / MASTER REVIEW REQUIRED**.
+- No production implementation was invented because the remaining gap crosses the Engine-to-external-provider contract boundary.
 
 ## Selected Hardening Gate
-**Gate 03 — Durable Workflow Step Lease Idempotency**
+**Gate 04 — External Side-Effect Idempotency Across Worker Crash/Lease Expiry**
 
 ## Finding
-**PASS after focused correction**, subject to execution verification below.
+**MASTER REVIEW REQUIRED** — architectural decision required before safe implementation.
 
 ### Gap Found
 The durable workflow execution repository declared the execution key as the idempotency boundary, but an active lease was only exclusive against a different worker. A same-worker re-claim could increment attempts and permit duplicate step entry while the original lease was still live.
@@ -71,6 +72,51 @@ A concurrent/re-entrant call could previously obtain the same live execution key
 - Crash-after-external-side-effect-before durable `completeExecution()` remains an at-least-once external-side-effect risk. Solving that requires an established downstream idempotency contract and is outside this single correction.
 - Runtime readiness remains at its previous architectural decision boundary and was not reopened.
 - Provisioning service identity remains at its previous `MASTER REVIEW REQUIRED` boundary and was not reopened.
+
+## Gate 04 Evidence
+
+### Exact Hardening Gap
+The Engine durably protects workflow execution ownership with a Firestore lease, but an external side effect can succeed before durable `completeExecution()` is recorded. If the worker then crashes or the lease expires, a later worker can legitimately retry the side effect. The durable execution key therefore does not by itself guarantee exactly-once external effects.
+
+### Evidence
+- `src/persistence/firestore/repositories/workflowStepExecutionRepository.ts` provides durable claim, lease renewal, completion, failure, and expired-lease recovery.
+- Gate 03 already documented the crash-after-external-side-effect-before-`completeExecution()` risk.
+- Connector paths perform external side effects but there is no universal Engine contract establishing provider idempotency-key/reconciliation semantics.
+
+### Change Made
+No production code change. Created `docs/PRODUCTION_HARDENING_GATE_04_2026-09-22.md` documenting the blocker and required architectural decision.
+
+### Required Master Decision
+Define the authoritative contract for:
+- Engine-to-provider idempotency keys;
+- provider support requirements and unsupported-provider handling;
+- retry/reconciliation behavior after lease expiry;
+- authoritative mapping between Engine execution and provider operation.
+
+A local flag, client-side suppression, or duplicate state store would weaken the established architecture and was deliberately not introduced.
+
+### Verification
+- Repository inspection: **COMPLETED**.
+- Relevant workflow/connector source inspection: **COMPLETED**.
+- Typecheck: **NOT EXECUTED** — local shell/npm unavailable through connected repository tooling.
+- Lint: **NOT EXECUTED**.
+- Targeted tests: **NOT EXECUTED**.
+- Full tests: **NOT EXECUTED**.
+- Production build: **NOT EXECUTED**.
+- No passing execution result is claimed.
+
+### Boundary
+- DBK impact: **NONE**.
+- Sokoni impact: **NONE**.
+- Provisioning identity: **NOT TOUCHED**.
+- Existing workflow lease authority: **PRESERVED**.
+- Existing durable execution-key authority: **PRESERVED**.
+- No duplicate source of truth introduced.
+
+### Classification
+**MASTER REVIEW REQUIRED**
+
+The gap cannot be safely closed without deciding the external-provider idempotency/reconciliation contract.
 
 ## New Engine Contracts
 - None. The correction enforces the existing durable execution-key/lease semantics.
