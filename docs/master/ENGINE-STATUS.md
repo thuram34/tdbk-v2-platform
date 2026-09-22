@@ -7,7 +7,7 @@
 Production Hardening Gate 04 — External Side-Effect Idempotency
 
 ## Current Objective
-Harden one concrete workflow execution concurrency/idempotency boundary using the existing durable execution-key and lease authority. Do not redesign architecture or reopen provisioning identity, readiness, DBK, Sokoni, discovery, payment, or bridge work.
+Close one concrete unresolved production-hardening gap without changing established architecture. Gate 04 evaluates the external side-effect idempotency boundary after worker crash or lease expiry. Provisioning identity, readiness, DBK, and Sokoni remain closed/excluded.
 
 ## Completed
 - Continued from the closed Gate 02 state and did not reopen its readiness decision.
@@ -31,10 +31,9 @@ Harden one concrete workflow execution concurrency/idempotency boundary using th
 **MASTER REVIEW REQUIRED** — architectural decision required before safe implementation.
 
 ### Gap Found
-The durable workflow execution repository declared the execution key as the idempotency boundary, but an active lease was only exclusive against a different worker. A same-worker re-claim could increment attempts and permit duplicate step entry while the original lease was still live.
+The Engine durably protects workflow execution ownership with a Firestore lease, but an external side effect can succeed before durable `completeExecution()` is recorded. If the worker crashes or the lease expires, a later worker can legitimately retry the side effect. The existing durable execution key therefore does not by itself guarantee exactly-once external effects.
 
-### Fix
-`WorkflowStepExecutionRepository.claimExecution()` now returns `null` for **any** active lease, regardless of worker identity. The existing execution key remains the idempotency authority. Expired leases remain reclaimable.
+This is an Engine-to-provider contract gap, not a safe local implementation defect.
 
 ## Why It Mattered
 A concurrent/re-entrant call could previously obtain the same live execution key, increment the durable attempt counter, and cause the workflow layer to enter the same step more than once. For side-effecting workflow steps this creates an avoidable duplicate-execution risk.
@@ -50,12 +49,12 @@ A concurrent/re-entrant call could previously obtain the same live execution key
 - No external bridge/payment behavior was changed.
 
 ## Exact Files Changed
-- `src/persistence/firestore/repositories/workflowStepExecutionRepository.ts` — active lease exclusivity correction only.
-- `src/persistence/tests/workflowStepExecutionIdempotency.test.ts` — focused regression test.
-- `docs/PRODUCTION_HARDENING_GATE_03_2026-09-22.md` — durable audit evidence.
-- `docs/master/ENGINE-STATUS.md` — this handoff.
+- `docs/PRODUCTION_HARDENING_GATE_04_2026-09-22.md` — records the concrete blocker and required architectural decision.
+- `docs/master/ENGINE-STATUS.md` — records Gate 04 status and boundary.
 
-**DBK/Sokoni production files were not modified by this Engine task.** The repository also received separate DBK commits from other work during this cycle; those are not part of this Engine task and were not edited by it.
+No production source file was changed.
+
+**DBK/Sokoni production files were not modified.**
 
 ## Verification Performed
 - Repository inspection: **COMPLETED**.
@@ -69,7 +68,7 @@ A concurrent/re-entrant call could previously obtain the same live execution key
 - No passing execution result is claimed.
 
 ## Remaining Hardening Risks
-- Crash-after-external-side-effect-before durable `completeExecution()` remains an at-least-once external-side-effect risk. Solving that requires an established downstream idempotency contract and is outside this single correction.
+- External side-effect idempotency/reconciliation remains unresolved pending Master architectural decision.
 - Runtime readiness remains at its previous architectural decision boundary and was not reopened.
 - Provisioning service identity remains at its previous `MASTER REVIEW REQUIRED` boundary and was not reopened.
 
@@ -134,11 +133,12 @@ The gap cannot be safely closed without deciding the external-provider idempoten
 - CI completion for the final hardening commit was not available during this task.
 
 ## MASTER REVIEW REQUIRED
-- No new Master decision was created by this gate.
+- **Gate 04 requires Master review** for the Engine-to-provider idempotency/reconciliation contract.
+- No implementation should begin until that contract is decided.
 - Existing provisioning service-identity and runtime-readiness decisions remain untouched.
 
 ## Next Recommended Engine Task
-**STOP.** Gate 03 is complete. The next Engine task must be separately assigned by Master. Do not automatically begin another hardening area.
+**STOP.** Gate 04 is blocked pending Master review. After the decision, assign one implementation task for the approved external side-effect idempotency/reconciliation contract. Do not begin it automatically.
 
 ## Dependency Handoffs
 
@@ -155,5 +155,5 @@ No Engine dependency introduced. No Sokoni source was changed by this task.
 - Focused regression test: `15da5c3aceea91554fd25cbe6f218be43012f01e`.
 - Gate 03 evidence: `d9b26e2ac3bfe6e8fed7c972521d60b01697760a`.
 - Scope-cleanup correction: `4a5c2934f463eea14d5b7ea68e1571fd1becac3c`.
-- Final status commit: pending this update.
+- Gate 04 blocker: `docs/PRODUCTION_HARDENING_GATE_04_2026-09-22.md`.
 - Concurrent DBK commits observed in repository history were separate work and were not modified by this Engine task.
