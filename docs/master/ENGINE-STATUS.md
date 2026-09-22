@@ -4,134 +4,129 @@
 2026-09-22
 
 ## Current Phase
-Production Hardening Gate 02 — Runtime Readiness Audit
+Production Hardening Gate 03 — Workflow Step Idempotency
 
 ## Current Objective
-Audit the existing `/api/health/ready` production-readiness boundary only, using the repository's already-established Firestore persistence path and without inventing a new readiness architecture.
+Harden one concrete workflow execution concurrency/idempotency boundary using the existing durable execution-key and lease authority. Do not redesign architecture or reopen provisioning identity, readiness, DBK, Sokoni, discovery, payment, or bridge work.
 
 ## Completed
-- Continued from current `main` repository state `54f62db149acb1f302cdeb6d92e6107cb834a7a5`.
-- Confirmed the previous provisioning service-identity decision remains intentionally stopped at `MASTER REVIEW REQUIRED`; no provisioning identity code was altered.
-- Selected the documented P1 readiness boundary as the single Gate 02 target. The 2026-09-18 production audit identified `/api/health/ready` as synthetic and insufficient because it did not prove required runtime dependencies.
-- Inspected the current `/api/health/ready` HTTP boundary in `server.ts`.
-- Inspected `src/kernel/observability/health.ts` and verified readiness now attempts an authoritative Firestore read rather than relying solely on process uptime.
-- Inspected `src/persistence/firestore/firestoreClient.ts` and verified non-browser, non-test server execution uses the Google Cloud Firestore driver; test-memory persistence is not selected for server runtime.
-- Inspected `src/persistence/firestore/driver/googleCloudFirestoreDriver.ts` and verified Firestore `get()` returns `null` for a missing document rather than throwing.
-- Searched the repository for a producer/initializer of `/system/readiness`; none was found.
-- Verified current readiness therefore proves that a Firestore read operation can complete without error, but does not prove that the `/system/readiness` document exists or that event bus, secret configuration, or external bridge dependencies are ready.
-- Recorded the focused audit in `docs/PRODUCTION_HARDENING_GATE_02_2026-09-22.md`.
+- Continued from the closed Gate 02 state and did not reopen its readiness decision.
+- Confirmed the provisioning service-identity decision remains independently stopped at `MASTER REVIEW REQUIRED`; no provisioning identity code was altered.
+- Inspected the durable workflow execution repository and its existing execution-key/lease model.
+- Identified a concrete idempotency defect: `claimExecution()` previously rejected an active lease only when the current worker differed from the requesting worker. The same worker could therefore reclaim a live execution key, increment `attemptCount`, and renew/overwrite the active execution state.
+- Determined this violated the repository's existing architectural statement that the durable execution key is the idempotency boundary for a workflow step.
+- Corrected only `WorkflowStepExecutionRepository.claimExecution()` so every active lease is exclusive, including same-worker reclaims.
+- Preserved existing behavior for completed/failed executions and for expired-lease recovery.
+- Added a focused persistence test proving a same-worker second claim is rejected while the active lease remains durable and attempt count stays at one.
+- Recorded the focused hardening evidence in `docs/PRODUCTION_HARDENING_GATE_03_2026-09-22.md`.
 
 ## In Progress
-- None. Gate 02 is complete and stopped at the identified readiness-contract boundary.
+- None. Gate 03 is complete and stopped after the focused correction.
 
 ## Selected Hardening Gate
-**Gate 02 — Runtime Readiness Authority**
+**Gate 03 — Durable Workflow Step Lease Idempotency**
 
-## Finding
-**PARTIAL**
+## Hardening Gap
+**PASS after focused correction**
 
-### PASS
-- `/api/health/ready` has an explicit readiness path and returns HTTP 503 when `getReadyStatus()` reports `DEGRADED`.
-- Production server readiness uses the authoritative Google Cloud Firestore driver through `firestoreClient`.
-- A Firestore read failure causes a degraded readiness result.
+### Before Fix
+- `src/persistence/firestore/repositories/workflowStepExecutionRepository.ts` treated an active lease as conflicting only for a different worker.
+- The same worker could re-claim the same live execution key.
+- Reclaiming incremented the durable attempt count and replaced the active lease.
+- This created a concrete re-entrancy path capable of invoking the same workflow step more than once while its previous execution was still live.
 
-### PARTIAL
-- The readiness implementation initializes `kernel`, `tenancy`, `auth`, and `audit` as `true` without independently checking them.
-- Firestore readiness is inferred from a successful `get('/system/readiness')`; a missing document returns `null` and therefore still produces `HEALTHY`.
-- Event-bus availability is not checked.
-- Runtime secret configuration is not checked.
-- External bridge readiness is not checked.
+### Fix
+- Any active execution lease now returns `null` from `claimExecution()`, regardless of worker identity.
+- The existing execution key remains the sole durable idempotency boundary.
+- Completed/failed execution records remain idempotently returned.
+- Expired execution leases remain reclaimable under the existing recovery model.
 
-### MASTER REVIEW REQUIRED
-A broader readiness authority is not established in the repository. There is no existing producer/contract for `/system/readiness`, nor an existing dependency-health aggregation contract covering event bus, secrets, and bridges. Introducing those semantics would be architectural invention and was not performed.
+## Architectural Boundary Preserved
+- Google Cloud Firestore remains authoritative production persistence.
+- Existing tenant-scoped workflow execution paths remain unchanged.
+- Existing workflow lease/recovery architecture remains unchanged.
+- Existing execution key remains the idempotency authority; no new idempotency datastore or contract was introduced.
+- No client-side authority was added.
+- No provisioning service identity was changed.
+- No audit redesign was introduced.
+- No external provider/bridge idempotency assumption was invented.
 
 ## Verified
-- Current repository main SHA at audit start: `54f62db149acb1f302cdeb6d92e6107cb834a7a5`.
-- Historical documented readiness gap: **CONFIRMED AS RELEVANT**, but implementation has partially evolved since the 2026-09-18 audit.
-- Process/readiness HTTP boundary: **PASS**.
-- Authoritative Firestore driver selection in production server runtime: **PASS**.
-- Firestore connectivity/read attempt: **PASS**.
-- Firestore readiness proof: **PARTIAL**.
-- Event bus readiness: **PARTIAL / NOT CHECKED**.
-- Secret readiness: **PARTIAL / NOT CHECKED**.
-- External bridge readiness: **PARTIAL / NOT CHECKED**.
-- Existing complete readiness authority contract: **MASTER REVIEW REQUIRED**.
-- Tests/typecheck/lint/build: **NOT EXECUTED** — connected repository tooling does not provide local npm command execution. No passing result is claimed.
-
-## New Engine Contracts
-- None.
-- No readiness contract was invented.
-
-## Contracts Required by DBK
-- None introduced by this gate.
-- DBK impact is zero because no DBK code or authority changed.
-
-## Contracts Required by Sokoni
-- None introduced by this gate.
-- Sokoni impact is zero because no Sokoni code or authority changed.
-
-## Blocking Issues
-- Current readiness semantics are insufficient to establish complete production dependency readiness.
-- `/system/readiness` has no repository-confirmed producer/contract; requiring its existence would require a new contract.
-- Event bus, runtime secret configuration, and external bridge readiness have no established aggregated readiness authority in the inspected implementation.
-
-## MASTER REVIEW REQUIRED
-- Define/authorize the Engine's authoritative readiness dependency model before expanding `/api/health/ready` beyond the current Firestore connectivity attempt.
-- Decide whether a concrete Firestore readiness marker is an Engine contract or whether readiness should use an existing authoritative persistence operation instead.
-- Decide which event-bus, secret, and bridge dependencies are mandatory for the platform-level readiness state versus separately monitored operational components.
-
-## Risks / Architecture Concerns
-- `/api/health/ready` can currently return `HEALTHY` when `/system/readiness` is absent, because the underlying Firestore `get()` treats a missing document as a normal null result.
-- Reporting `kernel`, `tenancy`, `auth`, and `audit` as `true` is currently declarative rather than evidence-based.
-- Expanding readiness by adding ad hoc probes would create a second operational authority unless aligned with an existing Engine contract.
-
-## Files / Areas Changed
-- `docs/PRODUCTION_HARDENING_GATE_02_2026-09-22.md` — new durable Gate 02 audit evidence.
-- `docs/master/ENGINE-STATUS.md` — updated with Gate 02 findings and handoff.
-- No production source files changed.
-- No provisioning identity files changed.
-- No DBK files changed.
-- No Sokoni files changed.
-- No public discovery files changed.
-- No payment or bridge files changed.
+- Gap location: `src/persistence/firestore/repositories/workflowStepExecutionRepository.ts`.
+- Existing durable execution path: `/tenants/{tenantId}/workflowExecutions/{executionKey}`.
+- Existing active-lease fields: `status`, `workerId`, `leaseUntil`.
+- Correction: active lease is now exclusive for all claimants.
+- Focused regression test added: `src/persistence/tests/workflowStepExecutionIdempotency.test.ts`.
+- DBK files changed: **NONE**.
+- Sokoni files changed: **NONE**.
+- Provisioning identity files changed: **NONE**.
+- Readiness files changed: **NONE**.
 
 ## Verification Performed
-Repository inspection only.
+- Repository/source inspection: **COMPLETED**.
+- Focused test source inspection after change: **COMPLETED**.
+- Typecheck: **NOT EXECUTED**.
+- Lint: **NOT EXECUTED**.
+- Focused test execution: **NOT EXECUTED**.
+- Full test suite: **NOT EXECUTED**.
+- Production build: **NOT EXECUTED**.
 
-Exact areas inspected:
-- `server.ts`
-- `src/kernel/observability/health.ts`
-- `src/persistence/firestore/firestoreClient.ts`
-- `src/persistence/firestore/driver/googleCloudFirestoreDriver.ts`
-- `docs/PRODUCTION_AUDIT_2026-09-18.md`
-- existing `docs/master/ENGINE-STATUS.md`
+The connected repository environment does not provide a local shell/npm execution path. Therefore no test, typecheck, lint, or build PASS is claimed. GitHub Actions was inspected but a completed verification run for this new change was not available during the task.
 
-Tests/typecheck/lint/build: **NOT EXECUTED** because local repository command execution is unavailable through connected tooling.
+## Remaining Hardening Risks
+- Crash-after-external-side-effect-before durable `completeExecution()` remains an at-least-once external-side-effect risk. Solving that would require an established downstream idempotency contract and is outside this single hardening correction.
+- Runtime readiness remains at the previously documented architectural decision boundary; it was not reopened.
+- Provisioning service identity remains at the previously documented `MASTER REVIEW REQUIRED` boundary; it was not reopened.
 
-## Unresolved Issues
-- Readiness remains **PARTIAL** until an authoritative dependency-readiness model is defined.
-- The provisioning service-identity decision remains independently at `MASTER REVIEW REQUIRED` and was not changed by this gate.
-- No production code workaround was introduced.
+## New Engine Contracts
+- None. The correction enforces the existing durable execution-key/lease semantics rather than creating a new authority.
+
+## Contracts Required by DBK
+- None.
+- DBK impact is **NONE**.
+
+## Contracts Required by Sokoni
+- None.
+- Sokoni impact is **NONE**.
+
+## Blocking Issues
+- Local verification execution is unavailable through connected repository tooling.
+- CI completion for the hardening commit was not available during this task.
+
+## MASTER REVIEW REQUIRED
+- No new Master decision was created by this gate.
+- Existing provisioning service-identity and runtime-readiness decisions remain untouched and are not part of this gate.
+
+## Risks / Architecture Concerns
+- The workflow system remains at-least-once around external side effects if a worker crashes after the external side effect succeeds but before durable completion is recorded. This is a known boundary, not a defect silently expanded by this change.
+- The new same-worker lease exclusivity intentionally returns `null` for a live lease; callers must continue to treat that as an execution conflict rather than re-invoking the handler.
+
+## Files / Areas Changed
+- `src/persistence/firestore/repositories/workflowStepExecutionRepository.ts` — hardened active lease exclusivity.
+- `src/persistence/tests/workflowStepExecutionIdempotency.test.ts` — added focused regression test.
+- `docs/PRODUCTION_HARDENING_GATE_03_2026-09-22.md` — durable Gate 03 evidence.
+- `docs/master/ENGINE-STATUS.md` — updated master handoff.
+
+No DBK, Sokoni, public discovery, provisioning identity, payment, or bridge files changed.
 
 ## Next Recommended Engine Task
-**STOP.** Gate 02 is complete. The next Engine task, when separately assigned by Master, should address the readiness authority decision identified here or another explicitly selected hardening gate. No next task was implemented or bundled into this cycle.
+**STOP.** Gate 03 is complete. The next Engine task must be separately assigned by Master; do not begin another hardening area automatically. A future task may address the remaining external-side-effect idempotency boundary only if an existing authoritative downstream contract is identified or explicitly authorized.
 
 ## Dependency Handoffs
 
 ### DBK
-No impact. No DBK implementation or authority changed.
+No implementation dependency. DBK authority and source files were untouched.
 
 ### SOKONI
-No impact. No Sokoni implementation or authority changed.
+No implementation dependency. Sokoni authority and source files were untouched.
 
 ## Evidence
 - Repository: `thuram34/tdbk-v2-platform`.
-- Audit starting main SHA: `54f62db149acb1f302cdeb6d92e6107cb834a7a5`.
-- Prior Gate 01 evidence: `docs/PRODUCTION_HARDENING_GATE_01_2026-09-22.md`.
-- Historical production audit: `docs/PRODUCTION_AUDIT_2026-09-18.md`.
-- HTTP readiness boundary: `server.ts`.
-- Readiness implementation: `src/kernel/observability/health.ts`.
-- Firestore authoritative client: `src/persistence/firestore/firestoreClient.ts`.
-- Google Cloud Firestore driver: `src/persistence/firestore/driver/googleCloudFirestoreDriver.ts`.
-- Gate 02 audit evidence: `docs/PRODUCTION_HARDENING_GATE_02_2026-09-22.md`.
+- Gate 03 starting state: `fddcbf951984ad8bf5f21a8d5b646085302b1a38`.
+- Hardening implementation commit: `950c95bf6db901759d91d666bd4cd3c5fb39b6f6`.
+- Focused regression test commit: `15da5c3aceea91554fd25cbe6f218be43012f01e`.
+- Gate 03 audit commit: `d9b26e2ac3bfe6e8fed7c972521d60b01697760a`.
+- Durable execution repository: `src/persistence/firestore/repositories/workflowStepExecutionRepository.ts`.
+- Focused regression test: `src/persistence/tests/workflowStepExecutionIdempotency.test.ts`.
+- Audit evidence: `docs/PRODUCTION_HARDENING_GATE_03_2026-09-22.md`.
 - No test/typecheck/lint/build PASS is claimed without execution evidence.
