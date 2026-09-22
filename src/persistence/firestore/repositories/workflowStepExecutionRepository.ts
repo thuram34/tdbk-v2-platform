@@ -15,7 +15,10 @@ export class WorkflowStepExecutionRepository implements IWorkflowStepExecutionRe
   private constructor() {}
 
   public static getInstance(): WorkflowStepExecutionRepository {
-    return (this.instance ??= new WorkflowStepExecutionRepository());
+    if (!WorkflowStepExecutionRepository.instance) {
+      WorkflowStepExecutionRepository.instance = new WorkflowStepExecutionRepository();
+    }
+    return WorkflowStepExecutionRepository.instance;
   }
 
   private getPath(tenantId: string, executionKey: string): string {
