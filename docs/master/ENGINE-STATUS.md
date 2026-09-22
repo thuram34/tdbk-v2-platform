@@ -12,121 +12,102 @@ Harden one concrete workflow execution concurrency/idempotency boundary using th
 ## Completed
 - Continued from the closed Gate 02 state and did not reopen its readiness decision.
 - Confirmed the provisioning service-identity decision remains independently stopped at `MASTER REVIEW REQUIRED`; no provisioning identity code was altered.
-- Inspected the durable workflow execution repository and its existing execution-key/lease model.
-- Identified a concrete idempotency defect: `claimExecution()` previously rejected an active lease only when the current worker differed from the requesting worker. The same worker could therefore reclaim a live execution key, increment `attemptCount`, and renew/overwrite the active execution state.
-- Determined this violated the repository's existing architectural statement that the durable execution key is the idempotency boundary for a workflow step.
-- Corrected only `WorkflowStepExecutionRepository.claimExecution()` so every active lease is exclusive, including same-worker reclaims.
-- Preserved existing behavior for completed/failed executions and for expired-lease recovery.
-- Added a focused persistence test proving a same-worker second claim is rejected while the active lease remains durable and attempt count stays at one.
-- Recorded the focused hardening evidence in `docs/PRODUCTION_HARDENING_GATE_03_2026-09-22.md`.
+- Inspected `src/persistence/firestore/repositories/workflowStepExecutionRepository.ts` and its durable execution-key/lease model.
+- Identified a concrete idempotency defect: `claimExecution()` previously rejected an active lease only when the current worker differed from the requesting worker. The same worker could therefore reclaim a live execution key, increment `attemptCount`, and overwrite the active execution state.
+- Corrected only the active-lease condition so every live lease is exclusive, including same-worker reclaims.
+- Preserved existing behavior for completed/failed executions and expired-lease recovery.
+- Added a focused regression test proving a same-worker second claim is rejected while the lease is active and durable attempt count remains one.
+- Inspected the resulting commits/diff and corrected an accidental unrelated formatting-only change to `getInstance()` so the production source diff is limited to the active-lease hardening.
+- Recorded the focused evidence in `docs/PRODUCTION_HARDENING_GATE_03_2026-09-22.md`.
 
 ## In Progress
-- None. Gate 03 is complete and stopped after the focused correction.
+- None. Gate 03 is complete and stopped.
 
 ## Selected Hardening Gate
 **Gate 03 — Durable Workflow Step Lease Idempotency**
 
-## Hardening Gap
-**PASS after focused correction**
+## Finding
+**PASS after focused correction**, subject to execution verification below.
 
-### Before Fix
-- `src/persistence/firestore/repositories/workflowStepExecutionRepository.ts` treated an active lease as conflicting only for a different worker.
-- The same worker could re-claim the same live execution key.
-- Reclaiming incremented the durable attempt count and replaced the active lease.
-- This created a concrete re-entrancy path capable of invoking the same workflow step more than once while its previous execution was still live.
+### Gap Found
+The durable workflow execution repository declared the execution key as the idempotency boundary, but an active lease was only exclusive against a different worker. A same-worker re-claim could increment attempts and permit duplicate step entry while the original lease was still live.
 
 ### Fix
-- Any active execution lease now returns `null` from `claimExecution()`, regardless of worker identity.
-- The existing execution key remains the sole durable idempotency boundary.
-- Completed/failed execution records remain idempotently returned.
-- Expired execution leases remain reclaimable under the existing recovery model.
+`WorkflowStepExecutionRepository.claimExecution()` now returns `null` for **any** active lease, regardless of worker identity. The existing execution key remains the idempotency authority. Expired leases remain reclaimable.
+
+## Why It Mattered
+A concurrent/re-entrant call could previously obtain the same live execution key, increment the durable attempt counter, and cause the workflow layer to enter the same step more than once. For side-effecting workflow steps this creates an avoidable duplicate-execution risk.
 
 ## Architectural Boundary Preserved
-- Google Cloud Firestore remains authoritative production persistence.
+- Firestore remains authoritative production persistence.
 - Existing tenant-scoped workflow execution paths remain unchanged.
 - Existing workflow lease/recovery architecture remains unchanged.
-- Existing execution key remains the idempotency authority; no new idempotency datastore or contract was introduced.
+- Existing execution key remains the idempotency authority; no duplicate source of truth was added.
 - No client-side authority was added.
 - No provisioning service identity was changed.
-- No audit redesign was introduced.
-- No external provider/bridge idempotency assumption was invented.
+- No audit-system redesign was introduced.
+- No external bridge/payment behavior was changed.
 
-## Verified
-- Gap location: `src/persistence/firestore/repositories/workflowStepExecutionRepository.ts`.
-- Existing durable execution path: `/tenants/{tenantId}/workflowExecutions/{executionKey}`.
-- Existing active-lease fields: `status`, `workerId`, `leaseUntil`.
-- Correction: active lease is now exclusive for all claimants.
-- Focused regression test added: `src/persistence/tests/workflowStepExecutionIdempotency.test.ts`.
-- DBK files changed: **NONE**.
-- Sokoni files changed: **NONE**.
-- Provisioning identity files changed: **NONE**.
-- Readiness files changed: **NONE**.
+## Exact Files Changed
+- `src/persistence/firestore/repositories/workflowStepExecutionRepository.ts` — active lease exclusivity correction only.
+- `src/persistence/tests/workflowStepExecutionIdempotency.test.ts` — focused regression test.
+- `docs/PRODUCTION_HARDENING_GATE_03_2026-09-22.md` — durable audit evidence.
+- `docs/master/ENGINE-STATUS.md` — this handoff.
+
+**DBK/Sokoni production files were not modified by this Engine task.** The repository also received separate DBK commits from other work during this cycle; those are not part of this Engine task and were not edited by it.
 
 ## Verification Performed
-- Repository/source inspection: **COMPLETED**.
-- Focused test source inspection after change: **COMPLETED**.
-- Typecheck: **NOT EXECUTED**.
+- Repository inspection: **COMPLETED**.
+- Source diff inspection: **COMPLETED**.
+- Focused test source inspection: **COMPLETED**.
+- TypeScript/typecheck: **NOT EXECUTED** — local npm/shell execution unavailable through connected repository tooling.
 - Lint: **NOT EXECUTED**.
 - Focused test execution: **NOT EXECUTED**.
 - Full test suite: **NOT EXECUTED**.
 - Production build: **NOT EXECUTED**.
-
-The connected repository environment does not provide a local shell/npm execution path. Therefore no test, typecheck, lint, or build PASS is claimed. GitHub Actions was inspected but a completed verification run for this new change was not available during the task.
+- No passing execution result is claimed.
 
 ## Remaining Hardening Risks
-- Crash-after-external-side-effect-before durable `completeExecution()` remains an at-least-once external-side-effect risk. Solving that would require an established downstream idempotency contract and is outside this single hardening correction.
-- Runtime readiness remains at the previously documented architectural decision boundary; it was not reopened.
-- Provisioning service identity remains at the previously documented `MASTER REVIEW REQUIRED` boundary; it was not reopened.
+- Crash-after-external-side-effect-before durable `completeExecution()` remains an at-least-once external-side-effect risk. Solving that requires an established downstream idempotency contract and is outside this single correction.
+- Runtime readiness remains at its previous architectural decision boundary and was not reopened.
+- Provisioning service identity remains at its previous `MASTER REVIEW REQUIRED` boundary and was not reopened.
 
 ## New Engine Contracts
-- None. The correction enforces the existing durable execution-key/lease semantics rather than creating a new authority.
+- None. The correction enforces the existing durable execution-key/lease semantics.
 
 ## Contracts Required by DBK
-- None.
-- DBK impact is **NONE**.
+- None introduced.
+- DBK impact: **NONE**.
 
 ## Contracts Required by Sokoni
-- None.
-- Sokoni impact is **NONE**.
+- None introduced.
+- Sokoni impact: **NONE**.
 
 ## Blocking Issues
-- Local verification execution is unavailable through connected repository tooling.
-- CI completion for the hardening commit was not available during this task.
+- Local test/typecheck/lint/build execution is unavailable through connected repository tooling.
+- CI completion for the final hardening commit was not available during this task.
 
 ## MASTER REVIEW REQUIRED
 - No new Master decision was created by this gate.
-- Existing provisioning service-identity and runtime-readiness decisions remain untouched and are not part of this gate.
-
-## Risks / Architecture Concerns
-- The workflow system remains at-least-once around external side effects if a worker crashes after the external side effect succeeds but before durable completion is recorded. This is a known boundary, not a defect silently expanded by this change.
-- The new same-worker lease exclusivity intentionally returns `null` for a live lease; callers must continue to treat that as an execution conflict rather than re-invoking the handler.
-
-## Files / Areas Changed
-- `src/persistence/firestore/repositories/workflowStepExecutionRepository.ts` — hardened active lease exclusivity.
-- `src/persistence/tests/workflowStepExecutionIdempotency.test.ts` — added focused regression test.
-- `docs/PRODUCTION_HARDENING_GATE_03_2026-09-22.md` — durable Gate 03 evidence.
-- `docs/master/ENGINE-STATUS.md` — updated master handoff.
-
-No DBK, Sokoni, public discovery, provisioning identity, payment, or bridge files changed.
+- Existing provisioning service-identity and runtime-readiness decisions remain untouched.
 
 ## Next Recommended Engine Task
-**STOP.** Gate 03 is complete. The next Engine task must be separately assigned by Master; do not begin another hardening area automatically. A future task may address the remaining external-side-effect idempotency boundary only if an existing authoritative downstream contract is identified or explicitly authorized.
+**STOP.** Gate 03 is complete. The next Engine task must be separately assigned by Master. Do not automatically begin another hardening area.
 
 ## Dependency Handoffs
 
 ### DBK
-No implementation dependency. DBK authority and source files were untouched.
+No Engine dependency introduced. No DBK source was changed by this task.
 
 ### SOKONI
-No implementation dependency. Sokoni authority and source files were untouched.
+No Engine dependency introduced. No Sokoni source was changed by this task.
 
 ## Evidence
 - Repository: `thuram34/tdbk-v2-platform`.
 - Gate 03 starting state: `fddcbf951984ad8bf5f21a8d5b646085302b1a38`.
-- Hardening implementation commit: `950c95bf6db901759d91d666bd4cd3c5fb39b6f6`.
-- Focused regression test commit: `15da5c3aceea91554fd25cbe6f218be43012f01e`.
-- Gate 03 audit commit: `d9b26e2ac3bfe6e8fed7c972521d60b01697760a`.
-- Durable execution repository: `src/persistence/firestore/repositories/workflowStepExecutionRepository.ts`.
-- Focused regression test: `src/persistence/tests/workflowStepExecutionIdempotency.test.ts`.
-- Audit evidence: `docs/PRODUCTION_HARDENING_GATE_03_2026-09-22.md`.
-- No test/typecheck/lint/build PASS is claimed without execution evidence.
+- Hardening correction: `950c95bf6db901759d91d666bd4cd3c5fb39b6f6`.
+- Focused regression test: `15da5c3aceea91554fd25cbe6f218be43012f01e`.
+- Gate 03 evidence: `d9b26e2ac3bfe6e8fed7c972521d60b01697760a`.
+- Scope-cleanup correction: `4a5c2934f463eea14d5b7ea68e1571fd1becac3c`.
+- Final status commit: pending this update.
+- Concurrent DBK commits observed in repository history were separate work and were not modified by this Engine task.
