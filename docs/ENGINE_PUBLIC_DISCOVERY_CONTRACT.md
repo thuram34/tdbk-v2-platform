@@ -1,389 +1,350 @@
-# TDBK Engine Public Discovery Boundary Contract
+# TDBK Engine Public Authority Contract
 
-**Status:** ACTIVE — Engine architectural boundary/reconciliation contract
+**Status:** ACTIVE — Public Organization Projection / Publication Boundary
 **Scope:** TDBK Engine only
-**Authority:** TDBK Engine remains the authoritative source of business, tenant, capability, workflow, transaction, payment, receipt, event, audit, security, and authoritative projection state.
-**Owner:** TDBK Engine / Master Authority
-**Created:** 2026-09-22
+**Authority:** TDBK Engine / Master Authority
+**Last Updated:** 2026-09-22
 
 ## 1. Purpose
 
-This document records repository-verified Engine authority and the boundary for future DBK/Sokoni public discovery work.
+This document is the durable Engine contract for the first public-discovery dependency shared by DBK and Sokoni:
 
-It is intentionally **not** an implementation approval for missing public-discovery subsystems. Missing contracts are explicitly marked `MASTER REVIEW REQUIRED` rather than being invented here.
+1. Public Organization Projection
+2. Public Publication / Discoverability Authority boundary
 
-The durable rule is:
+It does **not** authorize a marketplace, search infrastructure, provider/product/service masters, or a Sokoni/DBK datastore.
 
-> DBK and Sokoni are Experience Layer consumers. They must not create replacement business, publication, provider, product, service, discovery, workflow, transaction, or financial authority when the Engine owns or is expected to own that authority.
+The governing rule remains:
 
-## 2. Repository-Verified Existing Authority
+> DBK and Sokoni consume Engine authority. They do not create replacement business, publication, organization, branch, provider, product, service, discovery, workflow, transaction, or financial authority.
 
-The following were inspected in the repository before recording this contract.
+## 2. Existing Authority Reused
 
-| Requirement | Existing Engine evidence | Decision |
+The implementation was reconciled against the current repository before adding the public contract.
+
+| Concern | Existing authority | Treatment |
 |---|---|---|
-| DBK identity | `src/platform/dbkRegistry.ts` | Consume existing authority |
-| Business DNA | `src/blueprint/dnaManager.ts` | Consume existing authority |
-| Branch context | `src/platform/branch/branchManager.ts` and workspace state | Consume existing authority |
-| Capability registry | `src/capability/registry.ts` | Consume existing authority |
-| Capability discovery | `src/capability/discovery.ts` | Consume; this is capability discovery, not public marketplace discovery |
-| Capability entitlement/evaluation | `src/capability/evaluator.ts`, `src/capability/entitlement.ts` | Consume existing authority |
-| DBK capability lifecycle | `src/capability/dbkCapabilityManager.ts` | Consume existing authority |
-| Workspace compilation | `src/platform/workspace/workspaceManager.ts` | Consume existing authority |
-| Authenticated experience projection | `src/platform/projection/experienceProjection.ts` | Reuse; do not create a parallel projection authority |
-| Experience entities | `src/experience/types.ts`, `src/experience/entity/entityEngine.ts` | Reuse existing entity substrate where applicable |
-| Experience entity persistence | `src/persistence/types.ts`, `src/persistence/firestore/repositories/entityRecordRepository.ts` | Reuse existing persistence authority |
-| Runtime/business transactions | Existing runtime/business services | Consume existing runtime authority |
-| Workflows/events/bridges | Existing orchestration/bridge infrastructure | Reuse existing runtime/orchestration authority |
-| Financial truth | Existing transaction/ledger/reconciliation/receipt services | Preserve existing financial authority and invariants |
-| Idempotency | Existing persistent idempotency contract | Reuse existing authority |
-| AI interpretation/verification | Existing Agent Runtime | AI remains interpreter/assistant, not business truth authority |
+| DBK identity | `src/platform/dbkRegistry.ts` / `DbkIdentity` | authoritative source |
+| DBK lifecycle | `DbkLifecycleStatus` | authoritative eligibility input |
+| Branch topology/location | `DbkIdentity.branchTopology` / `DbkBranch` | authoritative source |
+| Workspace state/version | `workspaceManager` / existing projection | existing L7 consistency pattern |
+| Capability authority | capability registry/discovery/entitlement | unchanged; not redefined as public publication |
+| Authenticated L7 projection | `src/platform/projection/experienceProjection.ts` | reusable projection pattern |
+| Audit | existing Kernel audit | publication/projection actions must use Engine audit when state-changing authority is later approved |
 
-## 3. Existing Experience Projection Boundary
+## 3. Public Organization Projection
 
-`src/platform/projection/experienceProjection.ts` already provides an Engine-owned projection for a stateless client/UI surface.
+### 3.1 Authoritative source
 
-It:
+The public organization projection is derived from the authoritative `DbkIdentity` held by the DBK Registry. Branches are derived from `DbkIdentity.branchTopology`.
 
-1. checks tenant access using `masterAuthority` / `BlueprintValidator`;
-2. compiles authoritative workspace state through `workspaceManager`;
-3. projects DBK identity, sector, status, branches, capabilities, terminology and permissions;
-4. returns a server-authoritative timestamp.
+No public organization record is persisted as a second master.
 
-This establishes the reusable architectural pattern for L7 projections.
+### 3.2 Current implemented projection
 
-It does **not** establish a generic public marketplace/discovery contract.
-
-## 4. Critical Distinction: Capability Discovery vs Public Discovery
-
-The Engine already has capability discovery.
-
-Capability discovery answers a DBK-oriented question such as:
-
-> Which capabilities are discoverable/eligible for this DBK given Business DNA, blueprint compatibility, entitlement, dependencies, and current capability state?
-
-Public discovery is a different contract and must not silently reuse or redefine capability discovery.
-
-Public discovery would answer questions such as:
-
-> Which Engine-authorized public organizations, branches, providers, products, services, or opportunities are discoverable for this request and location?
-
-Therefore:
-
-- existing capability discovery remains authoritative for capabilities;
-- no `SokoniDiscoveryEngine` or duplicate capability-discovery authority may be introduced;
-- a future public-discovery contract requires explicit Engine/Master approval.
-
-## 5. Public Projection Boundary
-
-The Engine may expose public-safe projections of authoritative entities through the Experience Layer.
-
-The public projection must never become a second master.
-
-### Candidate public projections requiring contract approval
-
-- Public Organization
-- Public Branch
-- Public Provider
-- Public Product
-- Public Service
-- Public Offer
-- Public Opportunity
-
-Only the first two have a directly verified reusable foundation in the current Engine projection/DBK/branch model. The remaining generic public contracts are not asserted as existing merely because related concepts exist elsewhere in the repository.
-
-### Public projection rules
-
-A public projection must:
-
-- derive from authoritative Engine state;
-- apply Engine-owned authorization and eligibility rules;
-- exclude private/PII/internal operational fields;
-- respect publication state once a publication contract exists;
-- never write business truth back from the public projection directly;
-- remain consumable by DBK and Sokoni without duplicating the source of truth.
-
-## 6. Publication Authority — MASTER REVIEW REQUIRED
-
-A repository-verified generic public publication authority was not located.
-
-The following lifecycle is therefore **not yet an approved Engine contract**:
-
-```text
-DRAFT -> ELIGIBLE -> PUBLISHED -> UNPUBLISHED -> ARCHIVED
+```ts
+PublicOrganizationProjection {
+  dbkId: string
+  displayName: string
+  sector: SectorType
+  branches: PublicOrganizationBranch[]
+  stateVersion: {
+    configurationVersion: number
+    updatedAt: string
+  }
+  eligibility: 'ELIGIBLE' | 'SUSPENDED' | 'INELIGIBLE'
+}
 ```
 
-Do not create a publication service, publication collection, publication event vocabulary, or publication state machine solely from this document.
+### 3.3 Public-safe fields
 
-Master decisions still required:
+Currently exposed by the Engine projection:
 
-- publication owner;
-- eligibility authority;
-- who may publish/unpublish/archive;
-- publication audit semantics;
-- suspension/revocation semantics;
-- relationship between capability entitlement and public visibility.
+- `dbkId` — stable Engine DBK identity
+- `displayName` — organization-facing display identity
+- `sector` — existing Business DNA/DBK sector classification
+- active branch identity/name/type
+- active branch public location fields already present on the authoritative branch record: county, town, address
+- headquarters marker
+- configuration version and authoritative update timestamp for consistency detection
+- derived public eligibility
 
-## 7. Public Discovery Contract — MASTER REVIEW REQUIRED
+### 3.4 Private fields excluded
 
-A canonical Engine public-discovery contract was not located.
+The public projection deliberately excludes:
 
-The following conceptual boundary is recorded for continuation only; it is not a production API definition:
+- legal name
+- subscription tier
+- master owner
+- creator identity
+- lifecycle history
+- arbitrary metadata
+- internal configuration
+- internal permissions
+- private customer/transaction state
+- internal capability lifecycle state
+- financial information
 
-```text
-Experience Request
-    -> public eligibility
-    -> public projection
-    -> location constraints
-    -> relevance/search
-    -> public result
-```
+No field is public merely because it exists on `DbkIdentity`.
 
-No search technology is selected by this contract.
+### 3.5 DBK relationship
 
-Do not introduce a search index, vector database, external search service, or parallel discovery datastore until the authoritative contract is approved.
+`dbkId` remains the canonical Engine identity. DBK owns the organization-facing presentation but does not create a public organization master.
 
-## 8. Location Boundary — MASTER REVIEW REQUIRED
-
-The Engine already has authoritative branch/location context.
-
-That does not establish all public-discovery location semantics.
-
-The following concepts must remain distinct until a contract is approved:
-
-- public business/branch location;
-- public service area/coverage;
-- public delivery area;
-- user-selected discovery location;
-- approximate discovery location;
-- private customer/transaction location.
-
-Private customer or transaction location must never become public discovery data merely because a public discovery experience needs location filtering.
-
-## 9. Generic Provider Contract — MASTER REVIEW REQUIRED
-
-Existing repository uses of `provider` include external integration/bridge providers. Those are not evidence of a generic real-world public provider master.
-
-Do not reinterpret M-Pesa, bank, SMS, email, eTIMS, AI, or other integration providers as the public-provider authority.
-
-A future generic provider contract must establish its authoritative owner before implementation.
-
-No `SokoniProvider` master is authorized by this document.
-
-## 10. Product / Service Boundary
-
-The Engine already has a generic `ExperienceEntityRecord` substrate and business transaction services using it. This is reusable infrastructure.
-
-However, the repository does not by itself establish one canonical public product/service contract covering all of:
-
-- public identity;
-- provider/DBK ownership;
-- branch;
-- price/quote;
-- availability;
-- inventory/capacity;
-- coverage;
-- requestability;
-- public media/description;
-- publication.
-
-Therefore:
-
-- existing entity/runtime authority must be reused where applicable;
-- DBK/Sokoni must not create replacement product/service masters;
-- the generic public product/service contract remains `MASTER REVIEW REQUIRED`.
-
-## 11. Availability — MASTER REVIEW REQUIRED
-
-No single generic Engine availability authority was established by repository inspection.
-
-Do not infer that capability status, DBK status, branch status, or an entity boolean is a universal availability model.
-
-Master must decide whether availability is:
-
-1. a shared Engine primitive; or
-2. domain-specific authoritative state projected through L7.
-
-## 12. Discovery -> Action Boundary
-
-The authoritative action path remains:
+The projection is therefore:
 
 ```text
-DBK / Sokoni Experience
-        -> L7 Experience/API boundary
-        -> Engine command
-        -> L5 authoritative runtime
-        -> workflow/event/bridge as required
-        -> authoritative state
-        -> L7 projection
-        -> DBK / Sokoni
+DBK Registry
+    -> DbkIdentity
+    -> L7 public-safe projection
+    -> DBK / Sokoni
 ```
 
-Sokoni must not create a parallel workflow engine for discovery actions.
+### 3.6 Branch/location representation
 
-A generic discovery-to-request command vocabulary remains `MASTER REVIEW REQUIRED` until the target domain and authoritative runtime command are identified.
+Only branches with authoritative branch status `ACTIVE` are included.
 
-## 13. Request -> Quote -> Approval
+Each projected branch contains:
 
-The Engine already contains workflow/event infrastructure and financial truth infrastructure.
+- branch ID
+- branch name
+- branch type
+- county, town and address where present on the authoritative branch record
+- headquarters marker
 
-Existing workflow lifecycle and payment events may be reused where their semantics match, but they do not automatically establish a generic marketplace/service quote lifecycle.
+Archived/inactive branches are excluded.
 
-The following remains unapproved:
+This contract does **not** establish service area, delivery area, geofencing, user-location matching, or approximate-location semantics. Those remain `MASTER DECISION REQUIRED`.
+
+### 3.7 Capabilities exposed publicly
+
+**None are currently exposed by this contract.**
+
+The Engine already has capability discovery, entitlement, and lifecycle authority, but the repository does not establish a public-safe capability metadata contract. Exposing internal capability IDs/names as public organization claims would therefore be an architectural assumption.
+
+A public capability projection is `MASTER DECISION REQUIRED` and must reuse the capability registry rather than create a second capability catalog.
+
+### 3.8 Version/state consistency
+
+The projection carries:
+
+- `configurationVersion`
+- authoritative `updatedAt`
+
+This is the minimum consistency information already justified by the DBK identity model. `workspaceVersion` is not exposed because the public projection is sourced directly from the canonical DBK identity rather than creating a second workspace snapshot.
+
+Consumers must treat the projection as a read model and must not write state back through it.
+
+### 3.9 Eligibility
+
+The implemented eligibility evaluator is deliberately derived from the existing DBK lifecycle authority:
+
+| DBK lifecycle | Public eligibility |
+|---|---|
+| `ACTIVE` | `ELIGIBLE` |
+| `SUSPENDED` | `SUSPENDED` |
+| `PROVISIONING` | `INELIGIBLE` |
+| `PROVISIONING_FAILED` | `INELIGIBLE` |
+| `ARCHIVED` | `INELIGIBLE` |
+
+This is an eligibility gate, **not publication state**.
+
+An `ELIGIBLE` organization must not be interpreted as publicly published until a publication authority exists.
+
+### 3.10 Authorization
+
+The projection itself does not create a new authorization system.
+
+For authoritative DBK reads, existing `dbkRegistry` authorization and Kernel/Master authority remain authoritative. The existing authenticated `ExperienceProjectionService` already enforces tenant access before compiling workspace state.
+
+A public unauthenticated read path requires a publication authority that can authorize public visibility. That path is not invented here.
+
+### 3.11 L7 request/response boundary
+
+The implemented pure projection boundary is:
 
 ```text
-REQUESTED
--> PROVIDER_RESPONDED
--> QUOTE_CREATED
--> CUSTOMER_APPROVAL
--> SCHEDULED
--> IN_PROGRESS
--> COMPLETED
--> PAYMENT
--> RECEIPT
+Authoritative DbkIdentity
+        -> projectPublicOrganization(dbk)
+        -> PublicOrganizationProjection
 ```
 
-Do not create a generic quote/request state machine without Master/domain-owner approval.
+The eventual public HTTP/API request contract is intentionally **not** invented yet because public publication authority is not persisted in the current Engine.
 
-## 14. Financial Truth Invariants
+When approved, the L7 request must identify the public organization and return only a currently published, eligible, public-safe projection. It must not query or write a DBK/Sokoni-owned public datastore.
 
-Existing Engine financial invariants remain authoritative and must not be weakened by public-discovery work.
+### 3.12 Error behavior
 
-Mandatory existing invariants include:
+The projection function is deterministic and does not invent error semantics.
+
+For an eventual public L7 read endpoint, the following semantics are required but the exact API error envelope remains `MASTER DECISION REQUIRED`:
+
+- unknown organization -> not found / non-discoverable
+- ineligible organization -> not publicly visible
+- suspended organization -> not publicly visible
+- unpublished organization -> not publicly visible
+- unauthorized internal request -> existing Engine authorization error
+- malformed request -> existing API validation error
+
+No private-state details should be disclosed through these errors.
+
+### 3.13 Audit
+
+Projection reads are read-model operations and must not create business-state audit mutations merely because a consumer renders them.
+
+Any future publication/unpublication/suspension state mutation must use the existing Engine audit authority and record actor, organization, previous state, new state, reason, correlation/request identity, and timestamp.
+
+The exact publication event/audit vocabulary is `MASTER DECISION REQUIRED` because no repository-verified publication authority currently exists.
+
+## 4. Public Publication / Discoverability Authority
+
+### 4.1 Repository finding
+
+The repository does **not** currently contain a generic persisted public publication authority.
+
+Existing DBK lifecycle state is authoritative for operational lifecycle, but it cannot safely be reinterpreted as a publication preference/state. In particular, `ACTIVE` does not mean an organization has opted into public discovery.
+
+Therefore the Engine must not silently map:
 
 ```text
-Debit total === Credit total
+ACTIVE -> PUBLISHED
 ```
 
-and:
+### 4.2 Justified states today
+
+Only the following public-facing eligibility outcomes are justified by existing authority:
 
 ```text
-POSTED ledger entries are immutable
+ELIGIBLE
+SUSPENDED
+INELIGIBLE
 ```
 
-Public discovery/actions must route financial mutations through the existing financial/runtime authority rather than introducing marketplace payment truth.
+They are derived from existing DBK lifecycle state and are implemented in `evaluatePublicOrganizationEligibility()`.
 
-## 15. AI Boundary
+They are **not** a publication state machine.
 
-Existing Agent Runtime infrastructure may interpret natural-language intent and assist with actions.
+### 4.3 Requested publication lifecycle
 
-AI must not become authoritative for:
+The proposed sequence:
 
+```text
+DRAFT
+-> REVIEW/ELIGIBILITY
+-> PUBLISHED
+-> UNPUBLISHED
+-> SUSPENDED
+```
+
+cannot be implemented as a persistent Engine lifecycle yet because the repository has no verified owner, persistence model, authorization rule, or audit/event vocabulary for publication.
+
+Accordingly:
+
+**MASTER DECISION REQUIRED**
+
+before introducing `DRAFT`, `REVIEW`, `PUBLISHED`, or `UNPUBLISHED` as authoritative persisted states.
+
+### 4.4 Suspension
+
+`SUSPENDED` is justified only as a derived public eligibility outcome from the existing authoritative DBK lifecycle status `SUSPENDED`.
+
+It is not currently an independently managed publication suspension state.
+
+If Master later approves independent public suspension, that state must be separately owned and audited rather than modifying DBK operational lifecycle semantics.
+
+### 4.5 Publication eligibility rules already justified
+
+A public organization candidate must:
+
+1. resolve from an authoritative Engine DBK identity;
+2. have a valid DBK identity;
+3. be `ACTIVE` for `ELIGIBLE` status;
+4. expose only public-safe fields;
+5. contain only active branches in its branch projection;
+6. not expose private lifecycle, ownership, entitlement, or financial state.
+
+These rules do not grant publication.
+
+### 4.6 What remains unresolved
+
+The following publication decisions remain explicit:
+
+- who opts an organization into public publication;
+- whether publication is owner-controlled, Master-controlled, or both;
+- whether a publication review state is required;
+- whether publication is separate from DBK operational lifecycle;
+- exact persisted publication owner/store;
+- publication events;
+- publication audit event names;
+- public suspension/revocation semantics;
+- whether public capability claims require separate approval;
+- public API authorization semantics for anonymous discovery.
+
+All are **MASTER DECISION REQUIRED**.
+
+## 5. Security Boundary
+
+Public projection must reuse Engine security and must never bypass:
+
+- identity authority;
 - tenancy;
-- identity;
 - authorization;
-- entitlement;
-- publication authority;
-- transaction state;
-- financial truth;
-- receipts;
-- workflow truth;
-- public-provider truth.
+- capability authority;
+- audit;
+- runtime authority;
+- financial authority.
 
-A future natural-language discovery flow must translate AI interpretation into an Engine-owned discovery contract rather than allowing AI to create an independent discovery datastore.
+No public projection may expose customer PII, internal credentials, transaction state, subscription secrets, or internal operational configuration.
 
-## 16. Security Boundary
+## 6. DBK Consumer Contract
 
-Public discovery must reuse existing Engine security/tenant authority.
+DBK may consume `PublicOrganizationProjection` for organization-facing public presentation.
 
-Required controls for a future public-discovery implementation include:
+DBK must not:
 
-- tenant isolation;
-- branch isolation where applicable;
-- public/private field filtering;
-- publication eligibility;
-- PII protection;
-- location privacy;
-- authorization for public actions;
-- idempotency for state-changing actions;
-- auditability;
-- abuse/rate controls.
+- persist a second public organization master;
+- decide publication independently;
+- expose private Engine fields because they are available in `DbkIdentity`;
+- convert `ELIGIBLE` into `PUBLISHED` locally.
 
-The public-discovery-specific policy contract is not yet fully established and remains `MASTER REVIEW REQUIRED`.
+## 7. Sokoni Consumer Contract
 
-## 17. Cross-Domain Dependencies
+Sokoni may consume the same Engine projection once a public publication/read path is approved.
 
-### DBK domain owns
+Sokoni must not:
 
-- public organization presentation;
-- organization website UI;
-- navigation/presentation;
-- interaction state;
-- human-readable states;
-- presentation of Engine-authorized public projections.
+- create `SokoniOrganization` as authoritative truth;
+- create `SokoniProvider`/`SokoniProduct`/`SokoniService` masters;
+- create its own publication state;
+- treat `ELIGIBLE` as `PUBLISHED`;
+- infer public availability from this projection.
 
-DBK must consume Engine contracts and must not create public organization master records.
+## 8. Current Implementation
 
-### Sokoni domain owns
+Implemented Engine-owned code:
 
-- public discovery UI/experience;
-- search/filter presentation;
-- marketplace/discovery interaction presentation;
-- opportunity/discovery UX.
+- `src/platform/public/publicOrganizationProjection.ts`
+- `src/platform/tests/publicOrganizationProjection.test.ts`
 
-Sokoni must consume Engine authority and must not create provider/product/service/publication truth.
+The implementation is deliberately pure and projection-only. It does not add persistence, a public API route, search, a publication collection, or a new authority.
 
-### Engine/Master owns
+## 9. Tests
 
-- authoritative identity;
-- tenancy;
-- Business DNA;
-- capabilities;
-- entitlement;
-- authoritative business state;
-- transactions;
-- workflows/events/bridges;
-- financial truth;
-- receipts;
-- security/audit;
-- public authority contracts once approved.
+Required tests now cover:
 
-## 18. Stop Conditions
+- public-safe field projection;
+- exclusion of private identity/configuration/lifecycle data;
+- active-branch filtering;
+- lifecycle-derived eligibility;
+- suspended/ineligible outcomes;
+- absence of an invented publication state.
 
-Engine work must stop and record `MASTER REVIEW REQUIRED` when:
+Repository CI remains the authoritative execution environment for the full test/typecheck/lint/build gate.
 
-- a public authority cannot be located;
-- implementation would require inventing a provider/product/service master;
-- implementation would require choosing a search technology before the contract is defined;
-- a public action has no verified Engine command/runtime authority;
-- public projection would expose private state;
-- DBK/Sokoni would need to become a source of truth;
-- a proposed API conflicts with an existing Engine contract;
-- a proposed persistence model duplicates existing authority.
+## 10. Next Authority Boundary
 
-## 19. Continuation State
+Before implementing an anonymous public L7 endpoint or publication persistence, Master must resolve the publication authority decisions in §4.6.
 
-This document is the durable handoff for Engine/public-discovery work.
+After that decision, the next Engine implementation should be the **smallest approved publication authority**, followed by the L7 public organization read contract.
 
-### Safe to reuse immediately
-
-- DBK registry
-- Business DNA
-- branch authority
-- capability registry/discovery
-- workspace compilation
-- Experience Projection Service
-- Experience Entity Record/persistence substrate
-- runtime commands/state transitions
-- workflow/event infrastructure
-- bridges
-- financial truth
-- receipts/reconciliation
-- idempotency
-- Agent Runtime authority boundary
-
-### Blocked pending Master/domain decision
-
-- generic public publication authority
-- generic public discovery API
-- generic public search contract/index
-- generic public provider master
-- generic public product/service master
-- generic availability authority
-- generic request/quote marketplace lifecycle
-- generic opportunity/job authority
-- public-discovery-specific location/privacy semantics
-
-### Next specialist continuation
-
-The next Engine specialist should not rebuild any existing authority. The next actionable step is to resolve the blocked contracts above with Master, then implement only the approved Engine-owned contracts and tests. DBK and Sokoni specialists can continue independently on presentation work that depends only on already verified contracts.
+Do not implement search infrastructure, provider/product/service masters, or marketplace workflows as part of this phase.
