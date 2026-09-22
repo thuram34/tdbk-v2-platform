@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { ArrowLeft, ArrowRight, BriefcaseBusiness, Building2, ChevronDown, Clock3, Compass, MapPin, Search, Sparkles, UserRound, Wrench, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, ChevronDown, Clock3, Compass, MapPin, Search, Sparkles, UserRound, Wrench, X } from 'lucide-react';
 import { demoSokoniDiscoveryAdapter, SokoniDiscoveryResult, SokoniLocationContext } from './SokoniDiscoveryAdapter';
 import { BusinessCard, JobCard, OfferCard, OpportunityCard, ProductCard, ProviderCard, ServiceCard } from './SokoniPresentationCards';
 
