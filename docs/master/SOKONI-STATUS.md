@@ -119,3 +119,61 @@ Visual/runtime verification of the completed Sokoni Experience/UI slices against
 - Repository scripts available in `package.json`: `npm test`, `npm run typecheck`, `npm run lint`, `npm run build`.
 - Remote GitHub tooling in this session does not provide a local command execution environment; therefore no typecheck, lint, test or build pass is claimed.
 - No Engine or DBK files were changed in this task.
+
+
+## Verification — Visual/Runtime Verification Task
+Date: 2026-09-22
+
+### Scope
+Verification-only review of the synchronized Sokoni Experience/UI state covering Discovery Experience Shell, Entity Detail Experience, Discovery Context Experience, natural-language search, category exploration, discovery area and mode selection, provider/technician journey, mobile/responsive behavior, back/navigation behavior, demo labeling, and Engine-state separation.
+
+### Repository Evidence
+- Verified src/sokoni/SokoniExperience.tsx at the current branch state.
+- Verified src/sokoni/SokoniPresentationCards.tsx at the current branch state.
+- Verified src/sokoni/SokoniDiscoveryAdapter.ts at the current branch state.
+- Verified package.json scripts: npm test, npm run typecheck, npm run lint, npm run build.
+- Implementation commit remains 92318e7235f49276a291851c1fb0c768f2a828f3.
+- Prior entity-detail commit remains e4ec61bc3a7bb8869d75f25d68b8352317944705.
+- Prior shell commit remains a3f76c61e6e39684fb00213008509c46804fadee.
+- Documentation update before this verification remains 53a8681553e03571349c068db183b6b342742719.
+
+### Verification Results
+| Area | Result | Evidence |
+|---|---|---|
+| Home/discovery presentation | PASS — repository inspection | Home view contains natural-language entry, discovery area, context chips, category exploration and explicit demo/reference framing. |
+| Natural-language search entry | PASS — repository inspection | Search view uses free-form textarea, examples and a Discover action; no backend search authority is defined in the UI. |
+| Category exploration | PASS — repository inspection | Services, Products, Businesses, Jobs, Opportunities and Offers are presented as UX destinations. |
+| Location/context selection | PASS — repository inspection | Area is local UI state with explicit copy that it is not coverage, availability, distance matching or location truth. |
+| Public Discovery mode | PASS — repository inspection | Public mode explicitly says discovery does not require TDBK enrollment. |
+| TDBK-enrolled Preview mode | PASS — repository inspection | Mode is explicitly UX ONLY and says actions remain unavailable until approved Engine contracts are connected. |
+| Entity detail presentation | PASS — repository inspection | Product, Service, Business, Job, Opportunity and Offer cards use local dismissible detail presentation with DEMO / UX DETAIL labeling. |
+| Provider/technician journey | PASS — repository inspection | Existing ProviderCard navigation remains separate; provider detail exposes Request Service only as an Engine handoff boundary and creates no request record. |
+| Mobile/responsive behavior | PASS — static responsive inspection | Responsive Tailwind classes, mobile bottom navigation and responsive detail modal/drawer treatment are present. Actual device rendering was not executable in this environment. |
+| Back/navigation behavior | PASS — code-path inspection | Header back behavior maps Provider → Results → Search → Home; mobile nav provides Home/Search/Activity/Account; detail overlays have explicit close/return controls. |
+| Demo/reference-state labeling | PASS | Global demo banner, DEMO RESULTS, REFERENCE PREVIEW, UX ONLY and DEMO / UX DETAIL labels are present. |
+| Fabricated Engine state | PASS | Demo adapter is explicitly non-authoritative; no new Engine contract, persistence, search index or master record is introduced. |
+| Enrollment implication | PASS | Enrolled mode is described as a future preview, not current authentication/authorization. |
+| Availability/pricing/coverage/matching/transaction claims | PASS | Provider and entity detail copy explicitly prevents live availability, pricing, coverage, matching, publication, trust, purchase, application and transaction claims. |
+
+### Defects
+No clear verification-level defect was identified from synchronized repository/code inspection.
+
+A runtime/rendering defect cannot be ruled out because this connected GitHub environment does not expose a local browser or local command execution environment. No visual-runtime pass is claimed.
+
+### Automated Verification
+- Local npm test: NOT RUN.
+- Local npm run typecheck: NOT RUN.
+- Local npm run lint: NOT RUN.
+- Local npm run build: NOT RUN.
+- GitHub workflow runs for the discovery-context implementation commit: none reported.
+- Combined CI status for documentation commit 53a8681553e03571349c068db183b6b342742719: no status checks reported.
+
+### Remaining Blockers
+- Actual browser/device runtime verification remains pending because the connected repository environment does not provide a local browser/runtime executor.
+- Authoritative public discovery behavior remains blocked on the Engine contracts already documented under MASTER REVIEW REQUIRED.
+- No blocker was created by this verification task itself.
+
+### Verification Conclusion
+The synchronized repository state is internally consistent with the closed Sokoni Experience/UI scope. Static/code-path verification found no clear defect requiring a feature or architecture change. The absence of executable browser/command tooling is recorded as a verification limitation, not as a pass.
+
+No feature, Engine integration, backend discovery, persistence, DBK change or Sokoni architecture change was introduced by this verification task.
