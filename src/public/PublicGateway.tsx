@@ -577,6 +577,9 @@ export function PublicGateway({ onSelectSector, onSignIn, onLaunchWorkspace }: P
               Every DBK workspace is shaped around the way your business works — with the tools, information and
               services you need in one place.
             </p>
+            <p className="mt-3 text-[11px] font-mono uppercase tracking-wide text-neutral-400">
+              Illustrative workspace references — not live organization data
+            </p>
           </div>
 
           {/* Carousel Category Pills / Indicators */}
