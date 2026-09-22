@@ -4,41 +4,34 @@
 2026-09-22
 
 ## Current Phase
-Phase 1 — Discovery Experience Shell
+Phase 1 — Entity Detail Experience Slice
 
 ## Current Objective
-Build the Sokoni public discovery experience upward at the UI/presentation layer while unresolved Engine public-discovery contracts remain pending. No Sokoni backend authority is created.
+Extend Sokoni one level above the completed discovery shell by making non-provider discovery cards open a reusable entity-detail presentation surface. This remains UX-only and uses demo/reference data while public Engine contracts are unresolved.
 
 ## Completed
-- Completed the Sokoni Discovery Experience Shell.
-- Refined the mobile-first Sokoni Home around the primary question: `What do you need?`
-- Added natural-language discovery entry and example phrases.
-- Added user-controlled discovery-location presentation.
-- Added category discovery for Services, Products, Businesses, Jobs, Opportunities and Offers.
-- Added Search experience with intent entry, suggestions, refinement/location controls, loading, empty-by-state presentation, and error handling.
-- Added reusable presentation components for Product, Service, Provider, Business, Job, Opportunity and Offer cards.
-- Added mobile-first Home/Search/Activity/Account navigation.
-- Refined the technician reference journey using `My printer isn't working.` → understood need → discovery presentation → provider profile → Request Service.
-- Kept Request Service as an explicit Engine handoff placeholder; no request record is created.
-- Kept demo/reference data explicitly separated from authoritative Engine state.
-- Added an Activity placeholder that refuses to imply authoritative requests, purchases, applications or service status.
+- Completed the previous Discovery Experience Shell; treated as closed.
+- Added a reusable entity-detail presentation layer to Product, Service, Business, Job, Opportunity and Offer cards.
+- Added mobile-friendly detail presentation with a dismissible modal/drawer treatment.
+- Kept the ProviderCard flow unchanged so the technician journey continues into the existing provider profile and Engine handoff boundary.
+- Added explicit DEMO / UX DETAIL labeling inside entity details.
+- Added copy that explicitly prevents demo detail from implying price, stock, seller identity, availability, publication, coverage, trust, eligibility or application state.
+- Reused the existing Sokoni card visual language and existing card data types.
 
 ## In Progress
 - No backend implementation is in progress.
-- Public discovery, provider, product, service, publication, location-matching and request contracts remain outside the Sokoni shell.
+- No public discovery, publication, provider, product, service, search, location matching or request contract is being implemented here.
 
 ## Verified
-- Sokoni UI imports the existing UX-only `SokoniDiscoveryAdapter` rather than introducing a backend/search authority.
-- Reusable cards carry explicit DEMO/PENDING state markers and do not claim live provider/product/service truth.
-- Location is represented as user-selected UX state and is explicitly not provider coverage or matching truth.
-- Request CTA opens an Engine handoff boundary message only; no request/workflow/payment operation is executed.
-- Existing App integration remains the entry point for the Sokoni experience.
-- No marketplace master records or duplicate Engine records were added.
+- Entity details are presentation-only local UI state; opening a detail does not create or persist a record.
+- Cards remain driven by existing Sokoni UX/reference data types.
+- ProviderCard continues to use its existing `onSelect` navigation rather than the new generic demo detail treatment.
+- No Engine or DBK source files were modified.
+- No marketplace/search/database authority was added.
 
 ## Engine Contracts Consumed
-- Existing `SokoniPublicDiscoveryAdapter` UX boundary only, with its existing demo implementation.
-- Existing `SokoniDiscoveryResult`, `SokoniDiscoveryIntent`, `SokoniLocationContext` and provider-preview types.
-- No new public Engine contract was assumed or invented.
+- None beyond the existing Sokoni UX presentation types and demo adapter already present in the repository.
+- No new public Engine contract was assumed.
 
 ## Engine Contracts Intentionally NOT Assumed
 - Public publication authority.
@@ -55,13 +48,13 @@ Build the Sokoni public discovery experience upward at the UI/presentation layer
 - Request → quote/approval.
 
 ## DBK Dependencies
-- Sokoni continues to treat DBK as the organization-facing operating surface.
-- No DBK internals were modified.
-- No DBK master records were created or duplicated.
+- None added.
+- DBK remains the organization-facing operating surface.
+- No DBK internals or master records were changed.
 
 ## Blocking Issues
-- Live discovery remains blocked on the approved Engine public-discovery/public-read contracts.
-- Demo/reference presentation cannot be promoted to authoritative state until those contracts are approved and bound.
+- Authoritative entity detail cannot replace the demo detail until the corresponding Engine public projection/read contracts are approved.
+- Public business/service/provider/product/opportunity/offer truth remains blocked on Engine contracts.
 
 ## MASTER REVIEW REQUIRED
 - Public publication/read authority and lifecycle.
@@ -71,42 +64,39 @@ Build the Sokoni public discovery experience upward at the UI/presentation layer
 - Product projection.
 - Location-aware discovery/privacy semantics.
 - Discovery → request and request → quote/approval contracts.
+- Public jobs/opportunities/offers contracts where authoritative action or state is required.
 
 ## Discovery Journeys Verified
-- `My printer isn't working.` now has a complete visible UX path through provider presentation and request handoff placeholder.
-- The existing computer-support reference journey remains structurally supported by the same presentation shell.
-- Product, service, business, job, opportunity and offer presentation cards are available as UX-only surfaces.
-- No journey claims a live Engine transaction state.
+- Technician journey remains: `My printer isn't working.` → understood need → discovery presentation → provider profile → Request Service → Engine handoff placeholder.
+- Non-provider discovery cards now support a clear next step: card → demo entity detail → return to discovery.
+- No demo entity detail claims a live transaction, provider match, availability, pricing or publication state.
 
 ## UX Decisions
-- Sokoni remains intent-first rather than directory-first.
-- The primary action is discovery from natural language.
-- Location is visible but user-controlled.
-- Demo content is visually labelled so it cannot be mistaken for production truth.
-- Presentation components are intentionally contract-shaped and replaceable at the adapter boundary.
-- Mobile navigation prioritizes Home, Search, Activity and Account.
-- Request is an explicit Engine handoff rather than a Sokoni workflow.
+- Entity detail is intentionally a presentation layer, not a new entity authority.
+- Details are opened locally and dismissed locally; no persistence is created.
+- The detail surface uses a consistent Sokoni visual treatment across entity types.
+- Provider detail remains a distinct experience because provider/request behavior is already represented by the technician vertical slice.
+- Demo/reference content remains visibly separated from authoritative Engine state.
 
 ## Architecture Concerns
-- The presentation shell must not be wired directly to internal Engine records.
-- Existing demo adapter remains temporary and must not evolve into a marketplace backend.
-- Future authoritative bindings must enter through an approved Engine public-discovery contract.
-- No local publication flag, search index, provider master, product master, service master, request database, transaction authority or payment authority may be added to bridge current gaps.
+- The generic detail shell must not evolve into a local master-record or persistence layer.
+- Future authoritative entity projections must plug into existing presentation boundaries rather than replace them with parallel Sokoni truth.
+- No local publication flag, search index, provider master, product master, service master, request database, transaction authority or payment authority may be added to support this UI.
 
 ## Files / Areas Changed
-- `src/sokoni/SokoniExperience.tsx` — rebuilt the Sokoni discovery experience shell and technician vertical-slice presentation.
-- `src/sokoni/SokoniPresentationCards.tsx` — added reusable ProductCard, ServiceCard, ProviderCard, BusinessCard, JobCard, OpportunityCard and OfferCard presentation components.
-- `docs/master/SOKONI-STATUS.md` — updated with this task's completion and evidence.
+- `src/sokoni/SokoniPresentationCards.tsx` — added reusable local entity-detail presentation behavior to Product, Service, Business, Job, Opportunity and Offer cards.
+- `docs/master/SOKONI-STATUS.md` — updated with this slice, dependencies, blockers and evidence.
 - No Engine source files changed.
 - No DBK source files changed.
 - No backend/search/database/marketplace authority added.
 
 ## Next Recommended Single Sokoni Task
-Visual/runtime verification of the Discovery Experience Shell against the synchronized repository state, including responsive UX and adapter-boundary checks. Do not begin Engine or marketplace implementation from this status.
+Visual/runtime verification of the completed Sokoni Experience/UI slices against the synchronized repository state. Do not begin another feature or Engine integration until that verification is complete.
 
 ## Evidence
-- Existing Sokoni UX adapter: `src/sokoni/SokoniDiscoveryAdapter.ts`.
-- Shell commit: `a3f76c61e6e39684fb00213008509c46804fadee`.
-- Reusable card component commit: `c0f30bc557f351b1a8aef403be04aa1b1c8ee6ed`.
-- GitHub combined status queried for shell commit; no status entries were returned at verification time.
-- Repository scripts available for verification are `npm test`, `npm run typecheck`, `npm run lint`, and `npm run build` from `package.json`. Remote repository tooling in this session did not provide a local execution environment, so no test/typecheck/lint/build pass is claimed.
+- Previous shell commit: `a3f76c61e6e39684fb00213008509c46804fadee`.
+- Previous reusable card commit: `c0f30bc557f351b1a8aef403be04aa1b1c8ee6ed`.
+- Entity detail slice commit: `e4ec61bc3a7bb8869d75f25d68b8352317944705`.
+- Repository scripts available in `package.json`: `npm test`, `npm run typecheck`, `npm run lint`, `npm run build`.
+- Remote GitHub tooling in this session does not provide a local command execution environment; therefore no typecheck, lint, test or build pass is claimed.
+- No Engine or DBK files were changed in this task.
