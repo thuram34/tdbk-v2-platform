@@ -12,7 +12,7 @@ const baseDbk: DbkIdentity = {
   sector: 'SCHOOL',
   blueprintId: 'school',
   blueprintVersion: '1.0.0',
-  subscriptionTier: 'PROFESSIONAL',
+  subscriptionTier: 'PRO',
   status: 'ACTIVE',
   masterOwner: 'owner-private',
   createdAt: '2026-09-01T00:00:00.000Z',
