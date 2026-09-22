@@ -4,10 +4,10 @@
 2026-09-22
 
 ## Current Phase
-DBK-01 — Experience Shell / DBK Experience Foundation
+DBK-01A — Organization-facing Experience Shell
 
 ## Current Objective
-Convert the existing Engine-backed DBK experience foundation into the organization-facing DBK website experience without creating duplicate authority.
+Refine the existing Engine-backed DBK portfolio and workspace shell into a clean organization-facing experience without creating duplicate authority or changing Engine contracts.
 
 ## Completed
 - Established the DBK Website Experience Contract in `docs/DBK_WEBSITE_EXPERIENCE_CONTRACT.md`.
@@ -16,53 +16,63 @@ Convert the existing Engine-backed DBK experience foundation into the organizati
 - Inspected the existing Experience type contract.
 - Inspected the existing dynamic navigation engine.
 - Inspected the existing `DbkShell` and confirmed an Engine-backed authenticated DBK shell already exists.
-- Inspected the existing `OwnerPortfolioView` and confirmed a multi-DBK owner portfolio and registration surface already exists.
-- Confirmed no concrete `Sokoni` implementation or clearly named public-organization projection contract was found in repository search.
+- Inspected the existing `OwnerPortfolioView` and confirmed a multi-DBK owner portfolio and Engine-backed registration surface already exists.
+- Refined `OwnerPortfolioView` into organization-facing language and removed visible canonical DBK ID, tenant-slug, subscription-tier, provisioning-service, SHA UI, and internal isolation terminology from the normal owner journey.
+- Refined `DbkShell` while preserving `/api/platform/dbks`, `/api/experience/resolve/:dbkId`, and `/api/experience/command` as the existing Engine-backed boundaries.
+- Removed developer/test controls from the normal DBK workspace header: role simulation, Phase 5/6 test launchers, multi-business test suite, coherence-engine test surface, and Master Console shortcut are no longer presented as organization navigation.
+- Preserved the useful organization-facing AI & documents entry point.
+- Added explicit organization-facing loading, unauthorized, error, empty, provisioning/setup, inactive/disabled, and retry states.
+- Preserved owner/operator multi-DBK switching and Engine-backed branch switching.
+- Kept developer/test components in the repository rather than deleting them; they remain outside the normal DBK organization journey.
 
 ## In Progress
-- DBK-01: determine which existing DBK shell/UI surfaces can be retained, refined, or replaced within the DBK website domain.
-- DBK-02 preparation: public landing/intent/solution/industry/capability experience has not yet been verified as an existing implementation.
-- Replace developer-facing terminology in organization-facing DBK UX where appropriate, without changing Engine authority.
+- DBK-01A verification: typecheck, lint, test, and build evidence is pending local/CI execution.
+- Visual/browser inspection of the refined shell remains to be performed in the actual application preview.
+- DBK-02 preparation: public landing/intent/solution/industry/capability experience has not yet been implemented or fully verified.
 
 ## Verified
-- `src/experience/experienceResolver.ts` is the existing authenticated DBK experience resolver.
+- `src/experience/experienceResolver.ts` remains the existing authenticated DBK experience resolver.
 - `src/experience/types.ts` defines the existing DBK experience vocabulary and resolved payload.
 - `src/experience/navigation/navigationEngine.ts` derives navigation from Engine workspace state, enabled capabilities, roles, and permissions.
 - `src/capability/discovery.ts` is the authoritative capability discovery surface and evaluates Business DNA, blueprint compatibility, DBK capability records, entitlement, and dependencies.
-- `src/components/experience/DbkShell.tsx` already consumes `/api/experience/resolve/:dbkId` and `/api/experience/command` rather than creating local operational truth.
-- `src/components/experience/OwnerPortfolioView.tsx` already presents multiple DBKs and calls Engine provisioning through `/api/platform/provision`.
-- `Business DNA`, capability registry, capability entitlement, DBK capability lifecycle, workspace compilation, branch context, transactions, and audit are existing Engine dependencies and must be reused.
+- `src/components/experience/DbkShell.tsx` consumes `/api/experience/resolve/:dbkId` and `/api/experience/command` rather than creating local operational truth.
+- `src/components/experience/OwnerPortfolioView.tsx` consumes the existing Engine provisioning endpoint `/api/platform/provision`; its UI now hides internal provisioning identifiers from normal users.
+- `Business DNA`, capability registry, capability entitlement, DBK capability lifecycle, workspace compilation, branch context, transactions, and audit remain existing Engine dependencies and were not duplicated.
+- `package.json` confirms the repository scripts are `test`, `typecheck`, `lint`, and `build`.
+- Commit `4994aaca7e7f225e9e53cac5772fe1bab650d544` currently has GitHub commit status `pending` with no reported status checks yet.
 
 ## Engine Contracts Consumed
 - Identity/authentication through existing AuthContext and Engine-authorized API requests.
-- DBK registry / DBK identity.
-- Business DNA.
+- DBK registry / DBK identity through `/api/platform/dbks`.
+- DBK provisioning through the existing `/api/platform/provision` endpoint.
+- Business DNA through the existing Engine experience/capability layer; DBK does not persist DNA.
 - Capability registry.
 - Capability discovery.
 - Capability entitlement and dependency evaluation.
 - DBK capability lifecycle/provisioning.
 - Workspace compilation.
-- Experience resolution.
-- Dynamic navigation.
-- Branch context.
-- Experience commands.
-- Transaction execution through Engine services.
+- Experience resolution through `/api/experience/resolve/:dbkId`.
+- Dynamic navigation from the resolved Engine experience.
+- Branch context and Engine-backed `SWITCH_BRANCH` command.
+- Existing Engine experience commands.
+- Transaction execution through existing Engine services.
 - Engine audit.
 
 ## New Engine Dependencies
-- None introduced by this DBK task.
-- Public organization projection remains undefined/unverified.
+- None introduced by DBK-01A.
+- No new API, datastore, authority, or Engine contract was created.
 
 ## Sokoni Dependencies
-- No Sokoni implementation was found in the current repository search.
+- No Sokoni integration was implemented.
+- `docs/master/SOKONI-STATUS.md` was requested for continuity but is not present in the repository as of this task; no Sokoni assumptions were made because of that absence.
 - DBK must not invent a Sokoni API, datastore, discovery authority, or public organization projection.
-- Sokoni handoff remains blocked pending an authoritative contract.
+- Public organization/Sokoni handoff remains blocked pending an authoritative contract.
 
 ## Blocking Issues
 - Public DBK/public organization projection contract is not verified in the repository.
 - Sokoni integration contract is not verified in the repository.
-- The existing `OwnerPortfolioView` contains developer/platform terminology and a direct DBK provisioning form; DBK UX refinement is needed before treating it as the final public organization onboarding experience.
-- The existing authenticated shell contains developer/test-suite controls; these require DBK-domain UX cleanup before production organization presentation.
+- The refined owner registration UI still calls the existing Engine provisioning endpoint because that contract already exists; no replacement onboarding backend was created.
+- Automated verification has not yet been executed in this environment; GitHub reports the latest shell commit as pending with zero status checks currently returned.
 
 ## MASTER REVIEW REQUIRED
 - Define/verify authoritative public organization projection and publication contract.
@@ -72,31 +82,37 @@ Convert the existing Engine-backed DBK experience foundation into the organizati
 - Resolve production security/readiness concerns before broadening sensitive organization operations.
 
 ## UX Decisions
-- DBK presents Engine-authorized state; it does not infer authoritative eligibility or entitlement locally.
-- `DISCOVERABLE != ENABLED` remains mandatory in capability UX.
-- One owner/operator may manage multiple DBKs.
-- Organization switching changes Engine context; DBK does not create a second tenancy model.
-- Public DBK pages must be projections of authoritative Engine-approved data.
-- Customer-facing UX should use organization/business language rather than Engine implementation terminology.
-- Technical failures must be translated into loading, success, empty, error, unauthorized, provisioning, disabled, or action-required states.
+- Owner landing language is now `My Organizations` / `Manage your organizations` rather than platform/runtime terminology.
+- Organization cards expose name, industry, state, location count, and an organization action; internal identifiers are hidden from the normal journey.
+- Organization switching remains Engine-backed through the existing DBK list and experience resolver.
+- Branch/location switching remains an Engine command and is not implemented as local state authority.
+- Developer/test tools are isolated by removal from the normal DBK navigation rather than deletion from the repository.
+- Subscription tier is not presented as a registration input in the normal owner experience; the existing provisioning contract receives its existing default without exposing that implementation detail to the user.
+- Registration now asks for organization name, organization type, and optional primary location rather than canonical identifiers or provisioning terminology.
+- Technical failures are translated into loading, success/setup, empty, unauthorized, error, disabled/inactive, and retry states.
+- The DBK workspace continues to render navigation supplied by the Engine rather than rebuilding navigation locally.
 
 ## Architecture Concerns
-- Existing DBK UI is materially ahead of the public website experience, but some surfaces are explicitly platform/test oriented rather than polished organization-facing UX.
-- Existing registration UI exposes implementation concepts such as canonical DBK IDs, tenant slugs, subscription tiers, and provisioning terminology; these should not become the default public onboarding language.
-- Existing role selector/test controls in the shell must not be treated as authoritative role assignment; Engine roles and permissions remain authoritative.
-- No local DBK datastore or alternate authority may be introduced to make missing Engine contracts appear complete.
+- Existing registration requires an internal `dbkId` because the verified Engine provisioning endpoint currently requires it. DBK derives this identifier privately from the organization name and does not present it as a user-facing tenant identifier. This is an implementation dependency, not a new DBK authority.
+- Existing role/test simulation has been removed from the normal shell. Engine roles and permissions remain authoritative; no replacement role-selection UI was introduced.
+- Existing test/coherence panels remain in the repository for engineering use; they are no longer part of the normal organization workspace path.
+- No local DBK datastore, public organization master, Sokoni authority, or alternate capability/permission system was introduced.
 
 ## Files / Areas Changed
-- `docs/DBK_WEBSITE_EXPERIENCE_CONTRACT.md` — durable DBK architectural/experience contract.
-- `docs/master/DBK-STATUS.md` — shared DBK continuation/status record.
-- No Engine source files changed by this task.
-- No Sokoni source files changed by this task.
+- `src/components/experience/OwnerPortfolioView.tsx` — organization-facing owner portfolio, registration UX, status handling, and business language.
+- `src/components/experience/DbkShell.tsx` — organization workspace shell, Engine-backed context handling, developer-control isolation, responsive navigation, and UI state handling.
+- `docs/master/DBK-STATUS.md` — this milestone/continuity record.
+- No Engine source files changed.
+- No Sokoni source files changed.
+- No DBK datastore or public-organization authority created.
 
 ## Next Recommended DBK Task
-DBK-01A — Refine the existing `DbkShell` and `OwnerPortfolioView` as organization-facing experience surfaces while preserving their existing Engine API dependencies. Remove or isolate developer/test controls from the normal DBK journey, replace implementation-heavy copy with business language, and retain Engine-backed portfolio/workspace switching. Then verify the public landing/intent experience before implementing DBK-02.
+Complete DBK-01A verification in the application environment: run `npm test`, `npm run typecheck`, `npm run lint`, and `npm run build`; inspect the actual DBK shell/portfolio in preview; fix only DBK-domain issues found. After verification, begin **DBK-02 — Public Intent Experience** (`Landing -> Intent -> Solution -> Industry -> Capability`) using verified Engine metadata only. Do not begin public organization projection or Sokoni integration.
 
 ## Evidence
 - DBK contract commit: `303c00e4e13740a048cc929628e48acee96a2574`.
-- Current repository inspection performed 2026-09-22 against `thuram34/tdbk-v2-platform`.
-- Verified source files include `src/experience/experienceResolver.ts`, `src/experience/types.ts`, `src/experience/navigation/navigationEngine.ts`, `src/capability/discovery.ts`, `src/components/experience/DbkShell.tsx`, and `src/components/experience/OwnerPortfolioView.tsx`.
-- No public-organization/Sokoni implementation was located by repository search during this task.
+- Owner portfolio refinement commit: `7ea4b11fc0be8a1b0e85764e4967bdd0823ebca4`.
+- DBK shell refinement commit: `4994aaca7e7f225e9e53cac5772fe1bab650d544`.
+- GitHub status for `4994aaca7e7f225e9e53cac5772fe1bab650d544`: `pending`, zero status checks returned at the time of this update.
+- Repository scripts verified from `package.json`: `npm test`, `npm run typecheck`, `npm run lint`, `npm run build`.
+- Actual browser screenshot/preview verification and local command execution were not available through the connected repository tooling during this task; no passing test/build claim is made.
