@@ -4,96 +4,103 @@
 2026-09-22
 
 ## Current Phase
-DBK Public Experience Flow UI
+DBK Public Experience Flow — Verification
 
 ## Current Objective
-Build the safe presentation layer for the visible DBK organization journey while unresolved Engine contracts remain authoritative and deferred.
+Verify the implemented public DBK experience flow in the actual repository without adding features, backend logic, duplicate Engine authority, or Sokoni logic.
 
 ## Completed
-- Added a dedicated DBK public organization journey covering Landing -> Intent -> Solutions -> Industry -> Capability presentation -> Registration entry.
-- Kept intent, solution, industry and capability examples explicitly presentation-only; they do not become Engine taxonomy, entitlement or capability authority.
-- Preserved the existing Engine-backed authentication, provisioning, capability enablement and workspace entry boundaries.
-- Preserved owner/operator multi-organization support and stopped filtering the Engine DBK list down to ACTIVE records at the top-level application boundary.
-- Added organization selection presentation that shows Active, Setting up, Needs attention, Inactive and unknown/unavailable lifecycle states without inventing local lifecycle authority.
-- Added public-flow progress, loading, disabled, error and retry/return states.
-- Kept recommendation, Business DNA persistence, authoritative capability discovery, public publication and Sokoni integration deferred where no verified DBK-facing Engine contract exists.
+- Verified the latest repository history contains the DBK public-flow implementation and application integration commits.
+- Verified `src/App.tsx` routes the unauthenticated public entry through `DbkExperienceFlow`.
+- Verified the public flow presents Landing -> Intent -> Solutions -> Industry -> Capability presentation -> Registration entry.
+- Verified registration hands into the existing authentication/onboarding boundary rather than creating local identity or organization authority.
+- Verified owner organization listing remains sourced from the Engine-owned `/api/platform/dbks` path.
+- Verified lifecycle states are retained in the owner view rather than filtering the list to ACTIVE only.
+- Fixed one UX routing defect found during verification: unauthenticated `I already have an organization` / workspace entry now routes to the existing sign-in screen instead of returning to the same public flow.
 
 ## In Progress
-- None for this task. This task is complete and intentionally stopped here.
+- None. This verification task is complete and intentionally stopped.
 
 ## Verified
-- `src/public/DbkExperienceFlow.tsx` is presentation-only and contains no backend calls or persistence.
-- Public intent/solution/industry content is explicitly labelled as presentation context rather than authoritative Engine taxonomy.
-- Capability cards explicitly state that they do not grant access or create entitlement.
-- Registration hands the user to the existing authentication/onboarding boundary rather than creating local identity or organization state.
-- `src/App.tsx` continues to consume `/api/platform/dbks` for Engine-owned organization listing.
-- Top-level DBK lifecycle states are no longer filtered to `ACTIVE`; non-active Engine states remain visible to the owner/operator.
-- Active organization entry continues to resolve through the existing `DbkApp` / Engine-backed experience boundary.
-- Existing `BusinessDiscovery` remains the Engine-backed provisioning path; no new provisioning implementation was introduced.
+- Latest repository head inspected: `33959fe7498d06f3a5a153433650322b85e043ed`.
+- Latest DBK implementation commits inspected: `fd1dd1c2c6513a62f7f3807f2afc05770953bde2` and `6063cfbeeb893bb67efb08fdafb0811c38016865`.
+- `src/public/DbkExperienceFlow.tsx` contains presentation/interaction state only; no backend calls or persistence were introduced there.
+- `src/App.tsx` uses the existing Engine-owned DBK listing and existing `BusinessDiscovery` / `DbkApp` boundaries.
+- Active, provisioning/pending, error/failed, inactive and unknown lifecycle states remain visible to the owner/operator.
+- Active organizations alone are auto-entered when there is exactly one returned organization; otherwise the owner selection surface remains available.
+- Public capability cards explicitly do not grant access or create entitlement.
+- The public flow does not persist intent, industry or capability examples.
+- No public organization publication or Sokoni backend logic was introduced.
+- Responsive behavior is represented through existing Tailwind responsive classes (`sm`, `md`, `lg`) in the public flow and owner selection UI.
 
 ## Engine Contracts Consumed
 - Existing `AuthContext` authentication boundary.
 - Existing `/api/platform/dbks` Engine-owned DBK listing.
-- Existing `BusinessDiscovery` Engine contracts for owner initialization, blueprint retrieval, provisioning and capability enablement remain unchanged.
-- Existing `DbkApp` / Experience Resolver workspace boundary remains unchanged.
-- Existing Engine capability authority remains the source of truth; the new public capability cards are only explanatory UI.
+- Existing `BusinessDiscovery` owner initialization/provisioning boundary.
+- Existing `DbkApp` / Experience Resolver workspace boundary.
+- Existing Engine lifecycle states for DBK organizations.
+- Existing Engine capability/provisioning authority remains unchanged.
 
 ## Engine Contracts Intentionally Deferred
 - Business Context -> authoritative Business DNA persistence.
 - DBK-facing Engine Recommendation contract.
-- Authoritative capability-discovery contract for onboarding recommendation/selection.
+- Authoritative onboarding capability-discovery contract.
 - Public organization publication/read authorization.
-- Any new payment, connector, notification or document contracts not already exposed through the existing DBK workspace.
+- Any new payment, connector, notification or document contract.
 
 ## New Engine Dependencies
-- None introduced.
+- None.
 
 ## Sokoni Dependencies
-- None introduced.
-- No Sokoni backend logic, datastore, discovery authority or integration contract was created.
-- Public organization exposure remains deferred until Engine publication authority is resolved.
+- None introduced or assumed.
+- No Sokoni backend, discovery datastore, publication authority or integration contract was implemented.
 
 ## Blocking Issues
-- Engine Recommendation contract remains unresolved.
-- Business Context is still presentation state in `BusinessDiscovery`; no DBK-owned Business DNA persistence was introduced.
-- Authoritative onboarding capability discovery remains Engine/Master work.
-- Public publication authority and anonymous public-read authorization remain unresolved.
+- Repository execution environment available to this specialist does not provide a runnable Node workspace; therefore local npm verification commands could not actually be executed.
+- No GitHub Actions workflow run was associated with the latest inspected Engine commit, so CI cannot be used as a passing substitute.
+- Business DNA onboarding contract, recommendation contract, authoritative onboarding capability discovery and public publication authorization remain unresolved Engine/Master boundaries.
 
 ## MASTER REVIEW REQUIRED
-- Define/approve the DBK-facing Engine Recommendation contract.
-- Define/approve how onboarding context enters the existing Business DNA authority.
-- Confirm the DBK-facing authoritative capability-discovery contract.
-- Resolve Engine public publication authority and anonymous public-read authorization before public organization profiles are exposed.
-- Do not create DBK substitutes for any of these contracts.
+- DBK-facing Engine Recommendation contract.
+- Business Context -> authoritative Business DNA onboarding contract.
+- Authoritative onboarding capability-discovery contract.
+- Engine public publication authority and anonymous public-read authorization.
+- Existing `BusinessDiscovery` client-generated `dbkId` input remains an Engine contract concern; no DBK replacement was created.
 
 ## UX Decisions
-- The public journey can safely explain TDBK through presentation-only intent, solution, industry and capability examples before authentication.
-- Capability presentation must explicitly distinguish informational examples from authoritative capability activation.
-- Registration is an entry into Engine-backed identity/onboarding, not a DBK-owned account creation system.
-- Owner/operator organization selection displays Engine lifecycle states rather than hiding them for simplicity.
-- Non-active organizations are visible but are not opened as active workspaces.
-- The DBK public journey does not claim to provide recommendations until the Engine recommendation contract exists.
+- Public intent, solution, industry and capability examples remain presentation-only.
+- Capability presentation cannot grant entitlement.
+- Registration enters the existing Engine-backed identity/onboarding flow.
+- Owner lifecycle states are displayed rather than hidden for simplicity.
+- Non-active organizations are visible but cannot be opened as active workspaces.
+- Unauthenticated workspace entry routes to existing sign-in rather than looping back to the public flow.
 
 ## Architecture Concerns
-- `BusinessDiscovery` still generates the `dbkId` passed into the existing Engine provisioning contract. This remains an unresolved Engine contract concern from the previous audit; this task did not create another identifier authority.
-- `BusinessDiscovery` still captures `narrative` locally without sending it to an authoritative Business DNA contract. This task deliberately did not invent one.
-- The new public journey intentionally does not persist intent, industry or capability presentation choices.
-- The legacy `PublicGateway.tsx` remains in the repository as an existing presentation surface; this task introduced the new flow at the application entry boundary rather than modifying its static showcase authority.
+- `BusinessDiscovery` still generates the `dbkId` passed into the existing Engine provisioning contract; this remains a pre-existing contract concern and was not changed.
+- `BusinessDiscovery` still captures onboarding narrative locally without an authoritative Business DNA persistence contract; this remains deferred.
+- `DbkExperienceFlow` intentionally does not claim to provide Engine recommendations or authoritative capability selection.
+- `PublicGateway.tsx` remains as an existing legacy presentation surface; the application entry path now uses `DbkExperienceFlow`.
 
 ## Files / Areas Changed
-- `src/public/DbkExperienceFlow.tsx` — new DBK public organization experience flow UI.
-- `src/App.tsx` — routes the public entry through the new presentation flow and preserves all Engine-owned organization lifecycle states.
-- `docs/master/DBK-STATUS.md` — durable milestone record.
-- No Engine files changed.
-- No Sokoni files changed.
+- `src/App.tsx` — one safe UX fix found during verification: unauthenticated workspace entry now routes to sign-in.
+- `src/public/DbkExperienceFlow.tsx` — inspected; no changes required.
+- `docs/master/DBK-STATUS.md` — verification record updated.
+- No TDBK Engine source changed.
+- No Sokoni source changed.
 - No DBK datastore/backend authority added.
 
 ## Next Recommended DBK Task
-**SINGLE TASK:** Verify this public experience flow in the real application preview and run the repository's typecheck/lint/build/test suite against the resulting commit. Do not add Engine contracts or Sokoni integration as part of that verification task.
+**SINGLE TASK:** Await Master direction after reviewing this verification state. No further DBK task is started by this verification pass.
 
 ## Evidence
-- Public flow implementation commit: `fd1dd1c2c6513a62f7f3807f2afc05770953bde2`.
+- Current repository head inspected: `33959fe7498d06f3a5a153433650322b85e043ed`.
+- Verification fix commit: `1ccbf2c02123adaf70c3e40eeba98bbe677f6bc5`.
+- Public-flow implementation commit: `fd1dd1c2c6513a62f7f3807f2afc05770953bde2`.
 - Application integration commit: `6063cfbeeb893bb67efb08fdafb0811c38016865`.
-- This status update commit: to be confirmed by repository head after write.
-- Repository inspection confirmed the existing Engine-backed DBK listing/provisioning/workspace boundaries before implementation.
-- No local test/typecheck/lint/build execution was available through the connected repository tooling; therefore no passing build/test claim is made.
+- `package.json` confirms available commands: `npm test`, `npm run typecheck`, `npm run lint`, `npm run build`.
+- `npm test`: NOT EXECUTED — no runnable Node workspace available through the connected repository environment.
+- `npm run typecheck`: NOT EXECUTED — no runnable Node workspace available through the connected repository environment.
+- `npm run lint`: NOT EXECUTED — no runnable Node workspace available through the connected repository environment.
+- `npm run build`: NOT EXECUTED — no runnable Node workspace available through the connected repository environment.
+- Attempted repository clone for local execution failed because the execution environment could not resolve `github.com`; therefore no command was falsely reported as passing.
+- GitHub workflow runs for inspected latest head returned none.
