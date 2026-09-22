@@ -3,12 +3,7 @@
  * Architectural Layer: LAYER 6 — BRIDGE ARCHITECTURE
  */
 
-import {
-  Bridge,
-  BridgeHealthStatus,
-  CallbackVerificationResult,
-  NormalizedBridgeResult,
-} from '../types';
+import { Bridge, BridgeHealthStatus, CallbackVerificationResult, NormalizedBridgeResult } from '../types';
 import { SecurityContext } from '../../../kernel/types';
 import { auditLogger } from '../../../kernel/audit/auditLogger';
 import { KernelError } from '../../../kernel/errors/kernelErrors';
@@ -36,15 +31,10 @@ export class EtimsBridge implements Bridge<EtimsInvoiceRequest, any, any> {
     if (!connection || !connection.enabled || connection.status !== 'CONFIGURED') {
       return { status: 'UNAVAILABLE', details: { provider: this.provider, version: this.version, reason: 'CONNECTION_NOT_CONFIGURED' } };
     }
-    // Configuration is durable, but no live provider client is wired yet.
     return { status: 'UNAVAILABLE', details: { provider: this.provider, version: this.version, reason: 'PROVIDER_CLIENT_NOT_CONNECTED', connectionId: connection.connectionId, configurationVersion: connection.configurationVersion } };
   }
 
-  public async execute(
-    context: SecurityContext,
-    operation: string,
-    payload: EtimsInvoiceRequest
-  ): Promise<NormalizedBridgeResult<any>> {
+  public async execute(context: SecurityContext, operation: string, payload: EtimsInvoiceRequest): Promise<NormalizedBridgeResult<any>> {
     const tenantId = context.tenantContext?.tenantId || context.principal.tenantId;
     if (process.env.NODE_ENV === 'production') {
       const connection = await connectorConnectionRepository.getConnection(tenantId, `conn_${this.bridgeId}`);
@@ -53,22 +43,15 @@ export class EtimsBridge implements Bridge<EtimsInvoiceRequest, any, any> {
       }
       throw new KernelError('INTEGRATION_UNAVAILABLE', 'eTIMS bridge is not connected to a production provider', 503, context.requestId);
     }
-    if (!tenantId) {
-      throw new KernelError('TENANT_ISOLATION_ERROR', 'eTIMS Invoice Submission Denied: Missing Tenant Context', 403, context.requestId);
-    }
+    if (!tenantId) throw new KernelError('TENANT_ISOLATION_ERROR', 'eTIMS Invoice Submission Denied: Missing Tenant Context', 403, context.requestId);
 
     auditLogger.logEvent('BRIDGE_EXECUTION', context.principal.id, 'BRIDGE_REQUESTED', `bridge:${this.bridgeId}`, 'ALLOWED', {
-      tenantId,
-      requestId: context.requestId,
-      details: { operation, invoiceNumber: payload.invoiceNumber, totalAmount: payload.totalAmount },
+      tenantId, requestId: context.requestId, details: { operation, invoiceNumber: payload.invoiceNumber, totalAmount: payload.totalAmount },
     });
-
     if (operation !== 'SUBMIT_INVOICE' && operation !== 'CANCEL_INVOICE' && operation !== 'QUERY_INVOICE_STATUS') {
       throw new KernelError('VALIDATION_ERROR', `Unsupported eTIMS operation: '${operation}'`, 400, context.requestId);
     }
-
     throw new KernelError('INTEGRATION_UNAVAILABLE', 'eTIMS provider client is not connected; no synthetic tax invoice may be issued', 503, context.requestId);
-
   }
 
   public async verifyCallback(rawCallback: any, signatureHeader?: string): Promise<CallbackVerificationResult> {
@@ -84,12 +67,24 @@ export class EtimsBridge implements Bridge<EtimsInvoiceRequest, any, any> {
   }
 
   public async handleCallback(context: SecurityContext, rawCallback: any): Promise<NormalizedBridgeResult<any>> {
+    const authoritativeTenant = context.tenantContext?.tenantId || context.principal.tenantId;
+    const callbackTenant = typeof rawCallback?.tenantId === 'string' ? rawCallback.tenantId.trim() : '';
+    if (!authoritativeTenant) {
+      throw new KernelError('TENANT_ISOLATION_ERROR', 'eTIMS callback denied: authoritative tenant context is missing', 403, context.requestId);
+    }
+    if (callbackTenant && callbackTenant !== authoritativeTenant) {
+      auditLogger.logEvent('BRIDGE_EXECUTION', context.principal.id, 'BRIDGE_CALLBACK_REJECTED', `bridge:${this.bridgeId}`, 'DENIED', {
+        tenantId: authoritativeTenant,
+        requestId: context.requestId,
+        details: { reason: 'CALLBACK_TENANT_CONFLICT', callbackTenant },
+      });
+      throw new KernelError('TENANT_ISOLATION_ERROR', 'eTIMS callback tenant conflicts with authoritative tenant context', 403, context.requestId);
+    }
+
     const verification = await this.verifyCallback(rawCallback);
     if (!verification.verified) {
       auditLogger.logEvent('BRIDGE_EXECUTION', context.principal.id, 'BRIDGE_CALLBACK_REJECTED', `bridge:${this.bridgeId}`, 'DENIED', {
-        tenantId: context.tenantContext?.tenantId || null,
-        requestId: context.requestId,
-        details: { reason: verification.reason },
+        tenantId: authoritativeTenant, requestId: context.requestId, details: { reason: verification.reason },
       });
       throw new KernelError('AUTHORIZATION_ERROR', `eTIMS Callback Verification Failed: ${verification.reason}`, 401, context.requestId);
     }
@@ -99,21 +94,12 @@ export class EtimsBridge implements Bridge<EtimsInvoiceRequest, any, any> {
 
   public normalizeResponse(rawResponse: any): NormalizedBridgeResult<any> {
     const reference = String(rawResponse?.kraIcn || rawResponse?.providerReference || '').trim();
-    if (!reference) {
-      throw new KernelError('VALIDATION_ERROR', 'eTIMS response is missing an authoritative KRA invoice reference', 422);
-    }
+    if (!reference) throw new KernelError('VALIDATION_ERROR', 'eTIMS response is missing an authoritative KRA invoice reference', 422);
     const amount = Number(rawResponse?.amount);
-    if (!Number.isFinite(amount) || amount < 0) {
-      throw new KernelError('VALIDATION_ERROR', 'eTIMS response contains an invalid amount', 422);
-    }
+    if (!Number.isFinite(amount) || amount < 0) throw new KernelError('VALIDATION_ERROR', 'eTIMS response contains an invalid amount', 422);
     return {
-      status: rawResponse.status || 'SUCCESS',
-      provider: this.provider,
-      providerReference: reference,
-      amount,
-      currency: 'KES',
-      occurredAt: rawResponse.occurredAt || new Date().toISOString(),
-      correlationId: rawResponse.correlationId || 'corr_etims',
-      data: rawResponse,
+      status: rawResponse.status || 'SUCCESS', provider: this.provider, providerReference: reference, amount, currency: 'KES',
+      occurredAt: rawResponse.occurredAt || new Date().toISOString(), correlationId: rawResponse.correlationId || 'corr_etims', data: rawResponse,
     };
-  }}
+  }
+}
