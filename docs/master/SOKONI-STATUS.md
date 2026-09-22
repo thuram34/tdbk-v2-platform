@@ -4,127 +4,109 @@
 2026-09-22
 
 ## Current Phase
-Phase 1 — Public Discovery Contract Consumption Audit
+Phase 1 — Discovery Experience Shell
 
 ## Current Objective
-Determine exactly which Sokoni UX surfaces can safely consume the latest authoritative TDBK Engine public-organization projection without creating Sokoni backend authority, marketplace masters, search infrastructure, or invented Engine contracts.
+Build the Sokoni public discovery experience upward at the UI/presentation layer while unresolved Engine public-discovery contracts remain pending. No Sokoni backend authority is created.
 
 ## Completed
-- Read the existing Sokoni Phase 1 contract on the Sokoni branch.
-- Inspected the current Sokoni branch state and compared it with `main`.
-- Reconciled the audit against the latest `docs/ENGINE_PUBLIC_DISCOVERY_CONTRACT.md` and `docs/master/ENGINE-STATUS.md` on `main`.
-- Reconciled the audit against `docs/master/DBK-STATUS.md` on `main`.
-- Confirmed the Engine now has an implemented `PublicOrganizationProjection` pure projection boundary derived from authoritative `DbkIdentity` and active branch topology.
-- Confirmed the Engine projection exposes only public-safe organization identity, sector, active branch/location fields, headquarters marker, state version, and derived eligibility.
-- Confirmed the Engine projection does NOT expose public capability/service metadata, provider data, product data, publication state, service area, user-location matching, or anonymous public read authorization.
-- Confirmed Sokoni's existing `SokoniPublicDiscoveryAdapter` remains a UX-only boundary and demo adapter; it is not an Engine integration.
-- Confirmed no Sokoni marketplace master records, search infrastructure, duplicate records, request/payment/workflow authority, or DBK internals were added by this audit.
+- Completed the Sokoni Discovery Experience Shell.
+- Refined the mobile-first Sokoni Home around the primary question: `What do you need?`
+- Added natural-language discovery entry and example phrases.
+- Added user-controlled discovery-location presentation.
+- Added category discovery for Services, Products, Businesses, Jobs, Opportunities and Offers.
+- Added Search experience with intent entry, suggestions, refinement/location controls, loading, empty-by-state presentation, and error handling.
+- Added reusable presentation components for Product, Service, Provider, Business, Job, Opportunity and Offer cards.
+- Added mobile-first Home/Search/Activity/Account navigation.
+- Refined the technician reference journey using `My printer isn't working.` → understood need → discovery presentation → provider profile → Request Service.
+- Kept Request Service as an explicit Engine handoff placeholder; no request record is created.
+- Kept demo/reference data explicitly separated from authoritative Engine state.
+- Added an Activity placeholder that refuses to imply authoritative requests, purchases, applications or service status.
 
 ## In Progress
-- No implementation work is in progress for this audit.
-- The Sokoni branch is behind `main` and diverged from it; the branch must not bind to the newer Engine projection until the branch is synchronized with the latest Engine state.
+- No backend implementation is in progress.
+- Public discovery, provider, product, service, publication, location-matching and request contracts remain outside the Sokoni shell.
 
 ## Verified
-
-| Surface / dependency | Classification | Finding |
-|---|---|---|
-| Public business discovery | BLOCKED — ENGINE CONTRACT REQUIRED | `PublicOrganizationProjection` exists, but there is no approved persisted publication authority or anonymous public L7 read path. `ELIGIBLE` cannot be treated as `PUBLISHED`. |
-| Public organization profile | BLOCKED — ENGINE CONTRACT REQUIRED | The Engine projection shape exists and is suitable as the authoritative read model, but Sokoni cannot safely consume it publicly until the approved publication/read authorization path exists. |
-| Business → DBK experience handoff | BLOCKED — ENGINE CONTRACT REQUIRED | `dbkId` is canonical Engine identity, but a public discovery-to-DBK handoff requires the public organization read/publication boundary to be approved. Sokoni must not infer visibility from `ELIGIBLE`. |
-| Public capability/service presentation | MASTER REVIEW REQUIRED | The Engine explicitly exposes no public-safe capability metadata through the current public organization projection. Existing capability discovery is DBK capability activation/discovery, not public Sokoni discovery. |
-| Provider discovery boundary | MASTER REVIEW REQUIRED | No public provider projection contract exists. The public organization projection cannot be reinterpreted as provider authority. |
-| Product discovery boundary | MASTER REVIEW REQUIRED | No public product projection contract exists. Existing transaction/product-related authority cannot be repurposed as public product discovery. |
-| Location presentation boundary | BLOCKED — ENGINE CONTRACT REQUIRED for public use | Active branch county/town/address and headquarters marker are safely projected by the Engine. However, anonymous/public consumption still requires the approved publication/read path. User-location matching, service area, delivery area, geofencing and approximate-location semantics remain unresolved. |
-| Discovery → request handoff | BLOCKED — ENGINE CONTRACT REQUIRED | No approved Sokoni-facing discovery/request contract exists. The existing Engine transaction authority is not a generic public service-request contract. |
+- Sokoni UI imports the existing UX-only `SokoniDiscoveryAdapter` rather than introducing a backend/search authority.
+- Reusable cards carry explicit DEMO/PENDING state markers and do not claim live provider/product/service truth.
+- Location is represented as user-selected UX state and is explicitly not provider coverage or matching truth.
+- Request CTA opens an Engine handoff boundary message only; no request/workflow/payment operation is executed.
+- Existing App integration remains the entry point for the Sokoni experience.
+- No marketplace master records or duplicate Engine records were added.
 
 ## Engine Contracts Consumed
-- `PublicOrganizationProjection` — Engine-owned pure public-safe organization projection shape, implemented on `main` in `src/platform/public/publicOrganizationProjection.ts`.
-- `PublicOrganizationEligibility` — derived `ELIGIBLE | SUSPENDED | INELIGIBLE` outcome from authoritative DBK lifecycle state.
-- `projectPublicOrganization(dbk)` — pure projection boundary.
-- Authoritative `DbkIdentity` and `branchTopology` as the source for organization identity and active branch/location representation.
-- Existing authenticated DBK `ExperienceProjectionService` remains a DBK projection pattern only; it is not consumed as Sokoni public discovery.
-- Existing Engine capability discovery remains DBK capability activation/discovery and is not repurposed for Sokoni.
+- Existing `SokoniPublicDiscoveryAdapter` UX boundary only, with its existing demo implementation.
+- Existing `SokoniDiscoveryResult`, `SokoniDiscoveryIntent`, `SokoniLocationContext` and provider-preview types.
+- No new public Engine contract was assumed or invented.
 
-## Engine Contracts Required
-- Approved public publication authority and persistence boundary.
-- Approved anonymous/public L7 read authorization and error envelope for `PublicOrganizationProjection`.
-- Public discovery/search contract before Sokoni can claim public business discovery.
-- Public capability/service projection before Sokoni can claim public service discovery.
-- Public provider projection before provider discovery can become authoritative.
-- Public product projection before product discovery can become authoritative.
-- Location-aware discovery/service-area/user-location privacy semantics.
-- Discovery relevance/matching contract.
-- Discovery → request contract.
-- Request → quote/approval contract.
-- Provider availability and coverage contracts.
+## Engine Contracts Intentionally NOT Assumed
+- Public publication authority.
+- Anonymous public organization read API.
+- Public business discovery/search.
+- Public capability/service projection.
+- Public provider projection.
+- Public product projection.
+- Public location matching/service-area semantics.
+- Public relevance/matching.
+- Provider availability/coverage.
 - Public trust projection.
+- Discovery → request.
+- Request → quote/approval.
 
 ## DBK Dependencies
-- DBK remains the organization-facing operating surface.
-- DBK must consume the Engine `PublicOrganizationProjection` rather than create a public organization master.
-- DBK must not locally convert `ELIGIBLE` to `PUBLISHED`.
-- DBK's existing authenticated experience projection/resolver remains separate from Sokoni public discovery.
-- DBK public organization handoff remains gated by Engine publication/read authority.
+- Sokoni continues to treat DBK as the organization-facing operating surface.
+- No DBK internals were modified.
+- No DBK master records were created or duplicated.
 
 ## Blocking Issues
-- The latest Engine public-organization contract is a projection contract, not yet a public publication/read API contract.
-- No repository-verified persisted publication authority exists.
-- No anonymous public L7 read endpoint is approved/implemented.
-- Public capability metadata is explicitly absent from the current Engine public projection.
-- Provider, product, service, search, relevance, availability, coverage, trust and discovery-to-request contracts remain unresolved.
-- The Sokoni branch is `11` commits behind `main` and `8` commits ahead, so it is not currently synchronized with the latest Engine implementation.
+- Live discovery remains blocked on the approved Engine public-discovery/public-read contracts.
+- Demo/reference presentation cannot be promoted to authoritative state until those contracts are approved and bound.
 
 ## MASTER REVIEW REQUIRED
-- Publication owner and persisted publication authority.
-- Publication lifecycle/state semantics.
-- Public anonymous L7 read authorization and error semantics.
-- Public capability/service metadata contract.
-- Public provider projection and trust/verification semantics.
-- Public product projection.
-- Public discovery/search/relevance contract.
-- Location-aware discovery, service-area, geofencing and privacy semantics.
-- Provider availability/coverage.
+- Public publication/read authority and lifecycle.
+- Public search/discovery/relevance contract.
+- Public capability/service projection.
+- Provider projection, trust, availability and coverage.
+- Product projection.
+- Location-aware discovery/privacy semantics.
 - Discovery → request and request → quote/approval contracts.
 
 ## Discovery Journeys Verified
-- The existing technician UX prototype remains structurally valid as a demo journey: `My computer is slow.` → interpreted need → location → discovery presentation → provider card → provider detail → request CTA → Engine handoff placeholder.
-- This audit does not promote that journey to live discovery because the required public discovery/provider/request contracts are not approved.
-- No live provider, matching, availability, request, quote, payment, receipt or completion state is claimed.
+- `My printer isn't working.` now has a complete visible UX path through provider presentation and request handoff placeholder.
+- The existing computer-support reference journey remains structurally supported by the same presentation shell.
+- Product, service, business, job, opportunity and offer presentation cards are available as UX-only surfaces.
+- No journey claims a live Engine transaction state.
 
 ## UX Decisions
-- The existing Sokoni UX adapter boundary remains the correct integration seam.
-- No UI redesign is required merely because `PublicOrganizationProjection` now exists.
-- Public organization cards/profile UX may be bound to the Engine projection once an approved public publication/read path exists.
-- Branch county/town/address can be displayed as authoritative organization location data once that read path exists.
-- Sokoni must not display capability/service/provider/product claims merely by reading unrelated internal Engine structures.
-- The demo provider remains explicitly non-authoritative.
+- Sokoni remains intent-first rather than directory-first.
+- The primary action is discovery from natural language.
+- Location is visible but user-controlled.
+- Demo content is visually labelled so it cannot be mistaken for production truth.
+- Presentation components are intentionally contract-shaped and replaceable at the adapter boundary.
+- Mobile navigation prioritizes Home, Search, Activity and Account.
+- Request is an explicit Engine handoff rather than a Sokoni workflow.
 
 ## Architecture Concerns
-- The Engine's new `PublicOrganizationProjection` is a genuine authoritative projection and removes the earlier ambiguity around the organization projection shape, but it does not authorize public visibility by itself.
-- `ELIGIBLE` is not `PUBLISHED`.
-- Existing `DiscoveryEngineService` must not be repurposed as Sokoni search.
-- Existing DBK `DbkExperienceProjection` must not be substituted for the public organization projection.
-- Sokoni must not create a local publication flag, provider master, product master, service master, search index, request database, or transaction authority to bridge any remaining gap.
-- Because the Sokoni branch is behind `main`, any future Engine binding must first be based on the synchronized repository state rather than the stale branch baseline.
+- The presentation shell must not be wired directly to internal Engine records.
+- Existing demo adapter remains temporary and must not evolve into a marketplace backend.
+- Future authoritative bindings must enter through an approved Engine public-discovery contract.
+- No local publication flag, search index, provider master, product master, service master, request database, transaction authority or payment authority may be added to bridge current gaps.
 
 ## Files / Areas Changed
-- `docs/master/SOKONI-STATUS.md` — updated with this Public Discovery Contract Consumption Audit.
-- No Sokoni source files changed.
+- `src/sokoni/SokoniExperience.tsx` — rebuilt the Sokoni discovery experience shell and technician vertical-slice presentation.
+- `src/sokoni/SokoniPresentationCards.tsx` — added reusable ProductCard, ServiceCard, ProviderCard, BusinessCard, JobCard, OpportunityCard and OfferCard presentation components.
+- `docs/master/SOKONI-STATUS.md` — updated with this task's completion and evidence.
 - No Engine source files changed.
 - No DBK source files changed.
-- No schemas, databases, search infrastructure, APIs, marketplace masters, transaction logic, payment logic, or workflow logic added.
+- No backend/search/database/marketplace authority added.
 
-## Next Recommended Sokoni Task
-Synchronize the Sokoni branch with the latest `main` Engine state, then perform a single contract-binding audit against the approved public organization read/publication path before replacing any demo adapter behavior.
+## Next Recommended Single Sokoni Task
+Visual/runtime verification of the Discovery Experience Shell against the synchronized repository state, including responsive UX and adapter-boundary checks. Do not begin Engine or marketplace implementation from this status.
 
 ## Evidence
-- Sokoni branch HEAD at audit start: `9febcdec58cbdbdf45ac682fe49bc8f13164c507`.
-- `main` at audit start: `b56a2b89c455df772995d7a4c86ec190624ac8f5`.
-- Branch comparison: Sokoni branch is `8` commits ahead and `11` commits behind `main`; merge base `303c00e4e13740a048cc929628e48acee96a2574`.
-- Latest Engine public contract: `docs/ENGINE_PUBLIC_DISCOVERY_CONTRACT.md` on `main`, including implemented `PublicOrganizationProjection` and unresolved publication authority.
-- Latest Engine status: `docs/master/ENGINE-STATUS.md` on `main`.
-- Latest DBK status: `docs/master/DBK-STATUS.md` on `main`.
-- Existing Sokoni Phase 1 contract: `docs/sokoni/PHASE1_EXPERIENCE_CONTRACT.md` on the Sokoni branch.
-- Existing Sokoni adapter: `src/sokoni/SokoniDiscoveryAdapter.ts` on the Sokoni branch; remains demo/UX-only.
-- GitHub combined status for Sokoni HEAD `9febcdec58cbdbdf45ac682fe49bc8f13164c507`: no status entries returned at audit time.
-- No test/typecheck/lint/build execution was claimed; this task was an audit/status-only task and no source implementation was changed.
+- Existing Sokoni UX adapter: `src/sokoni/SokoniDiscoveryAdapter.ts`.
+- Shell commit: `a3f76c61e6e39684fb00213008509c46804fadee`.
+- Reusable card component commit: `c0f30bc557f351b1a8aef403be04aa1b1c8ee6ed`.
+- GitHub combined status queried for shell commit; no status entries were returned at verification time.
+- Repository scripts available for verification are `npm test`, `npm run typecheck`, `npm run lint`, and `npm run build` from `package.json`. Remote repository tooling in this session did not provide a local execution environment, so no test/typecheck/lint/build pass is claimed.
