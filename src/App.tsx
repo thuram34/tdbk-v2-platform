@@ -4,6 +4,7 @@ import { DbkApp } from './components/experience/DbkApp';
 import { BusinessDiscovery } from './components/onboarding/BusinessDiscovery';
 import { LoginScreen } from './components/auth/LoginScreen';
 import { PublicGateway } from './public/PublicGateway';
+import { SokoniExperience } from './sokoni/SokoniExperience';
 import { useAuth } from './client/AuthContext';
 import { listDbks } from './client/masterControlApi';
 import LegacyApp from './AppLegacy';
@@ -12,6 +13,10 @@ export default function App() {
   const { user, loading } = useAuth();
   const [publicView, setPublicView] = useState<'GATEWAY' | 'LOGIN'>('GATEWAY');
   const [showGateway, setShowGateway] = useState(true);
+  const [showSokoni, setShowSokoni] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return new URLSearchParams(window.location.search).get('sokoni') === '1';
+  });
   const [dbkId, setDbkId] = useState<string | null>(null);
   const [dbksLoading, setDbksLoading] = useState(true);
   const [dbks, setDbks] = useState<any[]>([]);
@@ -36,30 +41,33 @@ export default function App() {
 
         if (!cancelled) {
           setDbks(active);
-
-          if (active.length === 1) {
-            setDbkId(active[0].dbkId);
-          }
+          if (active.length === 1) setDbkId(active[0].dbkId);
         }
       } catch (error) {
         console.error('Failed to load DBKs:', error);
       } finally {
-        if (!cancelled) {
-          setDbksLoading(false);
-        }
+        if (!cancelled) setDbksLoading(false);
       }
     };
 
     loadDbks();
-
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [user]);
 
-  if (engineeringMode) {
-    return <LegacyApp />;
-  }
+  const enterSokoni = () => {
+    setShowSokoni(true);
+    setShowGateway(false);
+    window.history.pushState({}, '', '?sokoni=1');
+  };
+
+  const exitSokoni = () => {
+    setShowSokoni(false);
+    setShowGateway(true);
+    window.history.pushState({}, '', window.location.pathname);
+  };
+
+  if (engineeringMode) return <LegacyApp />;
+  if (showSokoni) return <SokoniExperience onBack={exitSokoni} />;
 
   if (loading) {
     return <div className="min-h-screen bg-[#141414] text-white flex items-center justify-center text-sm text-neutral-400">Loading TDBK…</div>;
@@ -69,19 +77,17 @@ export default function App() {
     return (
       <div className="relative">
         <PublicGateway
-          onSignIn={() => {
-            setShowGateway(false);
-            if (!user) setPublicView('LOGIN');
-          }}
-          onLaunchWorkspace={() => {
-            setShowGateway(false);
-            if (!user) setPublicView('LOGIN');
-          }}
-          onSelectSector={() => {
-            setShowGateway(false);
-            if (!user) setPublicView('LOGIN');
-          }}
+          onSignIn={() => { setShowGateway(false); if (!user) setPublicView('LOGIN'); }}
+          onLaunchWorkspace={() => { setShowGateway(false); if (!user) setPublicView('LOGIN'); }}
+          onSelectSector={() => { setShowGateway(false); if (!user) setPublicView('LOGIN'); }}
         />
+        <button
+          type="button"
+          onClick={enterSokoni}
+          className="fixed bottom-4 left-4 z-50 inline-flex items-center gap-2 rounded-full border border-neutral-300 bg-white/95 px-4 py-2.5 text-xs font-bold text-neutral-900 shadow-lg backdrop-blur transition hover:-translate-y-0.5 hover:border-neutral-500"
+        >
+          Discover with Sokoni →
+        </button>
         {user && (
           <button
             onClick={() => setShowGateway(false)}
@@ -107,20 +113,13 @@ export default function App() {
   }
 
   if (dbksLoading) {
-    return (
-      <div className="min-h-screen bg-[#FBFBF9] flex items-center justify-center text-sm text-neutral-500">
-        Loading your businesses…
-      </div>
-    );
+    return <div className="min-h-screen bg-[#FBFBF9] flex items-center justify-center text-sm text-neutral-500">Loading your businesses…</div>;
   }
 
   if (!dbkId && dbks.length === 0) {
     return (
       <>
-        <BusinessDiscovery onProvisioned={(id) => {
-          setDbkId(id);
-          setDbks([{ dbkId: id, status: 'ACTIVE' }]);
-        }} />
+        <BusinessDiscovery onProvisioned={(id) => { setDbkId(id); setDbks([{ dbkId: id, status: 'ACTIVE' }]); }} />
         <button
           onClick={() => setEngineeringMode(true)}
           title="Engineering console"
@@ -133,31 +132,16 @@ export default function App() {
   }
 
   if (dbks.length > 1 && !dbkId) {
-    const selected = dbks.find((dbk) => dbk.dbkId === dbkId);
-
     return (
       <div className="min-h-screen bg-[#FBFBF9] p-6">
         <div className="mx-auto max-w-2xl">
-          <h1 className="text-2xl font-bold text-neutral-900">
-            Your businesses
-          </h1>
-          <p className="mt-1 text-sm text-neutral-500">
-            Select the business you want to open.
-          </p>
-
+          <h1 className="text-2xl font-bold text-neutral-900">Your businesses</h1>
+          <p className="mt-1 text-sm text-neutral-500">Select the business you want to open.</p>
           <div className="mt-6 grid gap-3">
             {dbks.map((dbk) => (
-              <button
-                key={dbk.dbkId}
-                onClick={() => setDbkId(dbk.dbkId)}
-                className="w-full rounded-2xl border border-neutral-200 bg-white p-5 text-left shadow-sm hover:border-neutral-400"
-              >
-                <div className="font-semibold text-neutral-900">
-                  {dbk.displayName || dbk.legalName}
-                </div>
-                <div className="mt-1 text-sm text-neutral-500">
-                  {dbk.sector}
-                </div>
+              <button key={dbk.dbkId} onClick={() => setDbkId(dbk.dbkId)} className="w-full rounded-2xl border border-neutral-200 bg-white p-5 text-left shadow-sm hover:border-neutral-400">
+                <div className="font-semibold text-neutral-900">{dbk.displayName || dbk.legalName}</div>
+                <div className="mt-1 text-sm text-neutral-500">{dbk.sector}</div>
               </button>
             ))}
           </div>
