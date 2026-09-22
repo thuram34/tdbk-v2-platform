@@ -4,105 +4,97 @@
 2026-09-22
 
 ## Current Phase
-Phase 2 — Engine Public Authority: Public Organization Projection and Publication Boundary
+Production Hardening Gate 01 — Authorization and Persistence Integrity
 
 ## Current Objective
-Move from audit into the smallest Engine-owned public authority contract that DBK and Sokoni can safely consume, without creating duplicate public organization, marketplace, provider, product, service, search, workflow, or financial authority.
+Audit the production-facing TDBK V2 Engine for authorization boundaries and persistence integrity only. Do not redesign architecture or modify DBK UI, Sokoni, external bridges, or unrelated defects.
 
 ## Completed
-- Read the current Engine status and public-discovery contract before implementation.
-- Read the DBK status and attempted to read `docs/master/SOKONI-STATUS.md`; the Sokoni status file is not present in the repository and is therefore not treated as evidence.
-- Re-inspected `src/platform/dbkRegistry.ts`, `src/platform/types.ts`, and `src/platform/projection/experienceProjection.ts` before implementing the public contract.
-- Confirmed `DbkIdentity` and `branchTopology` are the authoritative source for organization identity and branch/location state.
-- Confirmed existing `ExperienceProjectionService` remains the L7 projection pattern and was not duplicated or modified.
-- Implemented the smallest justified public-safe organization projection in `src/platform/public/publicOrganizationProjection.ts`.
-- Implemented lifecycle-derived public eligibility without creating a second publication state machine.
-- Added focused tests in `src/platform/tests/publicOrganizationProjection.test.ts`.
-- Replaced the previous broad reconciliation document with an explicit Public Organization Projection and Publication Boundary contract in `docs/ENGINE_PUBLIC_DISCOVERY_CONTRACT.md`.
+- Inspected current `ENGINE-STATUS.md`, `ENGINE_PUBLIC_DISCOVERY_CONTRACT.md`, `DBK-STATUS.md`, and attempted to read `SOKONI-STATUS.md`; the Sokoni status file is absent and was not inferred.
+- Audited production-facing API/service authorization paths through `securityContextFactory`, `masterAuthority`, `tenantIsolation`, `branchAuthority`, RBAC, provisioning, lifecycle, connector configuration, capability activation, and agent command boundaries.
+- Verified tenant -> DBK authorization is server-side through `masterAuthority.assertTenantAuthority()` and durable DBK Registry ownership/tenant binding.
+- Verified branch authorization is server-side through `branchAuthority.assertPersistentBranchContext()` and durable branch ownership/status checks; `contextFactory` and RBAC invoke the persistent branch boundary for target branches.
+- Verified production branch writes use Firestore `branchRepository`; synchronous branch maps are retained for test/runtime compatibility and are not the production persistence source in the inspected persistent paths.
+- Verified workflow persistence uses Firestore workflow instances, workflow-step execution state, leases, and transactional workflow+outbox creation; the in-memory workflow map is treated as a cache/recovery aid rather than durable authority.
+- Verified financial transaction/ledger persistence through the Firestore financial ledger repository and existing financial integrity tests.
+- Verified capability state persistence through `capabilityStateRepository` under tenant-scoped Firestore paths.
+- Verified connector configuration persistence through `connectorConnectionRepository` with tenant-bound paths and secret references rather than raw secrets.
+- Verified entitlement production evaluation reads durable DBK subscription tier; the synchronous in-memory subscription store is explicitly legacy/test-only and is not the production authority used by `evaluatePersistentActivation()`.
+- Verified owner portfolio state is derived from the authoritative DBK Registry rather than a separate portfolio datastore.
+- Verified production test-route isolation: `/api/test/*` is centrally blocked in production and requires explicit non-production enablement.
+- Verified demo seeding has a production guard and does not silently seed demo DBKs through the normal production bootstrap call.
+- Recorded the audit in `docs/PRODUCTION_HARDENING_GATE_01_2026-09-22.md`.
 
 ## In Progress
-- GitHub CI run for commit `18cad7f65d5ca3d68434b57bdf9790117d8a2bde` is running the repository's full verification gate.
-- Publication authority itself remains unresolved because no repository-verified persisted publication owner/store exists.
+- No production code fix is in progress. This gate found no narrowly safe authorization/persistence fix that could be applied without making an architectural decision.
+- CI execution for the audit documentation commit must be obtained from GitHub Actions; local npm execution is unavailable through the connected repository tooling.
 
 ## Verified
-- repository source inspection: completed for DBK identity, lifecycle, branch topology, existing L7 projection, capability types, package scripts, and CI workflow.
-- focused test implementation: present and committed; execution pending CI result.
-- full tests: CI run `TDBK V2 CI` #532 is `in_progress` for commit `18cad7f65d5ca3d68434b57bdf9790117d8a2bde`.
-- typecheck: pending CI run #532.
-- lint: pending CI run #532.
-- production build: pending CI run #532.
-- deployment: not part of this task and not claimed.
-- contracts: Public Organization Projection and Publication Boundary contract updated and committed.
-- publication persistence: intentionally NOT implemented because repository inspection did not establish a safe authoritative owner.
+- Authorization boundary: **PASS** for inspected production-facing APIs/services.
+- Tenant -> DBK authority: **PASS**.
+- Tenant -> branch durable authority: **PASS**.
+- Critical production persistence: **PASS** for DBK identity, branch, workflow, financial, capability/entitlement, connector, and derived portfolio state.
+- Critical process-local state: **PASS** for the inspected production paths; identified in-memory stores are documented as test/cache compatibility layers rather than production authority.
+- Synthetic/demo/test isolation: **MASTER REVIEW REQUIRED** because provisioning internally constructs a hard-coded synthetic `TDBK_MASTER_ADMIN` service context for workflow steps.
+- Test/typecheck/lint/build: **NOT EXECUTED LOCALLY** because repository tooling exposes source/CI APIs but no local shell execution. No passing result is claimed.
+- CI: the audit documentation commit is expected to trigger repository CI, but a completed result is not yet available at this status update.
 
 ## New Engine Contracts
-- `PublicOrganizationProjection` in `src/platform/public/publicOrganizationProjection.ts`.
-- `PublicOrganizationEligibility` with only repository-justified derived outcomes: `ELIGIBLE`, `SUSPENDED`, `INELIGIBLE`.
-- `projectPublicOrganization(dbk)` pure L7 projection boundary.
-- `evaluatePublicOrganizationEligibility(status)` derived from existing authoritative `DbkLifecycleStatus`.
-- Public publication remains a separate authority and is not silently mapped from `ACTIVE` to `PUBLISHED`.
+- None. This gate was audit-only and deliberately did not introduce authorization or persistence architecture.
 
 ## Contracts Required by DBK
-- `PublicOrganizationProjection` is now defined and implemented as a public-safe Engine projection.
-- DBK may consume `dbkId`, `displayName`, `sector`, active branch identity/location, headquarters marker, state version, and derived eligibility.
-- DBK must not expose excluded private fields or convert `ELIGIBLE` into `PUBLISHED`.
-- Anonymous/public read authorization and publication persistence remain blocked pending publication authority approval.
+- No new DBK contract introduced by this gate.
+- Existing Engine tenant/branch authorization and durable public-organization projection remain authoritative.
 
 ## Contracts Required by Sokoni
-- Same `PublicOrganizationProjection` is the Engine-owned organization projection boundary.
-- Sokoni may consume the projection only through an approved public publication/read path.
-- Sokoni must not create `SokoniOrganization`, publication state, provider/product/service masters, or discovery storage.
-- Public capability claims are not exposed yet because no public-safe capability metadata contract was verified.
+- No new Sokoni contract introduced by this gate.
+- Sokoni remains a consumer of Engine authority and must not create replacement authorization or persistence.
 
 ## Blocking Issues
-- No repository-verified persisted public publication authority exists.
-- Existing `ACTIVE` DBK lifecycle state cannot safely be treated as public `PUBLISHED` state.
-- No repository-verified public publication owner/store/event vocabulary exists.
-- No public anonymous L7 read endpoint has been implemented because doing so before publication authority would create an unsafe visibility assumption.
-- `docs/master/SOKONI-STATUS.md` is absent from the repository; no Sokoni status claims are based on it.
+- Production provisioning workflow uses `createStepContext()` with a hard-coded synthetic `TDBK_MASTER_ADMIN` principal (`usr_master_provisioner`, `SERVICE_KEY`) for internal provisioning steps. This was not changed because replacing internal authority propagation requires an architectural decision.
+- Local command execution is unavailable in the connected repository environment, so test/typecheck/lint/build cannot be truthfully marked PASS from local execution.
+- `docs/master/SOKONI-STATUS.md` remains absent from the repository.
 
 ## MASTER REVIEW REQUIRED
-- Publication owner: DBK owner/operator, Master authority, or a combined authorization model.
-- Publication persistence location and authority.
-- Whether `DRAFT`, `REVIEW`, `PUBLISHED`, and `UNPUBLISHED` are required persisted states.
-- Independent public suspension/revocation semantics versus existing DBK `SUSPENDED` lifecycle.
-- Publication audit/event vocabulary.
-- Anonymous public L7 read authorization/error envelope.
-- Public-safe capability metadata contract.
-- Public discovery location/service-area semantics.
+- Determine whether production provisioning step contexts may use a synthetic service principal or must propagate the initiating principal/service identity. This affects authorization attribution and audit semantics.
+- Determine the authoritative CI verification result for the audit head.
 
 ## Risks / Architecture Concerns
-- `ACTIVE` means operational DBK lifecycle, not public publication consent.
-- `ELIGIBLE` is intentionally not `PUBLISHED`.
-- The new projection is a read model and must never become business-state authority.
-- Branch location is reused from authoritative DBK branch state; delivery/service-area semantics remain unresolved.
-- Capability IDs/names are not exposed until a public-safe capability metadata contract exists.
-- No search infrastructure, marketplace database, provider/product/service master, or marketplace workflow was introduced.
-- Existing Engine authorization, capability, runtime, audit, financial and identity authority remains untouched.
+- `src/platform/provisioning/provisioningService.ts` contains production-capable internal workflow steps executed with a synthetic Master principal. The current public provisioning boundary is authorized before workflow creation, but the internal identity is broader than the initiating Business Owner identity and should not be silently replaced during an audit.
+- `dbkRegistry.saveDbk()` is a low-level persistence service method without its own tenant assertion; inspected production-facing callers are behind higher-level authorization boundaries. No direct public API for arbitrary `saveDbk()` access was found in this audit. Changing this lower-level contract would be broader than the requested production-facing API boundary and is therefore not implemented.
+- `EntitlementEngineService` retains a synchronous in-memory legacy store for deterministic tests; production authorization uses the durable path. This legacy surface must not be used for production authorization.
+- `BranchManagerService` retains synchronous in-memory accessors for deterministic tests/runtime compatibility; production persistent reads/writes use Firestore.
 
 ## Files / Areas Changed
-- `src/platform/public/publicOrganizationProjection.ts` — new Engine-owned public-safe organization projection and lifecycle-derived eligibility.
-- `src/platform/tests/publicOrganizationProjection.test.ts` — focused projection/privacy/eligibility tests.
-- `docs/ENGINE_PUBLIC_DISCOVERY_CONTRACT.md` — formalized public organization projection and publication boundary.
-- `docs/master/ENGINE-STATUS.md` — this durable handoff.
+- `docs/PRODUCTION_HARDENING_GATE_01_2026-09-22.md` — durable Gate 01 audit evidence and findings.
+- `docs/master/ENGINE-STATUS.md` — updated durable Engine handoff for Gate 01.
+- No Engine production source files changed.
+- No DBK source files changed.
+- No Sokoni source files changed.
+- No external bridge source files changed.
 
 ## Next Recommended Engine Task
-Resolve the publication authority decisions in `MASTER REVIEW REQUIRED`. Once approved, implement only the smallest persisted publication authority and its audit/events, then expose the approved L7 public organization read contract. Do not proceed to search, Provider/Product/Service projection, or discovery-to-request until that boundary is stable.
+Stop here. The single Gate 01 task is complete. The next Engine task, when separately authorized, is to resolve the synthetic provisioning service-identity question and/or obtain the CI verification result; do not begin that work as part of this task.
 
 ## Dependency Handoffs
 
 ### DBK
-The Engine now provides a concrete `PublicOrganizationProjection` shape. DBK should consume it rather than create a public organization record. DBK presentation may proceed against the projection shape, but public visibility must remain gated by the eventual Engine publication authority. DBK must not locally publish an `ELIGIBLE` organization.
+No DBK implementation dependency was introduced. Continue consuming Engine authorization and persistence authority; do not create local authorization or persistence replacements.
 
 ### SOKONI
-Sokoni should treat `PublicOrganizationProjection` as the organization projection boundary once the Engine publication/read path is approved. Sokoni must not build a parallel organization/publication datastore. Public discovery and search remain downstream work.
+No Sokoni implementation dependency was introduced. Continue consuming Engine authority; do not create local authorization, organization, publication, provider, product, service, or discovery persistence.
 
 ## Evidence
 - Repository: `thuram34/tdbk-v2-platform`.
-- Prior Engine contract baseline: `docs/ENGINE_PUBLIC_DISCOVERY_CONTRACT.md`.
-- Existing DBK authority: `src/platform/dbkRegistry.ts`, `src/platform/types.ts`.
-- Existing L7 projection: `src/platform/projection/experienceProjection.ts`.
-- CI workflow: `.github/workflows/ci.yml` runs typecheck, lint, test, production build and Docker validation on pushes to `main`.
-- Implementation commit sequence: `3faf91bd6330158ca3ac7a415a64bb315c9d739e` (projection), `4eec9259449bf03a25e73e08ffdaea2008ffc0ae` (test correction), `18cad7f65d5ca3d68434b57bdf9790117d8a2bde` (contract update; CI head).
-- CI run: `TDBK V2 CI` run #532, status `in_progress` at time of this update.
-- No test/typecheck/lint/build success is claimed until CI completes.
+- Audit head before status commit: `260348861d2b078496ae494c36ece116d67a835f`.
+- Prior Engine head audited: `b56a2b89c455df772995d7a4c86ec190624ac8f5`.
+- Audit evidence file: `docs/PRODUCTION_HARDENING_GATE_01_2026-09-22.md`.
+- DBK identity authority: `src/platform/dbkRegistry.ts`.
+- Tenant authority: `src/kernel/master/masterAuthority.ts`.
+- Branch authority: `src/kernel/branch/branchAuthority.ts`.
+- Persistent workflow authority: `src/orchestration/workflow/engine.ts`, `src/persistence/firestore/repositories/workflowInstanceRepository.ts`.
+- Financial persistence: `src/persistence/firestore/repositories/financialLedgerRepository.ts` and financial integrity tests.
+- Capability persistence: `src/persistence/firestore/repositories/capabilityStateRepository.ts`.
+- Connector persistence: `src/persistence/firestore/repositories/connectorConnectionRepository.ts`.
+- CI workflow: `.github/workflows/ci.yml` defines typecheck, lint, test, production build, and Docker validation.
+- No passing test/typecheck/lint/build result is claimed without execution evidence.
