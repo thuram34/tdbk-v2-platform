@@ -50,7 +50,7 @@ Bind the next incomplete organization onboarding experience surface to existing 
 
 ## Blocking Issues
 - Local Node/npm test, typecheck, lint and build execution is unavailable in the connected GitHub repository environment.
-- GitHub Actions validation for the new commits must be checked before claiming the validation gate as passed.
+- GitHub Actions reports no workflow runs associated with commits `87146f5d0c4ad2bb3b335f380540f39c26d6ef99`, `2ed4448b2f8016043f36b28b46b5599662e491eb`, or `406d660f0e307f34162f92bfa9833a9ded9fb3d`; CI is therefore not claimed as passing evidence.
 
 ## MASTER REVIEW REQUIRED
 - Business Context -> authoritative Business DNA onboarding contract.
@@ -76,7 +76,7 @@ Bind the next incomplete organization onboarding experience surface to existing 
 ## Files / Areas Changed
 - `src/App.tsx` — consume authoritative Engine sector field in owner portfolio.
 - `src/public/PublicGateway.tsx` — distinguish illustrative showcase data from live organization truth.
-- `docs/master/DBK-STATUS.md` — continuity record.
+- `docs/master/DBK-STATUS.md` — continuity record and validation result.
 
 ## Next Recommended DBK Task
 **SINGLE TASK:** Await Master direction after review. No further DBK task is started by this task.
