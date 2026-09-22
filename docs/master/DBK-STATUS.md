@@ -1,93 +1,79 @@
 # DBK STATUS
 
 ## Last Updated
-2026-09-22
+2026-09-23
 
 ## Current Phase
-DBK Experience Contract Binding
+DBK-05 Capability Activation UX
 
 ## Current Objective
-Bind the next incomplete organization onboarding experience surface to existing Engine-owned blueprint and capability contracts without creating replacement authority.
+Bind authenticated capability discovery and activation presentation to the Engine-resolved capability status without inferring entitlement, eligibility, configuration, or suspension locally.
 
 ## Completed
-- Bound the authenticated owner/organization experience to the existing Engine-owned organization list and Experience Resolver flow.
-- `src/App.tsx` now consumes the Engine-provided `sector` field directly from `/api/platform/dbks` instead of deriving sector identity from `blueprintId`.
-- Confirmed `src/components/experience/DbkShell.tsx` consumes `/api/platform/dbks`, `/api/experience/resolve/:dbkId`, and `/api/experience/command` for organization, workspace, branch, navigation and operational state.
-- Kept the completed Public Experience Flow unchanged and closed.
-- Marked the existing PublicGateway workspace showcase as explicitly illustrative/reference data; it is not live organization data.
-
-## In Progress
-- None. This task is complete and intentionally stopped.
-
-## Verified
-- Implementation commits: `87146f5d0c4ad2bb3b335f380540f39c26d6ef99`, `2ed4448b2f8016043f36b28b46b5599662e491eb`.
-- No TDBK Engine source was changed.
-- No Sokoni source was changed.
-- No duplicate organization, tenant, Business DNA, capability, entitlement, transaction, payment, receipt, workflow, audit or publication store was introduced.
-- Public showcase metrics remain static reference content and are explicitly labelled as such.
-- Public organization projection remains Engine-owned and projection-only; DBK does not invent an anonymous public API because publication/read authorization is not established.
+- Bound the authenticated capability discovery surface to `ExperienceDiscoveryItem.status` returned by the existing Engine `ExperienceResolver` contract.
+- DBK now presents the Engine-resolved states `OPERATIONAL`, `DISCOVERABLE`, `UPGRADE_REQUIRED`, `CONFIGURATION_REQUIRED`, and `SUSPENDED` distinctly.
+- Capability activation remains an Engine command through the existing `ENABLE_CAPABILITY` boundary.
+- DBK no longer reduces capability state to the local `isEnabled` / `isEntitled` combination when deciding how the user-facing capability state should be presented.
+- Configuration-required capabilities stop at the UI boundary because the repository does not expose a verified DBK configuration payload contract for this surface.
+- The capability discovery heading now uses `CAPABILITY DISCOVERY` rather than marketplace terminology, keeping authenticated capability activation distinct from Sokoni discovery.
+- Existing public flow, onboarding flow, organization portfolio, workspace, branch context, and Engine authority remain unchanged.
 
 ## Engine Contracts Consumed
-- AuthContext / authenticated identity boundary.
-- `/api/blueprints` — existing Engine-backed blueprint and supported-capability contract.
-- `/api/platform/dbks` — existing Engine-backed owner DBK listing.
-- `/api/kernel/identity/initialize-owner` — existing identity initialization contract.
-- `/api/platform/provision` — existing DBK provisioning contract.
-- `/api/capability/enable` — existing Engine capability activation contract.
+- `AuthContext` / authenticated identity boundary.
+- `/api/platform/dbks` — owner DBK identity/status listing.
+- `/api/experience/resolve/:dbkId` — authoritative authenticated DBK experience projection, including `discoveryItems`, entitlement state, capability state, permissions and workspace context.
+- `/api/experience/command` — authoritative capability activation boundary using `ENABLE_CAPABILITY`.
+- `ExperienceDiscoveryItem.status` in `src/experience/types.ts` — existing Engine/Experience vocabulary for capability presentation.
+- `src/capability/discovery.ts` and `src/capability/evaluator.ts` — Engine-owned entitlement/dependency evaluation consumed upstream by the resolver.
 
-## Engine Contracts Intentionally Deferred
-- Anonymous public organization read/publication authorization.
-- Public capability projection/publication claims.
-- Any future Sokoni handoff contract.
-- Business Context -> authoritative persistent Business DNA onboarding contract where not already exposed to DBK.
+## No New Authority
+This task introduced no:
+- identity authority
+- tenant store
+- organization master
+- Business DNA store
+- capability registry
+- entitlement engine
+- permission authority
+- transaction/payment/receipt truth
+- workflow/event authority
+- AI authority
+- connector authority
+- publication authority
+- Sokoni datastore
 
-## New Engine Dependencies
-- None.
+## Deferred / MASTER REVIEW REQUIRED
+- **Business Context -> authoritative persistent Business DNA onboarding contract.** The DBK onboarding UI captures a narrative locally, but no verified DBK-facing persistence contract was located. DBK must not fabricate one.
+- **Engine DBK recommendation contract.** Blueprint/capability metadata is available, but a verified recommendation authority that transforms business context into recommendations was not located.
+- **Configuration payload contract for capability configuration.** `CONFIGURATION_REQUIRED` is exposed by the Experience contract, but this task does not invent the payload/schema needed by `CONFIGURE_CAPABILITY`.
+- **Anonymous public organization publication/read authority.** Remains outside this task.
+- **Sokoni integration/handoff contract.** No Sokoni logic introduced.
 
-## Sokoni Dependencies
-- None introduced.
-- No Sokoni backend, discovery datastore, publication authority or integration logic was changed.
+## Architecture Integrity
+- DBK remains an Experience Layer.
+- Engine remains authoritative for capability eligibility, entitlement, dependency evaluation, permission and activation.
+- `DISCOVERABLE` is not treated as `ENABLED`.
+- `CONFIGURATION_REQUIRED` is not treated as operational.
+- `SUSPENDED` is not presented as activatable.
+- No local capability eligibility or entitlement calculation was introduced.
+- No fake backend API was created.
 
-## Blocking Issues
-- Local Node/npm test, typecheck, lint and build execution is unavailable in the connected GitHub repository environment.
-- GitHub Actions reports no workflow runs associated with commits `87146f5d0c4ad2bb3b335f380540f39c26d6ef99`, `2ed4448b2f8016043f36b28b46b5599662e491eb`, or `406d660f0e307f34162f92bfa9833a9ded9fb3d`; CI is therefore not claimed as passing evidence.
+## Files Changed
+- `src/components/experience/DiscoveryMarketplaceView.tsx` — Engine-status-driven capability presentation and activation UI.
+- `docs/master/DBK-STATUS.md` — continuation state, dependency and verification record.
 
-## MASTER REVIEW REQUIRED
-- Business Context -> authoritative Business DNA onboarding contract.
-- DBK-facing Engine Recommendation contract.
-- Authoritative onboarding capability-discovery contract.
-- Engine public publication authority and anonymous public-read authorization.
-- Existing client-generated `dbkId` input to `/api/platform/provision` remains an Engine contract concern; no DBK replacement was created.
+## Verification
+- Repository inspected from latest GitHub default branch before implementation.
+- `package.json` confirms available scripts: `npm test`, `npm run typecheck`, `npm run lint`, `npm run build`.
+- Local Node/npm execution is unavailable in the connected GitHub repository environment; tests, typecheck, lint and build were therefore not executed locally.
+- GitHub Actions query for implementation commit `793307de9208231b5a6b696d179195c2274bea0d` returned `total_count: 0`; no CI result is claimed as passing evidence.
+- No TDBK Engine repository was modified.
+- No Sokoni repository or Sokoni logic was modified.
 
-## UX Decisions
-- Blueprint and capability data returned by the Engine are visually distinguished from local user setup choices.
-- Engine-included/default capabilities cannot be deselected locally because the existing provisioning contract treats them as blueprint defaults.
-- Optional capabilities are described as setup requests, not granted entitlements.
-- Capability activation still occurs only through the existing Engine endpoint after provisioning.
-- Loading, error and provisioning states remain explicit.
-- No recommendation is fabricated where the Engine recommendation contract is unresolved.
+## Result
+DBK capability discovery now consumes the Engine's complete resolved capability-state vocabulary instead of deriving presentation from partial local flags. Activation remains Engine-authorized. Missing configuration authority remains a clean boundary rather than a fabricated implementation.
 
-## Architecture Concerns
-- `BusinessDiscovery` still generates the `dbkId` supplied to the existing provisioning contract; this pre-existing boundary was intentionally not redesigned.
-- The onboarding narrative remains local UI state because no verified Business DNA persistence contract was introduced.
-- The selected blueprint is presentation/selection state until passed to the existing Engine provisioning contract.
-- Public experience remains separate from public organization publication and Sokoni.
+## Next SINGLE Task
+**MASTER REVIEW REQUIRED: verify and expose the authoritative Business Context -> Business DNA onboarding contract.**
 
-## Files / Areas Changed
-- `src/App.tsx` — consume authoritative Engine sector field in owner portfolio.
-- `src/public/PublicGateway.tsx` — distinguish illustrative showcase data from live organization truth.
-- `docs/master/DBK-STATUS.md` — continuity record and validation result.
-
-## Next Recommended DBK Task
-**SINGLE TASK:** Await Master direction after review. No further DBK task is started by this task.
-
-## Evidence
-- Implementation commit: `b135ea384887f681d24a4c1833f5fd6f585ab598`.
-- Status update commit follows this implementation commit.
-- Repository inspection confirmed the implementation uses existing Engine endpoints only.
-- `npm run typecheck`: NOT EXECUTED — no runnable Node workspace available.
-- `npm run lint`: NOT EXECUTED — no runnable Node workspace available.
-- `npm test`: NOT EXECUTED — no runnable Node workspace available.
-- `npm run build`: NOT EXECUTED — no runnable Node workspace available.
-- GitHub Actions workflow runs for `b135ea384887f681d24a4c1833f5fd6f585ab598`: none returned.
-- Engine/Sokoni file modification check: only DBK UI and DBK status files changed in this task.
+If that contract is confirmed, the next DBK implementation should bind the existing onboarding context UI to it. If it is not confirmed, DBK must remain at the boundary and document the dependency rather than creating local Business DNA persistence.
