@@ -10,27 +10,22 @@ DBK Experience Contract Binding
 Bind the next incomplete organization onboarding experience surface to existing Engine-owned blueprint and capability contracts without creating replacement authority.
 
 ## Completed
-- Completed the Experience Contract Binding task.
-- Selected the Business Context / Engine-resolved capability setup surface as the next incomplete experience slice.
-- Refined the existing BusinessDiscovery UX to distinguish Engine-resolved blueprint state from local setup requests.
-- Default capabilities returned by the Engine blueprint are now presented as fixed Engine-included capabilities and cannot be locally toggled off.
-- Non-default capability selections remain local setup intent until the existing Engine capability activation contract is invoked during provisioning.
-- Existing identity initialization, DBK provisioning and capability enablement calls were preserved unchanged.
+- Bound the authenticated owner/organization experience to the existing Engine-owned organization list and Experience Resolver flow.
+- `src/App.tsx` now consumes the Engine-provided `sector` field directly from `/api/platform/dbks` instead of deriving sector identity from `blueprintId`.
+- Confirmed `src/components/experience/DbkShell.tsx` consumes `/api/platform/dbks`, `/api/experience/resolve/:dbkId`, and `/api/experience/command` for organization, workspace, branch, navigation and operational state.
+- Kept the completed Public Experience Flow unchanged and closed.
+- Marked the existing PublicGateway workspace showcase as explicitly illustrative/reference data; it is not live organization data.
 
 ## In Progress
 - None. This task is complete and intentionally stopped.
 
 ## Verified
-- Current implementation commit: `b135ea384887f681d24a4c1833f5fd6f585ab598`.
-- Only `src/components/onboarding/BusinessDiscovery.tsx` was changed for the implementation.
-- Existing `/api/blueprints` data remains the source of blueprint and supported-capability presentation.
-- Existing `/api/platform/dbks` remains the source of existing owner DBKs.
-- Existing `/api/kernel/identity/initialize-owner` remains the identity initialization boundary.
-- Existing `/api/platform/provision` remains the provisioning authority.
-- Existing `/api/capability/enable` remains the capability activation authority.
-- No DBK datastore, tenant store, Business DNA store, entitlement logic, payment logic, workflow state, publication authority or Sokoni logic was introduced.
-- Default capability behavior now matches the existing provisioning implementation: defaults are not sent through `/api/capability/enable` because the provisioning engine initializes them.
-- Responsive behavior remains based on the existing Tailwind `sm` / `md` / `lg` layout classes.
+- Implementation commits: `87146f5d0c4ad2bb3b335f380540f39c26d6ef99`, `2ed4448b2f8016043f36b28b46b5599662e491eb`.
+- No TDBK Engine source was changed.
+- No Sokoni source was changed.
+- No duplicate organization, tenant, Business DNA, capability, entitlement, transaction, payment, receipt, workflow, audit or publication store was introduced.
+- Public showcase metrics remain static reference content and are explicitly labelled as such.
+- Public organization projection remains Engine-owned and projection-only; DBK does not invent an anonymous public API because publication/read authorization is not established.
 
 ## Engine Contracts Consumed
 - AuthContext / authenticated identity boundary.
@@ -41,11 +36,10 @@ Bind the next incomplete organization onboarding experience surface to existing 
 - `/api/capability/enable` — existing Engine capability activation contract.
 
 ## Engine Contracts Intentionally Deferred
-- Authoritative Business Context -> persistent Business DNA onboarding contract.
-- DBK-facing recommendation contract.
-- Authoritative onboarding capability discovery beyond the existing blueprint response.
-- Any new payment, connector, notification or document contract.
-- Public organization publication/read authorization.
+- Anonymous public organization read/publication authorization.
+- Public capability projection/publication claims.
+- Any future Sokoni handoff contract.
+- Business Context -> authoritative persistent Business DNA onboarding contract where not already exposed to DBK.
 
 ## New Engine Dependencies
 - None.
@@ -55,9 +49,8 @@ Bind the next incomplete organization onboarding experience surface to existing 
 - No Sokoni backend, discovery datastore, publication authority or integration logic was changed.
 
 ## Blocking Issues
-- Local Node/npm verification is unavailable in the connected repository environment; `npm run typecheck`, `npm run lint`, `npm test` and `npm run build` were not executed.
-- GitHub Actions reports no workflow run associated with implementation commit `b135ea384887f681d24a4c1833f5fd6f585ab598`, so CI cannot be claimed as passing evidence.
-- Business DNA persistence, recommendation and public publication contracts remain Engine/Master dependencies.
+- Local Node/npm test, typecheck, lint and build execution is unavailable in the connected GitHub repository environment.
+- GitHub Actions validation for the new commits must be checked before claiming the validation gate as passed.
 
 ## MASTER REVIEW REQUIRED
 - Business Context -> authoritative Business DNA onboarding contract.
@@ -81,10 +74,9 @@ Bind the next incomplete organization onboarding experience surface to existing 
 - Public experience remains separate from public organization publication and Sokoni.
 
 ## Files / Areas Changed
-- `src/components/onboarding/BusinessDiscovery.tsx` — refined Engine-bound blueprint/capability setup UX.
-- `docs/master/DBK-STATUS.md` — updated continuity record.
-- No TDBK Engine source changed.
-- No Sokoni source changed.
+- `src/App.tsx` — consume authoritative Engine sector field in owner portfolio.
+- `src/public/PublicGateway.tsx` — distinguish illustrative showcase data from live organization truth.
+- `docs/master/DBK-STATUS.md` — continuity record.
 
 ## Next Recommended DBK Task
 **SINGLE TASK:** Await Master direction after review. No further DBK task is started by this task.
