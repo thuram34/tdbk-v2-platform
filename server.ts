@@ -51,6 +51,8 @@ import { SurfaceType } from './src/coherence/types';
 import { eventBus } from './src/orchestration/events/eventBus';
 import { pubSubConsumer } from './src/orchestration/events/pubsubConsumer';
 import { subscriptionRouter } from './src/platform/subscription/subscriptionRouter';
+import { tdbkAgentRuntime } from './src/platform/agent/agentRuntime';
+import { agentExecutionRepository } from './src/persistence/firestore/repositories/agentExecutionRepository';
 
 async function startServer() {
   // Explicit bootstrap boundary: Seed demo DBKs only in development, preview, or explicit flag
@@ -138,6 +140,132 @@ async function startServer() {
       } else {
         res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: (err as Error).message } });
       }
+    }
+  });
+
+  // -------------------------------------------------------------
+  // TDBK COMMAND AGENT
+  // Authenticated instruction entry point. The agent may inspect and
+  // diagnose within the caller's security context; mutation-capable
+  // actions remain explicitly authorization-gated by the agent policy.
+  // -------------------------------------------------------------
+  app.post('/api/agent/command', async (req: Request, res: Response) => {
+    try {
+      const authHeader = req.headers.authorization;
+      const context = await securityContextFactory.createSecurityContext({
+        authHeader,
+        targetTenantId: req.body?.tenantId,
+        targetBranchId: req.body?.branchId,
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+      });
+
+      const text = typeof req.body?.instruction === 'string' ? req.body.instruction.trim() : '';
+      if (!text) {
+        return res.status(400).json({
+          error: { code: 'VALIDATION_ERROR', message: 'instruction is required' },
+        });
+      }
+
+      const result = await tdbkAgentRuntime.run({
+        instructionId: context.requestId,
+        text,
+        context,
+        requestedAuthority: req.body?.requestedAuthority,
+      });
+
+      return res.json({ status: 'SUCCESS', result });
+    } catch (err) {
+      if (err instanceof KernelError) {
+        return res.status(err.statusCode).json(err.toJSON());
+      }
+      return res.status(500).json({
+        error: { code: 'INTERNAL_ERROR', message: (err as Error).message },
+      });
+    }
+  });
+
+  app.get('/api/agent/executions', async (req: Request, res: Response) => {
+    try {
+      const authHeader = req.headers.authorization;
+      const tenantId = req.query.tenantId as string;
+      const context = await securityContextFactory.createSecurityContext({
+        authHeader,
+        targetTenantId: tenantId,
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+      });
+      const effectiveTenantId = context.tenantContext?.tenantId || context.principal.tenantId;
+      if (!effectiveTenantId) {
+        return res.status(400).json({
+          error: { code: 'TENANT_REQUIRED', message: 'tenantId is required for execution history.' },
+        });
+      }
+      tenantIsolation.assertTenantIsolation(context.principal, effectiveTenantId, 'READ_AGENT_EXECUTIONS', context.requestId);
+      const executions = await agentExecutionRepository.list(effectiveTenantId);
+      return res.json({ status: 'SUCCESS', executions });
+    } catch (err) {
+      if (err instanceof KernelError) return res.status(err.statusCode).json(err.toJSON());
+      return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Unable to read agent execution history' } });
+    }
+  });
+
+  // -------------------------------------------------------------
+  // TDBK CONNECTOR CONFIGURATION PLANE
+  // Configuration accepts only non-secret parameters and secret references.
+  // Raw secret material is rejected by the configuration service.
+  // -------------------------------------------------------------
+  app.post('/api/connectors/configure', async (req: Request, res: Response) => {
+    try {
+      const context = await securityContextFactory.createSecurityContext({
+        authHeader: req.headers.authorization,
+        targetTenantId: req.body?.tenantId,
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+      });
+      const { connectorConfigurationService } = await import('./src/platform/connectors/connectorConfigurationService');
+      const result = await connectorConfigurationService.configure(context, req.body);
+      return res.status(result.created ? 201 : 200).json({ status: 'SUCCESS', ...result });
+    } catch (err) {
+      if (err instanceof KernelError) return res.status(err.statusCode).json(err.toJSON());
+      return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: (err as Error).message } });
+    }
+  });
+
+  app.get('/api/connectors/:tenantId', async (req: Request, res: Response) => {
+    try {
+      const { tenantId } = req.params;
+      const context = await securityContextFactory.createSecurityContext({
+        authHeader: req.headers.authorization,
+        targetTenantId: tenantId,
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+      });
+      const { connectorConfigurationService } = await import('./src/platform/connectors/connectorConfigurationService');
+      const connections = await connectorConfigurationService.list(context, tenantId);
+      return res.json({ status: 'SUCCESS', connections });
+    } catch (err) {
+      if (err instanceof KernelError) return res.status(err.statusCode).json(err.toJSON());
+      return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: (err as Error).message } });
+    }
+  });
+
+  app.get('/api/connectors/:tenantId/:bridgeId', async (req: Request, res: Response) => {
+    try {
+      const { tenantId, bridgeId } = req.params;
+      const context = await securityContextFactory.createSecurityContext({
+        authHeader: req.headers.authorization,
+        targetTenantId: tenantId,
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+      });
+      const { connectorConfigurationService } = await import('./src/platform/connectors/connectorConfigurationService');
+      const connection = await connectorConfigurationService.get(context, tenantId, bridgeId);
+      if (!connection) return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Connector connection not found' } });
+      return res.json({ status: 'SUCCESS', connection });
+    } catch (err) {
+      if (err instanceof KernelError) return res.status(err.statusCode).json(err.toJSON());
+      return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: (err as Error).message } });
     }
   });
 
