@@ -4,6 +4,7 @@ import { demoSokoniDiscoveryAdapter, SokoniDiscoveryResult, SokoniLocationContex
 import { BusinessCard, JobCard, OfferCard, OpportunityCard, ProductCard, ProviderCard, ServiceCard } from './SokoniPresentationCards';
 
 type View = 'HOME' | 'SEARCH' | 'RESULTS' | 'PROVIDER' | 'ACTIVITY' | 'ACCOUNT';
+type DiscoveryMode = 'PUBLIC' | 'TDBK_ENROLLED_PREVIEW';
 const LOCATIONS = ['Mombasa', 'Nyali', 'Bamburi', 'Likoni'];
 const CATEGORIES = [
   ['Services', 'Find people who can help'], ['Products', 'Find things around you'], ['Businesses', 'Discover local businesses'],
@@ -11,12 +12,18 @@ const CATEGORIES = [
 ];
 const SUGGESTIONS = ['My printer isn\'t working.', 'I need CCTV installed.', 'I need a laptop.', 'I need a plumber.', 'I am looking for work.'];
 const DEMO = 'DEMO / UX PROTOTYPE — NOT LIVE ENGINE STATE';
+const MODE_COPY: Record<DiscoveryMode, { label: string; title: string; description: string }> = {
+  PUBLIC: { label: 'Public discovery', title: 'Discover without enrollment', description: 'Browse and understand public information. No TDBK enrollment is required for discovery.' },
+  TDBK_ENROLLED_PREVIEW: { label: 'TDBK-enrolled preview', title: 'Discovery with future Engine actions', description: 'Preview of the enrolled experience. Actions remain unavailable until approved Engine contracts are connected.' },
+};
 
 export function SokoniExperience({ onBack }: { onBack?: () => void }) {
   const [view, setView] = useState<View>('HOME');
   const [need, setNeed] = useState('');
   const [location, setLocation] = useState<SokoniLocationContext>({ label: 'Mombasa', consented: false });
   const [locationOpen, setLocationOpen] = useState(false);
+  const [mode, setMode] = useState<DiscoveryMode>('PUBLIC');
+  const [contextOpen, setContextOpen] = useState(false);
   const [result, setResult] = useState<SokoniDiscoveryResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -37,6 +44,7 @@ export function SokoniExperience({ onBack }: { onBack?: () => void }) {
 
   const chooseNeed = (value: string) => { setNeed(value); setView('SEARCH'); };
   const selectLocation = (label: string) => { setLocation({ label, consented: true }); setLocationOpen(false); };
+  const modeCopy = MODE_COPY[mode];
   const back = () => setView(view === 'PROVIDER' ? 'RESULTS' : view === 'RESULTS' ? 'SEARCH' : 'HOME');
 
   const DemoBanner = () => <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-semibold leading-5 text-amber-900"><span className="inline-flex items-center gap-1.5 font-black"><Sparkles className="h-3.5 w-3.5" />{DEMO}</span><span className="ml-2">Demo presentation is separated from authoritative Engine state.</span></div>;
@@ -58,6 +66,26 @@ export function SokoniExperience({ onBack }: { onBack?: () => void }) {
 
     <div className="mx-auto max-w-6xl px-4 pb-24 pt-4 sm:px-6 sm:pt-6">
       <DemoBanner />
+      <div className="mt-4 rounded-3xl border border-neutral-200 bg-white p-4 shadow-sm sm:p-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-neutral-400">Discovery context</p>
+            <p className="mt-1 text-sm font-bold">{modeCopy.title}</p>
+            <p className="mt-1 text-xs leading-5 text-neutral-500">{modeCopy.description}</p>
+          </div>
+          <button type="button" onClick={() => setContextOpen(v => !v)} className="inline-flex items-center justify-center gap-2 rounded-xl border border-neutral-200 px-3 py-2 text-xs font-bold hover:border-neutral-400">
+            {modeCopy.label}<ChevronDown className="h-3.5 w-3.5" />
+          </button>
+        </div>
+        {contextOpen && <div className="mt-4 grid gap-2 border-t border-neutral-100 pt-4 sm:grid-cols-2">
+          {(Object.keys(MODE_COPY) as DiscoveryMode[]).map(option => (
+            <button key={option} type="button" onClick={() => { setMode(option); setContextOpen(false); }} className={`rounded-2xl border p-4 text-left ${mode === option ? 'border-neutral-950 bg-neutral-50' : 'border-neutral-200 hover:border-neutral-400'}`}>
+              <div className="flex items-center justify-between gap-2"><span className="text-sm font-bold">{MODE_COPY[option].label}</span><span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-[9px] font-black text-amber-800">UX ONLY</span></div>
+              <p className="mt-2 text-xs leading-5 text-neutral-500">{MODE_COPY[option].description}</p>
+            </button>
+          ))}
+        </div>
+      </div>
 
       {view === 'HOME' && <section className="pt-8 sm:pt-14">
         <div className="grid gap-10 lg:grid-cols-[1.2fr_.8fr] lg:items-end">
@@ -77,9 +105,18 @@ export function SokoniExperience({ onBack }: { onBack?: () => void }) {
           </div>
         </div>
 
-        <div className="mt-10 flex items-center justify-between"><div><p className="text-xs font-black uppercase tracking-wide text-neutral-400">Explore</p><h2 className="mt-1 text-2xl font-black">What people come to Sokoni for</h2></div></div>
+        <div className="mt-10 flex items-center justify-between"><div><p className="text-xs font-black uppercase tracking-wide text-neutral-400">Explore by context</p><h2 className="mt-1 text-2xl font-black">What are you looking for?</h2></div></div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <span className="rounded-full bg-neutral-950 px-3 py-1.5 text-[11px] font-bold text-white">Area · {location.label}</span>
+          <span className="rounded-full border border-neutral-200 bg-white px-3 py-1.5 text-[11px] font-semibold">{modeCopy.label}</span>
+          <span className="rounded-full border border-neutral-200 bg-white px-3 py-1.5 text-[11px] font-semibold">Discovery only</span>
+        </div>
         <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">{CATEGORIES.map(([title, desc], i) => <button key={title} type="button" onClick={() => chooseNeed(title)} className="rounded-2xl border border-neutral-200 bg-white p-4 text-left hover:border-neutral-400"><div className="mb-5 flex h-9 w-9 items-center justify-center rounded-xl bg-neutral-100">{i < 3 ? <Compass className="h-4 w-4" /> : <Sparkles className="h-4 w-4" />}</div><div className="text-sm font-bold">{title}</div><div className="mt-1 text-[11px] leading-4 text-neutral-500">{desc}</div></button>)}</div>
 
+        <div className="mt-10 rounded-3xl border border-neutral-200 bg-white p-5">
+          <div className="flex items-start gap-3"><MapPin className="mt-0.5 h-4 w-4 text-neutral-500" /><div><p className="text-sm font-bold">Change discovery area anytime</p><p className="mt-1 text-xs leading-5 text-neutral-500">This area changes the presentation context only. It is not provider coverage, availability, distance matching or location truth.</p></div></div>
+          <div className="mt-4 flex flex-wrap gap-2">{LOCATIONS.map(x => <button key={x} type="button" onClick={() => selectLocation(x)} className={`rounded-full border px-3 py-2 text-xs font-semibold ${location.label === x ? 'border-neutral-950 bg-neutral-950 text-white' : 'border-neutral-200 bg-white hover:border-neutral-400'}`}>{x}</button>)}</div>
+        </div>
         <div className="mt-10 grid gap-4 md:grid-cols-2"><div className="rounded-3xl border border-neutral-200 bg-neutral-950 p-6 text-white"><p className="text-xs font-black uppercase tracking-wide text-neutral-400">Need help?</p><h3 className="mt-2 text-2xl font-black">Tell us the problem, not the category.</h3><button type="button" onClick={() => chooseNeed('My printer isn\'t working.')} className="mt-5 inline-flex items-center gap-2 rounded-xl bg-white px-4 py-3 text-xs font-black text-neutral-950">Try the technician journey <ArrowRight className="h-4 w-4" /></button></div><div className="rounded-3xl border border-neutral-200 bg-white p-6"><p className="text-xs font-black uppercase tracking-wide text-neutral-400">Opportunities & offers</p><h3 className="mt-2 text-2xl font-black">Work, local opportunities and useful offers.</h3><p className="mt-2 text-sm leading-6 text-neutral-500">These are presentation destinations now; authoritative opportunity and offer contracts remain Engine-owned.</p></div></div>
       </section>}
 
