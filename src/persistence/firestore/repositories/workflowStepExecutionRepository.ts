@@ -15,10 +15,7 @@ export class WorkflowStepExecutionRepository implements IWorkflowStepExecutionRe
   private constructor() {}
 
   public static getInstance(): WorkflowStepExecutionRepository {
-    if (!WorkflowStepExecutionRepository.instance) {
-      WorkflowStepExecutionRepository.instance = new WorkflowStepExecutionRepository();
-    }
-    return WorkflowStepExecutionRepository.instance;
+    return (this.instance ??= new WorkflowStepExecutionRepository());
   }
 
   private getPath(tenantId: string, executionKey: string): string {
@@ -47,7 +44,11 @@ export class WorkflowStepExecutionRepository implements IWorkflowStepExecutionRe
         Date.parse(current.leaseUntil) > now
       );
 
-      if (activeLease && current!.workerId !== workerId) return null;
+      // A live lease is exclusive even when the same worker asks again. The
+      // durable execution key is the idempotency boundary; re-claiming an
+      // active execution would increment attempts and permit duplicate step
+      // invocation under the same worker identity.
+      if (activeLease) return null;
 
       const nowIso = new Date(now).toISOString();
       const next: WorkflowStepExecution = {
