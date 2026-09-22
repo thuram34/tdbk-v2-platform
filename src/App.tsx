@@ -93,7 +93,10 @@ export default function App() {
           setShowPublicFlow(false);
           if (!user) setPublicView('LOGIN');
         }}
-        onLaunchWorkspace={() => setShowPublicFlow(false)}
+        onLaunchWorkspace={() => {
+          setShowPublicFlow(false);
+          if (!user) setPublicView('LOGIN');
+        }}
       />
     );
   }
@@ -107,7 +110,7 @@ export default function App() {
         </header>
         <LoginScreen onBackToGateway={() => { setPublicView('FLOW'); setShowPublicFlow(true); }} />
       </div>
-    ) : <DbkExperienceFlow onSignIn={() => setPublicView('LOGIN')} onLaunchWorkspace={() => setShowPublicFlow(false)} />;
+    ) : <DbkExperienceFlow onSignIn={() => setPublicView('LOGIN')} onLaunchWorkspace={() => setPublicView('LOGIN')} />;
   }
 
   if (dbksLoading) {
