@@ -1,8 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import {
-  DbkExperienceResolved,
-  ExperienceNavItem,
-} from '../../experience/types';
+import React, { useEffect, useState } from 'react';
+import { DbkExperienceResolved } from '../../experience/types';
 import { useAuth } from '../../client/AuthContext';
 import { DynamicIcon } from './IconHelper';
 import { DashboardView } from './DashboardView';
@@ -10,127 +7,131 @@ import { EntityListView } from './EntityListView';
 import { OperationalFlowView } from './OperationalFlowView';
 import { DiscoveryMarketplaceView } from './DiscoveryMarketplaceView';
 import { SettingsView } from './SettingsView';
-import { Phase5TestSuitePanel } from './Phase5TestSuitePanel';
-import { Phase6TestSuitePanel } from '../document_ai/Phase6TestSuitePanel';
 import { DocumentAiShellPanel } from '../document_ai/DocumentAiShellPanel';
 import { OwnerPortfolioView } from './OwnerPortfolioView';
-import { MultiBusinessSuitePanel } from './MultiBusinessSuitePanel';
-import { CoherenceEnginePanel } from './CoherenceEnginePanel';
 import { SmartClassroomView } from '../classroom/SmartClassroomView';
 import {
-  Building2,
-  GitBranch,
-  User,
-  ShieldCheck,
-  Shield,
-  Sparkles,
   AlertTriangle,
-  Menu,
-  X,
-  ChevronDown,
-  LayoutDashboard,
-  Layers,
   ArrowLeft,
-  CheckCircle2,
-  RotateCcw,
-  RefreshCw,
   Bot,
-  FileText,
-  Grid,
+  Building2,
+  CheckCircle2,
+  GitBranch,
+  Menu,
+  RefreshCw,
+  X,
 } from 'lucide-react';
 
 interface DbkShellProps {
   initialDbkId?: string;
   initialViewMode?: 'PORTFOLIO' | 'WORKSPACE';
-  onSwitchToMaster: () => void;
+  onSwitchToMaster?: () => void;
 }
+
+type ShellError = 'UNAUTHORIZED' | 'ERROR' | null;
 
 export const DbkShell: React.FC<DbkShellProps> = ({
   initialDbkId,
   initialViewMode = 'PORTFOLIO',
-  onSwitchToMaster,
 }) => {
   const { getIdToken, user } = useAuth();
   const [dbkList, setDbkList] = useState<Array<any>>([]);
   const [selectedDbkId, setSelectedDbkId] = useState<string>(initialDbkId || '');
   const [selectedBranchId, setSelectedBranchId] = useState<string>('');
-  const [selectedRole, setSelectedRole] = useState<string>('TENANT_ADMIN');
   const [experience, setExperience] = useState<DbkExperienceResolved | null>(null);
   const [activeViewId, setActiveViewId] = useState<string>('nav_overview');
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [errorKind, setErrorKind] = useState<ShellError>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
-  const [viewMode, setViewMode] = useState<'PORTFOLIO' | 'WORKSPACE' | 'MULTI_BUSINESS_TESTS' | 'COHERENCE_ENGINE'>(initialViewMode);
+  const [viewMode, setViewMode] = useState<'PORTFOLIO' | 'WORKSPACE'>(initialViewMode);
 
-  // 1. Fetch available DBKs
   const loadDbkList = async () => {
+    setIsLoading(true);
+    setError(null);
+    setErrorKind(null);
+
     try {
       const idToken = await getIdToken();
+      if (!idToken) throw new Error('Your session has expired. Please sign in again.');
 
-      if (!idToken) {
-        throw new Error('Your session has expired. Please sign in again.');
-      }
-
-      const res = await fetch('/api/platform/dbks', {
-        headers: {
-          'Authorization': `Bearer ${idToken}`,
-        },
+      const response = await fetch('/api/platform/dbks', {
+        headers: { Authorization: `Bearer ${idToken}` },
       });
-      if (res.ok) {
-        const data = await res.json();
-        const list = (data.dbks || []).map((d: any) => ({
-          dbkId: d.dbkId,
-          legalName: d.legalName,
-          displayName: d.displayName,
-          sector: d.blueprintId?.split('_')[0]?.toUpperCase() || 'SME',
-          blueprintId: d.blueprintId,
-          subscriptionTier: d.subscriptionTier,
-          status: d.status,
-          branchTopology: d.branchTopology,
-        }));
-        setDbkList(list);
-        if (!selectedDbkId && list.length > 0) {
-          setSelectedDbkId(list[0].dbkId);
-        }
+
+      if (response.status === 401 || response.status === 403) {
+        setErrorKind('UNAUTHORIZED');
+        setError('Your account is not currently authorized to access these organizations.');
+        setDbkList([]);
+        return;
       }
+
+      if (!response.ok) {
+        throw new Error('We could not load your organizations. Please try again.');
+      }
+
+      const data = await response.json();
+      const list = (data.dbks || []).map((dbk: any) => ({
+        dbkId: dbk.dbkId,
+        legalName: dbk.legalName,
+        displayName: dbk.displayName,
+        sector: dbk.blueprintId?.split('_')[0]?.toUpperCase() || 'Organization',
+        blueprintId: dbk.blueprintId,
+        subscriptionTier: dbk.subscriptionTier,
+        status: dbk.status,
+        branchTopology: dbk.branchTopology,
+      }));
+
+      setDbkList(list);
+      if (!selectedDbkId && list.length > 0) setSelectedDbkId(list[0].dbkId);
     } catch (err: any) {
       setDbkList([]);
-      setError(err?.message || 'Unable to load your businesses');
+      setErrorKind('ERROR');
+      setError(err?.message || 'We could not load your organizations. Please try again.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  // 2. Resolve authoritative experience projection from server
-  const resolveExperience = async (dbkId: string, branchId?: string, role: string = 'TENANT_ADMIN') => {
+  const resolveExperience = async (dbkId: string, branchId?: string) => {
     if (!dbkId) return;
     setIsLoading(true);
     setError(null);
+    setErrorKind(null);
 
     try {
       const idToken = await getIdToken();
+      if (!idToken) throw new Error('Your session has expired. Please sign in again.');
 
-      if (!idToken) {
-        throw new Error('Your session has expired. Please sign in again.');
+      const branchQuery = branchId ? `?branchId=${encodeURIComponent(branchId)}` : '';
+      const response = await fetch(`/api/experience/resolve/${encodeURIComponent(dbkId)}${branchQuery}`, {
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${idToken}`,
+        },
+      });
+
+      if (response.status === 401 || response.status === 403) {
+        setErrorKind('UNAUTHORIZED');
+        setError('You do not have access to this organization.');
+        setExperience(null);
+        return;
       }
 
-      const branchQuery = branchId ? `?branchId=${branchId}` : '';
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${idToken}`,
-      };
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error?.message || 'We could not open this organization. Please try again.');
+      }
 
-      const res = await fetch(`/api/experience/resolve/${dbkId}${branchQuery}`, { headers });
-      if (res.ok) {
-        const data = await res.json();
-        setExperience(data.resolved);
-        if (!selectedBranchId && data.resolved.activeBranch) {
-          setSelectedBranchId(data.resolved.activeBranch.branchId);
-        }
-      } else {
-        const errData = await res.json();
-        setError(errData.error?.message || 'Failed to resolve workspace experience');
+      const data = await response.json();
+      setExperience(data.resolved);
+      if (!selectedBranchId && data.resolved.activeBranch) {
+        setSelectedBranchId(data.resolved.activeBranch.branchId);
       }
     } catch (err: any) {
-      setError(err?.message || 'Network error resolving workspace');
+      setErrorKind('ERROR');
+      setError(err?.message || 'We could not open this organization. Please try again.');
+      setExperience(null);
     } finally {
       setIsLoading(false);
     }
@@ -141,264 +142,189 @@ export const DbkShell: React.FC<DbkShellProps> = ({
   }, []);
 
   useEffect(() => {
-    if (selectedDbkId) {
-      resolveExperience(selectedDbkId, selectedBranchId, selectedRole);
+    if (selectedDbkId && viewMode === 'WORKSPACE') {
+      resolveExperience(selectedDbkId, selectedBranchId);
     }
-  }, [selectedDbkId, selectedBranchId, selectedRole]);
+  }, [selectedDbkId, selectedBranchId, viewMode]);
 
-  // Command dispatcher
   const handleDispatchCommand = async (commandType: string, payload: Record<string, unknown>) => {
-    if (!selectedDbkId) return;
+    if (!selectedDbkId) return null;
 
-    try {
-      const idToken = await getIdToken();
+    const idToken = await getIdToken();
+    if (!idToken) throw new Error('Your session has expired. Please sign in again.');
 
-      if (!idToken) {
-        throw new Error('Your session has expired. Please sign in again.');
-      }
+    const response = await fetch('/api/experience/command', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${idToken}`,
+      },
+      body: JSON.stringify({
+        commandType,
+        targetDbkId: selectedDbkId,
+        payload: { ...payload, branchId: selectedBranchId },
+      }),
+    });
 
-      const res = await fetch('/api/experience/command', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${idToken}`,
-        },
-        body: JSON.stringify({
-          commandType,
-          targetDbkId: selectedDbkId,
-          payload: { ...payload, branchId: selectedBranchId },
-        }),
-      });
-
-      const data = await res.json();
-      if (data.commandResponse?.updatedResolvedExperience) {
-        setExperience(data.commandResponse.updatedResolvedExperience);
-      }
-      return data;
-    } catch (err) {
-      console.error('Command failed:', err);
-      throw err;
+    const data = await response.json().catch(() => ({}));
+    if (response.status === 401 || response.status === 403) {
+      setErrorKind('UNAUTHORIZED');
+      setError('You are not authorized to perform that action.');
+      throw new Error('You are not authorized to perform that action.');
     }
+
+    if (!response.ok) {
+      throw new Error(data.error?.message || 'The action could not be completed.');
+    }
+
+    if (data.commandResponse?.updatedResolvedExperience) {
+      setExperience(data.commandResponse.updatedResolvedExperience);
+    }
+
+    return data;
   };
 
   const handleBranchSwitch = async (newBranchId: string) => {
-    setSelectedBranchId(newBranchId);
-    await handleDispatchCommand('SWITCH_BRANCH', { branchId: newBranchId });
+    try {
+      await handleDispatchCommand('SWITCH_BRANCH', { branchId: newBranchId });
+      setSelectedBranchId(newBranchId);
+      setError(null);
+      setErrorKind(null);
+    } catch (err: any) {
+      setErrorKind('ERROR');
+      setError(err?.message || 'We could not change the active location.');
+    }
   };
 
-  // Group navigation items by category
+  const handleSelectDbk = (dbkId: string) => {
+    setSelectedDbkId(dbkId);
+    setSelectedBranchId('');
+    setActiveViewId('nav_overview');
+    setExperience(null);
+    setError(null);
+    setErrorKind(null);
+    setViewMode('WORKSPACE');
+  };
+
   const categories = [
     { key: 'OVERVIEW', label: 'Overview' },
-    { key: 'CORE_OPERATIONS', label: 'Core Operations' },
-    { key: 'RECORDS', label: 'Entity Records' },
-    { key: 'FINANCE', label: 'Finance & Payments' },
-    { key: 'OPERATIONS', label: 'Operations & Yard' },
-    { key: 'DISCOVERY', label: 'Marketplace' },
-    { key: 'SETTINGS', label: 'Configuration' },
+    { key: 'CORE_OPERATIONS', label: 'Core operations' },
+    { key: 'RECORDS', label: 'Records' },
+    { key: 'FINANCE', label: 'Finance' },
+    { key: 'OPERATIONS', label: 'Operations' },
+    { key: 'DISCOVERY', label: 'Discovery' },
+    { key: 'SETTINGS', label: 'Settings' },
   ];
-
-  const currentNav = experience?.navigation.find((n) => n.id === activeViewId || n.capabilityId === activeViewId);
 
   if (viewMode === 'PORTFOLIO') {
     return (
       <OwnerPortfolioView
         dbks={dbkList}
-        onSelectDbk={(dbkId) => {
-          setSelectedDbkId(dbkId);
-          setSelectedBranchId('');
-          setActiveViewId('nav_overview');
-          setViewMode('WORKSPACE');
-        }}
+        isLoading={isLoading}
+        error={error}
+        onSelectDbk={handleSelectDbk}
         onRefreshDbks={loadDbkList}
-        onOpenTestSuite={() => setViewMode('MULTI_BUSINESS_TESTS')}
-        onOpenCoherenceEngine={() => setViewMode('COHERENCE_ENGINE')}
       />
     );
   }
 
-  if (viewMode === 'MULTI_BUSINESS_TESTS') {
-    return (
-      <MultiBusinessSuitePanel
-        onBackToPortfolio={() => setViewMode('PORTFOLIO')}
-      />
-    );
-  }
-
-  if (viewMode === 'COHERENCE_ENGINE') {
-    return (
-      <CoherenceEnginePanel
-        defaultDbkId={selectedDbkId || 'tenant_school_01'}
-        onBack={() => setViewMode(selectedDbkId ? 'WORKSPACE' : 'PORTFOLIO')}
-      />
-    );
-  }
+  const currentNav = experience?.navigation.find((item) => item.id === activeViewId || item.capabilityId === activeViewId);
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-neutral-100 flex flex-col font-sans">
-      {/* ------------------------------------------------------------- */}
-      {/* GLOBAL EXPERIENTIAL HEADER                                    */}
-      {/* ------------------------------------------------------------- */}
-      <header className="bg-neutral-900 border-b border-neutral-800 sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-4 py-2.5 flex items-center justify-between gap-3">
-          {/* Brand Identity & DBK Selector */}
-          <div className="flex items-center space-x-3">
+    <div className="flex min-h-screen flex-col bg-neutral-950 font-sans text-neutral-100">
+      <header className="sticky top-0 z-40 border-b border-neutral-800 bg-neutral-950/95 backdrop-blur">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
+          <div className="flex min-w-0 items-center gap-2.5">
             <button
+              type="button"
               onClick={() => setViewMode('PORTFOLIO')}
-              className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-xs font-semibold border border-neutral-700 transition cursor-pointer"
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-neutral-800 bg-neutral-900 px-2.5 py-2 text-xs font-semibold text-neutral-300 hover:bg-neutral-800"
             >
-              <Building2 className="w-3.5 h-3.5 text-indigo-400" />
-              <span>← My Businesses Portfolio</span>
+              <ArrowLeft className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">My organizations</span>
             </button>
 
-            <div className="h-4 w-px bg-neutral-800 hidden md:block" />
+            <div className="hidden h-6 w-px bg-neutral-800 sm:block" />
 
-            {/* DBK Switcher Dropdown */}
-            <div className="relative">
-              <select
-                value={selectedDbkId}
-                onChange={(e) => {
-                  setSelectedDbkId(e.target.value);
-                  setSelectedBranchId('');
-                  setActiveViewId('nav_overview');
-                }}
-                className="bg-neutral-950 border border-neutral-700 rounded px-2.5 py-1 text-xs font-bold text-white focus:outline-none focus:border-indigo-500 cursor-pointer"
-              >
-                {dbkList.map((d) => (
-                  <option key={d.dbkId} value={d.dbkId}>
-                    {d.displayName} ({d.sector})
-                  </option>
-                ))}
-              </select>
-            </div>
+            <select
+              aria-label="Switch organization"
+              value={selectedDbkId}
+              onChange={(event) => handleSelectDbk(event.target.value)}
+              className="max-w-[180px] rounded-lg border border-neutral-800 bg-neutral-900 px-2.5 py-2 text-xs font-semibold text-white outline-none focus:border-indigo-500 sm:max-w-[260px]"
+            >
+              {dbkList.map((dbk) => (
+                <option key={dbk.dbkId} value={dbk.dbkId} className="bg-neutral-900 text-white">
+                  {dbk.displayName || dbk.legalName}
+                </option>
+              ))}
+            </select>
           </div>
 
-          {/* Contextual Badges & Switchers */}
-          <div className="flex items-center space-x-2">
-            {/* Branch Switcher */}
-            {experience && experience.availableBranches.length > 0 && (
-              <div className="hidden sm:flex items-center space-x-1.5 bg-neutral-950 px-2 py-1 rounded border border-neutral-800">
-                <GitBranch className="w-3.5 h-3.5 text-emerald-400" />
+          <div className="flex items-center gap-2">
+            {experience?.availableBranches?.length > 0 && (
+              <div className="hidden items-center gap-1.5 rounded-lg border border-neutral-800 bg-neutral-900 px-2.5 py-2 sm:flex">
+                <GitBranch className="h-3.5 w-3.5 text-emerald-400" />
                 <select
+                  aria-label="Switch location"
                   value={experience.activeBranch.branchId}
-                  onChange={(e) => handleBranchSwitch(e.target.value)}
-                  className="bg-transparent text-xs text-neutral-200 font-medium focus:outline-none cursor-pointer"
+                  onChange={(event) => handleBranchSwitch(event.target.value)}
+                  className="max-w-[150px] bg-transparent text-xs font-medium text-neutral-200 outline-none"
                 >
-                  {experience.availableBranches.map((b) => (
-                    <option key={b.branchId} value={b.branchId} className="bg-neutral-900 text-white">
-                      {b.name} {b.isHeadquarters ? '(HQ)' : ''}
+                  {experience.availableBranches.map((branch) => (
+                    <option key={branch.branchId} value={branch.branchId} className="bg-neutral-900 text-white">
+                      {branch.name}{branch.isHeadquarters ? ' · Main' : ''}
                     </option>
                   ))}
                 </select>
               </div>
             )}
 
-            {/* Role / Persona Switcher for UI Verification */}
-            <div className="hidden md:flex items-center space-x-1.5 bg-neutral-950 px-2 py-1 rounded border border-neutral-800">
-              <User className="w-3.5 h-3.5 text-indigo-400" />
-              <select
-                value={selectedRole}
-                onChange={(e) => setSelectedRole(e.target.value)}
-                className="bg-transparent text-xs text-neutral-300 font-medium focus:outline-none cursor-pointer"
-              >
-                <option value="TENANT_ADMIN" className="bg-neutral-900 text-white">Role: Administrator</option>
-                <option value="SCHOOL_PRINCIPAL" className="bg-neutral-900 text-white">Role: Principal</option>
-                <option value="TEACHER" className="bg-neutral-900 text-white">Role: Teacher</option>
-                <option value="BURSAR" className="bg-neutral-900 text-white">Role: Bursar</option>
-                <option value="STORE_OWNER" className="bg-neutral-900 text-white">Role: Store Owner</option>
-                <option value="CASHIER" className="bg-neutral-900 text-white">Role: Cashier</option>
-                <option value="CLINICIAN" className="bg-neutral-900 text-white">Role: Clinician</option>
-              </select>
-            </div>
-
-            {/* Phase 6 & Document AI Triggers */}
             <button
+              type="button"
               onClick={() => setActiveViewId('view_doc_ai')}
-              className={`flex items-center space-x-1.5 px-2.5 py-1 text-xs font-semibold rounded border transition cursor-pointer ${
-                activeViewId === 'view_doc_ai'
-                  ? 'bg-emerald-600 border-emerald-500 text-white'
-                  : 'bg-neutral-800 border-neutral-700 text-emerald-300 hover:bg-neutral-700'
-              }`}
+              className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-2 text-xs font-semibold transition ${activeViewId === 'view_doc_ai' ? 'border-emerald-500 bg-emerald-600 text-white' : 'border-neutral-800 bg-neutral-900 text-neutral-300 hover:bg-neutral-800'}`}
             >
-              <Bot className="w-3 h-3 text-emerald-400" />
-              <span className="hidden sm:inline">AI & Docs</span>
+              <Bot className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">AI & documents</span>
             </button>
 
             <button
-              onClick={() => setActiveViewId('view_phase6_suite')}
-              className={`flex items-center space-x-1.5 px-2.5 py-1 text-xs font-semibold rounded border transition cursor-pointer ${
-                activeViewId === 'view_phase6_suite'
-                  ? 'bg-indigo-600 border-indigo-500 text-white'
-                  : 'bg-neutral-800 border-neutral-700 text-indigo-300 hover:bg-neutral-700'
-              }`}
+              type="button"
+              onClick={() => setIsMobileMenuOpen((open) => !open)}
+              className="rounded-lg border border-neutral-800 bg-neutral-900 p-2 text-neutral-300 hover:bg-neutral-800 md:hidden"
+              aria-label="Open navigation"
             >
-              <Sparkles className="w-3 h-3 text-amber-400" />
-              <span className="hidden sm:inline">P6 (60 Tests)</span>
-            </button>
-
-            {/* Role-Based Coherence Engine Trigger */}
-            <button
-              onClick={() => setViewMode('COHERENCE_ENGINE')}
-              className="flex items-center space-x-1.5 px-2.5 py-1 text-xs font-semibold rounded border bg-indigo-950/60 border-indigo-500/40 text-indigo-300 hover:bg-indigo-900/60 transition cursor-pointer shadow-2xs"
-            >
-              <Layers className="w-3 h-3 text-indigo-400" />
-              <span className="hidden sm:inline">Role Coherence</span>
-            </button>
-
-            {/* Master Console */}
-            <button
-              onClick={onSwitchToMaster}
-              className="hidden md:flex items-center space-x-1.5 px-2.5 py-1 text-xs font-semibold rounded border bg-amber-950/40 border-amber-700 text-amber-300 hover:bg-amber-900/50 transition cursor-pointer"
-              title="Master authority verification required"
-            >
-              <Shield className="w-3 h-3" />
-              <span>Master Console</span>
-            </button>
-
-            {/* Mobile Menu Toggle */}
-            <button
-              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="p-1.5 rounded bg-neutral-800 text-neutral-300 md:hidden cursor-pointer"
-            >
-              {isMobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+              {isMobileMenuOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
             </button>
           </div>
         </div>
       </header>
 
-      {/* ------------------------------------------------------------- */}
-      {/* WORKSPACE LAYOUT (SIDEBAR + MAIN CANVAS)                      */}
-      {/* ------------------------------------------------------------- */}
-      <div className="flex-1 max-w-7xl w-full mx-auto flex">
-        {/* SIDEBAR NAVIGATION */}
+      <div className="mx-auto flex w-full max-w-7xl flex-1">
         <aside
-          className={`w-64 bg-neutral-900/60 border-r border-neutral-800/80 p-4 space-y-6 shrink-0 md:block ${
-            isMobileMenuOpen ? 'fixed inset-y-0 left-0 z-50 bg-neutral-950 w-72' : 'hidden'
-          }`}
+          className={`w-64 shrink-0 border-r border-neutral-800 bg-neutral-950 p-4 md:block ${isMobileMenuOpen ? 'fixed inset-y-0 left-0 z-50 block w-72' : 'hidden'}`}
         >
           {isMobileMenuOpen && (
-            <div className="flex items-center justify-between pb-3 border-b border-neutral-800 md:hidden">
-              <span className="text-xs font-bold text-white">Navigation</span>
-              <button onClick={() => setIsMobileMenuOpen(false)} className="text-neutral-400">
-                <X className="w-4 h-4" />
+            <div className="mb-4 flex items-center justify-between border-b border-neutral-800 pb-3 md:hidden">
+              <span className="text-sm font-semibold">Organization menu</span>
+              <button type="button" onClick={() => setIsMobileMenuOpen(false)} className="rounded-lg p-1.5 text-neutral-400 hover:bg-neutral-800">
+                <X className="h-4 w-4" />
               </button>
             </div>
           )}
 
           {experience && (
-            <div className="space-y-5">
-              {categories.map((cat) => {
-                const items = experience.navigation.filter((n) => n.category === cat.key);
+            <nav aria-label="Organization navigation" className="space-y-5">
+              {categories.map((category) => {
+                const items = experience.navigation.filter((item) => item.category === category.key);
                 if (items.length === 0) return null;
 
                 return (
-                  <div key={cat.key} className="space-y-1.5">
-                    <div className="text-[10px] font-mono font-bold uppercase tracking-wider text-neutral-500 px-2.5">
-                      {cat.label}
-                    </div>
+                  <div key={category.key}>
+                    <p className="mb-1.5 px-2.5 text-[10px] font-bold uppercase tracking-wider text-neutral-500">{category.label}</p>
                     <div className="space-y-1">
                       {items.map((item) => {
-                        const isActive =
-                          activeViewId === item.id ||
+                        const isActive = activeViewId === item.id ||
                           (item.capabilityId && activeViewId === item.capabilityId) ||
                           (item.route === '/dashboard' && activeViewId === 'nav_overview') ||
                           (item.route === '/discovery' && activeViewId === 'discovery') ||
@@ -406,26 +332,20 @@ export const DbkShell: React.FC<DbkShellProps> = ({
 
                         return (
                           <button
+                            type="button"
                             key={item.id}
                             onClick={() => {
                               setActiveViewId(item.capabilityId || item.id);
                               setIsMobileMenuOpen(false);
                             }}
-                            className={`w-full flex items-center justify-between px-2.5 py-2 rounded text-xs font-medium transition cursor-pointer ${
-                              isActive
-                                ? 'bg-indigo-600/20 text-indigo-300 font-semibold border border-indigo-500/40'
-                                : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/40'
-                            }`}
+                            className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2.5 text-left text-xs font-medium transition ${isActive ? 'border border-indigo-500/40 bg-indigo-500/15 text-indigo-200' : 'text-neutral-400 hover:bg-neutral-900 hover:text-neutral-200'}`}
                           >
-                            <div className="flex items-center space-x-2.5 truncate">
-                              <DynamicIcon name={item.iconName} className="w-4 h-4 shrink-0" />
+                            <span className="flex min-w-0 items-center gap-2.5">
+                              <DynamicIcon name={item.iconName} className="h-4 w-4 shrink-0" />
                               <span className="truncate">{item.label}</span>
-                            </div>
-
+                            </span>
                             {item.badge !== undefined && (
-                              <span className="px-1.5 py-0.5 text-[9px] font-mono font-bold rounded bg-indigo-500/30 text-indigo-300">
-                                {item.badge}
-                              </span>
+                              <span className="ml-2 rounded bg-indigo-500/20 px-1.5 py-0.5 text-[9px] font-bold text-indigo-300">{item.badge}</span>
                             )}
                           </button>
                         );
@@ -434,73 +354,68 @@ export const DbkShell: React.FC<DbkShellProps> = ({
                   </div>
                 );
               })}
-            </div>
+            </nav>
           )}
         </aside>
 
-        {/* MAIN CONTENT CANVAS */}
-        <main className="flex-1 p-6 overflow-y-auto">
+        <main className="min-w-0 flex-1 overflow-y-auto p-4 sm:p-6">
           {isLoading && !experience ? (
-            <div className="flex items-center justify-center p-16 text-neutral-500 space-x-2">
-              <RefreshCw className="w-5 h-5 animate-spin text-indigo-400" />
-              <span className="text-xs font-mono">Synthesizing Business DNA & Experience Projection...</span>
+            <div className="flex min-h-[50vh] items-center justify-center">
+              <div className="max-w-sm text-center">
+                <RefreshCw className="mx-auto h-7 w-7 animate-spin text-indigo-400" />
+                <h1 className="mt-4 text-lg font-semibold">Opening your organization</h1>
+                <p className="mt-1 text-sm text-neutral-500">Loading the workspace available to your account.</p>
+              </div>
+            </div>
+          ) : errorKind === 'UNAUTHORIZED' ? (
+            <div className="mx-auto mt-10 max-w-lg rounded-2xl border border-amber-800/50 bg-amber-950/20 p-7 text-center">
+              <AlertTriangle className="mx-auto h-7 w-7 text-amber-400" />
+              <h1 className="mt-4 text-lg font-semibold">Access not available</h1>
+              <p className="mt-2 text-sm leading-6 text-neutral-400">{error || 'Your account does not currently have access to this organization or action.'}</p>
+              <button type="button" onClick={() => setViewMode('PORTFOLIO')} className="mt-5 inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2.5 text-sm font-semibold text-neutral-900 hover:bg-neutral-100">
+                <ArrowLeft className="h-4 w-4" />
+                Back to organizations
+              </button>
             </div>
           ) : error ? (
-            <div className="bg-red-950/30 border border-red-900/50 p-6 rounded-lg text-red-300 text-xs space-y-2">
-              <div className="flex items-center space-x-2 font-bold text-sm">
-                <AlertTriangle className="w-4 h-4 text-red-400" />
-                <span>Experience Resolution Error</span>
+            <div className="mx-auto mt-10 max-w-lg rounded-2xl border border-rose-900/60 bg-rose-950/20 p-7">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-rose-400" />
+                <div>
+                  <h1 className="font-semibold">Something went wrong</h1>
+                  <p className="mt-1 text-sm leading-6 text-neutral-400">{error}</p>
+                  <button type="button" onClick={() => resolveExperience(selectedDbkId, selectedBranchId)} className="mt-4 inline-flex items-center gap-2 rounded-lg bg-white px-3.5 py-2 text-sm font-semibold text-neutral-900 hover:bg-neutral-100">
+                    <RefreshCw className="h-4 w-4" />
+                    Try again
+                  </button>
+                </div>
               </div>
-              <p>{error}</p>
-              <button
-                onClick={() => resolveExperience(selectedDbkId, selectedBranchId, selectedRole)}
-                className="mt-2 px-3 py-1.5 bg-red-900/40 hover:bg-red-900/60 rounded font-semibold text-white cursor-pointer"
-              >
-                Retry Resolution
-              </button>
             </div>
           ) : experience ? (
             <div>
-              {/* Context Bar */}
-              <div className="flex items-center justify-between text-xs text-neutral-500 mb-4 pb-2 border-b border-neutral-900">
-                <div className="flex items-center space-x-2 font-mono">
-                  <span>{experience.displayName}</span>
-                  <span>/</span>
-                  <span className="text-neutral-400">{experience.activeBranch.name}</span>
-                  <span>/</span>
-                  <span className="text-indigo-400 font-semibold">
-                    {activeViewId === 'view_test_suite'
-                      ? 'Phase 5 Verification Suite'
-                      : currentNav?.label || activeViewId}
-                  </span>
+              <div className="mb-5 flex flex-col gap-3 border-b border-neutral-900 pb-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">{experience.activeBranch.name}</p>
+                  <h1 className="mt-1 truncate text-xl font-bold sm:text-2xl">{experience.displayName}</h1>
+                  {currentNav?.label && activeViewId !== 'nav_overview' && (
+                    <p className="mt-1 text-sm text-neutral-400">{currentNav.label}</p>
+                  )}
                 </div>
-
-                <div className="flex items-center space-x-2">
-                  <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                    <span>OPERATIONAL STATE: {experience.operationalState}</span>
-                  </span>
+                <div className="inline-flex w-fit items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-[10px] font-semibold text-emerald-300">
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  {experience.operationalState || 'Ready'}
                 </div>
               </div>
 
-              {/* View Router */}
               {activeViewId === 'view_doc_ai' ? (
                 <DocumentAiShellPanel tenantId={selectedDbkId} />
-              ) : activeViewId === 'view_phase6_suite' ? (
-                <Phase6TestSuitePanel />
-              ) : activeViewId === 'view_test_suite' ? (
-                <Phase5TestSuitePanel />
               ) : activeViewId === 'nav_overview' || activeViewId === 'dashboard' ? (
-                <DashboardView
-                  experience={experience}
-                  onNavigate={(capId) => setActiveViewId(capId)}
-                  onDispatchCommand={handleDispatchCommand}
-                />
+                <DashboardView experience={experience} onNavigate={(capabilityId) => setActiveViewId(capabilityId)} onDispatchCommand={handleDispatchCommand} />
               ) : activeViewId === 'nav_discovery' || activeViewId === 'discovery' ? (
                 <DiscoveryMarketplaceView
                   experience={experience}
                   onDispatchCommand={handleDispatchCommand}
-                  onRefreshExperience={() => resolveExperience(selectedDbkId, selectedBranchId, selectedRole)}
+                  onRefreshExperience={() => resolveExperience(selectedDbkId, selectedBranchId)}
                 />
               ) : activeViewId === 'nav_settings' || activeViewId === 'settings' ? (
                 <SettingsView experience={experience} onDispatchCommand={handleDispatchCommand} />
@@ -508,7 +423,7 @@ export const DbkShell: React.FC<DbkShellProps> = ({
                 <SmartClassroomView
                   tenantId={selectedDbkId}
                   userId={experience.currentPrincipal.userId}
-                  userName={user?.email || "bethuelthuram@gmail.com"}
+                  userName={user?.email || 'Organization user'}
                 />
               ) : currentNav?.viewType === 'OPERATIONAL_FLOW' ? (
                 <OperationalFlowView
@@ -524,7 +439,11 @@ export const DbkShell: React.FC<DbkShellProps> = ({
                 />
               )}
             </div>
-          ) : null}
+          ) : (
+            <div className="flex min-h-[50vh] items-center justify-center text-center text-sm text-neutral-500">
+              Select an organization to continue.
+            </div>
+          )}
         </main>
       </div>
     </div>
