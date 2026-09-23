@@ -5,6 +5,7 @@ import { BankBridge } from '../bridge/adapters/bankBridge';
 import { EmailBridge } from '../bridge/adapters/emailBridge';
 import { firestoreClient } from '../../persistence/firestore/firestoreClient';
 import { workflowStepExecutionRepository } from '../../persistence/firestore/repositories/workflowStepExecutionRepository';
+import { workflowEngine } from '../workflow/engine';
 
 describe('Gate 04 — external side-effect identity and mapping', () => {
   const tenantId = 'tenant_gate04_identity';
@@ -101,4 +102,55 @@ describe('Gate 04 — external side-effect identity and mapping', () => {
     expect(reclaimed?.providerReference).toBe('FT_GATE04_01');
     expect(reclaimed?.outcomeState).toBe('UNKNOWN_OUTCOME');
   });
+
+  it('binds before the provider call and prevents local success from clearing UNKNOWN', async () => {
+    const context = {
+      principal: { id: 'usr_gate04', tenantId, branchId: null, isMaster: false },
+      tenantContext: { tenantId },
+      branchContext: { branchId: null },
+      requestId: 'req_gate04_execution',
+      correlationId: 'corr_gate04_execution',
+    } as any;
+
+    workflowEngine.clearStoreForTesting();
+    workflowEngine.registerStepHandler('GATE04_UNKNOWN_SIDE_EFFECT', async (ctx) => {
+      const binding = await ctx.prepareExternalSideEffect({
+        operation: 'INITIATE_TRANSFER',
+        providerName: 'GENERIC_BANK',
+        providerIdempotencySupported: false,
+        providerReconciliationSupported: true,
+      });
+
+      expect(binding.providerOperationIdentity).toBe(
+        deriveProviderOperationIdentity(ctx.executionKey, 'INITIATE_TRANSFER')
+      );
+
+      await ctx.recordExternalSideEffectOutcome({
+        providerReference: 'FT_UNKNOWN_01',
+        outcomeState: 'UNKNOWN_OUTCOME',
+      });
+
+      // Deliberately return local success: Engine durability must still win.
+      return { success: true, output: { locallyCompleted: true } };
+    });
+
+    const workflow = workflowEngine.createWorkflow(
+      context,
+      'GATE04_UNKNOWN_TEST',
+      'v1.0',
+      [{ stepId: 'step_unknown', stepType: 'GATE04_UNKNOWN_SIDE_EFFECT' }]
+    );
+
+    const result = await workflowEngine.executeWorkflow(context, workflow.workflowId);
+    const execution = await workflowStepExecutionRepository.getExecution(
+      tenantId,
+      result.steps[0].executionKey!
+    );
+
+    expect(result.status).toBe('WAITING');
+    expect(result.steps[0].status).toBe('WAITING');
+    expect(execution?.outcomeState).toBe('UNKNOWN_OUTCOME');
+    expect(execution?.providerReference).toBe('FT_UNKNOWN_01');
+  });
+
 });
