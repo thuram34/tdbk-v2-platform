@@ -284,6 +284,22 @@ export interface WorkflowStepExecution {
   createdAt: string;
   updatedAt: string;
   completedAt: string | null;
+  providerOperationIdentity?: string | null;
+  providerName?: string | null;
+  providerReference?: string | null;
+  providerIdempotencySupported?: boolean;
+  providerReconciliationSupported?: boolean;
+  outcomeState?: 'REQUESTED' | 'PROVIDER_ACCEPTED' | 'PROVIDER_REJECTED' | 'UNKNOWN_OUTCOME' | 'RECONCILIATION_REQUIRED' | 'RECONCILED_SUCCESS' | 'RECONCILED_FAILURE' | null;
+}
+
+export interface WorkflowProviderOperationMapping {
+  operation: string;
+  providerOperationIdentity: string;
+  providerName: string;
+  providerReference?: string | null;
+  providerIdempotencySupported: boolean;
+  providerReconciliationSupported: boolean;
+  outcomeState?: WorkflowStepExecution['outcomeState'];
 }
 
 export interface IWorkflowStepExecutionRepository {
@@ -314,6 +330,7 @@ export interface IWorkflowStepExecutionRepository {
     error: string
   ): Promise<WorkflowStepExecution>;
   getExecution(tenantId: string, executionKey: string): Promise<WorkflowStepExecution | null>;
+  bindProviderOperation(tenantId: string, executionKey: string, workerId: string, mapping: WorkflowProviderOperationMapping): Promise<WorkflowStepExecution>;
 }
 
 export interface IWorkflowInstanceRepository {
