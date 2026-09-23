@@ -73,7 +73,9 @@ The authoritative Sokoni participant boundary is:
 It is owned by Sokoni and is not a DBK or Engine business master. Its public lifecycle currently supports `DRAFT | READY | ACTIVE`, with registration creating an `ACTIVE` public participant only after required public fields have been supplied and the persistence operation succeeds.
 
 The public participant projection contains:
-- participant kind
+- participant kind (compatibility/presentation classification)
+- extensible participation orientations
+- contextual orientation selections
 - public name
 - category
 - description
@@ -271,6 +273,8 @@ Production verification of the persisted participant registration and public dis
 - Participation-first registration commit: `884529ad4f5425017ee7c6c7c3db2bd7987f722a`.
 - Participant orientation presentation commit: `a3e7be995e30e90682e94912a4d18104222241cc`.
 - Participation configuration test commit: `8ffc57e0e0a5e17d5df8402ac0460a0eba2a229d`.
+- Orientation context cleanup commit: `86617a0ef36067f00fb8dd02ac5011230caa2560`.
+- Final import/type cleanup commits: `97afaedf9adf25a82c8970df7f06eb7c7c60168b2`, `46d865e6a05186f3be1df31b61dc879b89aaedb2`.
 - Previous Sokoni verification state: `9651b402c270e44c40a6af97d5b77e32cba659c2`.
 - Previous paid business presence documentation: `ae5b5f00cb6621efa98c32182f85c76ff6d06165`.
 - Commercial configuration commit: `0c1ed49454c073e3ee8ebd0954d963da77a05c26`.
