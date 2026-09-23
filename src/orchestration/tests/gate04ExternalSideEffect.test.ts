@@ -3,6 +3,7 @@ import { deriveProviderOperationIdentity } from '../bridge/providerOperationIden
 import { MpesaBridge } from '../bridge/adapters/mpesaBridge';
 import { BankBridge } from '../bridge/adapters/bankBridge';
 import { EmailBridge } from '../bridge/adapters/emailBridge';
+import { bridgeRegistry } from '../bridge/registry';
 import { firestoreClient } from '../../persistence/firestore/firestoreClient';
 import { workflowStepExecutionRepository } from '../../persistence/firestore/repositories/workflowStepExecutionRepository';
 import { workflowEngine } from '../workflow/engine';
@@ -29,21 +30,30 @@ describe('Gate 04 — external side-effect identity and mapping', () => {
     expect(identity).toBe(deriveProviderOperationIdentity('exec_stable', 'INITIATE_TRANSFER'));
   });
 
-  it('declares provider side-effect capabilities explicitly', () => {
-    expect(new MpesaBridge().sideEffectCapabilities).toEqual({
+  it('declares provider side-effect capabilities consistently at adapter and registry boundaries', () => {
+    const mpesa = new MpesaBridge();
+    const bank = new BankBridge();
+    const email = new EmailBridge();
+
+    expect(mpesa.sideEffectCapabilities).toEqual({
       providerIdempotency: false,
       providerReconciliation: true,
     });
-    expect(new BankBridge().sideEffectCapabilities.providerReconciliation).toBe(true);
-    expect(new EmailBridge().sideEffectCapabilities).toEqual({
+    expect(bank.sideEffectCapabilities).toEqual({
+      providerIdempotency: false,
+      providerReconciliation: false,
+    });
+    expect(email.sideEffectCapabilities).toEqual({
       providerIdempotency: false,
       providerReconciliation: false,
     });
 
-    const mpesaDefinition = (await import('../bridge/registry')).bridgeRegistry.getBridgeDefinition('bridge_mpesa');
-    expect(mpesaDefinition?.sideEffectCapabilities).toEqual(
-      new MpesaBridge().sideEffectCapabilities
-    );
+    expect(bridgeRegistry.getBridgeDefinition('bridge_mpesa')?.sideEffectCapabilities)
+      .toEqual(mpesa.sideEffectCapabilities);
+    expect(bridgeRegistry.getBridgeDefinition('bridge_bank')?.sideEffectCapabilities)
+      .toEqual(bank.sideEffectCapabilities);
+    expect(bridgeRegistry.getBridgeDefinition('bridge_email')?.sideEffectCapabilities)
+      .toEqual(email.sideEffectCapabilities);
   });
 
   it('durably associates provider operation and reference with the canonical execution', async () => {
@@ -92,7 +102,7 @@ describe('Gate 04 — external side-effect identity and mapping', () => {
         providerName: 'GENERIC_BANK',
         providerReference: 'FT_GATE04_01',
         providerIdempotencySupported: false,
-        providerReconciliationSupported: true,
+        providerReconciliationSupported: false,
         outcomeState: 'UNKNOWN_OUTCOME',
       }
     );
@@ -123,7 +133,7 @@ describe('Gate 04 — external side-effect identity and mapping', () => {
         operation: 'INITIATE_TRANSFER',
         providerName: 'GENERIC_BANK',
         providerIdempotencySupported: false,
-        providerReconciliationSupported: true,
+        providerReconciliationSupported: false,
       });
 
       expect(binding.providerOperationIdentity).toBe(
@@ -135,7 +145,6 @@ describe('Gate 04 — external side-effect identity and mapping', () => {
         outcomeState: 'UNKNOWN_OUTCOME',
       });
 
-      // Deliberately return local success: Engine durability must still win.
       return { success: true, output: { locallyCompleted: true } };
     });
 
@@ -157,5 +166,4 @@ describe('Gate 04 — external side-effect identity and mapping', () => {
     expect(execution?.outcomeState).toBe('UNKNOWN_OUTCOME');
     expect(execution?.providerReference).toBe('FT_UNKNOWN_01');
   });
-
 });
