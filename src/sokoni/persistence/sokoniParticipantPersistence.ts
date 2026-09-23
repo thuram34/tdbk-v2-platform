@@ -1,4 +1,4 @@
-import { addDoc, collection, doc, getDoc, getDocs, limit, query, where } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, limit, query, setDoc, where } from 'firebase/firestore';
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import { signInAnonymously } from 'firebase/auth';
 import { auth, db, storage } from '../../client/firebase';
@@ -115,28 +115,22 @@ async function uploadParticipantMedia(participantId: string, files: File[]): Pro
   if (!storage) throw new Error('Sokoni media storage is not configured.');
 
   const media: SokoniMediaRef[] = [];
-  try {
-    for (const file of files) {
-      const mediaId = crypto.randomUUID();
-      const extension = file.name.includes('.') ? file.name.split('.').pop()?.toLowerCase() || 'bin' : 'bin';
-      const storagePath = `sokoni/participants/${participantId}/${mediaId}.${extension}`;
-      const storageRef = ref(storage, storagePath);
-      await uploadBytes(storageRef, file, { contentType: file.type });
-      const url = await getDownloadURL(storageRef);
-      media.push({
-        mediaId,
-        url,
-        storagePath,
-        mimeType: file.type,
-        createdAt: new Date().toISOString(),
-      });
-    }
-    return media;
-  } catch (error) {
-    // Storage cleanup is intentionally best-effort. The participant document is
-    // not written unless every selected file upload has completed successfully.
-    throw error;
+  for (const file of files) {
+    const mediaId = crypto.randomUUID();
+    const extension = file.name.includes('.') ? file.name.split('.').pop()?.toLowerCase() || 'bin' : 'bin';
+    const storagePath = `sokoni/participants/${participantId}/${mediaId}.${extension}`;
+    const storageRef = ref(storage, storagePath);
+    await uploadBytes(storageRef, file, { contentType: file.type });
+    const url = await getDownloadURL(storageRef);
+    media.push({
+      mediaId,
+      url,
+      storagePath,
+      mimeType: file.type,
+      createdAt: new Date().toISOString(),
+    });
   }
+  return media;
 }
 
 export async function saveSokoniParticipant(input: SokoniParticipantRegistrationInput): Promise<SokoniParticipant> {
@@ -188,7 +182,7 @@ export async function saveSokoniParticipant(input: SokoniParticipantRegistration
     updatedAt: now,
   };
 
-  await addDoc(collection(db, COLLECTION), { ...record, ownerUid });
+  await setDoc(participantRef, { ...record, ownerUid });
   return record;
 }
 
