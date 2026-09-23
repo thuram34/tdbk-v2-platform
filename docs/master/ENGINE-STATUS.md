@@ -4,16 +4,16 @@
 2026-09-23
 
 ## Current Phase
-Production Hardening — Gate 04 Implementation Slice 1: Provider Capability + Durable Operation Mapping
+Production Hardening — Gate 04 Implementation Slice 2: Safe Side-Effect Execution & UNKNOWN Recovery
 
 ## Current Objective
 Establish the authoritative Engine contract for external side effects across worker crash, lease expiry, transport ambiguity, provider callbacks, and reconciliation without introducing a second authority or claiming universal exactly-once execution.
 
 ## Task Performed
-Implemented only Gate 04 Slice 1: explicit provider side-effect capability declaration and durable Engine execution → provider-operation mapping. The broader Gate 04 contract remains incomplete.
+Implemented Gate 04 Slice 2 only: the existing durable provider-operation mapping is now wired into the Engine workflow side-effect boundary, with pre-side-effect binding, durable outcome recording, and conservative UNKNOWN recovery. The broader Gate 04 contract remains incomplete.
 
 ## Gate 04 Decision
-**DECIDED — IMPLEMENTATION NOT STARTED.**
+**DECIDED — IMPLEMENTATION AUTHORIZED.**
 
 The Engine execution identity remains the existing durable `WorkflowStepExecution.executionKey`. The existing durable request-binding contract (`IdempotencyRecord.idempotencyKey` + `requestHash`) remains authoritative for the logical request and is not redesigned.
 
@@ -62,15 +62,18 @@ A connector supporting neither is not eligible for automatic replay of a non-ide
 - Financial persistence already has `providerReference` and `RECONCILIATION_REQUIRED`, and confirmed reconciliation is routed through the ledger rather than status-only mutation.
 
 ## Implementation Status
-**SLICE 1 COMPLETE — GATE 04 NOT COMPLETE.**
+**SLICE 2 COMPLETE — GATE 04 NOT COMPLETE.**
 
 Implemented:
 - deterministic provider-operation identity derived from `executionKey + connector operation` using SHA-256;
 - explicit bridge capability declaration for provider-side idempotency and provider reconciliation;
 - durable provider-operation mapping fields on the existing `WorkflowStepExecution` authority;
+- persisted canonical provider operation name plus provider/reference metadata;
 - worker-owned transactional binding of provider operation/reference metadata;
-- preservation of the mapping when an expired execution is reclaimed under the same canonical execution key;
-- focused regression coverage for identity determinism, capability declaration, durable association, and reclaim preservation.
+- workflow handlers can durably prepare a side effect before the external call and record the provider outcome against the same execution identity;
+- recovery refuses blind replay of `UNKNOWN_OUTCOME` / `RECONCILIATION_REQUIRED` operations when provider idempotency is not supported;
+- a handler's local success result cannot promote a durable UNKNOWN/reconciliation-required outcome to completed Engine truth;
+- focused regression coverage for identity determinism, capability declaration, durable association, reclaim preservation, and UNKNOWN execution safety.
 
 No second idempotency store was introduced. Existing requestHash/idempotency and workflow lease contracts were preserved.
 
@@ -101,7 +104,7 @@ No unverified PASS is claimed.
 - Duplicate state outside Engine: **NOT INTRODUCED**
 
 ## Remaining Gate 04 Work
-Not complete. Remaining work includes wiring the mapping into side-effect execution/recovery paths, enforcing UNKNOWN/non-idempotent retry safety, provider-specific idempotency propagation where actually supported, reconciliation handling, audit transition semantics, and financial safety enforcement across ambiguous outcomes.
+Not complete. Remaining work includes provider-specific idempotency propagation where actually supported, authoritative provider reconciliation handling, audit transition semantics, and financial safety enforcement across ambiguous outcomes. Connector declarations must also remain consistent with executable bridge behavior.
 
 ## Next Single Engine Task
-Wire the existing durable provider-operation mapping into one Engine side-effect execution/recovery path, including UNKNOWN handling, without redesigning request idempotency or workflow leases.
+Normalize and verify provider side-effect capability declarations at the authoritative bridge registry/adapter boundary. Do not implement provider APIs, redesign connector configuration, or expand into DBK/Sokoni.
