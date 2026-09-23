@@ -34,7 +34,12 @@ class BridgeRegistryService {
         configurationRequirements: ['MPESA_CONSUMER_KEY', 'MPESA_CONSUMER_SECRET', 'MPESA_PASSKEY', 'MPESA_SHORTCODE'],
         healthStatus: 'UNAVAILABLE',
         registeredAt: new Date().toISOString(),
-        sideEffectCapabilities: { providerIdempotency: false, providerReconciliation: true },
+        sideEffectCapabilities: {
+          providerIdempotency: false,
+          providerReconciliation: true,
+          automaticUnknownReplay: false,
+          providerOperationIdentityRequired: true,
+        },
       },
       {
         bridgeId: 'bridge_etims',
@@ -46,7 +51,12 @@ class BridgeRegistryService {
         configurationRequirements: ['ETIMS_PIN', 'ETIMS_DEVICE_SERIAL', 'ETIMS_BRANCH_CODE'],
         healthStatus: 'UNAVAILABLE',
         registeredAt: new Date().toISOString(),
-        sideEffectCapabilities: { providerIdempotency: false, providerReconciliation: false },
+        sideEffectCapabilities: {
+          providerIdempotency: false,
+          providerReconciliation: false,
+          automaticUnknownReplay: false,
+          providerOperationIdentityRequired: true,
+        },
       },
       {
         bridgeId: 'bridge_whatsapp',
@@ -58,7 +68,12 @@ class BridgeRegistryService {
         configurationRequirements: ['WHATSAPP_PHONE_NUMBER_ID', 'WHATSAPP_ACCESS_TOKEN'],
         healthStatus: 'UNAVAILABLE',
         registeredAt: new Date().toISOString(),
-        sideEffectCapabilities: { providerIdempotency: false, providerReconciliation: false },
+        sideEffectCapabilities: {
+          providerIdempotency: false,
+          providerReconciliation: false,
+          automaticUnknownReplay: false,
+          providerOperationIdentityRequired: true,
+        },
       },
       {
         bridgeId: 'bridge_email',
@@ -70,7 +85,12 @@ class BridgeRegistryService {
         configurationRequirements: ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASSWORD'],
         healthStatus: 'UNAVAILABLE',
         registeredAt: new Date().toISOString(),
-        sideEffectCapabilities: { providerIdempotency: false, providerReconciliation: false },
+        sideEffectCapabilities: {
+          providerIdempotency: false,
+          providerReconciliation: false,
+          automaticUnknownReplay: false,
+          providerOperationIdentityRequired: true,
+        },
       },
       {
         bridgeId: 'bridge_sms',
@@ -82,7 +102,12 @@ class BridgeRegistryService {
         configurationRequirements: ['SMS_API_KEY', 'SMS_USERNAME', 'SMS_SENDER_ID'],
         healthStatus: 'UNAVAILABLE',
         registeredAt: new Date().toISOString(),
-        sideEffectCapabilities: { providerIdempotency: false, providerReconciliation: false },
+        sideEffectCapabilities: {
+          providerIdempotency: false,
+          providerReconciliation: false,
+          automaticUnknownReplay: false,
+          providerOperationIdentityRequired: true,
+        },
       },
       {
         bridgeId: 'bridge_bank',
@@ -94,7 +119,12 @@ class BridgeRegistryService {
         configurationRequirements: ['BANK_API_KEY', 'BANK_CLIENT_ID', 'BANK_ACCOUNT_NO'],
         healthStatus: 'UNAVAILABLE',
         registeredAt: new Date().toISOString(),
-        sideEffectCapabilities: { providerIdempotency: false, providerReconciliation: false },
+        sideEffectCapabilities: {
+          providerIdempotency: false,
+          providerReconciliation: false,
+          automaticUnknownReplay: false,
+          providerOperationIdentityRequired: true,
+        },
       },
     ];
 
