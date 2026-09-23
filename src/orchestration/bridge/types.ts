@@ -24,8 +24,14 @@ export type NormalizedBridgeResultStatus =
   | 'REQUIRES_RECONCILIATION';
 
 export interface BridgeSideEffectCapabilities {
+  /** Provider accepts a caller-controlled stable key and guarantees deduplication for it. */
   providerIdempotency: boolean;
+  /** Provider exposes authoritative state recovery after an ambiguous outcome. */
   providerReconciliation: boolean;
+  /** True only where provider-side idempotency makes automatic UNKNOWN replay safe. */
+  automaticUnknownReplay?: boolean;
+  /** True for side-effecting operations whose recovery identity must remain the Engine execution-derived identity. */
+  providerOperationIdentityRequired?: boolean;
 }
 
 export interface NormalizedBridgeResult<T = unknown> {
