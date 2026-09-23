@@ -214,14 +214,14 @@ export function BusinessDiscovery({ onProvisioned }: BusinessDiscoveryProps) {
       <div className="max-w-5xl mx-auto">
         <div className="mb-8 flex items-start justify-between gap-4">
           <div>
-            <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-emerald-700">TDBK Business Discovery</div>
-            <h1 className="mt-2 text-3xl sm:text-4xl font-serif font-bold tracking-tight">Let TDBK understand your business.</h1>
-            <p className="mt-2 text-sm text-neutral-600 max-w-2xl">Tell us what you operate. TDBK resolves the business blueprint and capabilities before provisioning your Digital Business.</p>
+            <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-emerald-700">Set up your DBK</div>
+            <h1 className="mt-2 text-3xl sm:text-4xl font-serif font-bold tracking-tight">Tell us about your business.</h1>
+            <p className="mt-2 text-sm text-neutral-600 max-w-2xl">Start with the essentials. DBK will prepare a business space around how you operate. You can add more capabilities later.</p>
           </div>
           <div className="hidden sm:flex items-center gap-2 text-xs font-mono text-neutral-500">
-            <span className={step === 'DISCOVER' ? 'text-emerald-700 font-bold' : ''}>01 DISCOVER</span><ArrowRight className="w-3.5 h-3.5" />
-            <span className={step === 'CAPABILITIES' ? 'text-emerald-700 font-bold' : ''}>02 COMPOSE</span><ArrowRight className="w-3.5 h-3.5" />
-            <span className={step === 'REVIEW' ? 'text-emerald-700 font-bold' : ''}>03 REVIEW</span>
+            <span className={step === 'DISCOVER' ? 'text-emerald-700 font-bold' : ''}>01 BUSINESS</span><ArrowRight className="w-3.5 h-3.5" />
+            <span className={step === 'CAPABILITIES' ? 'text-emerald-700 font-bold' : ''}>02 STARTING TOOLS</span><ArrowRight className="w-3.5 h-3.5" />
+            <span className={step === 'REVIEW' ? 'text-emerald-700 font-bold' : ''}>03 READY</span>
           </div>
         </div>
 
@@ -246,7 +246,7 @@ export function BusinessDiscovery({ onProvisioned }: BusinessDiscoveryProps) {
             </section>
 
             <section>
-              <div className="mb-3"><div className="text-xs font-bold uppercase tracking-wider text-neutral-500">Business type</div><h2 className="text-xl font-bold mt-1">Choose the closest operating model</h2></div>
+              <div className="mb-3"><div className="text-xs font-bold uppercase tracking-wider text-neutral-500">Your business</div><h2 className="text-xl font-bold mt-1">What kind of business do you run?</h2></div>
               <div className="grid md:grid-cols-2 gap-3">
                 {blueprints.map((blueprint) => (
                   <button key={blueprint.id} onClick={() => chooseBlueprint(blueprint)} className={`text-left rounded-2xl border p-5 transition ${selectedBlueprintId === blueprint.id ? 'border-neutral-950 bg-neutral-950 text-white shadow-lg' : 'border-neutral-200 bg-white hover:border-neutral-400'}`}>
@@ -265,7 +265,7 @@ export function BusinessDiscovery({ onProvisioned }: BusinessDiscoveryProps) {
           <div className="space-y-6">
             <section className="rounded-2xl border border-neutral-200 bg-white p-5 sm:p-7 shadow-sm">
               <div className="flex items-center gap-3"><Store className="w-5 h-5" /><div><div className="text-xs uppercase tracking-wider text-neutral-500">Engine-resolved blueprint</div><h2 className="text-xl font-bold">{selectedBlueprint.name}</h2></div></div>
-              <p className="mt-3 text-sm text-neutral-600">These capabilities come from the selected TDBK blueprint. Included capabilities are fixed by the Engine for this blueprint; optional capabilities are your setup requests and are sent to the existing Engine activation contract only after provisioning.</p>
+              <p className="mt-3 text-sm text-neutral-600">Here are the starting tools available for this business. Included tools are part of the business model. Optional tools are requests you can add now — and you can add more later.</p>
             </section>
             <div className="grid md:grid-cols-2 gap-3">
               {(selectedBlueprint.supportedCapabilities || []).map((capability) => {
@@ -282,12 +282,12 @@ export function BusinessDiscovery({ onProvisioned }: BusinessDiscoveryProps) {
             <section className="rounded-2xl border border-neutral-200 bg-white p-6 sm:p-8 shadow-sm">
               <div className="flex items-center gap-2 text-emerald-700 text-xs font-bold uppercase tracking-wider"><Sparkles className="w-4 h-4" /> This is what TDBK understands</div>
               <h2 className="mt-3 text-2xl font-serif font-bold">{businessName}</h2>
-              <div className="mt-5 grid md:grid-cols-3 gap-4 text-sm"><div className="rounded-xl bg-neutral-50 p-4"><div className="text-[10px] uppercase text-neutral-500">Operating model</div><div className="font-semibold mt-1">{selectedBlueprint.name}</div></div><div className="rounded-xl bg-neutral-50 p-4"><div className="text-[10px] uppercase text-neutral-500">Primary location</div><div className="font-semibold mt-1">{branchName || 'Head Office'}</div></div><div className="rounded-xl bg-neutral-50 p-4"><div className="text-[10px] uppercase text-neutral-500">Subscription</div><div className="font-semibold mt-1">Foundation</div></div></div>
+              <div className="mt-5 grid md:grid-cols-2 gap-4 text-sm"><div className="rounded-xl bg-neutral-50 p-4"><div className="text-[10px] uppercase text-neutral-500">Business type</div><div className="font-semibold mt-1">{selectedBlueprint.name}</div></div><div className="rounded-xl bg-neutral-50 p-4"><div className="text-[10px] uppercase text-neutral-500">Primary location</div><div className="font-semibold mt-1">{branchName || 'Head Office'}</div></div></div>
               {narrative && <p className="mt-5 text-sm text-neutral-600 leading-relaxed">{narrative}</p>}
-              <div className="mt-6"><div className="text-xs font-bold uppercase tracking-wider text-neutral-500 mb-3">Capability setup</div><div className="flex flex-wrap gap-2">{selectedCapabilities.map((id) => <span key={id} className="inline-flex items-center gap-1.5 rounded-full bg-neutral-100 px-3 py-1.5 text-xs"><WalletCards className="w-3.5 h-3.5" />{selectedBlueprint.supportedCapabilities?.find((capability) => capability.id === id)?.name || id}</span>)}</div><p className="mt-3 text-xs text-neutral-500">Included capabilities come from the Engine blueprint. Other items shown here are requests for activation, not granted access.</p></div>
+              <div className="mt-6"><div className="text-xs font-bold uppercase tracking-wider text-neutral-500 mb-3">Starting tools</div><div className="flex flex-wrap gap-2">{selectedCapabilities.map((id) => <span key={id} className="inline-flex items-center gap-1.5 rounded-full bg-neutral-100 px-3 py-1.5 text-xs"><WalletCards className="w-3.5 h-3.5" />{selectedBlueprint.supportedCapabilities?.find((capability) => capability.id === id)?.name || id}</span>)}</div><p className="mt-3 text-xs text-neutral-500">Included tools are part of your starting business setup. Optional tools are requests for activation and are not granted until the Engine confirms them.</p></div>
             </section>
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Your Firebase identity will be linked to the business owner identity, then TDBK's existing provisioning engine will create the DBK, branch topology, capabilities and workspace.</div>
-            <div className="flex justify-between"><button disabled={provisioning} onClick={() => setStep('CAPABILITIES')} className="inline-flex items-center gap-2 rounded-xl border border-neutral-200 bg-white px-4 py-3 text-sm font-semibold"><ChevronLeft className="w-4 h-4" /> Back</button><button disabled={provisioning} onClick={handleProvision} className="inline-flex items-center gap-2 rounded-xl bg-emerald-700 px-5 py-3 text-sm font-bold text-white disabled:opacity-50">{provisioning ? <><Loader2 className="w-4 h-4 animate-spin" /> Provisioning Digital Business…</> : <>Provision Digital Business <ArrowRight className="w-4 h-4" /></>}</button></div>
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Your account will be connected to the business, then TDBK will prepare your DBK workspace with the selected starting tools.</div>
+            <div className="flex justify-between"><button disabled={provisioning} onClick={() => setStep('CAPABILITIES')} className="inline-flex items-center gap-2 rounded-xl border border-neutral-200 bg-white px-4 py-3 text-sm font-semibold"><ChevronLeft className="w-4 h-4" /> Back</button><button disabled={provisioning} onClick={handleProvision} className="inline-flex items-center gap-2 rounded-xl bg-emerald-700 px-5 py-3 text-sm font-bold text-white disabled:opacity-50">{provisioning ? <><Loader2 className="w-4 h-4 animate-spin" /> Setting up your DBK…</> : <>Create my DBK <ArrowRight className="w-4 h-4" /></>}</button></div>
           </div>
         )}
       </div>
