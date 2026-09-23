@@ -23,6 +23,7 @@ export class EtimsBridge implements Bridge<EtimsInvoiceRequest, any, any> {
   public readonly provider = 'KRA_ETIMS';
   public readonly capabilityId = 'etims_bridge';
   public readonly version = 'v1.0';
+  public readonly sideEffectCapabilities = { providerIdempotency: false, providerReconciliation: false };
 
   public async health(_context: SecurityContext): Promise<{ status: BridgeHealthStatus; details?: Record<string, unknown> }> {
     const tenantId = _context.tenantContext?.tenantId || _context.principal.tenantId;
