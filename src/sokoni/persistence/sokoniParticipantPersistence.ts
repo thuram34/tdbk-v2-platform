@@ -87,11 +87,9 @@ const COLLECTION = 'sokoniParticipants';
 const MAX_PHOTOS = 8;
 const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
 
-async function ensureSokoniWriteIdentity(): Promise<string> {
+async function ensureSokoniWriteIdentity(): Promise<void> {
   if (!auth) throw new Error('Sokoni registration requires Firebase Authentication configuration.');
-  if (auth.currentUser) return auth.currentUser.uid;
-  const credential = await signInAnonymously(auth);
-  return credential.user.uid;
+  if (!auth.currentUser) await signInAnonymously(auth);
 }
 
 function validateInput(input: SokoniParticipantRegistrationInput): void {
@@ -137,7 +135,7 @@ export async function saveSokoniParticipant(input: SokoniParticipantRegistration
   validateInput(input);
   if (!db) throw new Error('Sokoni persistence is not configured.');
 
-  const ownerUid = await ensureSokoniWriteIdentity();
+  await ensureSokoniWriteIdentity();
   const participantRef = doc(collection(db, COLLECTION));
   const participantId = participantRef.id;
   const media = await uploadParticipantMedia(participantId, input.photos);
@@ -182,7 +180,7 @@ export async function saveSokoniParticipant(input: SokoniParticipantRegistration
     updatedAt: now,
   };
 
-  await setDoc(participantRef, { ...record, ownerUid });
+  await setDoc(participantRef, record);
   return record;
 }
 
