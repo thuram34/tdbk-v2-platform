@@ -472,6 +472,7 @@ class WorkflowEngineService {
         const stepLeaseDurationMs = 300000;
         const stepLeaseHeartbeatMs = 60000;
         let stepLeaseLost = false;
+        let preparedSideEffectOperation: string | null = null;
         const stepLeaseHeartbeat = setInterval(() => {
           void workflowStepExecutionRepository
             .renewExecution(workflow.tenantId, step.executionKey!, workerId, stepLeaseDurationMs)
@@ -482,6 +483,7 @@ class WorkflowEngineService {
           const prepareExternalSideEffect = async (
             preparation: ExternalSideEffectPreparation
           ): Promise<ExternalSideEffectBinding> => {
+            preparedSideEffectOperation = preparation.operation;
             const current = await workflowStepExecutionRepository.getExecution(
               workflow.tenantId,
               step.executionKey!
@@ -599,7 +601,7 @@ class WorkflowEngineService {
               step.executionKey!,
               workerId,
               {
-                operation: 'RECORDED',
+                operation: preparedSideEffectOperation || 'UNKNOWN_OPERATION',
                 providerOperationIdentity: current.providerOperationIdentity,
                 providerName: current.providerName,
                 providerReference: outcome.providerReference,
@@ -609,7 +611,7 @@ class WorkflowEngineService {
               }
             );
             return {
-              operation: 'RECORDED',
+              operation: preparedSideEffectOperation || 'UNKNOWN_OPERATION',
               providerOperationIdentity: updated.providerOperationIdentity!,
               providerName: updated.providerName!,
               providerReference: updated.providerReference || null,
