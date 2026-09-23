@@ -97,7 +97,7 @@ const SHOWCASE_DATA: WorkspaceShowcaseItem[] = [
       { label: 'Customers', value: '412', change: 'Served today', isPositive: true, icon: Users },
       { label: 'Orders', value: '188', change: 'Completed at till', isPositive: true, icon: ShoppingBag },
     ],
-    navItems: ['Dashboard', 'Sales', 'Products', 'Customers', 'Orders'],
+    navItems: ['POS', 'M-Pesa', 'eTIMS', 'Inventory', 'Customers', 'Reports'],
     activityTitle: 'Recent sales',
     activities: [
       { title: 'Till #02 • Lipa Na M-Pesa transaction confirmed', detail: 'Trans ID: QK88102A • KSh 3,450', time: '3m ago', status: 'COMPLETED' },
@@ -111,14 +111,14 @@ const SHOWCASE_DATA: WorkspaceShowcaseItem[] = [
     sector: 'COMMERCE',
     businessName: 'Mombasa Hardware',
     workspaceType: 'Business Workspace',
-    badge: 'Heavy Wholesale & Trade',
+    badge: 'POS + Payments + Inventory',
     metrics: [
       { label: "Today's Sales", value: 'KSh 542,000', change: '+12% weekly pace', isPositive: true, icon: TrendingUp },
       { label: 'Stock Items', value: '8,950', change: 'Across 3 depots', isPositive: true, icon: Package },
       { label: 'Customers', value: '230', change: 'Wholesale & walk-in', isPositive: true, icon: Users },
       { label: 'Suppliers', value: '48', change: 'Active contracts', isPositive: true, icon: Wrench },
     ],
-    navItems: ['Dashboard', 'Sales', 'Inventory', 'Customers', 'Suppliers'],
+    navItems: ['POS', 'M-Pesa', 'eTIMS', 'Inventory', 'Customers', 'Reports'],
     activityTitle: 'Recent sales',
     activities: [
       { title: 'Wholesale order invoiced to Bamburi Contractors', detail: '500 Bags Simba Cement • KSh 380,000', time: '8m ago', status: 'COMPLETED' },
@@ -486,7 +486,7 @@ export function PublicGateway({ onSelectSector, onSignIn, onLaunchWorkspace }: P
                   sector: 'RETAIL' as BusinessSector,
                   title: 'Retail & Shops',
                   icon: ShoppingBag,
-                  desc: 'Fast barcode till checkouts, stock alerts, real-time sales summaries, and repeat buyer insights.',
+                  desc: 'Fast checkout, stock control, customer records, real-time sales summaries, and repeat buyer insights.',
                   highlight: 'Multi-Till POS',
                 },
                 {
@@ -574,8 +574,8 @@ export function PublicGateway({ onSelectSector, onSignIn, onLaunchWorkspace }: P
               Your business, in one connected space.
             </h2>
             <p className="text-base sm:text-lg text-neutral-600 leading-relaxed max-w-2xl mx-auto">
-              Every DBK workspace is shaped around the way your business works — with the tools, information and
-              services you need in one place.
+              Every DBK workspace is shaped around the way your business works — with the core tools, information,
+              payments and operations you need in one place. Optional hardware and integrations can be added when useful.
             </p>
             <p className="mt-3 text-[11px] font-mono uppercase tracking-wide text-neutral-400">
               Illustrative workspace references — not live organization data
