@@ -510,11 +510,12 @@ class WorkflowEngineService {
                 );
               }
               if (
-                current.providerName !== preparation.providerName
+                current.providerName !== preparation.providerName ||
+                (current.providerOperation && current.providerOperation !== preparation.operation)
               ) {
                 throw new KernelError(
                   'CONFLICT',
-                  'External side-effect provider changed for the canonical execution identity.',
+                  'External side-effect operation or provider changed for the canonical execution identity.',
                   409,
                   context.requestId
                 );
@@ -532,11 +533,12 @@ class WorkflowEngineService {
 
             if (current.providerOperationIdentity) {
               if (
-                current.providerName !== preparation.providerName
+                current.providerName !== preparation.providerName ||
+                (current.providerOperation && current.providerOperation !== preparation.operation)
               ) {
                 throw new KernelError(
                   'CONFLICT',
-                  'External side-effect provider changed for the canonical execution identity.',
+                  'External side-effect operation or provider changed for the canonical execution identity.',
                   409,
                   context.requestId
                 );
@@ -601,7 +603,7 @@ class WorkflowEngineService {
               step.executionKey!,
               workerId,
               {
-                operation: preparedSideEffectOperation || 'UNKNOWN_OPERATION',
+                operation: current.providerOperation || preparedSideEffectOperation || 'UNKNOWN_OPERATION',
                 providerOperationIdentity: current.providerOperationIdentity,
                 providerName: current.providerName,
                 providerReference: outcome.providerReference,
@@ -611,7 +613,7 @@ class WorkflowEngineService {
               }
             );
             return {
-              operation: preparedSideEffectOperation || 'UNKNOWN_OPERATION',
+              operation: updated.providerOperation || preparedSideEffectOperation || 'UNKNOWN_OPERATION',
               providerOperationIdentity: updated.providerOperationIdentity!,
               providerName: updated.providerName!,
               providerReference: updated.providerReference || null,
