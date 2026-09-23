@@ -26,7 +26,7 @@ class BridgeRegistryService {
         supportedOperations: ['STK_PUSH', 'C2B_SIMULATION', 'QUERY_TRANSACTION', 'RECONCILE'], status: 'MOCK',
         configurationRequirements: ['MPESA_CONSUMER_KEY', 'MPESA_CONSUMER_SECRET', 'MPESA_PASSKEY', 'MPESA_SHORTCODE'],
         healthStatus: 'UNAVAILABLE', registeredAt: new Date().toISOString(),
-        sideEffectCapabilities: { providerIdempotency: false, providerReconciliation: false },
+        sideEffectCapabilities: { providerIdempotency: false, providerReconciliation: true },
       },
       {
         bridgeId: 'bridge_etims', provider: 'KRA_ETIMS', bridgeVersion: 'v1.0', capabilityId: 'etims_bridge',
