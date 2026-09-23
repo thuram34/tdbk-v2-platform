@@ -7,7 +7,6 @@ import {
   SOKONI_SEEK_WORK_OPTIONS,
   SOKONI_SERVICE_OPTIONS,
   SOKONI_TRANSPORT_OPTIONS,
-  
 } from './sokoniParticipationConfig';
 import type { SokoniOrientationCode, SokoniOrientationContext } from './sokoniParticipationConfig';
 import { saveSokoniParticipant } from './persistence/sokoniParticipantPersistence';
