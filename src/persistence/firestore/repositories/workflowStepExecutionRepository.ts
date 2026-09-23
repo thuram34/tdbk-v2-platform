@@ -6,7 +6,7 @@
  * A restart must rediscover this record rather than infer execution state from
  * the process-local workflow cache.
  */
-import { IWorkflowStepExecutionRepository, WorkflowStepExecution } from '../../types';
+import { IWorkflowStepExecutionRepository, WorkflowProviderOperationMapping, WorkflowStepExecution } from '../../types';
 import { firestoreClient } from '../firestoreClient';
 import { KernelError } from '../../../kernel/errors/kernelErrors';
 
@@ -134,6 +134,35 @@ export class WorkflowStepExecutionRepository implements IWorkflowStepExecutionRe
       const failed = { ...current, status: 'FAILED' as const, error, workerId: null, leaseUntil: null, updatedAt: now, completedAt: now };
       await tx.set(path, failed as unknown as Record<string, unknown>);
       return failed;
+    });
+  }
+
+  public async bindProviderOperation(
+    tenantId: string,
+    executionKey: string,
+    workerId: string,
+    mapping: WorkflowProviderOperationMapping
+  ): Promise<WorkflowStepExecution> {
+    const path = this.getPath(tenantId, executionKey);
+    return await firestoreClient.runTransaction(async (tx) => {
+      const current = await tx.get<WorkflowStepExecution>(path);
+      if (!current) throw new KernelError('NOT_FOUND', `Workflow step execution '${executionKey}' not found`, 404);
+      if (current.status !== 'EXECUTING' || current.workerId !== workerId) {
+        throw new KernelError('CONFLICT', `Workflow step execution '${executionKey}' is no longer owned by '${workerId}'`, 409);
+      }
+      const now = new Date().toISOString();
+      const updated: WorkflowStepExecution = {
+        ...current,
+        providerOperationIdentity: mapping.providerOperationIdentity,
+        providerName: mapping.providerName,
+        providerReference: mapping.providerReference ?? current.providerReference ?? null,
+        providerIdempotencySupported: mapping.providerIdempotencySupported,
+        providerReconciliationSupported: mapping.providerReconciliationSupported,
+        outcomeState: mapping.outcomeState ?? current.outcomeState ?? 'REQUESTED',
+        updatedAt: now,
+      };
+      await tx.set(path, updated as unknown as Record<string, unknown>);
+      return updated;
     });
   }
 
