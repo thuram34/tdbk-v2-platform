@@ -134,6 +134,22 @@ class BridgeRegistryService {
   }
 
   /**
+   * Normalizes the Gate 04 policy at the authoritative registry boundary.
+   * Legacy adapters may expose only the original two provider capability flags;
+   * conservative defaults prevent UNKNOWN replay and require the Engine identity.
+   */
+  private normalizeSideEffectCapabilities(definition: BridgeDefinition): BridgeDefinition {
+    return {
+      ...definition,
+      sideEffectCapabilities: {
+        ...definition.sideEffectCapabilities,
+        automaticUnknownReplay: definition.sideEffectCapabilities.automaticUnknownReplay ?? false,
+        providerOperationIdentityRequired: definition.sideEffectCapabilities.providerOperationIdentityRequired ?? true,
+      },
+    };
+  }
+
+  /**
    * Registers or updates a bridge definition (MASTER AUTHORITY ONLY).
    */
   public registerBridgeDefinition(
@@ -161,22 +177,23 @@ class BridgeRegistryService {
       );
     }
 
-    this.bridgeDefinitions.set(definition.bridgeId, definition);
+    const normalizedDefinition = this.normalizeSideEffectCapabilities(definition);
+    this.bridgeDefinitions.set(normalizedDefinition.bridgeId, normalizedDefinition);
 
     auditLogger.logEvent(
       'SECURITY_CONFIGURATION_CHANGE',
       context.principal.id,
       'REGISTER_BRIDGE_DEFINITION',
-      `bridge:${definition.bridgeId}`,
+      `bridge:${normalizedDefinition.bridgeId}`,
       'ALLOWED',
       {
         tenantId: null,
         requestId: context.requestId,
-        details: { provider: definition.provider, status: definition.status },
+        details: { provider: normalizedDefinition.provider, status: normalizedDefinition.status },
       }
     );
 
-    return definition;
+    return normalizedDefinition;
   }
 
   /**
@@ -194,7 +211,7 @@ class BridgeRegistryService {
   }
 
   /**
-   * Gets an executable bridge instance by ID.
+   * Gets an executable bridge adapter instance by ID.
    */
   public getBridgeInstance(bridgeId: string): Bridge | undefined {
     return this.bridgeInstances.get(bridgeId);
