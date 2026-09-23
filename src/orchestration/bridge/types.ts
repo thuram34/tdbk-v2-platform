@@ -23,6 +23,11 @@ export type NormalizedBridgeResultStatus =
   | 'UNKNOWN'
   | 'REQUIRES_RECONCILIATION';
 
+export interface BridgeSideEffectCapabilities {
+  providerIdempotency: boolean;
+  providerReconciliation: boolean;
+}
+
 export interface NormalizedBridgeResult<T = unknown> {
   status: NormalizedBridgeResultStatus;
   provider: string;
@@ -54,6 +59,7 @@ export interface BridgeDefinition {
   configurationRequirements: string[];
   healthStatus: BridgeHealthStatus;
   registeredAt: string;
+  sideEffectCapabilities: BridgeSideEffectCapabilities;
 }
 
 export interface Bridge<TReq = any, TRes = any, TCB = any> {
@@ -61,6 +67,7 @@ export interface Bridge<TReq = any, TRes = any, TCB = any> {
   provider: string;
   capabilityId: string;
   version: string;
+  sideEffectCapabilities: BridgeSideEffectCapabilities;
   health(context: SecurityContext): Promise<{ status: BridgeHealthStatus; details?: Record<string, unknown> }>;
   execute(context: SecurityContext, operation: string, payload: TReq): Promise<NormalizedBridgeResult<TRes>>;
   handleCallback(context: SecurityContext, rawCallback: TCB): Promise<NormalizedBridgeResult<TRes>>;
