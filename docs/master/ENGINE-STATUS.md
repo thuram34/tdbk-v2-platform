@@ -4,99 +4,114 @@
 2026-09-23
 
 ## Current Phase
-Production Hardening — Gate 04 Capability Declaration Normalization
+Production Hardening — Gate 04 Provider-Specific Idempotency
 
 ## Current Objective
-Verify that side-effect capability declarations at the authoritative bridge registry/adapter boundary match executable adapter behavior without inventing provider capabilities or changing the Gate 04 execution identity/recovery architecture.
+Determine whether one current production bridge has an authoritative provider contract that supports a stable idempotency/deduplication key compatible with the Engine-derived provider-operation identity. Implement propagation only if that contract is established.
 
-## Task Performed
-Completed the Gate 04 capability declaration normalization task. The authoritative registry and executable adapter declarations were inspected connector-by-connector. The concrete contradiction found was the Generic Bank bridge declaring provider reconciliation while its executable adapter explicitly reports that no production provider client is connected and therefore has no authoritative provider-state recovery path. That declaration was corrected to `providerReconciliation: false`. M-Pesa remains `providerReconciliation: true` because its executable path has a durable provider-reference callback/recovery path and conservative reconciliation handling; it does not claim provider-side idempotency. eTIMS, SMS, Email, and WhatsApp remain `false/false` because their current executable paths do not establish provider-side idempotency or authoritative provider-state reconciliation.
+## Task Completed
+**BLOCKED — no eligible connector established.**
 
-## Gate 04 Decision
-**DECIDED — IMPLEMENTATION AUTHORIZED.**
+The repository was inspected before implementation. The existing Engine already provides the required deterministic provider-operation identity through `deriveProviderOperationIdentity(executionKey, operation)`, and WorkflowStepExecution remains the durable execution authority. The Gate 04 workflow engine also refuses replay after `UNKNOWN_OUTCOME` / `RECONCILIATION_REQUIRED` when provider idempotency is not supported. No second idempotency store or alternate execution identity was introduced.
 
-The Engine execution identity remains the existing durable `WorkflowStepExecution.executionKey`. The existing durable request-binding contract (`IdempotencyRecord.idempotencyKey` + `requestHash`) remains authoritative for the logical request and is not redesigned.
+The candidate connector was M-Pesa because it is the only currently connected production-capable side-effecting adapter in the repository. Its adapter explicitly declares `providerIdempotency: false` and `providerReconciliation: true`. The current production STK Push request contains the documented Daraja request fields but no Engine-derived idempotency key is propagated to Safaricom. The current adapter uses the provider's returned `CheckoutRequestID` as the provider reference after the provider accepts the request. It therefore cannot safely be changed to claim provider-side idempotency without authoritative evidence that Safaricom Daraja STK Push accepts a caller-supplied stable idempotency key and guarantees deduplication for it.
 
-For a side-effecting workflow step, the provider-operation identity must be deterministic from the canonical Engine execution identity plus connector operation. It must not depend on worker ID, attempt count, time, or randomness.
+## Provider Contract Evidence
+Authoritative Safaricom Daraja documentation was checked through the Safaricom Developer Portal. The portal establishes Daraja 3.0 as the official M-PESA API platform, but the publicly retrievable material available in this review did **not establish an STK Push caller-supplied idempotency-key field or a provider-side deduplication guarantee compatible with the Engine-derived operation identity**. The available official portal search results did not expose such a contract.
 
-Where the provider supports idempotency, the connector must pass the stable operation key and honor the provider's actual deduplication semantics. Where the provider does not support idempotency, the Engine must not blindly replay an ambiguous side effect after lease expiry. The operation becomes UNKNOWN / RECONCILIATION_REQUIRED until provider state is authoritatively resolved.
+This is insufficient evidence for safely setting M-Pesa `providerIdempotency` to true or adding an invented header/body field. Therefore implementation was intentionally stopped.
 
-The Engine does not claim universal exactly-once external execution. Exactly-once is claimable only where the provider contract itself guarantees deduplication for the stable operation identity (or equivalent provider-specific semantics).
+Official source reviewed: Safaricom Daraja Developer Portal — `https://developer.safaricom.co.ke/` and its API documentation index. The portal describes Daraja 3.0 as the M-PESA API platform, but the reviewed material does not establish the required idempotency contract. citeturn0search0turn0search1
 
-## Authoritative State / Mapping
-The existing Engine durable execution authority remains the source of truth for execution ownership and execution outcome. Provider operation/reference metadata must be attached to that existing execution authority or to an already-authoritative domain record such as `FinancialTransaction`; no parallel idempotency database/store is permitted.
+## Current Engine → M-Pesa Path
+1. `WorkflowStepExecution.executionKey` is the canonical Engine execution identity.
+2. `deriveProviderOperationIdentity(executionKey, 'STK_PUSH')` deterministically derives the Engine provider-operation identity.
+3. `prepareExternalSideEffect()` and the durable execution repository already preserve this identity at the Engine boundary.
+4. `MpesaBridge.execute()` currently performs the production STK Push using the normal Daraja request body and does not propagate the Engine-derived operation identity to Safaricom.
+5. Safaricom returns `MerchantRequestID` / `CheckoutRequestID`; the adapter persists the returned provider reference in the existing authoritative financial transaction boundary.
+6. Ambiguous provider acceptance/local persistence failure is routed to reconciliation rather than being converted to successful ledger truth.
 
-For financial operations, `PENDING` / `RECONCILIATION_REQUIRED` is the safe state during an ambiguous provider outcome. Ledger truth is created only through the existing financial ledger authority after authoritative confirmation.
+The existing path therefore preserves conservative UNKNOWN/reconciliation behavior, but it does **not** provide provider-side idempotency.
 
-## Audit Contract
-External side-effect transitions must be auditable with semantics that distinguish, where applicable: `REQUESTED`, `PROVIDER_ACCEPTED`, `PROVIDER_REJECTED`, `UNKNOWN_OUTCOME`, `RECONCILIATION_REQUIRED`, `RECONCILED_SUCCESS`, and `RECONCILED_FAILURE`. Audit is evidence, not execution authority.
-
-## Connector Contract
-Every production side-effecting connector must declare whether it supports:
-- provider-side idempotency compatible with the Engine operation key; and/or
-- authoritative provider query/reconciliation after UNKNOWN.
-
-A connector supporting neither is not eligible for automatic replay of a non-idempotent side effect after an ambiguous outcome.
-
-## Connector Capability Verification
-| Connector | Provider idempotency | Authoritative reconciliation | Result |
+## Connector Capability State
+| Connector | Provider idempotency | Reconciliation | Decision |
 |---|---:|---:|---|
-| M-Pesa | false | true | PASS — executable adapter has durable provider-reference callback/recovery and reconciliation handling; `QUERY_TRANSACTION`/`RECONCILE` command branches themselves remain explicitly unavailable, so no provider query capability is claimed |
-| Generic Bank | false | false | FIXED — adapter has no connected production provider client; UNKNOWN is simulated/conservatively surfaced, but no authoritative provider-state query/recovery path exists |
-| eTIMS | false | false | PASS — current production path refuses submission because no provider client is connected |
-| SMS | false | false | PASS — current adapter does not establish provider idempotency or authoritative reconciliation |
-| Email | false | false | PASS — current adapter does not establish provider idempotency or authoritative reconciliation |
-| WhatsApp | false | false | PASS — current adapter does not establish provider idempotency or authoritative reconciliation |
+| M-Pesa / Safaricom Daraja | false | true | **BLOCKED for propagation** — no authoritative provider deduplication contract established |
+| Generic Bank | false | false | Not eligible — no connected production provider contract |
+| eTIMS | false | false | Not eligible — production provider client is not connected |
+| SMS | false | false | Not eligible — no authoritative provider idempotency contract established |
+| Email | false | false | Not eligible — no authoritative provider idempotency contract established |
+| WhatsApp | false | false | Not eligible — no authoritative provider idempotency contract established |
 
-No connector is currently declared provider-idempotent. No provider capability was inferred from generic operation names or mocks.
+No connector was promoted to provider-idempotent capability.
 
-## Implementation Status
-**GATE 04 CAPABILITY NORMALIZATION COMPLETE — GATE 04 NOT COMPLETE.**
-
-Implemented in this task:
-- corrected the Generic Bank authoritative registry declaration from `providerReconciliation: true` to `false`;
-- corrected the executable `BankBridge` declaration to `providerReconciliation: false`;
-- aligned Gate 04 capability regression tests with all six side-effecting adapters and their registry definitions;
-- preserved M-Pesa's existing reconciliation capability declaration because its executable callback/recovery path supports the already-established conservative reconciliation model.
-
-No provider API was implemented. No provider-side idempotency claim was introduced. No execution identity, WorkflowStepExecution model, provisioning identity, DBK, or Sokoni architecture was changed.
-
-## Verification
-- Current main repository state inspected: **COMPLETED**
-- Gate 04 architecture/documentation inspected: **COMPLETED**
-- Bridge capability type/registry inspected: **COMPLETED**
-- M-Pesa adapter inspected: **COMPLETED**
-- Generic Bank adapter inspected: **COMPLETED**
-- eTIMS adapter inspected: **COMPLETED**
-- SMS adapter inspected: **COMPLETED**
-- Email adapter inspected: **COMPLETED**
-- WhatsApp adapter inspected: **COMPLETED**
-- Registry/adapter capability regression updated for all six connectors: **COMPLETED**
-- Typecheck: **NOT EXECUTED** — connected GitHub tooling does not expose local npm/shell execution.
-- Lint: **NOT EXECUTED**
-- Targeted tests: **NOT EXECUTED**
-- Full tests: **NOT EXECUTED**
-- Production build: **NOT EXECUTED**
-- CI execution evidence for this task: **NOT AVAILABLE**
-No unverified PASS is claimed for executable verification.
-
-## Scope Boundary
+## Architectural Boundary Preserved
+- Existing `WorkflowStepExecution.executionKey`: **PRESERVED**
+- Existing deterministic provider-operation identity: **PRESERVED**
+- Existing `IdempotencyRecord.idempotencyKey + requestHash`: **PRESERVED**
+- Existing workflow lease/reclaim model: **PRESERVED**
+- Existing UNKNOWN/reconciliation semantics: **PRESERVED**
+- Existing financial ledger authority: **PRESERVED**
+- Provisioning service identity: **NOT TOUCHED**
 - DBK: **NONE**
 - Sokoni: **NONE**
-- Provisioning service identity: **NOT TOUCHED**
-- Existing request-binding idempotency: **PRESERVED**
-- Existing workflow lease authority: **PRESERVED**
-- Existing provider-operation identity: **PRESERVED**
-- Reconciliation architecture: **PRESERVED**
-- Duplicate state outside Engine: **NOT INTRODUCED**
+- Second idempotency store: **NOT INTRODUCED**
+- Provider API semantics: **NOT INVENTED**
+
+## Exact Files Inspected
+- `src/orchestration/bridge/types.ts`
+- `src/orchestration/bridge/registry.ts`
+- `src/orchestration/bridge/providerOperationIdentity.ts`
+- `src/orchestration/bridge/adapters/mpesaBridge.ts`
+- `src/orchestration/bridge/adapters/etimsBridge.ts`
+- `src/orchestration/bridge/adapters/bankBridge.ts`
+- `src/orchestration/bridge/adapters/smsBridge.ts`
+- `src/orchestration/bridge/adapters/emailBridge.ts`
+- `src/orchestration/bridge/adapters/whatsappBridge.ts`
+- `src/orchestration/workflow/engine.ts`
+- `src/orchestration/tests/gate04ExternalSideEffect.test.ts`
+- `docs/PRODUCTION_HARDENING_GATE_04_2026-09-22.md`
+- `docs/master/ENGINE-STATUS.md`
+
+## Exact Files Changed
+- `docs/master/ENGINE-STATUS.md` only.
+
+No production source or tests were changed because the required provider contract was not established. This avoids creating a false exactly-once/idempotency guarantee.
+
+## Verification
+- GitHub main state inspected: **COMPLETED**
+- Current bridge registry inspected: **COMPLETED**
+- M-Pesa executable adapter inspected: **COMPLETED**
+- Existing Engine provider-operation identity inspected: **COMPLETED**
+- Existing workflow UNKNOWN/replay guard inspected: **COMPLETED**
+- Existing Gate 04 regression tests inspected: **COMPLETED**
+- Official Safaricom Daraja documentation reviewed: **COMPLETED**
+- Provider idempotency contract established: **NO**
+- Implementation tests: **NOT EXECUTED — no production implementation was made**
+- `npm test`: **NOT EXECUTED** — repository connection exposes GitHub operations, not a local shell
+- `npm run typecheck`: **NOT EXECUTED**
+- `npm run lint`: **NOT EXECUTED**
+- `npm run build`: **NOT EXECUTED**
+
+No unexecuted test/build/typecheck/lint result is claimed as PASS.
+
+## Blocking Issue
+**MASTER REVIEW REQUIRED / PROVIDER CONTRACT GAP:** To implement provider-specific idempotency for M-Pesa, the Engine needs authoritative Safaricom documentation or an approved provider contract that explicitly defines a caller-controlled stable idempotency key for the relevant operation and its deduplication scope/guarantee. The current public evidence reviewed does not establish that contract.
+
+Until that evidence exists, the correct Engine capability remains `providerIdempotency: false` and the current conservative reconciliation model must remain authoritative.
 
 ## Remaining Gate 04 Work
-Gate 04 remains incomplete. Remaining work includes provider-specific idempotency propagation where a real provider contract supports it, authoritative provider reconciliation handling beyond the existing M-Pesa recovery boundary, complete audit transition semantics, and financial safety enforcement across ambiguous outcomes.
+1. Establish an authoritative provider-side idempotency contract for a specific connector/operation before propagation.
+2. Only then implement the minimal Engine-derived key propagation and focused duplicate-invocation regression test.
+3. Complete remaining Gate 04 reconciliation/audit/financial-safety hardening separately; do not bundle it into this blocked task.
 
 ## Next Single Engine Task
-Implement provider-specific idempotency propagation for one connector only, but only after verifying an actual provider contract that guarantees deduplication for the Engine-derived operation identity. Do not invent provider semantics or expand into other connectors in that task.
+**Obtain/verify an authoritative provider idempotency contract for one specific connector operation — preferably Safaricom Daraja STK Push if the provider documentation/support contract can establish caller-supplied deduplication semantics.** Do not modify production code until that contract is established.
 
 ## Evidence
-- Main before task: `473db6f68d82290f1cd09dbe4cb2f4576a6f98fd`
-- Capability normalization commits: `e091acbed8576f79206242103fa5b7c5e4861ff9`, `431544ad98187aad0518a61348f283b778142b12`, `c207651b30dbcda2e29fc8f9bece2c59f5e252f3`, `eee3df7aa3df0fa99254ae16fbf7844f46560a32`
-- Exact implementation files changed: `src/orchestration/bridge/registry.ts`, `src/orchestration/bridge/adapters/bankBridge.ts`, `src/orchestration/tests/gate04ExternalSideEffect.test.ts`, `docs/master/ENGINE-STATUS.md`
+- Current main commit at task start: `68cd266534b5654cf158880bd309b4dd844290e0`
+- Current deterministic identity implementation: `src/orchestration/bridge/providerOperationIdentity.ts`
+- Current M-Pesa capability declaration: `src/orchestration/bridge/adapters/mpesaBridge.ts`
+- Current Gate 04 capability registry: `src/orchestration/bridge/registry.ts`
+- Current Gate 04 execution/replay guard: `src/orchestration/workflow/engine.ts`
+- Current Gate 04 regression coverage: `src/orchestration/tests/gate04ExternalSideEffect.test.ts`
