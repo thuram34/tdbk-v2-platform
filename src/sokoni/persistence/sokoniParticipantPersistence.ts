@@ -3,7 +3,7 @@ import { deleteObject, getDownloadURL, ref, uploadBytes } from 'firebase/storage
 import { signInAnonymously } from 'firebase/auth';
 import { auth, db, storage } from '../../client/firebase';
 import { getSokoniCommercialOffering } from '../sokoniCommercialConfig';
-import { SokoniOrientationContext } from '../sokoniParticipationConfig';
+import type { SokoniOrientationContext } from '../sokoniParticipationConfig';
 
 export type SokoniParticipantKind =
   | 'BUSINESS'
