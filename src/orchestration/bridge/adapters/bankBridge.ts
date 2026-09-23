@@ -29,6 +29,7 @@ export class BankBridge implements Bridge<BankTransferRequest, any, any> {
   public readonly provider = 'GENERIC_BANK';
   public readonly capabilityId = 'bank_bridge';
   public readonly version = 'v1.0';
+  public readonly sideEffectCapabilities = { providerIdempotency: false, providerReconciliation: true };
 
   public async health(_context: SecurityContext): Promise<{ status: BridgeHealthStatus; details?: Record<string, unknown> }> {
     const tenantId = _context.tenantContext?.tenantId || _context.principal.tenantId;
