@@ -44,20 +44,55 @@ describe('Gate 04 — external side-effect identity and mapping', () => {
     ] as const;
 
     for (const [adapter, bridgeId] of bridges) {
-      expect(bridgeRegistry.getBridgeDefinition(bridgeId)?.sideEffectCapabilities)
-        .toEqual(adapter.sideEffectCapabilities);
+      const registered = bridgeRegistry.getBridgeDefinition(bridgeId)?.sideEffectCapabilities;
+      expect(registered).toBeDefined();
+      expect(registered).toMatchObject(adapter.sideEffectCapabilities);
+      expect(registered?.automaticUnknownReplay).toBe(false);
+      expect(registered?.providerOperationIdentityRequired).toBe(true);
     }
 
-    expect(new MpesaBridge().sideEffectCapabilities).toEqual({
+    expect(bridgeRegistry.getBridgeDefinition('bridge_mpesa')?.sideEffectCapabilities).toEqual({
       providerIdempotency: false,
       providerReconciliation: true,
+      automaticUnknownReplay: false,
+      providerOperationIdentityRequired: true,
     });
-    for (const Adapter of [BankBridge, EmailBridge, EtimsBridge, SmsBridge, WhatsappBridge]) {
-      expect(new Adapter().sideEffectCapabilities).toEqual({
+
+    for (const bridgeId of ['bridge_bank', 'bridge_email', 'bridge_etims', 'bridge_sms', 'bridge_whatsapp']) {
+      expect(bridgeRegistry.getBridgeDefinition(bridgeId)?.sideEffectCapabilities).toEqual({
         providerIdempotency: false,
         providerReconciliation: false,
+        automaticUnknownReplay: false,
+        providerOperationIdentityRequired: true,
       });
     }
+  });
+
+  it('normalizes legacy registry definitions to conservative Gate 04 defaults', () => {
+    const context = {
+      principal: { id: 'master_gate04', tenantId: null, isMaster: true },
+      requestId: 'req_gate04_registry',
+    } as any;
+
+    const registered = bridgeRegistry.registerBridgeDefinition(context, {
+      bridgeId: 'bridge_gate04_legacy',
+      provider: 'TEST_PROVIDER',
+      bridgeVersion: 'v1.0',
+      capabilityId: 'test_provider',
+      supportedOperations: ['SEND'],
+      status: 'MOCK',
+      configurationRequirements: [],
+      healthStatus: 'UNAVAILABLE',
+      registeredAt: new Date().toISOString(),
+      sideEffectCapabilities: { providerIdempotency: false, providerReconciliation: false },
+    });
+
+    expect(registered.sideEffectCapabilities).toEqual({
+      providerIdempotency: false,
+      providerReconciliation: false,
+      automaticUnknownReplay: false,
+      providerOperationIdentityRequired: true,
+    });
   });
 
   it('durably associates provider operation and reference with the canonical execution', async () => {
