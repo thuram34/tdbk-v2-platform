@@ -4,13 +4,13 @@
 2026-09-23
 
 ## Current Phase
-Production Hardening — Gate 04 Implementation Slice 2: Safe Side-Effect Execution & UNKNOWN Recovery
+Production Hardening — Gate 04 Capability Declaration Normalization
 
 ## Current Objective
-Establish the authoritative Engine contract for external side effects across worker crash, lease expiry, transport ambiguity, provider callbacks, and reconciliation without introducing a second authority or claiming universal exactly-once execution.
+Verify that side-effect capability declarations at the authoritative bridge registry/adapter boundary match executable adapter behavior without inventing provider capabilities or changing the Gate 04 execution identity/recovery architecture.
 
 ## Task Performed
-Implemented Gate 04 Slice 2 only: the existing durable provider-operation mapping is now wired into the Engine workflow side-effect boundary, with pre-side-effect binding, durable outcome recording, and conservative UNKNOWN recovery. The broader Gate 04 contract remains incomplete.
+Completed the Gate 04 capability declaration normalization task. The authoritative registry and executable adapter declarations were inspected connector-by-connector. The concrete contradiction found was the Generic Bank bridge declaring provider reconciliation while its executable adapter explicitly reports that no production provider client is connected and therefore has no authoritative provider-state recovery path. That declaration was corrected to `providerReconciliation: false`. M-Pesa remains `providerReconciliation: true` because its executable path has a durable provider-reference callback/recovery path and conservative reconciliation handling; it does not claim provider-side idempotency. eTIMS, SMS, Email, and WhatsApp remain `false/false` because their current executable paths do not establish provider-side idempotency or authoritative provider-state reconciliation.
 
 ## Gate 04 Decision
 **DECIDED — IMPLEMENTATION AUTHORIZED.**
@@ -38,64 +38,47 @@ Every production side-effecting connector must declare whether it supports:
 
 A connector supporting neither is not eligible for automatic replay of a non-idempotent side effect after an ambiguous outcome.
 
-## Repository Evidence Reviewed
-- `src/persistence/firestore/repositories/idempotencyRepository.ts`
-- `src/persistence/types.ts`
-- `src/persistence/firestore/repositories/workflowStepExecutionRepository.ts`
-- `src/orchestration/workflow/engine.ts`
-- `src/orchestration/outbox/outboxEngine.ts`
-- `src/orchestration/bridge/types.ts`
-- `src/orchestration/bridge/adapters/mpesaBridge.ts`
-- `src/orchestration/bridge/adapters/etimsBridge.ts`
-- `src/persistence/firestore/repositories/connectorConnectionRepository.ts`
-- `src/persistence/firestore/repositories/reconciliationRepository.ts`
-- `src/finance/reconciliationService.ts`
-- `src/kernel/audit/auditLogger.ts`
-- `src/persistence/firestore/repositories/auditRepository.ts`
-- relevant M-Pesa duplicate/restart/idempotency tests and reconciliation persistence tests
+## Connector Capability Verification
+| Connector | Provider idempotency | Authoritative reconciliation | Result |
+|---|---:|---:|---|
+| M-Pesa | false | true | PASS — executable adapter has durable provider-reference callback/recovery and reconciliation handling; `QUERY_TRANSACTION`/`RECONCILE` command branches themselves remain explicitly unavailable, so no provider query capability is claimed |
+| Generic Bank | false | false | FIXED — adapter has no connected production provider client; UNKNOWN is simulated/conservatively surfaced, but no authoritative provider-state query/recovery path exists |
+| eTIMS | false | false | PASS — current production path refuses submission because no provider client is connected |
+| SMS | false | false | PASS — current adapter does not establish provider idempotency or authoritative reconciliation |
+| Email | false | false | PASS — current adapter does not establish provider idempotency or authoritative reconciliation |
+| WhatsApp | false | false | PASS — current adapter does not establish provider idempotency or authoritative reconciliation |
 
-## Important Existing Evidence
-- `requestHash` mismatch protection is already implemented in the durable idempotency repository.
-- Workflow-step leases prevent concurrent duplicate claims but do not prove provider-side exactly-once effects.
-- M-Pesa already has a conservative `RECONCILIATION_REQUIRED` path when provider acceptance is known but local binding is uncertain, and duplicate callbacks are protected.
-- eTIMS currently has no connected production provider client, so this review does not invent an eTIMS provider contract.
-- Financial persistence already has `providerReference` and `RECONCILIATION_REQUIRED`, and confirmed reconciliation is routed through the ledger rather than status-only mutation.
+No connector is currently declared provider-idempotent. No provider capability was inferred from generic operation names or mocks.
 
 ## Implementation Status
-**SLICE 2 COMPLETE — GATE 04 NOT COMPLETE.**
+**GATE 04 CAPABILITY NORMALIZATION COMPLETE — GATE 04 NOT COMPLETE.**
 
-Implemented:
-- deterministic provider-operation identity derived from `executionKey + connector operation` using SHA-256;
-- explicit bridge capability declaration for provider-side idempotency and provider reconciliation;
-- durable provider-operation mapping fields on the existing `WorkflowStepExecution` authority;
-- persisted canonical provider operation name plus provider/reference metadata;
-- worker-owned transactional binding of provider operation/reference metadata;
-- workflow handlers can durably prepare a side effect before the external call and record the provider outcome against the same execution identity;
-- recovery refuses blind replay of `UNKNOWN_OUTCOME` / `RECONCILIATION_REQUIRED` operations when provider idempotency is not supported;
-- a handler's local success result cannot promote a durable UNKNOWN/reconciliation-required outcome to completed Engine truth;
-- recovery parks unresolved non-idempotent provider outcomes in `WAITING_FOR_EXTERNAL_RESULT` rather than converting reconciliation-required state into a workflow failure;
-- focused regression coverage for identity determinism, capability declaration, durable association, reclaim preservation, and UNKNOWN execution safety.
+Implemented in this task:
+- corrected the Generic Bank authoritative registry declaration from `providerReconciliation: true` to `false`;
+- corrected the executable `BankBridge` declaration to `providerReconciliation: false`;
+- aligned Gate 04 capability regression tests with all six side-effecting adapters and their registry definitions;
+- preserved M-Pesa's existing reconciliation capability declaration because its executable callback/recovery path supports the already-established conservative reconciliation model.
 
-No second idempotency store was introduced. Existing requestHash/idempotency and workflow lease contracts were preserved.
+No provider API was implemented. No provider-side idempotency claim was introduced. No execution identity, WorkflowStepExecution model, provisioning identity, DBK, or Sokoni architecture was changed.
 
 ## Verification
-- Latest repository architecture inspected: **COMPLETED**
-- Slice 2 implementation reviewed after final recovery-safety fix: **COMPLETED**
-- Current Engine status inspected: **COMPLETED**
-- Existing idempotency/requestHash hardening inspected: **COMPLETED**
-- Workflow execution lease model inspected: **COMPLETED**
-- Connector architecture/configuration/health inspected: **COMPLETED**
-- M-Pesa/eTIMS paths inspected: **COMPLETED**
-- Reconciliation/financial persistence inspected: **COMPLETED**
-- Audit model inspected: **COMPLETED**
-- Retry/duplicate callback/outbox tests/docs inspected: **COMPLETED**
+- Current main repository state inspected: **COMPLETED**
+- Gate 04 architecture/documentation inspected: **COMPLETED**
+- Bridge capability type/registry inspected: **COMPLETED**
+- M-Pesa adapter inspected: **COMPLETED**
+- Generic Bank adapter inspected: **COMPLETED**
+- eTIMS adapter inspected: **COMPLETED**
+- SMS adapter inspected: **COMPLETED**
+- Email adapter inspected: **COMPLETED**
+- WhatsApp adapter inspected: **COMPLETED**
+- Registry/adapter capability regression updated for all six connectors: **COMPLETED**
 - Typecheck: **NOT EXECUTED** — connected GitHub tooling does not expose local npm/shell execution.
 - Lint: **NOT EXECUTED**
 - Targeted tests: **NOT EXECUTED**
 - Full tests: **NOT EXECUTED**
 - Production build: **NOT EXECUTED**
-- CI execution evidence for this documentation-only decision: **NOT AVAILABLE**
-No unverified PASS is claimed.
+- CI execution evidence for this task: **NOT AVAILABLE**
+No unverified PASS is claimed for executable verification.
 
 ## Scope Boundary
 - DBK: **NONE**
@@ -103,10 +86,17 @@ No unverified PASS is claimed.
 - Provisioning service identity: **NOT TOUCHED**
 - Existing request-binding idempotency: **PRESERVED**
 - Existing workflow lease authority: **PRESERVED**
+- Existing provider-operation identity: **PRESERVED**
+- Reconciliation architecture: **PRESERVED**
 - Duplicate state outside Engine: **NOT INTRODUCED**
 
 ## Remaining Gate 04 Work
-Not complete. Remaining work includes provider-specific idempotency propagation where actually supported, authoritative provider reconciliation handling, audit transition semantics, and financial safety enforcement across ambiguous outcomes. Connector declarations must also remain consistent with executable bridge behavior.
+Gate 04 remains incomplete. Remaining work includes provider-specific idempotency propagation where a real provider contract supports it, authoritative provider reconciliation handling beyond the existing M-Pesa recovery boundary, complete audit transition semantics, and financial safety enforcement across ambiguous outcomes.
 
 ## Next Single Engine Task
-Normalize and verify provider side-effect capability declarations at the authoritative bridge registry/adapter boundary. Do not implement provider APIs, redesign connector configuration, or expand into DBK/Sokoni.
+Implement provider-specific idempotency propagation for one connector only, but only after verifying an actual provider contract that guarantees deduplication for the Engine-derived operation identity. Do not invent provider semantics or expand into other connectors in that task.
+
+## Evidence
+- Main before task: `473db6f68d82290f1cd09dbe4cb2f4576a6f98fd`
+- Capability normalization commits: `e091acbed8576f79206242103fa5b7c5e4861ff9`, `431544ad98187aad0518a61348f283b778142b12`, `c207651b30dbcda2e29fc8f9bece2c59f5e252f3`, `eee3df7aa3df0fa99254ae16fbf7844f46560a32`
+- Exact implementation files changed: `src/orchestration/bridge/registry.ts`, `src/orchestration/bridge/adapters/bankBridge.ts`, `src/orchestration/tests/gate04ExternalSideEffect.test.ts`, `docs/master/ENGINE-STATUS.md`
