@@ -461,12 +461,17 @@ class WorkflowEngineService {
             execution.outcomeState === 'RECONCILIATION_REQUIRED') &&
           !execution.providerIdempotencySupported
         ) {
-          throw new KernelError(
-            'CONFLICT',
-            `Workflow step '${step.stepId}' has an unresolved external side effect for provider '${execution.providerName || 'unknown'}'. Reconciliation is required before replay.`,
-            409,
-            context.requestId
+          step.status = 'WAITING';
+          step.failureClassification = 'WAITING_FOR_EXTERNAL_RESULT';
+          step.error = `External provider '${execution.providerName || 'unknown'}' has an unresolved outcome; reconciliation is required before replay.`;
+          workflow.status = 'WAITING';
+          await workflowInstanceRepository.saveWorkflow(
+            workflow.tenantId,
+            workflow.workflowId,
+            workflow,
+            durableWorkflow ? workerId : undefined
           );
+          return workflow;
         }
 
         const stepLeaseDurationMs = 300000;
