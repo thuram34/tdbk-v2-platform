@@ -29,8 +29,8 @@ export interface SokoniListing { id: string; kind: 'PRODUCT' | 'SERVICE'; name: 
 export interface SokoniParticipant {
   id: string;
   participantKind: SokoniParticipantKind;
-  orientations: string[];
-  orientationContext: SokoniOrientationContext;
+  orientations?: string[];
+  orientationContext?: SokoniOrientationContext;
   publicName: string;
   category: string;
   description: string;
