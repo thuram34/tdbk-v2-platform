@@ -26,6 +26,7 @@ export class SmsBridge implements Bridge<SmsSendRequest, any, any> {
   public readonly provider = 'AFRICAS_TALKING';
   public readonly capabilityId = 'sms_bridge';
   public readonly version = 'v1.0';
+  public readonly sideEffectCapabilities = { providerIdempotency: false, providerReconciliation: false };
 
   public async health(_context: SecurityContext): Promise<{ status: BridgeHealthStatus; details?: Record<string, unknown> }> {
     const tenantId = _context.tenantContext?.tenantId || _context.principal.tenantId;
