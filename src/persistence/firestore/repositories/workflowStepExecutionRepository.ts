@@ -68,6 +68,7 @@ export class WorkflowStepExecutionRepository implements IWorkflowStepExecutionRe
         createdAt: current?.createdAt || nowIso,
         updatedAt: nowIso,
         completedAt: null,
+        providerOperation: current?.providerOperation || null,
         providerOperationIdentity: current?.providerOperationIdentity || null,
         providerName: current?.providerName || null,
         providerReference: current?.providerReference || null,
@@ -159,6 +160,7 @@ export class WorkflowStepExecutionRepository implements IWorkflowStepExecutionRe
       const now = new Date().toISOString();
       const updated: WorkflowStepExecution = {
         ...current,
+        providerOperation: mapping.operation || current.providerOperation || null,
         providerOperationIdentity: mapping.providerOperationIdentity,
         providerName: mapping.providerName,
         providerReference: mapping.providerReference ?? current.providerReference ?? null,
