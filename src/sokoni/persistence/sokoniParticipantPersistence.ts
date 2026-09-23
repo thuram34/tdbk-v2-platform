@@ -3,6 +3,7 @@ import { deleteObject, getDownloadURL, ref, uploadBytes } from 'firebase/storage
 import { signInAnonymously } from 'firebase/auth';
 import { auth, db, storage } from '../../client/firebase';
 import { getSokoniCommercialOffering } from '../sokoniCommercialConfig';
+import { SokoniOrientationContext } from '../sokoniParticipationConfig';
 
 export type SokoniParticipantKind =
   | 'BUSINESS'
@@ -25,6 +26,8 @@ export interface SokoniListing { id: string; kind: 'PRODUCT' | 'SERVICE'; name: 
 export interface SokoniParticipant {
   id: string;
   participantKind: SokoniParticipantKind;
+  orientations: string[];
+  orientationContext: SokoniOrientationContext;
   publicName: string;
   category: string;
   description: string;
@@ -40,6 +43,8 @@ export interface SokoniParticipant {
 }
 export interface SokoniParticipantRegistrationInput {
   participantKind: SokoniParticipantKind;
+  orientations: string[];
+  orientationContext: SokoniOrientationContext;
   publicName: string;
   category: string;
   description: string;
@@ -62,6 +67,7 @@ async function ensureSokoniWriteIdentity(): Promise<void> {
 }
 
 function validateInput(input: SokoniParticipantRegistrationInput): void {
+  if (!input.orientations.length) throw new Error('Select at least one reason for joining Sokoni.');
   if (!input.publicName.trim()) throw new Error('A public name is required.');
   if (!input.category.trim()) throw new Error('A category is required.');
   if (!input.description.trim()) throw new Error('A public description is required.');
@@ -116,6 +122,8 @@ export async function saveSokoniParticipant(input: SokoniParticipantRegistration
   const record: SokoniParticipant = {
     id: participantId,
     participantKind: input.participantKind,
+    orientations: Array.from(new Set(input.orientations.filter(Boolean))),
+    orientationContext: input.orientationContext,
     publicName: input.publicName.trim(),
     category: input.category.trim(),
     description: input.description.trim(),
