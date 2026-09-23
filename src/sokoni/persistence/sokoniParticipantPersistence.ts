@@ -8,13 +8,16 @@ import { SokoniOrientationContext } from '../sokoniParticipationConfig';
 export type SokoniParticipantKind =
   | 'BUSINESS'
   | 'INDIVIDUAL'
+  | 'BUYER'
   | 'SERVICE_PROVIDER'
   | 'SELLER'
   | 'TRANSPORT_PROVIDER'
+  | 'DELIVERY_PROVIDER'
   | 'BODA_OPERATOR'
   | 'TUKTUK_OPERATOR'
   | 'TECHNICIAN'
   | 'ORGANIZATION'
+  | 'COMMUNITY'
   | 'OTHER';
 
 export type SokoniPublicationStatus = 'DRAFT' | 'READY' | 'ACTIVE';
