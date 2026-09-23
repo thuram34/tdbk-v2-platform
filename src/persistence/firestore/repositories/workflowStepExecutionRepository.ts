@@ -68,6 +68,12 @@ export class WorkflowStepExecutionRepository implements IWorkflowStepExecutionRe
         createdAt: current?.createdAt || nowIso,
         updatedAt: nowIso,
         completedAt: null,
+        providerOperationIdentity: current?.providerOperationIdentity || null,
+        providerName: current?.providerName || null,
+        providerReference: current?.providerReference || null,
+        providerIdempotencySupported: current?.providerIdempotencySupported || false,
+        providerReconciliationSupported: current?.providerReconciliationSupported || false,
+        outcomeState: current?.outcomeState || null,
       };
 
       await tx.set(path, next as unknown as Record<string, unknown>);
