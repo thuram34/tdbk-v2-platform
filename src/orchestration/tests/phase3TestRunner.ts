@@ -392,6 +392,7 @@ export class Phase3TestRunner {
         status: 'DEFINED',
         configurationRequirements: [],
         healthStatus: 'HEALTHY',
+        sideEffectCapabilities: { providerIdempotency: false, providerReconciliation: false },
         registeredAt: new Date().toISOString(),
       });
       results.push({ id: 'P3_TEST_12', name: 'Bridge registry rejects unauthorized registration', passed: false, expected: 'Rejected', actual: 'Allowed' });
@@ -418,6 +419,7 @@ export class Phase3TestRunner {
         status: 'MOCK',
         configurationRequirements: [],
         healthStatus: 'HEALTHY',
+        sideEffectCapabilities: { providerIdempotency: false, providerReconciliation: false },
         registeredAt: new Date().toISOString(),
       });
       results.push({
@@ -444,6 +446,7 @@ export class Phase3TestRunner {
         status: 'MOCK',
         configurationRequirements: [],
         healthStatus: 'HEALTHY',
+        sideEffectCapabilities: { providerIdempotency: false, providerReconciliation: false },
         registeredAt: new Date().toISOString(),
       });
       results.push({ id: 'P3_TEST_14', name: 'DBK cannot manage platform bridge definitions', passed: false, expected: 'Denied', actual: 'Allowed' });
