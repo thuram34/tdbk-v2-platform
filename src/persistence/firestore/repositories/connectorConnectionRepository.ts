@@ -89,22 +89,25 @@ export class ConnectorConnectionRepository implements IConnectorConnectionReposi
     healthStatus: ConnectorConnection['lastHealthStatus'],
     lastErrorCode: string | null = null
   ): Promise<void> {
-    const connection = await this.getConnection(tenantId, connectionId);
-    if (!connection) throw new Error(`Connector connection '${connectionId}' not found.`);
+    const path = this.getPath(tenantId, connectionId);
+    const now = new Date().toISOString();
 
-    const updated: ConnectorConnection = {
-      ...connection,
-      lastHealthStatus: healthStatus,
-      lastHealthCheckAt: new Date().toISOString(),
-      lastErrorCode,
-      status: healthStatus === 'ERROR' ? 'ERROR' : connection.status,
-      updatedAt: new Date().toISOString(),
-    };
+    // Health is derived operational state. It must update only its own fields
+    // inside a Firestore transaction so a concurrent configuration write cannot
+    // be lost by a stale read-modify-write of the whole connection document.
+    await firestoreClient.runTransaction(async (transaction) => {
+      const connection = await transaction.get<ConnectorConnection>(path);
+      if (!connection) throw new Error(`Connector connection '${connectionId}' not found.`);
+      this.assertTenantBoundary(tenantId, connection);
 
-    await firestoreClient.set(
-      this.getPath(tenantId, connectionId),
-      updated as unknown as Record<string, unknown>
-    );
+      await transaction.update<ConnectorConnection>(path, {
+        lastHealthStatus: healthStatus,
+        lastHealthCheckAt: now,
+        lastErrorCode,
+        status: healthStatus === 'ERROR' ? 'ERROR' : connection.status,
+        updatedAt: now,
+      });
+    });
   }
 }
 
