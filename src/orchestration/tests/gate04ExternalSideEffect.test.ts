@@ -3,6 +3,9 @@ import { deriveProviderOperationIdentity } from '../bridge/providerOperationIden
 import { MpesaBridge } from '../bridge/adapters/mpesaBridge';
 import { BankBridge } from '../bridge/adapters/bankBridge';
 import { EmailBridge } from '../bridge/adapters/emailBridge';
+import { EtimsBridge } from '../bridge/adapters/etimsBridge';
+import { SmsBridge } from '../bridge/adapters/smsBridge';
+import { WhatsappBridge } from '../bridge/adapters/whatsappBridge';
 import { bridgeRegistry } from '../bridge/registry';
 import { firestoreClient } from '../../persistence/firestore/firestoreClient';
 import { workflowStepExecutionRepository } from '../../persistence/firestore/repositories/workflowStepExecutionRepository';
@@ -31,29 +34,30 @@ describe('Gate 04 — external side-effect identity and mapping', () => {
   });
 
   it('declares provider side-effect capabilities consistently at adapter and registry boundaries', () => {
-    const mpesa = new MpesaBridge();
-    const bank = new BankBridge();
-    const email = new EmailBridge();
+    const bridges = [
+      [new MpesaBridge(), 'bridge_mpesa'],
+      [new BankBridge(), 'bridge_bank'],
+      [new EmailBridge(), 'bridge_email'],
+      [new EtimsBridge(), 'bridge_etims'],
+      [new SmsBridge(), 'bridge_sms'],
+      [new WhatsappBridge(), 'bridge_whatsapp'],
+    ] as const;
 
-    expect(mpesa.sideEffectCapabilities).toEqual({
+    for (const [adapter, bridgeId] of bridges) {
+      expect(bridgeRegistry.getBridgeDefinition(bridgeId)?.sideEffectCapabilities)
+        .toEqual(adapter.sideEffectCapabilities);
+    }
+
+    expect(new MpesaBridge().sideEffectCapabilities).toEqual({
       providerIdempotency: false,
       providerReconciliation: true,
     });
-    expect(bank.sideEffectCapabilities).toEqual({
-      providerIdempotency: false,
-      providerReconciliation: false,
-    });
-    expect(email.sideEffectCapabilities).toEqual({
-      providerIdempotency: false,
-      providerReconciliation: false,
-    });
-
-    expect(bridgeRegistry.getBridgeDefinition('bridge_mpesa')?.sideEffectCapabilities)
-      .toEqual(mpesa.sideEffectCapabilities);
-    expect(bridgeRegistry.getBridgeDefinition('bridge_bank')?.sideEffectCapabilities)
-      .toEqual(bank.sideEffectCapabilities);
-    expect(bridgeRegistry.getBridgeDefinition('bridge_email')?.sideEffectCapabilities)
-      .toEqual(email.sideEffectCapabilities);
+    for (const Adapter of [BankBridge, EmailBridge, EtimsBridge, SmsBridge, WhatsappBridge]) {
+      expect(new Adapter().sideEffectCapabilities).toEqual({
+        providerIdempotency: false,
+        providerReconciliation: false,
+      });
+    }
   });
 
   it('durably associates provider operation and reference with the canonical execution', async () => {
