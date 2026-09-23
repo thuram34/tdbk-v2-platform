@@ -73,12 +73,14 @@ Implemented:
 - workflow handlers can durably prepare a side effect before the external call and record the provider outcome against the same execution identity;
 - recovery refuses blind replay of `UNKNOWN_OUTCOME` / `RECONCILIATION_REQUIRED` operations when provider idempotency is not supported;
 - a handler's local success result cannot promote a durable UNKNOWN/reconciliation-required outcome to completed Engine truth;
+- recovery parks unresolved non-idempotent provider outcomes in `WAITING_FOR_EXTERNAL_RESULT` rather than converting reconciliation-required state into a workflow failure;
 - focused regression coverage for identity determinism, capability declaration, durable association, reclaim preservation, and UNKNOWN execution safety.
 
 No second idempotency store was introduced. Existing requestHash/idempotency and workflow lease contracts were preserved.
 
 ## Verification
 - Latest repository architecture inspected: **COMPLETED**
+- Slice 2 implementation reviewed after final recovery-safety fix: **COMPLETED**
 - Current Engine status inspected: **COMPLETED**
 - Existing idempotency/requestHash hardening inspected: **COMPLETED**
 - Workflow execution lease model inspected: **COMPLETED**
