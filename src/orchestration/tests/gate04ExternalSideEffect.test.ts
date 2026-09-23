@@ -39,6 +39,11 @@ describe('Gate 04 — external side-effect identity and mapping', () => {
       providerIdempotency: false,
       providerReconciliation: false,
     });
+
+    const mpesaDefinition = (await import('../bridge/registry')).bridgeRegistry.getBridgeDefinition('bridge_mpesa');
+    expect(mpesaDefinition?.sideEffectCapabilities).toEqual(
+      new MpesaBridge().sideEffectCapabilities
+    );
   });
 
   it('durably associates provider operation and reference with the canonical execution', async () => {
