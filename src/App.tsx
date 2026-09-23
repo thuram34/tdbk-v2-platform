@@ -5,6 +5,7 @@ import { BusinessDiscovery } from './components/onboarding/BusinessDiscovery';
 import { LoginScreen } from './components/auth/LoginScreen';
 import { PublicGateway } from './public/PublicGateway';
 import { SokoniExperience } from './sokoni/SokoniExperience';
+import { SokoniBusinessRegistration } from './sokoni/SokoniBusinessRegistration';
 import { useAuth } from './client/AuthContext';
 import { listDbks } from './client/masterControlApi';
 import LegacyApp from './AppLegacy';
@@ -16,6 +17,10 @@ export default function App() {
   const [showSokoni, setShowSokoni] = useState(() => {
     if (typeof window === 'undefined') return false;
     return new URLSearchParams(window.location.search).get('sokoni') === '1';
+  });
+  const [showSokoniBusiness, setShowSokoniBusiness] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return new URLSearchParams(window.location.search).get('sokoniBusiness') === '1';
   });
   const [dbkId, setDbkId] = useState<string | null>(null);
   const [dbksLoading, setDbksLoading] = useState(true);
@@ -55,19 +60,49 @@ export default function App() {
   }, [user]);
 
   const enterSokoni = () => {
+    setShowSokoniBusiness(false);
     setShowSokoni(true);
     setShowGateway(false);
     window.history.pushState({}, '', '?sokoni=1');
   };
 
+  const enterSokoniBusiness = () => {
+    setShowSokoni(true);
+    setShowSokoniBusiness(true);
+    setShowGateway(false);
+    window.history.pushState({}, '', '?sokoni=1&sokoniBusiness=1');
+  };
+
+  const exitSokoniBusiness = () => {
+    setShowSokoniBusiness(false);
+    setShowSokoni(true);
+    window.history.pushState({}, '', '?sokoni=1');
+  };
+
   const exitSokoni = () => {
+    setShowSokoniBusiness(false);
     setShowSokoni(false);
     setShowGateway(true);
     window.history.pushState({}, '', window.location.pathname);
   };
 
   if (engineeringMode) return <LegacyApp />;
-  if (showSokoni) return <SokoniExperience onBack={exitSokoni} />;
+
+  if (showSokoni) {
+    if (showSokoniBusiness) return <SokoniBusinessRegistration onExit={exitSokoniBusiness} />;
+    return (
+      <>
+        <SokoniExperience onBack={exitSokoni} />
+        <button
+          type="button"
+          onClick={enterSokoniBusiness}
+          className="fixed bottom-20 right-4 z-50 inline-flex items-center gap-2 rounded-full bg-neutral-950 px-4 py-3 text-xs font-black text-white shadow-xl transition hover:-translate-y-0.5 sm:bottom-5 sm:right-5"
+        >
+          List your business on Sokoni →
+        </button>
+      </>
+    );
+  }
 
   if (loading) {
     return <div className="min-h-screen bg-[#141414] text-white flex items-center justify-center text-sm text-neutral-400">Loading TDBK…</div>;
