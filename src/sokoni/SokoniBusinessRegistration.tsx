@@ -7,10 +7,11 @@ import {
   SOKONI_SEEK_WORK_OPTIONS,
   SOKONI_SERVICE_OPTIONS,
   SOKONI_TRANSPORT_OPTIONS,
-  SokoniOrientationCode,
-  SokoniOrientationContext,
+  
 } from './sokoniParticipationConfig';
-import { saveSokoniParticipant, SokoniParticipantKind } from './persistence/sokoniParticipantPersistence';
+import type { SokoniOrientationCode, SokoniOrientationContext } from './sokoniParticipationConfig';
+import { saveSokoniParticipant } from './persistence/sokoniParticipantPersistence';
+import type { SokoniParticipantKind } from './persistence/sokoniParticipantPersistence';
 
 const AREAS = ['Mombasa', 'Nyali', 'Bamburi', 'Likoni'];
 const CATEGORIES = ['Retail', 'Services', 'Transport', 'Delivery', 'Technology', 'Home Services', 'Beauty & Wellness', 'Construction', 'Professional Services', 'Community', 'Other'];
@@ -93,8 +94,17 @@ export function SokoniBusinessRegistration({ onExit }: Props) {
   }, [step, orientations, publicName, area, publicPhone, description]);
 
   const toggleOrientation = (code: SokoniOrientationCode) => {
-    setOrientations((current) => current.includes(code) ? current.filter((item) => item !== code) : [...current, code]);
-    if (code === 'JOIN_COMMUNITY' && orientations.includes(code)) setOrientationContext((current) => ({ ...current, communityMode: current.communityMode === 'JOIN' ? null : current.communityMode }));
+    const removing = orientations.includes(code);
+    setOrientations((current) => removing ? current.filter((item) => item !== code) : [...current, code]);
+    if (removing) {
+      setOrientationContext((current) => ({
+        ...current,
+        serviceTypes: code === 'OFFER_SERVICE' ? [] : current.serviceTypes,
+        transportTypes: code === 'OFFER_TRANSPORT' ? [] : current.transportTypes,
+        opportunityTypes: code === 'SEEK_WORK' ? [] : current.opportunityTypes,
+        communityMode: code === 'JOIN_COMMUNITY' || code === 'CREATE_COMMUNITY' ? null : current.communityMode,
+      }));
+    }
   };
 
   const addPhotos = (event: React.ChangeEvent<HTMLInputElement>) => {
