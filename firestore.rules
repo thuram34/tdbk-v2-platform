@@ -15,11 +15,16 @@ service cloud.firestore {
       return isSignedIn() && (request.auth.token.tenantId == tenantId || isMasterAdmin());
     }
 
+    // Branch access must be explicit. A missing branch claim is not treated as
+    // unrestricted branch access; only tenant administrators and TDBK Master
+    // may enumerate/access every branch in a tenant. Branch-scoped principals
+    // must carry the exact branchId they are authorized to access.
     function isBranchAuthorized(branchId) {
-      return !('branchId' in request.auth.token) ||
-             request.auth.token.branchId == null ||
-             request.auth.token.branchId == branchId ||
-             isMasterAdmin();
+      return isMasterAdmin() ||
+             (isSignedIn() && request.auth.token.role == 'TENANT_ADMIN') ||
+             (isSignedIn() && ('branchId' in request.auth.token) &&
+              request.auth.token.branchId != null &&
+              request.auth.token.branchId == branchId);
     }
 
     function isValidId(id) {
