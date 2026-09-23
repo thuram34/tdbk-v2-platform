@@ -2,7 +2,6 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper functions
     function isSignedIn() {
       return request.auth != null;
     }
@@ -26,6 +25,17 @@ service cloud.firestore {
       return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
 
+    // Sokoni owns this public participant projection independently of TDBK.
+    // Public discovery can read only explicitly ACTIVE participant records.
+    match /sokoniParticipants/{participantId} {
+      allow read: if resource.data.publicationStatus == 'ACTIVE';
+      allow create: if isSignedIn()
+        && request.resource.data.publicationStatus == 'ACTIVE'
+        && request.resource.data.tdbkRelationship == 'NOT_ENROLLED';
+      // Owner-management is intentionally not invented in this task.
+      allow update, delete: if false;
+    }
+
     // Default Deny Catch-All Rule
     match /{document=**} {
       allow read, write: if false;
@@ -37,21 +47,15 @@ service cloud.firestore {
       allow list: if isMasterAdmin();
       allow create, update, delete: if isMasterAdmin();
 
-      // Branch Subcollection
       match /branches/{branchId} {
         allow get, list: if isTenantMember(tenantId) && isValidId(branchId) && isBranchAuthorized(branchId);
         allow write: if isTenantMember(tenantId) && request.auth.token.role == 'TENANT_ADMIN';
       }
 
-      // Security Audit Logs (Read-only for tenant admin, append-only via server)
       match /security_audits/{auditId} {
         allow get, list: if isTenantMember(tenantId) && request.auth.token.role == 'TENANT_ADMIN';
-        allow write: if false; // Audit logs can only be created by authoritative server runtime
+        allow write: if false;
       }
-
-      // No client catch-all. Operational state is server-authoritative and is
-      // accessed through authenticated TDBK APIs/Admin SDK. New collections
-      // must receive an explicit least-privilege rule before client access.
     }
   }
 }
