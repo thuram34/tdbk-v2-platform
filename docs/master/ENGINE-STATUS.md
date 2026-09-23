@@ -4,13 +4,13 @@
 2026-09-23
 
 ## Current Phase
-Production Hardening — Gate 04 Master Decision: External Side-Effect Idempotency & Reconciliation
+Production Hardening — Gate 04 Implementation Slice 1: Provider Capability + Durable Operation Mapping
 
 ## Current Objective
 Establish the authoritative Engine contract for external side effects across worker crash, lease expiry, transport ambiguity, provider callbacks, and reconciliation without introducing a second authority or claiming universal exactly-once execution.
 
 ## Task Performed
-Completed the Gate 04 Master Review against the latest repository architecture. No production implementation was started.
+Implemented only Gate 04 Slice 1: explicit provider side-effect capability declaration and durable Engine execution → provider-operation mapping. The broader Gate 04 contract remains incomplete.
 
 ## Gate 04 Decision
 **DECIDED — IMPLEMENTATION NOT STARTED.**
@@ -62,9 +62,17 @@ A connector supporting neither is not eligible for automatic replay of a non-ide
 - Financial persistence already has `providerReference` and `RECONCILIATION_REQUIRED`, and confirmed reconciliation is routed through the ledger rather than status-only mutation.
 
 ## Implementation Status
-**NOT STARTED BY DESIGN.** This review establishes the contract only.
+**SLICE 1 COMPLETE — GATE 04 NOT COMPLETE.**
 
-No production source files were modified by this review.
+Implemented:
+- deterministic provider-operation identity derived from `executionKey + connector operation` using SHA-256;
+- explicit bridge capability declaration for provider-side idempotency and provider reconciliation;
+- durable provider-operation mapping fields on the existing `WorkflowStepExecution` authority;
+- worker-owned transactional binding of provider operation/reference metadata;
+- preservation of the mapping when an expired execution is reclaimed under the same canonical execution key;
+- focused regression coverage for identity determinism, capability declaration, durable association, and reclaim preservation.
+
+No second idempotency store was introduced. Existing requestHash/idempotency and workflow lease contracts were preserved.
 
 ## Verification
 - Latest repository architecture inspected: **COMPLETED**
@@ -92,5 +100,8 @@ No unverified PASS is claimed.
 - Existing workflow lease authority: **PRESERVED**
 - Duplicate state outside Engine: **NOT INTRODUCED**
 
+## Remaining Gate 04 Work
+Not complete. Remaining work includes wiring the mapping into side-effect execution/recovery paths, enforcing UNKNOWN/non-idempotent retry safety, provider-specific idempotency propagation where actually supported, reconciliation handling, audit transition semantics, and financial safety enforcement across ambiguous outcomes.
+
 ## Next Single Engine Task
-Implement exactly one Gate 04 hardening task: encode the decided external-side-effect contract in the existing Engine/bridge boundary, beginning with provider capability declaration and durable Engine-execution-to-provider-operation mapping. Do not expand into DBK, Sokoni, provisioning, or unrelated connector redesign.
+Wire the existing durable provider-operation mapping into one Engine side-effect execution/recovery path, including UNKNOWN handling, without redesigning request idempotency or workflow leases.
