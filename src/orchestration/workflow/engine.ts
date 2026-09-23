@@ -7,6 +7,8 @@ import {
   WorkflowInstance,
   WorkflowStep,
   StepHandler,
+  ExternalSideEffectPreparation,
+  ExternalSideEffectBinding,
 } from './types';
 import type { OutboxRecord } from '../../persistence/types';
 import { SecurityContext } from '../../kernel/types';
@@ -18,6 +20,7 @@ import { workflowInstanceRepository } from '../../persistence/firestore/reposito
 import { workflowStepExecutionRepository } from '../../persistence/firestore/repositories/workflowStepExecutionRepository';
 import { outboxEngine } from '../outbox/outboxEngine';
 import { outboxRepository } from '../../persistence/firestore/repositories/outboxRepository';
+import { deriveProviderOperationIdentity } from '../bridge/providerOperationIdentity';
 
 class WorkflowEngineService {
   private workflows: Map<string, WorkflowInstance> = new Map();
@@ -447,6 +450,25 @@ class WorkflowEngineService {
         }
 
         step.attemptCount = Math.max(step.attemptCount + 1, execution.attemptCount);
+
+        // Gate 04: an expired lease recovers Engine ownership, not permission to
+        // blindly repeat an ambiguous external side effect. If the previous
+        // attempt reached UNKNOWN/RECONCILIATION_REQUIRED, recovery must stop
+        // until the provider state is authoritatively reconciled, unless the
+        // provider contract explicitly guarantees idempotent replay.
+        if (
+          (execution.outcomeState === 'UNKNOWN_OUTCOME' ||
+            execution.outcomeState === 'RECONCILIATION_REQUIRED') &&
+          !execution.providerIdempotencySupported
+        ) {
+          throw new KernelError(
+            'CONFLICT',
+            `Workflow step '${step.stepId}' has an unresolved external side effect for provider '${execution.providerName || 'unknown'}'. Reconciliation is required before replay.`,
+            409,
+            context.requestId
+          );
+        }
+
         const stepLeaseDurationMs = 300000;
         const stepLeaseHeartbeatMs = 60000;
         let stepLeaseLost = false;
@@ -457,12 +479,154 @@ class WorkflowEngineService {
             .catch(() => { stepLeaseLost = true; });
         }, stepLeaseHeartbeatMs);
         try {
+          const prepareExternalSideEffect = async (
+            preparation: ExternalSideEffectPreparation
+          ): Promise<ExternalSideEffectBinding> => {
+            const current = await workflowStepExecutionRepository.getExecution(
+              workflow.tenantId,
+              step.executionKey!
+            );
+            if (!current) {
+              throw new KernelError(
+                'NOT_FOUND',
+                `Workflow step execution '${step.executionKey}' not found`,
+                404,
+                context.requestId
+              );
+            }
+
+            if (
+              current.outcomeState === 'UNKNOWN_OUTCOME' ||
+              current.outcomeState === 'RECONCILIATION_REQUIRED'
+            ) {
+              if (!current.providerIdempotencySupported) {
+                throw new KernelError(
+                  'CONFLICT',
+                  `External side effect '${current.providerName || preparation.providerName}' remains unresolved; reconciliation is required before replay.`,
+                  409,
+                  context.requestId
+                );
+              }
+              if (
+                current.providerName !== preparation.providerName
+              ) {
+                throw new KernelError(
+                  'CONFLICT',
+                  'External side-effect provider changed for the canonical execution identity.',
+                  409,
+                  context.requestId
+                );
+              }
+              return {
+                operation: preparation.operation,
+                providerOperationIdentity: current.providerOperationIdentity!,
+                providerName: current.providerName!,
+                providerReference: current.providerReference || null,
+                providerIdempotencySupported: current.providerIdempotencySupported === true,
+                providerReconciliationSupported: current.providerReconciliationSupported === true,
+                outcomeState: current.outcomeState,
+              };
+            }
+
+            if (current.providerOperationIdentity) {
+              if (
+                current.providerName !== preparation.providerName
+              ) {
+                throw new KernelError(
+                  'CONFLICT',
+                  'External side-effect provider changed for the canonical execution identity.',
+                  409,
+                  context.requestId
+                );
+              }
+              return {
+                operation: preparation.operation,
+                providerOperationIdentity: current.providerOperationIdentity,
+                providerName: current.providerName || preparation.providerName,
+                providerReference: current.providerReference || null,
+                providerIdempotencySupported: current.providerIdempotencySupported === true,
+                providerReconciliationSupported: current.providerReconciliationSupported === true,
+                outcomeState: current.outcomeState || 'REQUESTED',
+              };
+            }
+
+            const providerOperationIdentity = deriveProviderOperationIdentity(
+              step.executionKey!,
+              preparation.operation
+            );
+            const bound = await workflowStepExecutionRepository.bindProviderOperation(
+              workflow.tenantId,
+              step.executionKey!,
+              workerId,
+              {
+                operation: preparation.operation,
+                providerOperationIdentity,
+                providerName: preparation.providerName,
+                providerReference: null,
+                providerIdempotencySupported: preparation.providerIdempotencySupported,
+                providerReconciliationSupported: preparation.providerReconciliationSupported,
+                outcomeState: 'REQUESTED',
+              }
+            );
+            return {
+              operation: preparation.operation,
+              providerOperationIdentity: bound.providerOperationIdentity!,
+              providerName: bound.providerName!,
+              providerReference: bound.providerReference || null,
+              providerIdempotencySupported: bound.providerIdempotencySupported === true,
+              providerReconciliationSupported: bound.providerReconciliationSupported === true,
+              outcomeState: bound.outcomeState || 'REQUESTED',
+            };
+          };
+
+          const recordExternalSideEffectOutcome = async (
+            outcome: Pick<ExternalSideEffectBinding, 'providerReference' | 'outcomeState'>
+          ): Promise<ExternalSideEffectBinding> => {
+            const current = await workflowStepExecutionRepository.getExecution(
+              workflow.tenantId,
+              step.executionKey!
+            );
+            if (!current?.providerOperationIdentity || !current.providerName) {
+              throw new KernelError(
+                'CONFLICT',
+                'External side-effect outcome cannot be recorded before the operation is durably bound.',
+                409,
+                context.requestId
+              );
+            }
+            const updated = await workflowStepExecutionRepository.bindProviderOperation(
+              workflow.tenantId,
+              step.executionKey!,
+              workerId,
+              {
+                operation: 'RECORDED',
+                providerOperationIdentity: current.providerOperationIdentity,
+                providerName: current.providerName,
+                providerReference: outcome.providerReference,
+                providerIdempotencySupported: current.providerIdempotencySupported === true,
+                providerReconciliationSupported: current.providerReconciliationSupported === true,
+                outcomeState: outcome.outcomeState,
+              }
+            );
+            return {
+              operation: 'RECORDED',
+              providerOperationIdentity: updated.providerOperationIdentity!,
+              providerName: updated.providerName!,
+              providerReference: updated.providerReference || null,
+              providerIdempotencySupported: updated.providerIdempotencySupported === true,
+              providerReconciliationSupported: updated.providerReconciliationSupported === true,
+              outcomeState: updated.outcomeState || outcome.outcomeState,
+            };
+          };
+
           const result = await handler({
             workflow,
             step,
             input: step.input,
             correlationId: workflow.correlationId,
             executionKey: step.executionKey!,
+            prepareExternalSideEffect,
+            recordExternalSideEffectOutcome,
           });
 
           if (leaseLost || stepLeaseLost) {
@@ -472,6 +636,31 @@ class WorkflowEngineService {
               409,
               context.requestId
             );
+          }
+
+          const durableAfterHandler = await workflowStepExecutionRepository.getExecution(
+            workflow.tenantId,
+            step.executionKey!
+          );
+
+          // Never let a handler's local success result promote an unresolved
+          // provider outcome to completed Engine truth.
+          if (
+            durableAfterHandler &&
+            (durableAfterHandler.outcomeState === 'UNKNOWN_OUTCOME' ||
+              durableAfterHandler.outcomeState === 'RECONCILIATION_REQUIRED')
+          ) {
+            step.status = 'WAITING';
+            step.failureClassification = 'WAITING_FOR_EXTERNAL_RESULT';
+            step.error = 'External provider outcome requires authoritative reconciliation.';
+            workflow.status = 'WAITING';
+            await workflowInstanceRepository.saveWorkflow(
+              workflow.tenantId,
+              workflow.workflowId,
+              workflow,
+              durableWorkflow ? workerId : undefined
+            );
+            return workflow;
           }
 
           if (result.status === 'WAITING' || result.failureClassification === 'WAITING_FOR_EXTERNAL_RESULT') {
