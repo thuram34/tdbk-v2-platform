@@ -284,6 +284,7 @@ export interface WorkflowStepExecution {
   createdAt: string;
   updatedAt: string;
   completedAt: string | null;
+  providerOperation?: string | null;
   providerOperationIdentity?: string | null;
   providerName?: string | null;
   providerReference?: string | null;
