@@ -19,30 +19,41 @@ const EXECUTABLE_ACTIONS = new Set([
 export class TdbkAgentRuntime {
   public async run(instruction: AgentInstruction): Promise<AgentRunResult> {
     const tenantId = instruction.context.tenantContext?.tenantId || instruction.context.principal.tenantId || null;
-    const existing = tenantId
-      ? await agentExecutionRepository.get(tenantId, instruction.instructionId)
-      : await agentExecutionRepository.getSystem(instruction.instructionId);
-
-    if (existing && ['EXECUTED', 'VERIFIED'].includes(existing.status)) {
-      const currentTenantId = tenantId;
-      const currentBranchId = instruction.context.branchContext?.branchId || instruction.context.principal.branchId || null;
-      if (
-        existing.principalId !== instruction.context.principal.id ||
-        existing.tenantId !== currentTenantId ||
-        existing.branchId !== currentBranchId ||
-        existing.instruction !== instruction.text.slice(0, 2000)
-      ) {
-        throw new Error('Agent instruction replay conflict: instructionId is already bound to a different principal, scope, or instruction.');
-      }
-      return { instructionId: existing.instructionId, plan: existing.plan, results: existing.results, completedAt: existing.completedAt };
-    }
-
+    const branchId = instruction.context.branchContext?.branchId || instruction.context.principal.branchId || null;
     const startedAt = new Date().toISOString();
     agentAudit.instruction(instruction);
     const parsed = instructionParser.parse(instruction);
     const plan = { instructionId: instruction.instructionId, intent: parsed.intent, actions: parsed.actions, generatedAt: startedAt };
-    const results = [] as AgentRunResult['results'];
+    const leaseOwner = `${instruction.context.principal.id}:${Date.now()}:${Math.random().toString(36).slice(2, 10)}`;
 
+    const claim = await agentExecutionRepository.claim({
+      executionId: instruction.instructionId,
+      instructionId: instruction.instructionId,
+      tenantId,
+      branchId,
+      principalId: instruction.context.principal.id,
+      instruction: instruction.text.slice(0, 2000),
+      intent: plan.intent,
+      status: 'PLANNED',
+      plan,
+      results: [],
+      createdAt: startedAt,
+      completedAt: startedAt,
+    }, leaseOwner);
+
+    if (claim.status === 'COMPLETED') {
+      return {
+        instructionId: claim.record.instructionId,
+        plan: claim.record.plan,
+        results: claim.record.results,
+        completedAt: claim.record.completedAt,
+      };
+    }
+    if (claim.status === 'IN_PROGRESS') {
+      throw new Error('Agent instruction is already executing under an active durable lease.');
+    }
+
+    const results = [] as AgentRunResult['results'];
     for (const action of plan.actions) {
       const decision = await agentAuthorityPolicy.authorize(instruction, action);
       if (!decision.allowed) {
@@ -83,10 +94,9 @@ export class TdbkAgentRuntime {
     const status = hasFailure ? (hasUnverified ? 'VERIFICATION_FAILED' : 'FAILED') : needsAuthorization ? 'AUTHORIZATION_REQUIRED' : 'VERIFIED';
 
     await agentExecutionRepository.save({
-      executionId: instruction.instructionId, instructionId: instruction.instructionId, tenantId,
-      branchId: instruction.context.branchContext?.branchId || instruction.context.principal.branchId || null,
+      executionId: instruction.instructionId, instructionId: instruction.instructionId, tenantId, branchId,
       principalId: instruction.context.principal.id, instruction: instruction.text.slice(0, 2000), intent: plan.intent,
-      status, plan, results, createdAt: startedAt, completedAt,
+      status, plan, results, createdAt: claim.record.createdAt, completedAt, leaseOwner,
     });
     return result;
   }
