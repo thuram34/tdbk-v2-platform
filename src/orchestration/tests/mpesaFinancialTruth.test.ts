@@ -184,6 +184,31 @@ describe('M-Pesa callback financial atomicity', () => {
     expect(ledger).toHaveLength(2);
   });
 
+  it('repairs a callback replay after financial truth committed but callback claim was lost', async () => {
+    const bridge = new MpesaBridge();
+    await bridge.handleCallback(context(), callback());
+
+    await firestoreClient.delete(
+      `/tenants/${tenantId}/idempotency/mpesa_callback_${checkoutRequestId}`
+    );
+
+    await bridge.handleCallback(context(), callback());
+
+    const tx = await firestoreClient.get<any>(
+      `/tenants/${tenantId}/financialTransactions/mpesa_${checkoutRequestId}`
+    );
+    const ledger = await firestoreClient.listCollection<any>(
+      `/tenants/${tenantId}/ledgerTransactions/mpesa_${checkoutRequestId}/entries`
+    );
+    const outbox = await firestoreClient.get<any>(
+      `/tenants/${tenantId}/outbox/evt_callback_${checkoutRequestId}`
+    );
+
+    expect(tx?.status).toBe('POSTED');
+    expect(tx?.providerReceiptReference).toBe('QAB123XYZ');
+    expect(ledger).toHaveLength(2);
+    expect(outbox?.eventType).toBe('payment.confirmed.v1');
+  });
   it('reconstructs the payment after a simulated server restart', async () => {
     const bridge = new MpesaBridge();
     await bridge.handleCallback(context(), callback());
