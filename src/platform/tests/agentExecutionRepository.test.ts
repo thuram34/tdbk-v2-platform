@@ -48,6 +48,24 @@ describe('AgentExecutionRepository durable execution claims', () => {
     expect(replay.record.status).toBe('VERIFIED');
   });
 
+  it('treats failed and authorization-required executions as terminal replays', async () => {
+    const first = await agentExecutionRepository.claim(record(), 'owner_a');
+    expect(first.status).toBe('ACQUIRED');
+
+    await agentExecutionRepository.save({
+      ...first.record,
+      status: 'FAILED',
+      completedAt: new Date().toISOString(),
+      results: [{ actionId: 'a1', status: 'FAILED', error: 'provider timeout' }],
+      leaseOwner: 'owner_a',
+    });
+
+    const replay = await agentExecutionRepository.claim(record(), 'owner_b');
+    expect(replay.status).toBe('COMPLETED');
+    expect(replay.record.status).toBe('FAILED');
+    expect(replay.record.results[0]).toMatchObject({ actionId: 'a1', status: 'FAILED' });
+  });
+
   it('rejects execution id reuse across tenant or principal identity', async () => {
     await agentExecutionRepository.claim(record(), 'owner_a');
 
