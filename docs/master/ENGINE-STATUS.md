@@ -1,7 +1,7 @@
 # TDBK ENGINE STATUS
 
 ## Last Updated
-2026-09-23
+2026-09-25
 
 ## Current Phase
 Production Hardening — Gate 04 Provider Side-Effect Capability Contract
@@ -43,6 +43,19 @@ Current declarations:
 | Email | false | false | false | required |
 | WhatsApp | false | false | false | required |
 
+## Provider-Contract Verification — 2026-09-25
+The next Gate 04 task was to establish or verify an authoritative provider-side idempotency contract before propagating the Engine-derived provider-operation identity.
+
+For M-Pesa/Daraja, the current official Safaricom Developer Portal exposes Daraja API documentation and a Transaction Status API, but the publicly accessible official material reviewed here does **not** establish a documented caller-supplied idempotency key contract for STK Push that guarantees provider-side deduplication of repeated submissions. The official portal therefore does not provide sufficient evidence to change `providerIdempotency` from `false` or to safely propagate the Engine-derived operation identity as an M-Pesa idempotency key.
+
+Decision: **M-Pesa remains non-idempotent at the Engine capability boundary.** No provider API behavior was inferred, invented, or implemented.
+
+This is a verification result, not evidence that Safaricom can never provide such a contract. A future provider-specific contract may be adopted only when authoritative Safaricom documentation or equivalent provider-controlled evidence establishes the required semantics.
+
+Official evidence reviewed:
+- Safaricom Daraja Developer Portal
+- Safaricom Transaction Status API listing
+
 ## Architectural Boundaries Preserved
 - `WorkflowStepExecution.executionKey`: **PRESERVED**
 - `deriveProviderOperationIdentity(executionKey, operation)`: **PRESERVED**
@@ -56,7 +69,7 @@ Current declarations:
 - DBK: **NONE**
 - Sokoni: **NONE**
 
-## Exact Files Changed In This Task
+## Exact Files Changed In The Normalization Task
 - `src/orchestration/bridge/types.ts`
 - `src/orchestration/bridge/registry.ts`
 - `src/orchestration/tests/gate04ExternalSideEffect.test.ts`
@@ -98,16 +111,16 @@ Focused regression coverage now verifies:
 No unexecuted verification is claimed as PASS.
 
 ## Remaining Gate 04 Work
-Gate 04 is **NOT COMPLETE**. Remaining work is outside this normalization slice:
+Gate 04 is **NOT COMPLETE**. Remaining work is outside this normalization/contract-verification slice:
 
-1. Establish an authoritative provider-side idempotency contract for a real connector operation before any provider-key propagation.
-2. Implement provider-specific idempotency propagation only after that contract exists.
+1. Implement provider-specific idempotency propagation only after an authoritative provider contract exists.
+2. Complete authoritative UNKNOWN/reconciliation enforcement for connectors that cannot safely replay ambiguous non-idempotent operations.
 3. Complete remaining reconciliation/audit/financial-safety hardening as separate Engine tasks.
 
 M-Pesa must remain non-idempotent until authoritative Safaricom evidence establishes a compatible provider-side deduplication contract.
 
 ## MASTER REVIEW REQUIRED
-No new architectural decision was introduced by this task. The existing provider-contract blocker remains: no current connector has been established as supporting provider-side idempotency compatible with the Engine-derived identity.
+No new architectural decision was introduced beyond confirming the existing blocker. The provider-contract blocker remains: no current connector has been established as supporting provider-side idempotency compatible with the Engine-derived identity.
 
 ## DBK Impact
 **NONE.** No DBK files or authority were modified.
@@ -116,11 +129,11 @@ No new architectural decision was introduced by this task. The existing provider
 **NONE.** No Sokoni files or authority were modified.
 
 ## Next Single Engine Task
-**Establish/verify an authoritative provider-side idempotency contract for one real connector operation before implementing any provider-key propagation.**
+**Implement the UNKNOWN/reconciliation enforcement boundary for non-idempotent external side effects, without introducing provider idempotency claims or changing workflow identity/lease architecture.**
 
 ## Evidence
-- Main baseline before this task: `68cd266534b5654cf158880bd309b4dd844290e0`
+- Main normalization baseline: `68cd266534b5654cf158880bd309b4dd844290e0`
 - Capability contract type commit: `34a1fc9f5ea939e318b5797a28f036e8381014f3`
 - Registry normalization commit: `ed9d1023876ddbc69794008eb8bc054c728ec71a`
 - Regression test commit: `3c5d12e6aed1ecdd3aee01d74dcee20f394fdf70`
-- Final status update commit: pending this write
+- This provider-contract verification/status update: pending this write
