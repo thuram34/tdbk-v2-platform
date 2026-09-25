@@ -47,6 +47,21 @@ export class AiCommandBoundary {
     return AiCommandBoundary.instance;
   }
 
+  private assertBranchAccess(ctx: SecurityContext, tenantId: string, branchId: string, action: string): void {
+    if (!branchId) {
+      throw new KernelError('AUTHORIZATION_ERROR', 'Branch scope is required', 403, ctx.requestId);
+    }
+    if (ctx.principal.isMaster) return;
+    if (ctx.principal.tenantId !== tenantId) {
+      throw new KernelError('AUTHORIZATION_ERROR', 'Cross-tenant branch access denied', 403, ctx.requestId);
+    }
+    const roles = Array.isArray(ctx.principal.roles) ? ctx.principal.roles : [];
+    if (roles.includes('TENANT_ADMIN')) return;
+    if (ctx.principal.branchId !== branchId) {
+      throw new KernelError('AUTHORIZATION_ERROR', 'Branch is not authorized for this principal', 403, ctx.requestId);
+    }
+  }
+
   public async createPersistentProposal(
     ctx: SecurityContext,
     params: {
@@ -256,6 +271,7 @@ export class AiCommandBoundary {
     if (proposal && proposal.tenantId !== tenantId) {
       throw new KernelError('FORBIDDEN_OPERATION' as any, 'AI proposal tenant boundary violation', 403, ctx.requestId);
     }
+    if (proposal) this.assertBranchAccess(ctx, tenantId, proposal.branchId, 'AI_PROPOSAL_READ');
     return proposal;
   }
 
@@ -266,7 +282,15 @@ export class AiCommandBoundary {
     branchId?: string
   ): Promise<AiProposedAction[]> {
     tenantIsolation.assertTenantIsolation(ctx.principal, tenantId);
-    const proposals = await aiProposalRepository.listProposals(tenantId, branchId);
+    const roles = Array.isArray(ctx.principal.roles) ? ctx.principal.roles : [];
+    const effectiveBranchId = ctx.principal.isMaster || roles.includes('TENANT_ADMIN') ? branchId : (ctx.principal.branchId || null);
+    if (!effectiveBranchId) {
+      throw new KernelError('AUTHORIZATION_ERROR', 'Branch scope is required for proposal listing', 403, ctx.requestId);
+    }
+    if (branchId && effectiveBranchId !== branchId && !ctx.principal.isMaster && !roles.includes('TENANT_ADMIN')) {
+      throw new KernelError('AUTHORIZATION_ERROR', 'Requested proposal branch is not authorized', 403, ctx.requestId);
+    }
+    const proposals = await aiProposalRepository.listProposals(tenantId, effectiveBranchId);
     return status ? proposals.filter((proposal) => proposal.status === status) : proposals;
   }
 
