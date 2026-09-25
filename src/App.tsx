@@ -4,6 +4,9 @@ import { DbkApp } from './components/experience/DbkApp';
 import { BusinessDiscovery } from './components/onboarding/BusinessDiscovery';
 import { LoginScreen } from './components/auth/LoginScreen';
 import { DbkExperienceFlow } from './public/DbkExperienceFlow';
+import { SokoniExperience } from './sokoni/SokoniExperience';
+import { SokoniBusinessRegistration } from './sokoni/SokoniBusinessRegistration';
+import LegacyApp from './AppLegacy';
 import { useAuth } from './client/AuthContext';
 import { listDbks } from './client/masterControlApi';
 
@@ -41,6 +44,9 @@ export default function App() {
   const [dbksLoading, setDbksLoading] = useState(true);
   const [dbks, setDbks] = useState<DbkSummary[]>([]);
   const [dbksError, setDbksError] = useState<string | null>(null);
+  const [showSokoni, setShowSokoni] = useState(() => typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('sokoni') === '1');
+  const [showSokoniBusiness, setShowSokoniBusiness] = useState(() => typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('sokoniBusiness') === '1');
+  const [engineeringMode, setEngineeringMode] = useState(false);
 
   useEffect(() => {
     if (!user) {
@@ -82,13 +88,56 @@ export default function App() {
     };
   }, [user]);
 
+  const enterSokoni = () => {
+    setShowSokoniBusiness(false);
+    setShowSokoni(true);
+    window.history.pushState({}, '', '?sokoni=1');
+  };
+
+  const enterSokoniBusiness = () => {
+    setShowSokoni(true);
+    setShowSokoniBusiness(true);
+    window.history.pushState({}, '', '?sokoni=1&sokoniBusiness=1');
+  };
+
+  const exitSokoniBusiness = () => {
+    setShowSokoniBusiness(false);
+    setShowSokoni(true);
+    window.history.pushState({}, '', '?sokoni=1');
+  };
+
+  const exitSokoni = () => {
+    setShowSokoniBusiness(false);
+    setShowSokoni(false);
+    window.history.pushState({}, '', window.location.pathname);
+  };
+
+  if (engineeringMode) return <LegacyApp />;
+
+  if (showSokoni) {
+    if (showSokoniBusiness) return <SokoniBusinessRegistration onExit={exitSokoniBusiness} />;
+    return (
+      <>
+        <SokoniExperience onBack={exitSokoni} />
+        <button
+          type="button"
+          onClick={enterSokoniBusiness}
+          className="fixed bottom-20 right-4 z-50 inline-flex items-center gap-2 rounded-full bg-neutral-950 px-4 py-3 text-xs font-black text-white shadow-xl transition hover:-translate-y-0.5 sm:bottom-5 sm:right-5"
+        >
+          List your presence on Sokoni →
+        </button>
+      </>
+    );
+  }
+
   if (loading) {
     return <div className="min-h-screen bg-[#FBFBF9] flex items-center justify-center text-sm text-neutral-500">Opening TDBK…</div>;
   }
 
   if (showPublicFlow) {
     return (
-      <DbkExperienceFlow
+      <div className="relative">
+        <DbkExperienceFlow
         onSignIn={() => {
           setShowPublicFlow(false);
           if (!user) setPublicView('LOGIN');
@@ -97,7 +146,15 @@ export default function App() {
           setShowPublicFlow(false);
           if (!user) setPublicView('LOGIN');
         }}
-      />
+        />
+        <button
+          type="button"
+          onClick={enterSokoni}
+          className="fixed bottom-4 left-4 z-50 rounded-full border border-neutral-300 bg-white/95 px-4 py-2.5 text-xs font-bold text-neutral-900 shadow-lg backdrop-blur"
+        >
+          Discover with Sokoni →
+        </button>
+      </div>
     );
   }
 
@@ -110,7 +167,18 @@ export default function App() {
         </header>
         <LoginScreen onBackToGateway={() => { setPublicView('FLOW'); setShowPublicFlow(true); }} />
       </div>
-    ) : <DbkExperienceFlow onSignIn={() => setPublicView('LOGIN')} onLaunchWorkspace={() => setPublicView('LOGIN')} />;
+    ) : (
+      <div className="relative">
+        <DbkExperienceFlow onSignIn={() => setPublicView('LOGIN')} onLaunchWorkspace={() => setPublicView('LOGIN')} />
+        <button
+          type="button"
+          onClick={enterSokoni}
+          className="fixed bottom-4 left-4 z-50 rounded-full border border-neutral-300 bg-white/95 px-4 py-2.5 text-xs font-bold text-neutral-900 shadow-lg backdrop-blur"
+        >
+          Discover with Sokoni →
+        </button>
+      </div>
+    );
   }
 
   if (dbksLoading) {
@@ -131,7 +199,22 @@ export default function App() {
   }
 
   if (dbks.length === 0) {
-    return <BusinessDiscovery onProvisioned={(id) => { setDbkId(id); setDbks([{ dbkId: id, status: 'PROVISIONING' }]); }} />;
+    return (
+      <>
+        <BusinessDiscovery
+          onProvisioned={(id) => {
+            setDbkId(id);
+            setDbks([{ dbkId: id, status: 'PROVISIONING' }]);
+          }}
+        />
+        <button
+          onClick={() => setEngineeringMode(true)}
+          className="fixed bottom-4 left-4 rounded-xl border border-neutral-200 bg-white px-3 py-2 text-[10px] font-semibold text-neutral-500 shadow-sm"
+        >
+          Engineering
+        </button>
+      </>
+    );
   }
 
   if (!dbkId) {
