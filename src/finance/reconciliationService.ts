@@ -21,6 +21,9 @@ export class ReconciliationService {
     tenantId: string,
     transactionId: string,
   ): Promise<FinancialTransaction> {
+    const current = await reconciliationRepository.get(tenantId, transactionId);
+    if (!current) throw new Error('Financial transaction not found');
+    if (current.status === 'FAILED') return current;
     return reconciliationRepository.resolve(
       tenantId,
       transactionId,
