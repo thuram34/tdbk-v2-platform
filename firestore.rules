@@ -31,6 +31,17 @@ service cloud.firestore {
       return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
 
+    // Sokoni owns this public participant projection independently of TDBK.
+    // Public discovery can read only explicitly ACTIVE participant records.
+    match /sokoniParticipants/{participantId} {
+      allow read: if resource.data.publicationStatus == 'ACTIVE';
+      allow create: if isSignedIn()
+        && request.resource.data.publicationStatus == 'ACTIVE'
+        && request.resource.data.tdbkRelationship == 'NOT_ENROLLED';
+      // Owner-management is intentionally not invented in this task.
+      allow update, delete: if false;
+    }
+
     // Default Deny Catch-All Rule
     match /{document=**} {
       allow read, write: if false;
