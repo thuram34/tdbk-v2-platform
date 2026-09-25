@@ -15,7 +15,6 @@ import { KernelError } from '../../../kernel/errors/kernelErrors';
 import { publishBridgeEvent } from '../bridgeEventPublisher';
 import { connectorConnectionRepository } from '../../../persistence/firestore/repositories/connectorConnectionRepository';
 import { financialLedgerRepository } from '../../../persistence/firestore/repositories/financialLedgerRepository';
-import { outboxEngine } from '../../outbox/outboxEngine';
 import { firestoreClient } from '../../../persistence/firestore/firestoreClient';
 import { resolveConnectorSecret } from '../connectorSecretResolver';
 import { reconciliationService } from '../../../finance/reconciliationService';
@@ -503,7 +502,9 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
         !initiated ||
         initiated.tenantId !== requestTenant ||
         initiated.providerReference !== stk.CheckoutRequestID ||
-        !['PENDING', 'RECONCILIATION_REQUIRED'].includes(initiated.status)
+        !(normalized.status === 'SUCCESS'
+          ? ['PENDING', 'RECONCILIATION_REQUIRED', 'POSTED'].includes(initiated.status)
+          : ['PENDING', 'RECONCILIATION_REQUIRED'].includes(initiated.status))
       ) {
         throw new KernelError('VALIDATION_ERROR', 'M-Pesa callback rejected: checkout request was not durably initiated by TDBK', 422, context.requestId);
       }
@@ -514,126 +515,58 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
       }
     }
 
-    // The claim is intentionally made with the same Firestore transaction as
-    // financial state and the durable outbox. There is no "COMPLETED then enqueue"
-    // gap that can lose payment.confirmed.v1 after a process crash.
+    // Financial truth is authoritative. The callback idempotency marker is a repair/replay
+    // record and must not be the authority that decides whether money is POSTED.
     const claimPath = `/tenants/${idempotencyTenant}/idempotency/${callbackKey}`;
-    const claimRecord = {
-      idempotencyKey: callbackKey,
-      tenantId: idempotencyTenant,
-      action: 'MPESA_CALLBACK',
-      requestHash: `${stk.CheckoutRequestID}:${stk.ResultCode}`,
-      status: 'IN_PROGRESS' as const,
-      createdAt: new Date().toISOString(),
-      expiresAt: new Date(Date.now() + 86400000 * 7).toISOString(),
-    };
+    const requestHash = `${stk.CheckoutRequestID}:${stk.ResultCode}`;
 
-    const atomicResult = await firestoreClient.runTransaction(async (tx) => {
-      const existing = await tx.get<any>(claimPath);
-      if (existing) {
-        if (
-          existing.tenantId !== idempotencyTenant ||
-          existing.action !== 'MPESA_CALLBACK' ||
-          existing.requestHash !== claimRecord.requestHash
-        ) {
-          throw new Error('M-Pesa callback idempotency key conflicts with a different provider result');
-        }
-        if (existing.status === 'COMPLETED') return { claim: 'COMPLETED' as const };
-        if (existing.status === 'IN_PROGRESS' && new Date(existing.expiresAt).getTime() > Date.now()) {
-          return { claim: 'IN_PROGRESS' as const };
-        }
+    const existingClaim = await firestoreClient.get<any>(claimPath);
+    if (existingClaim) {
+      if (existingClaim.tenantId !== idempotencyTenant || existingClaim.action !== 'MPESA_CALLBACK' || existingClaim.requestHash !== requestHash) {
+        throw new KernelError('CONFLICT', 'M-Pesa callback idempotency key conflicts with a different provider result', 409, context.requestId);
       }
-
-      await tx.set(claimPath, claimRecord);
-
-      if (normalized.status === 'FAILED') {
-        const transactionId = authoritativeTransactionId;
-        const existingTransaction = await tx.get<any>(`/tenants/${idempotencyTenant}/financialTransactions/${transactionId}`);
-        if (!existingTransaction) throw new Error('M-Pesa failed callback has no authoritative pending transaction');
-        if (
-          existingTransaction.status !== 'PENDING' ||
-          existingTransaction.providerReference !== stk.CheckoutRequestID ||
-          existingTransaction.tenantId !== idempotencyTenant
-        ) {
-          throw new Error('M-Pesa failed callback conflicts with authoritative pending transaction');
-        }
-        await tx.update<any>(`/tenants/${idempotencyTenant}/financialTransactions/${transactionId}`, {
-          status: 'FAILED',
-          description: stk.ResultDesc || existingTransaction.description || 'M-Pesa payment failed',
-        });
+      if (existingClaim.status === 'COMPLETED') {
+        auditLogger.logEvent('BRIDGE_EXECUTION', context.principal.id, 'BRIDGE_CALLBACK_RECEIVED', `bridge:${this.bridgeId}`, 'ALLOWED', { tenantId: idempotencyTenant, requestId: context.requestId, details: { providerReference: stk.CheckoutRequestID, duplicate: true } });
+        return normalized;
       }
+    }
 
-      if (normalized.status === 'SUCCESS') {
-        const transactionId = `mpesa_${stk.CheckoutRequestID}`;
-        const now = new Date().toISOString();
-        const existingTransaction = await tx.get<any>(`/tenants/${idempotencyTenant}/financialTransactions/${transactionId}`);
-        if (!existingTransaction) {
-          throw new Error('M-Pesa callback has no authoritative pending transaction');
-        }
-        if (
-          existingTransaction.status !== 'PENDING' ||
-          existingTransaction.tenantId !== idempotencyTenant ||
-          existingTransaction.providerReference !== stk.CheckoutRequestID ||
-          Number(existingTransaction.amount) !== Number(normalized.amount) ||
-          existingTransaction.currency !== (normalized.currency || 'KES')
-        ) {
-          throw new Error('M-Pesa callback conflicts with authoritative pending transaction');
-        }
-
-        const transaction = {
-          ...existingTransaction,
-          providerReference: stk.CheckoutRequestID,
-          providerReceiptReference: normalized.providerReference,
-          status: 'POSTED' as const,
-          description: stk.ResultDesc || existingTransaction.description || 'M-Pesa payment received',
-          postedAt: now,
-          reversedAt: null,
-        };
-        const entries = [
-          { entryId: `${transactionId}_debit`, transactionId, tenantId: idempotencyTenant, account: 'CASH:MPESA', entryType: 'DEBIT' as const, amount: transaction.amount, currency: transaction.currency, createdAt: now, immutable: true as const },
-          { entryId: `${transactionId}_credit`, transactionId, tenantId: idempotencyTenant, account: 'RECEIVABLES:PAYMENTS', entryType: 'CREDIT' as const, amount: transaction.amount, currency: transaction.currency, createdAt: now, immutable: true as const },
-        ];
-
-        await tx.set(`/tenants/${idempotencyTenant}/financialTransactions/${transactionId}`, transaction);
-        await tx.set(`/tenants/${idempotencyTenant}/ledgerTransactions/${transactionId}`, {
-          ledgerTransactionId: transactionId, tenantId: idempotencyTenant, transactionId,
-          status: 'POSTED', amount: transaction.amount, currency: transaction.currency,
-          postedAt: now, createdAt: transaction.createdAt,
-        });
-        for (const entry of entries) {
-          await tx.set(`/tenants/${idempotencyTenant}/ledgerTransactions/${transactionId}/entries/${entry.entryId}`, entry);
-        }
+    if (normalized.status === 'SUCCESS') {
+      const transactionId = authoritativeTransactionId;
+      const current = await firestoreClient.get<any>(`/tenants/${idempotencyTenant}/financialTransactions/${transactionId}`);
+      if (!current) throw new KernelError('VALIDATION_ERROR', 'M-Pesa callback has no authoritative financial transaction', 422, context.requestId);
+      if (current.tenantId !== idempotencyTenant || current.providerReference !== stk.CheckoutRequestID || !['PENDING', 'RECONCILIATION_REQUIRED', 'POSTED'].includes(current.status) || Number(current.amount) !== Number(normalized.amount) || current.currency !== (normalized.currency || 'KES')) {
+        throw new KernelError('VALIDATION_ERROR', 'M-Pesa callback conflicts with authoritative financial transaction', 422, context.requestId);
       }
-
-      await outboxEngine.enqueueEvent(idempotencyTenant, {
-        eventId: `evt_callback_${stk.CheckoutRequestID}`,
-        eventType: normalized.status === 'SUCCESS' ? 'payment.confirmed.v1' : 'payment.failed.v1',
-        eventVersion: 'v1',
-        occurredAt: normalized.occurredAt,
-        tenantId: idempotencyTenant,
-        branchId: initiatedBranchId,
-        principalId: context.principal.id,
-        correlationId: normalized.correlationId,
-        causationId: stk.CheckoutRequestID,
-        source: 'MpesaBridge',
-        payload: normalized as unknown as Record<string, unknown>,
-        metadata: {},
-      }, tx, context.principal.id);
-
-      await tx.update<any>(claimPath, {
-        status: 'COMPLETED',
-        responsePayload: {
-          providerReference: normalized.providerReference,
-          status: normalized.status,
-          amount: normalized.amount || 0,
-        },
+      if (current.status === 'POSTED' && current.providerReceiptReference && current.providerReceiptReference !== normalized.providerReference) {
+        throw new KernelError('CONFLICT', 'M-Pesa callback receipt conflicts with already-posted financial truth', 409, context.requestId);
+      }
+      if (current.status === 'PENDING') {
+        await reconciliationService.markRequired(idempotencyTenant, transactionId, 'PENDING', { providerReference: stk.CheckoutRequestID, description: current.description });
+      }
+      const postedAt = current.status === 'POSTED' && current.postedAt ? current.postedAt : new Date().toISOString();
+      const transaction = { ...current, transactionId, tenantId: idempotencyTenant, providerReference: stk.CheckoutRequestID, providerReceiptReference: normalized.providerReference, status: 'POSTED' as const, description: stk.ResultDesc || current.description || 'M-Pesa payment received', postedAt, reversedAt: null };
+      const entries = [
+        { entryId: `${transactionId}_debit`, transactionId, tenantId: idempotencyTenant, account: 'CASH:MPESA', entryType: 'DEBIT' as const, amount: transaction.amount, currency: transaction.currency, createdAt: postedAt, immutable: true as const },
+        { entryId: `${transactionId}_credit`, transactionId, tenantId: idempotencyTenant, account: 'RECEIVABLES:PAYMENTS', entryType: 'CREDIT' as const, amount: transaction.amount, currency: transaction.currency, createdAt: postedAt, immutable: true as const },
+      ];
+      await reconciliationService.resolveConfirmed(transaction, entries, {
+        eventId: `evt_callback_${stk.CheckoutRequestID}`, tenantId: idempotencyTenant, branchId: initiatedBranchId,
+        eventType: 'payment.confirmed.v1', eventVersion: 'v1', occurredAt: postedAt, correlationId: normalized.correlationId, causationId: stk.CheckoutRequestID, source: 'MpesaBridge',
+        payload: normalized as unknown as Record<string, unknown>, status: 'PENDING', attemptCount: 0, availableAt: postedAt, createdAt: postedAt, updatedAt: postedAt,
+        leaseOwner: null, leaseUntil: null, lastError: null, deliveredAt: null,
       });
+    } else if (normalized.status === 'FAILED') {
+      await reconciliationService.resolveFailed(idempotencyTenant, authoritativeTransactionId);
+    }
 
-      return { claim: 'CLAIMED' as const };
+    const claimRecord = { idempotencyKey: callbackKey, tenantId: idempotencyTenant, action: 'MPESA_CALLBACK', requestHash, status: 'COMPLETED' as const, createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 86400000 * 7).toISOString(), responsePayload: { providerReference: normalized.providerReference, status: normalized.status, amount: normalized.amount || 0 } };
+    await firestoreClient.runTransaction(async (tx) => {
+      const existing = await tx.get<any>(claimPath);
+      if (existing && (existing.tenantId !== idempotencyTenant || existing.action !== 'MPESA_CALLBACK' || existing.requestHash !== requestHash)) throw new Error('M-Pesa callback idempotency key conflicts with a different provider result');
+      await tx.set(claimPath, claimRecord);
     });
-
-    if (atomicResult.claim === 'COMPLETED') {
-      auditLogger.logEvent('BRIDGE_EXECUTION', context.principal.id, 'BRIDGE_CALLBACK_RECEIVED', `bridge:${this.bridgeId}`, 'ALLOWED', {
+    auditLogger.logEvent('BRIDGE_EXECUTION', context.principal.id, 'BRIDGE_CALLBACK_RECEIVED', `bridge:${this.bridgeId}`, 'ALLOWED', {
         tenantId: idempotencyTenant,
         requestId: context.requestId,
         details: { providerReference: stk.CheckoutRequestID, duplicate: true },
