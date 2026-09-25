@@ -627,6 +627,27 @@ async function startServer() {
     res.json({ status: 'SUCCESS', blueprint });
   });
 
+  app.patch('/api/dna/:dbkId/business-context', async (req: Request, res: Response) => {
+    try {
+      const { dbkId } = req.params;
+      const context = await securityContextFactory.createSecurityContext({
+        authHeader: req.headers.authorization,
+        targetTenantId: dbkId,
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+      });
+      const dna = await businessDnaManager.updateBusinessContextNarrative(
+        context,
+        dbkId,
+        typeof req.body?.narrative === 'string' ? req.body.narrative : ''
+      );
+      return res.json({ status: 'SUCCESS', dna });
+    } catch (err) {
+      if (err instanceof KernelError) return res.status(err.statusCode).json(err.toJSON());
+      return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Unable to update Business Context narrative' } });
+    }
+  });
+
   app.get('/api/dna/:dbkId', async (req: Request, res: Response) => {
     try {
       const authHeader = req.headers.authorization;
