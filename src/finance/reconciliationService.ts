@@ -37,6 +37,7 @@ export class ReconciliationService {
   public async resolveConfirmed(
     transaction: FinancialTransaction,
     entries: LedgerEntry[],
+    outboxRecord?: OutboxRecord,
   ): Promise<FinancialTransaction> {
     if (transaction.status !== 'POSTED') {
       throw new Error('Confirmed reconciliation must provide a POSTED transaction');
@@ -60,41 +61,23 @@ export class ReconciliationService {
     }
 
     const occurredAt = transaction.postedAt!;
-    const outboxRecord: OutboxRecord = {
+    const confirmationOutbox = outboxRecord ?? {
       eventId: `evt_payment_confirmed_${transaction.transactionId}`,
-      tenantId: transaction.tenantId,
-      branchId: transaction.branchId,
-      eventType: 'payment.confirmed.v1',
-      eventVersion: 'v1',
-      occurredAt,
-      correlationId: transaction.correlationId,
-      causationId: transaction.providerReference,
+      tenantId: transaction.tenantId, branchId: transaction.branchId,
+      eventType: 'payment.confirmed.v1', eventVersion: 'v1', occurredAt,
+      correlationId: transaction.correlationId, causationId: transaction.providerReference,
       source: 'TDBK_RECONCILIATION_SERVICE',
-      payload: {
-        transactionId: transaction.transactionId,
-        providerReference: transaction.providerReference,
-        amount: transaction.amount,
-        currency: transaction.currency,
-        status: 'POSTED',
-      },
-      status: 'PENDING',
-      attemptCount: 0,
-      availableAt: occurredAt,
-      createdAt: occurredAt,
-      updatedAt: occurredAt,
-      leaseOwner: null,
-      leaseUntil: null,
-      lastError: null,
-      deliveredAt: null,
+      payload: { transactionId: transaction.transactionId, providerReference: transaction.providerReference, amount: transaction.amount, currency: transaction.currency, status: 'POSTED' },
+      status: 'PENDING' as const, attemptCount: 0, availableAt: occurredAt, createdAt: occurredAt, updatedAt: occurredAt,
+      leaseOwner: null, leaseUntil: null, lastError: null, deliveredAt: null,
     };
-
     const { financialLedgerRepository } = await import(
       '../persistence/firestore/repositories/financialLedgerRepository'
     );
     await financialLedgerRepository.confirmReconciledTransaction(
       transaction,
       entries,
-      outboxRecord,
+      confirmationOutbox,
     );
     return (await reconciliationRepository.get(transaction.tenantId, transaction.transactionId))!;
   }
