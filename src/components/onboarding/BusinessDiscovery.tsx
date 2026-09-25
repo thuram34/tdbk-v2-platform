@@ -190,6 +190,23 @@ export function BusinessDiscovery({ onProvisioned }: BusinessDiscoveryProps) {
         throw new Error('TDBK provisioned the business, but the returned Business DNA does not match the onboarding selection.');
       }
 
+      // Persist the human-authored context through the Engine authority. DBK keeps no local Business DNA copy.
+      const contextResponse = await fetch('/api/dna/' + dbkId + '/business-context', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ narrative }),
+      });
+      const contextData = await contextResponse.json().catch(() => ({}));
+      if (!contextResponse.ok) {
+        throw new Error(contextData.error?.message || 'TDBK could not save the Business Context.');
+      }
+      if (contextData.dna?.businessContextNarrative !== narrative.trim()) {
+        throw new Error('TDBK saved the business, but the authoritative Business Context could not be verified.');
+      }
+
       const defaultCapabilityIds = new Set(
         (selectedBlueprint.supportedCapabilities || [])
           .filter((capability) => capability.isDefault)
