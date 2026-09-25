@@ -171,6 +171,25 @@ export function BusinessDiscovery({ onProvisioned }: BusinessDiscoveryProps) {
         throw new Error(provisionData.error?.message || 'TDBK could not provision the business.');
       }
 
+      // Verify the newly provisioned DBK is backed by the Engine's durable Business DNA
+      // before handing control to the workspace. DBK does not create or persist DNA locally.
+      const dnaResponse = await fetch(`/api/dna/${dbkId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const dnaData = await dnaResponse.json().catch(() => ({}));
+      if (!dnaResponse.ok || !dnaData.dna) {
+        throw new Error(dnaData.error?.message || 'TDBK provisioned the business, but its authoritative Business DNA could not be verified.');
+      }
+
+      const authoritativeDna = dnaData.dna;
+      if (
+        authoritativeDna.dbkId !== dbkId ||
+        authoritativeDna.identity?.businessName !== businessName.trim() ||
+        authoritativeDna.identity?.blueprintId !== selectedBlueprint.id
+      ) {
+        throw new Error('TDBK provisioned the business, but the returned Business DNA does not match the onboarding selection.');
+      }
+
       const defaultCapabilityIds = new Set(
         (selectedBlueprint.supportedCapabilities || [])
           .filter((capability) => capability.isDefault)
