@@ -83,6 +83,8 @@ export interface BranchTopology {
 
 export interface BusinessDNA {
   dbkId: string;
+  /** Human-authored business context; authoritative Engine field. */
+  businessContextNarrative?: string;
   identity: BusinessIdentity;
   scale: 'MICRO' | 'SMALL' | 'MEDIUM' | 'ENTERPRISE';
   branchTopology: BranchTopology;
