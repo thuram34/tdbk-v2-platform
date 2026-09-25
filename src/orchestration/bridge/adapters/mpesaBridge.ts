@@ -543,6 +543,15 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
           Number(current.amount) !== Number(normalized.amount) || current.currency !== (normalized.currency || 'KES')) {
         throw new KernelError('VALIDATION_ERROR', 'M-Pesa callback conflicts with authoritative financial transaction', 422, context.requestId);
       }
+      if (current.status === 'POSTED' && current.providerReceiptReference && current.providerReceiptReference !== normalized.providerReference) {
+        throw new KernelError('CONFLICT', 'M-Pesa callback receipt conflicts with already-posted financial truth', 409, context.requestId);
+      }
+      if (current.status === 'PENDING') {
+        await reconciliationService.markRequired(idempotencyTenant, transactionId, 'PENDING', {
+          providerReference: stk.CheckoutRequestID,
+          description: current.description,
+        });
+      }
       const postedAt = current.status === 'POSTED' && current.postedAt ? current.postedAt : new Date().toISOString();
       const transaction = {
         ...current,
