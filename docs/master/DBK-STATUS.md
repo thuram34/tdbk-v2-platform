@@ -45,7 +45,6 @@ This task introduced no:
 ## Deferred / MASTER REVIEW REQUIRED
 - **Business Context narrative persistence.** The verified Business DNA contract persists business identity, blueprint binding and branch topology through Engine provisioning, but the current BusinessDNA schema has no narrative/description field. The onboarding narrative therefore remains presentation-only until Engine defines an authoritative field and update contract.
 - **Engine DBK recommendation contract.** Blueprint/capability metadata is available, but a verified recommendation authority that transforms business context into recommendations was not located.
-- **Engine DBK recommendation contract.** Blueprint/capability metadata is available, but a verified recommendation authority that transforms business context into recommendations was not located.
 - **Configuration payload contract for capability configuration.** `CONFIGURATION_REQUIRED` is exposed by the Experience contract, but this task does not invent the payload/schema needed by `CONFIGURE_CAPABILITY`.
 - **Anonymous public organization publication/read authority.** Remains outside this task.
 - **Sokoni integration/handoff contract.** No Sokoni logic introduced.
