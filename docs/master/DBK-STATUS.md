@@ -1,13 +1,13 @@
 # DBK STATUS
 
 ## Last Updated
-2026-09-23
+2026-09-25
 
 ## Current Phase
-DBK-05 Capability Activation UX
+DBK-06 Business Context → Business DNA Binding
 
 ## Current Objective
-Bind authenticated capability discovery and activation presentation to the Engine-resolved capability status without inferring entitlement, eligibility, configuration, or suspension locally.
+Bind onboarding completion to verified Engine-owned Business DNA by confirming the provisioned DBK has authoritative durable DNA before entering the workspace.
 
 ## Completed
 - Bound the authenticated capability discovery surface to `ExperienceDiscoveryItem.status` returned by the existing Engine `ExperienceResolver` contract.
@@ -43,7 +43,8 @@ This task introduced no:
 - Sokoni datastore
 
 ## Deferred / MASTER REVIEW REQUIRED
-- **Business Context -> authoritative persistent Business DNA onboarding contract.** The DBK onboarding UI captures a narrative locally, but no verified DBK-facing persistence contract was located. DBK must not fabricate one.
+- **Business Context narrative persistence.** The verified Business DNA contract persists business identity, blueprint binding and branch topology through Engine provisioning, but the current BusinessDNA schema has no narrative/description field. The onboarding narrative therefore remains presentation-only until Engine defines an authoritative field and update contract.
+- **Engine DBK recommendation contract.** Blueprint/capability metadata is available, but a verified recommendation authority that transforms business context into recommendations was not located.
 - **Engine DBK recommendation contract.** Blueprint/capability metadata is available, but a verified recommendation authority that transforms business context into recommendations was not located.
 - **Configuration payload contract for capability configuration.** `CONFIGURATION_REQUIRED` is exposed by the Experience contract, but this task does not invent the payload/schema needed by `CONFIGURE_CAPABILITY`.
 - **Anonymous public organization publication/read authority.** Remains outside this task.
@@ -60,6 +61,7 @@ This task introduced no:
 
 ## Files Changed
 - `src/components/experience/DiscoveryMarketplaceView.tsx` — Engine-status-driven capability presentation and activation UI.
+- `src/components/onboarding/BusinessDiscovery.tsx` — verifies authoritative Business DNA after Engine provisioning before entering the workspace.
 - `docs/master/DBK-STATUS.md` — continuation state, dependency and verification record.
 
 ## Verification
@@ -71,9 +73,9 @@ This task introduced no:
 - No Sokoni repository or Sokoni logic was modified.
 
 ## Result
-DBK capability discovery now consumes the Engine's complete resolved capability-state vocabulary instead of deriving presentation from partial local flags. Activation remains Engine-authorized. Missing configuration authority remains a clean boundary rather than a fabricated implementation.
+The onboarding flow now treats Engine provisioning as the Business DNA authority and verifies the durable /api/dna/:dbkId projection before handing the user into the DBK workspace. No local Business DNA persistence or duplicate authority was introduced. The free-form onboarding narrative remains explicitly non-authoritative because the Engine schema does not expose a verified narrative field.
 
 ## Next SINGLE Task
-**MASTER REVIEW REQUIRED: verify and expose the authoritative Business Context -> Business DNA onboarding contract.**
+**MASTER REVIEW REQUIRED: define the authoritative Business Context narrative field/update contract.**
 
-If that contract is confirmed, the next DBK implementation should bind the existing onboarding context UI to it. If it is not confirmed, DBK must remain at the boundary and document the dependency rather than creating local Business DNA persistence.
+The identity + blueprint + branch portion is now verified and consumed. The next DBK task should only proceed if Engine exposes an authoritative field and DBK-facing update contract for the free-form business narrative; otherwise keep the narrative presentation-only.
