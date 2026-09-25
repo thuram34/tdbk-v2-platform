@@ -257,7 +257,8 @@ export function BusinessDiscovery({ onProvisioned }: BusinessDiscoveryProps) {
           <div className="hidden sm:flex items-center gap-2 text-xs font-mono text-neutral-500">
             <span className={step === 'DISCOVER' ? 'text-emerald-700 font-bold' : ''}>01 BUSINESS</span><ArrowRight className="w-3.5 h-3.5" />
             <span className={step === 'CAPABILITIES' ? 'text-emerald-700 font-bold' : ''}>02 STARTING TOOLS</span><ArrowRight className="w-3.5 h-3.5" />
-            <span className={step === 'REVIEW' ? 'text-emerald-700 font-bold' : ''}>03 READY</span>
+            <span className={step === 'REVIEW' ? 'text-emerald-700 font-bold' : ''}>03 READY</span><ArrowRight className="w-3.5 h-3.5" />
+            <span className={step === 'RECOMMENDATIONS' ? 'text-emerald-700 font-bold' : ''}>04 ENGINE FIT</span>
           </div>
         </div>
 
