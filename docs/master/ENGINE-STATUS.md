@@ -1,7 +1,7 @@
 # TDBK ENGINE STATUS
 
 ## Last Updated
-2026-09-23
+2026-09-25
 
 ## Current Phase
 Production Hardening — Gate 04 Provider Side-Effect Capability Contract
@@ -106,6 +106,26 @@ Gate 04 is **NOT COMPLETE**. Remaining work is outside this normalization slice:
 
 M-Pesa must remain non-idempotent until authoritative Safaricom evidence establishes a compatible provider-side deduplication contract.
 
+## Gate 04 — Reconciliation + Financial Safety Implementation Slice
+
+Implemented the authoritative M-Pesa confirmation path so a successful provider callback no longer writes `POSTED` financial truth directly inside the bridge callback transaction.
+
+New boundary:
+`M-Pesa callback → PENDING/RECONCILIATION_REQUIRED → ReconciliationService → FinancialLedgerRepository.confirmReconciledTransaction → immutable balanced ledger + durable outbox`.
+
+Important recovery behavior:
+- `PENDING` callbacks are first moved to `RECONCILIATION_REQUIRED` before confirmation.
+- `RECONCILIATION_REQUIRED` confirmation is performed only through `ReconciliationService` and the authoritative ledger repository.
+- Already-`POSTED` callbacks are treated as idempotent financial replay and can repair a missing callback claim/outbox without reposting the ledger.
+- A changed provider receipt for an already-POSTED transaction is rejected as a financial-truth conflict.
+- The callback idempotency record is now a replay/repair marker, not the authority that decides financial posting.
+
+Focused regression added for the crash/recovery shape where financial truth commits but the callback claim is lost; replay must preserve one POSTED transaction, two immutable ledger entries and one confirmation outbox event.
+
+**Execution status:** repository implementation complete for this slice. npm test/typecheck/lint/build were NOT EXECUTED in the connected GitHub environment; no runtime pass is claimed.
+
+## Next Single Engine Task
+**Execute the Gate 04 focused/full verification in an environment with Node/npm, then inspect the remaining UNKNOWN/audit transition paths before marking Gate 04 complete.**
 ## MASTER REVIEW REQUIRED
 No new architectural decision was introduced by this task. The existing provider-contract blocker remains: no current connector has been established as supporting provider-side idempotency compatible with the Engine-derived identity.
 
