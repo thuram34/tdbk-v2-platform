@@ -1,10 +1,10 @@
 # TDBK ENGINE STATUS
 
 ## Last Updated
-2026-09-23
+2026-09-25
 
 ## Current Phase
-Production Hardening — Gate 04 Provider Side-Effect Capability Contract
+Production Hardening — Gate 04 Provider Side-Effect Capability Contract — Provider Contract Verification
 
 ## Current Objective
 Normalize and verify the authoritative side-effect capability declaration at the Engine bridge registry/adapter boundary without inventing provider idempotency or changing execution identity, workflow leases, reconciliation architecture, provisioning identity, DBK, or Sokoni.
@@ -106,6 +106,12 @@ Gate 04 is **NOT COMPLETE**. Remaining work is outside this normalization slice:
 
 M-Pesa must remain non-idempotent until authoritative Safaricom evidence establishes a compatible provider-side deduplication contract.
 
+## Provider Contract Verification — 2026-09-25
+
+The M-Pesa provider-side idempotency question was checked against the current public Safaricom Daraja developer portal. Safaricom publicly exposes Daraja 3.0 APIs and a **Transaction Status** API, which supports the Engine's reconciliation-oriented safety model. The publicly accessible Transaction Status documentation page does not establish a caller-supplied stable idempotency-key contract or a provider-side deduplication guarantee for the M-Pesa side-effect operation. Therefore the Engine must **not** promote M-Pesa to `providerIdempotency: true`, must not propagate an assumed idempotency key as though it were guaranteed, and must continue treating ambiguous outcomes through reconciliation. This is a verification result, not evidence that Safaricom can never provide such a contract through authenticated/private documentation or an explicit provider agreement.
+
+**Result: provider-idempotency contract NOT ESTABLISHED.** No production code change is authorized by this verification. The existing `providerIdempotency: false`, `providerReconciliation: true`, and `automaticUnknownReplay: false` posture remains correct pending authoritative provider evidence.
+
 ## MASTER REVIEW REQUIRED
 No new architectural decision was introduced by this task. The existing provider-contract blocker remains: no current connector has been established as supporting provider-side idempotency compatible with the Engine-derived identity.
 
@@ -116,7 +122,7 @@ No new architectural decision was introduced by this task. The existing provider
 **NONE.** No Sokoni files or authority were modified.
 
 ## Next Single Engine Task
-**Establish/verify an authoritative provider-side idempotency contract for one real connector operation before implementing any provider-key propagation.**
+**Obtain authoritative provider evidence for a stable caller-supplied idempotency/deduplication contract for one real connector operation, or formally close the idempotency path as unsupported and continue Gate 04 through reconciliation-only safety.**
 
 ## Evidence
 - Main baseline before this task: `68cd266534b5654cf158880bd309b4dd844290e0`
