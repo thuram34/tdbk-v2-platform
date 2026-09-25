@@ -18,6 +18,7 @@ import { Phase1TestRunner } from './src/blueprint/tests/phase1TestRunner';
 import { capabilityRegistry } from './src/capability/registry';
 import { discoveryEngine } from './src/capability/discovery';
 import { activationEvaluator } from './src/capability/evaluator';
+import { capabilityRecommendationEngine } from './src/capability/recommendation';
 import { dbkCapabilityManager } from './src/capability/dbkCapabilityManager';
 import { entitlementEngine } from './src/capability/entitlement';
 import { Phase2TestRunner } from './src/capability/tests/phase2TestRunner';
@@ -645,6 +646,23 @@ async function startServer() {
     } catch (err) {
       if (err instanceof KernelError) return res.status(err.statusCode).json(err.toJSON());
       return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Unable to update Business Context narrative' } });
+    }
+  });
+
+  app.get('/api/dna/:dbkId/recommendations', async (req: Request, res: Response) => {
+    try {
+      const { dbkId } = req.params;
+      const context = await securityContextFactory.createSecurityContext({
+        authHeader: req.headers.authorization,
+        targetTenantId: dbkId,
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+      });
+      const recommendations = await capabilityRecommendationEngine.recommendForDbk(context, dbkId);
+      return res.json({ status: 'SUCCESS', ...recommendations });
+    } catch (err) {
+      if (err instanceof KernelError) return res.status(err.statusCode).json(err.toJSON());
+      return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Unable to generate capability recommendations' } });
     }
   });
 
