@@ -6,6 +6,9 @@
 ## Current Phase
 DBK-06 Business Context → Business DNA Binding — COMPLETE
 
+## DBK-07 Engine Recommendation Boundary
+The Engine exposes `/api/dna/:dbkId/recommendations` and returns ranked capability recommendations with reasons and scores. This is an Engine decision surface; DBK must display it and must not recompute recommendation scores.
+
 ## Current Objective
 Bind onboarding completion to verified Engine-owned Business DNA by confirming the provisioned DBK has authoritative durable DNA before entering the workspace.
 
@@ -44,7 +47,7 @@ This task introduced no:
 
 ## Deferred / MASTER REVIEW REQUIRED
 - **Business Context narrative persistence.** Resolved: Engine Business DNA now exposes `businessContextNarrative`, with an authenticated update contract, validation, durable Firestore persistence and audit logging. DBK submits onboarding narrative through that Engine boundary and verifies the returned authoritative value.
-- **Engine DBK recommendation contract.** Blueprint/capability metadata is available, but a verified recommendation authority that transforms business context into recommendations was not located.
+- **Engine DBK recommendation contract.** Resolved: Engine now owns deterministic capability recommendation generation from authoritative Business DNA, including business context, blueprint compatibility and capability state. DBK must consume the returned recommendations without reimplementing the scoring logic.
 - **Configuration payload contract for capability configuration.** `CONFIGURATION_REQUIRED` is exposed by the Experience contract, but this task does not invent the payload/schema needed by `CONFIGURE_CAPABILITY`.
 - **Anonymous public organization publication/read authority.** Remains outside this task.
 - **Sokoni integration/handoff contract.** No Sokoni logic introduced.
@@ -75,6 +78,6 @@ This task introduced no:
 The onboarding flow now treats Engine provisioning as the Business DNA authority and verifies the durable /api/dna/:dbkId projection before handing the user into the DBK workspace. No local Business DNA persistence or duplicate authority was introduced. The free-form onboarding narrative remains explicitly non-authoritative because the Engine schema does not expose a verified narrative field.
 
 ## Next SINGLE Task
-**MASTER REVIEW REQUIRED: close the remaining Engine recommendation contract.**
+**DBK-07 Consume Engine capability recommendations.**
 
-Business identity, blueprint, branch topology and Business Context narrative are now authoritative and consumed through Engine contracts. The next DBK task should only proceed when a verified Engine recommendation contract is available; DBK must not infer recommendations locally.
+The Engine now exposes an authenticated recommendation contract at `/api/dna/:dbkId/recommendations`. DBK should consume and present those recommendations without scoring, filtering, or inventing recommendation logic locally.
