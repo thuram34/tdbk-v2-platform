@@ -341,6 +341,30 @@ export class BusinessDnaManager {
     return JSON.parse(JSON.stringify(dna));
   }
 
+  /** Updates the authoritative Business Context narrative through Engine-owned Business DNA. */
+  public async updateBusinessContextNarrative(
+    securityContext: SecurityContext,
+    targetDbkId: string,
+    narrative: string
+  ): Promise<BusinessDNA> {
+    BlueprintValidator.assertTenantAccess(securityContext, targetDbkId, 'update Business Context narrative');
+    const normalized = narrative.trim();
+    if (normalized.length > 2000) {
+      throw new KernelError('VALIDATION_ERROR', 'Business Context narrative must be 2000 characters or fewer.', 400, securityContext.requestId);
+    }
+    const dna = await businessDnaRepository.getDna(targetDbkId);
+    if (!dna) throw new KernelError('NOT_FOUND', 'Business DNA not found', 404, securityContext.requestId);
+    const updated: BusinessDNA = { ...dna, businessContextNarrative: normalized || undefined, updatedAt: new Date().toISOString() };
+    await businessDnaRepository.saveDna(targetDbkId, updated);
+    this.dnaStore.set(targetDbkId, updated);
+    auditLogger.logEvent('SECURITY_CONFIGURATION_CHANGE', securityContext.principal.id, 'updateBusinessContextNarrative', `dbk:${targetDbkId}`, 'ALLOWED', {
+      tenantId: securityContext.principal.tenantId,
+      requestId: securityContext.requestId,
+      details: { narrativeLength: normalized.length },
+    });
+    return JSON.parse(JSON.stringify(updated));
+  }
+
   /**
    * Clears in-memory store for testing isolation.
    */
