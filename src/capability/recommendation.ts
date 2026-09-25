@@ -1,9 +1,7 @@
 import { SecurityContext } from '../kernel/types';
 import { businessDnaManager } from '../blueprint/dnaManager';
 import { capabilityRegistry } from './registry';
-import { entitlementEngine } from './entitlement';
 import { dbkCapabilityManager } from './dbkCapabilityManager';
-import { CapabilityDefinition } from './types';
 
 export interface CapabilityRecommendation {
   capabilityId: string;
@@ -59,7 +57,6 @@ export class CapabilityRecommendationEngine {
         (cap.supportedBlueprints as string[]).includes(dna.identity.industry)
       )
       .map((cap) => {
-        const haystack = [cap.name, cap.description, cap.category].join(' ').toLowerCase();
         const words = KEYWORDS[cap.category] || [];
         const matches = words.filter((word) => text.includes(word));
         const directMatches = matches.length;
