@@ -28,6 +28,8 @@ export type AgentExecutionClaim =
 
 const EXECUTION_LEASE_MS = 5 * 60 * 1000;
 
+const isTerminalExecutionStatus = (status: AgentExecutionStatus): boolean => status !== 'PLANNED';
+
 export class AgentExecutionRepository {
   private static instance: AgentExecutionRepository;
   private constructor() {}
@@ -67,7 +69,7 @@ export class AgentExecutionRepository {
         throw new Error('Agent execution identity conflict: executionId is already bound to a different principal, scope, or instruction.');
       }
 
-      if (existing.status === 'EXECUTED' || existing.status === 'VERIFIED') {
+      if (isTerminalExecutionStatus(existing.status)) {
         return { status: 'COMPLETED' as const, record: existing };
       }
 
@@ -101,7 +103,7 @@ export class AgentExecutionRepository {
       ) {
         throw new Error('Agent execution completion identity conflict.');
       }
-      if (existing.status === 'EXECUTED' || existing.status === 'VERIFIED') {
+      if (isTerminalExecutionStatus(existing.status)) {
         return;
       }
       if (existing.leaseOwner && record.leaseOwner && existing.leaseOwner !== record.leaseOwner) {
