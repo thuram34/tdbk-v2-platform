@@ -567,18 +567,6 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
       await tx.set(claimPath, claimRecord);
     });
     auditLogger.logEvent('BRIDGE_EXECUTION', context.principal.id, 'BRIDGE_CALLBACK_RECEIVED', `bridge:${this.bridgeId}`, 'ALLOWED', {
-        tenantId: idempotencyTenant,
-        requestId: context.requestId,
-        details: { providerReference: stk.CheckoutRequestID, duplicate: true },
-      });
-      return normalized;
-    }
-
-    if (atomicResult.claim === 'IN_PROGRESS') {
-      throw new KernelError('CONFLICT', 'M-Pesa callback is already being processed', 409, context.requestId);
-    }
-
-    auditLogger.logEvent('BRIDGE_EXECUTION', context.principal.id, 'BRIDGE_CALLBACK_RECEIVED', `bridge:${this.bridgeId}`, 'ALLOWED', {
       tenantId: callbackTenant || null,
       requestId: context.requestId,
       details: {
