@@ -4,7 +4,7 @@
 2026-09-25
 
 ## Current Phase
-DBK-06 Business Context → Business DNA Binding
+DBK-06 Business Context → Business DNA Binding — COMPLETE
 
 ## Current Objective
 Bind onboarding completion to verified Engine-owned Business DNA by confirming the provisioned DBK has authoritative durable DNA before entering the workspace.
@@ -43,7 +43,7 @@ This task introduced no:
 - Sokoni datastore
 
 ## Deferred / MASTER REVIEW REQUIRED
-- **Business Context narrative persistence.** The verified Business DNA contract persists business identity, blueprint binding and branch topology through Engine provisioning, but the current BusinessDNA schema has no narrative/description field. The onboarding narrative therefore remains presentation-only until Engine defines an authoritative field and update contract.
+- **Business Context narrative persistence.** Resolved: Engine Business DNA now exposes `businessContextNarrative`, with an authenticated update contract, validation, durable Firestore persistence and audit logging. DBK submits onboarding narrative through that Engine boundary and verifies the returned authoritative value.
 - **Engine DBK recommendation contract.** Blueprint/capability metadata is available, but a verified recommendation authority that transforms business context into recommendations was not located.
 - **Configuration payload contract for capability configuration.** `CONFIGURATION_REQUIRED` is exposed by the Experience contract, but this task does not invent the payload/schema needed by `CONFIGURE_CAPABILITY`.
 - **Anonymous public organization publication/read authority.** Remains outside this task.
@@ -75,6 +75,6 @@ This task introduced no:
 The onboarding flow now treats Engine provisioning as the Business DNA authority and verifies the durable /api/dna/:dbkId projection before handing the user into the DBK workspace. No local Business DNA persistence or duplicate authority was introduced. The free-form onboarding narrative remains explicitly non-authoritative because the Engine schema does not expose a verified narrative field.
 
 ## Next SINGLE Task
-**MASTER REVIEW REQUIRED: define the authoritative Business Context narrative field/update contract.**
+**MASTER REVIEW REQUIRED: close the remaining Engine recommendation contract.**
 
-The identity + blueprint + branch portion is now verified and consumed. The next DBK task should only proceed if Engine exposes an authoritative field and DBK-facing update contract for the free-form business narrative; otherwise keep the narrative presentation-only.
+Business identity, blueprint, branch topology and Business Context narrative are now authoritative and consumed through Engine contracts. The next DBK task should only proceed when a verified Engine recommendation contract is available; DBK must not infer recommendations locally.
