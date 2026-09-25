@@ -4,7 +4,6 @@ import { DbkApp } from './components/experience/DbkApp';
 import { BusinessDiscovery } from './components/onboarding/BusinessDiscovery';
 import { LoginScreen } from './components/auth/LoginScreen';
 import { DbkExperienceFlow } from './public/DbkExperienceFlow';
-import { PublicGateway } from './public/PublicGateway';
 import { SokoniExperience } from './sokoni/SokoniExperience';
 import { SokoniBusinessRegistration } from './sokoni/SokoniBusinessRegistration';
 import LegacyApp from './AppLegacy';
@@ -202,7 +201,20 @@ export default function App() {
   if (dbks.length === 0) {
     return (
       <>
-        <BusinessDiscovery onProvisioned={(id) => { setDbkId(id); setDbks([{ dbkId: id, status: 'PROVISIONING' }]); }} />;
+        <BusinessDiscovery
+          onProvisioned={(id) => {
+            setDbkId(id);
+            setDbks([{ dbkId: id, status: 'PROVISIONING' }]);
+          }}
+        />
+        <button
+          onClick={() => setEngineeringMode(true)}
+          className="fixed bottom-4 left-4 rounded-xl border border-neutral-200 bg-white px-3 py-2 text-[10px] font-semibold text-neutral-500 shadow-sm"
+        >
+          Engineering
+        </button>
+      </>
+    );
   }
 
   if (!dbkId) {
