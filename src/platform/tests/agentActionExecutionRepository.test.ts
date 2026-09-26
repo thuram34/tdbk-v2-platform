@@ -1,6 +1,6 @@
 import {beforeEach,describe,expect,it} from 'vitest';
-import {firestoreClient} from '../firestoreClient';
-import {agentActionExecutionRepository} from '../repositories/agentActionExecutionRepository';
+import {firestoreClient} from '../../persistence/firestore/firestoreClient';
+import {agentActionExecutionRepository} from '../../persistence/firestore/repositories/agentActionExecutionRepository';
 describe('durable agent action execution',()=>{
  beforeEach(()=>firestoreClient.clearAllForTesting());
  it('returns completed action after restart',async()=>{
