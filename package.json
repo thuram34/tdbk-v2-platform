@@ -11,7 +11,9 @@
     "test": "vitest run",
     "clean": "rm -rf dist",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint src"
+    "lint": "eslint src",
+    "test:phase7": "vitest run src/platform/tests/phase7.test.ts",
+    "verify:engineering": "bash scripts/verify-engineering.sh"
   },
   "dependencies": {
     "@google-cloud/firestore": "^9.0.0",
