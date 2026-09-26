@@ -73,13 +73,24 @@ export function LoginScreen({ onBackToGateway }: LoginScreenProps) {
         setInfo('Account created successfully. Authenticating your Digital Space...');
       } else {
         await resetPassword(email);
-        // Keep account existence private: the UI does not disclose whether
-        // the supplied email is registered with Firebase Authentication.
+        // Do not reveal whether the email is registered.
         setInfo('If an account exists for this email, a password reset link has been sent. Check your inbox and spam folder.');
       }
     } catch (err: any) {
       const code = err?.code || '';
-      if (code === 'auth/invalid-credential' || code === 'auth/user-not-found' || code === 'auth/wrong-password') {
+
+      if (mode === 'RESET_PASSWORD') {
+        if (code === 'auth/invalid-email') {
+          setError('Please enter a valid email address.');
+        } else if (code === 'auth/too-many-requests') {
+          setError('Too many reset attempts. Please wait and try again later.');
+        } else if (code === 'auth/user-not-found') {
+          // Keep account existence private when Firebase returns this code.
+          setInfo('If an account exists for this email, a password reset link has been sent. Check your inbox and spam folder.');
+        } else {
+          setError(err?.message || 'Unable to send the password reset email. Please try again.');
+        }
+      } else if (code === 'auth/invalid-credential' || code === 'auth/user-not-found' || code === 'auth/wrong-password') {
         setError('Invalid email or password.');
       } else if (code === 'auth/email-already-in-use') {
         setError('An account with this email already exists.');
@@ -87,8 +98,6 @@ export function LoginScreen({ onBackToGateway }: LoginScreenProps) {
         setError('Password should be at least 6 characters.');
       } else if (code === 'auth/invalid-email') {
         setError('Please enter a valid email address.');
-      } else if (mode === 'RESET_PASSWORD' && code === 'auth/user-not-found') {
-        setInfo('If an account exists for this email, a password reset link has been sent. Check your inbox and spam folder.');
       } else {
         setError(err?.message || 'Authentication failed. Please try again.');
       }
@@ -171,7 +180,7 @@ export function LoginScreen({ onBackToGateway }: LoginScreenProps) {
 
           {info && (
             <div className="mb-4 p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-start gap-2">
-              <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5 text-emerald-600" />
+              <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
               <span>{info}</span>
             </div>
           )}
