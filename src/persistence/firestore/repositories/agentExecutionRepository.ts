@@ -37,16 +37,17 @@ export class AgentExecutionRepository {
     return AgentExecutionRepository.instance;
   }
 
-  private path(tenantId: string | null, executionId: string): string {
-    return tenantId
-      ? `/tenants/${tenantId}/agentExecutions/${executionId}`
-      : `/system/agentExecutions/${executionId}`;
+  // Agent instruction execution IDs are globally unique replay identities.
+  // Tenant/scope identity is stored on the record and verified transactionally;
+  // it must not be allowed to change merely by changing the collection path.
+  private path(executionId: string): string {
+    return `/system/agentExecutions/${executionId}`;
   }
 
   public async claim(record: AgentExecutionRecord, leaseOwner: string): Promise<AgentExecutionClaim> {
     const now = Date.now();
     const leaseUntil = new Date(now + EXECUTION_LEASE_MS).toISOString();
-    const path = this.path(record.tenantId, record.executionId);
+    const path = this.path(record.executionId);
 
     return firestoreClient.runTransaction(async (transaction) => {
       const existing = await transaction.get<AgentExecutionRecord>(path);
@@ -88,7 +89,7 @@ export class AgentExecutionRepository {
 
   public async save(record: AgentExecutionRecord): Promise<void> {
     await firestoreClient.runTransaction(async (transaction) => {
-      const path = this.path(record.tenantId, record.executionId);
+      const path = this.path(record.executionId);
       const existing = await transaction.get<AgentExecutionRecord>(path);
       if (!existing) {
         throw new Error(`Agent execution '${record.executionId}' does not exist for completion`);
@@ -112,15 +113,18 @@ export class AgentExecutionRepository {
   }
 
   public async get(tenantId: string, executionId: string): Promise<AgentExecutionRecord | null> {
-    return firestoreClient.get<AgentExecutionRecord>(this.path(tenantId, executionId));
+    const record = await firestoreClient.get<AgentExecutionRecord>(this.path(executionId));
+    if (!record || record.tenantId !== tenantId) return null;
+    return record;
   }
 
   public async getSystem(executionId: string): Promise<AgentExecutionRecord | null> {
-    return firestoreClient.get<AgentExecutionRecord>(this.path(null, executionId));
+    return firestoreClient.get<AgentExecutionRecord>(this.path(executionId));
   }
 
   public async list(tenantId: string): Promise<AgentExecutionRecord[]> {
-    return firestoreClient.listCollection<AgentExecutionRecord>(`/tenants/${tenantId}/agentExecutions`);
+    const executions = await firestoreClient.listCollection<AgentExecutionRecord>('/system/agentExecutions');
+    return executions.filter((execution) => execution.tenantId === tenantId);
   }
 }
 
