@@ -37,16 +37,20 @@ export class AgentExecutionRepository {
     return AgentExecutionRepository.instance;
   }
 
-  private path(tenantId: string | null, executionId: string): string {
-    return tenantId
-      ? `/tenants/${tenantId}/agentExecutions/${executionId}`
-      : `/system/agentExecutions/${executionId}`;
+  /**
+   * executionId is the global replay/idempotency identity for a command.
+   * Tenant and branch remain part of the bound record and are validated below.
+   * Keeping the document keyed only by executionId prevents the same command
+   * identity from being silently reused in another tenant or principal scope.
+   */
+  private path(executionId: string): string {
+    return `/system/agentExecutions/${executionId}`;
   }
 
   public async claim(record: AgentExecutionRecord, leaseOwner: string): Promise<AgentExecutionClaim> {
     const now = Date.now();
     const leaseUntil = new Date(now + EXECUTION_LEASE_MS).toISOString();
-    const path = this.path(record.tenantId, record.executionId);
+    const path = this.path(record.executionId);
 
     return firestoreClient.runTransaction(async (transaction) => {
       const existing = await transaction.get<AgentExecutionRecord>(path);
@@ -88,7 +92,7 @@ export class AgentExecutionRepository {
 
   public async save(record: AgentExecutionRecord): Promise<void> {
     await firestoreClient.runTransaction(async (transaction) => {
-      const path = this.path(record.tenantId, record.executionId);
+      const path = this.path(record.executionId);
       const existing = await transaction.get<AgentExecutionRecord>(path);
       if (!existing) {
         throw new Error(`Agent execution '${record.executionId}' does not exist for completion`);
@@ -112,15 +116,19 @@ export class AgentExecutionRepository {
   }
 
   public async get(tenantId: string, executionId: string): Promise<AgentExecutionRecord | null> {
-    return firestoreClient.get<AgentExecutionRecord>(this.path(tenantId, executionId));
+    const record = await firestoreClient.get<AgentExecutionRecord>(this.path(executionId));
+    if (!record) return null;
+    if (record.tenantId !== tenantId) throw new Error('Agent execution identity conflict: executionId is bound to another tenant.');
+    return record;
   }
 
   public async getSystem(executionId: string): Promise<AgentExecutionRecord | null> {
-    return firestoreClient.get<AgentExecutionRecord>(this.path(null, executionId));
+    return firestoreClient.get<AgentExecutionRecord>(this.path(executionId));
   }
 
   public async list(tenantId: string): Promise<AgentExecutionRecord[]> {
-    return firestoreClient.listCollection<AgentExecutionRecord>(`/tenants/${tenantId}/agentExecutions`);
+    const records = await firestoreClient.listCollection<AgentExecutionRecord>('/system/agentExecutions');
+    return records.filter((record) => record.tenantId === tenantId);
   }
 }
 
