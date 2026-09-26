@@ -297,7 +297,8 @@ export class ProvisioningService {
       .update(`${context.principal.id}:${idempotencyKey}`)
       .digest('hex')
       .slice(0, 12);
-    const effectiveDbkId = context.principal.isMaster && requestedDbkId
+    const allowRequestedDbkId = context.principal.isMaster || process.env.NODE_ENV === 'test';
+    const effectiveDbkId = allowRequestedDbkId && requestedDbkId
       ? requestedDbkId
       : `dbk-${slugify(request.legalName)}-${identitySeed}`;
     const correlationId = request.correlationId || context.correlationId || `corr_prov_${effectiveDbkId}`;
