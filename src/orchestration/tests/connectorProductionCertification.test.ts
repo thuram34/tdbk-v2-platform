@@ -16,6 +16,17 @@ describe('connector production certification gate', () => {
     }
   });
 
+  it('exposes every seeded connector through the tier-aware configurable front door', () => {
+    for (const definition of bridgeRegistry.listBridgeDefinitions()) {
+      expect(definition.frontDoor.configurable).toBe(true);
+      expect(definition.frontDoor.minimumTier).toBeDefined();
+      expect(definition.frontDoor.configurationFields.length).toBeGreaterThan(0);
+      expect(definition.configurationRequirements).toEqual(
+        definition.frontDoor.configurationFields.map((field) => field.key),
+      );
+    }
+  });
+
   it('does not permit a non-idempotent, non-reconcilable side effect to certify', () => {
     const definition = {
       ...bridgeRegistry.getBridgeDefinition('bridge_bank')!,
