@@ -56,9 +56,9 @@ class ConnectorReadinessService {
 
     const blockers: string[] = [];
     const entitlementStatus = await entitlementEngine.evaluatePersistentEntitlement(tenantId, definition.capabilityId);
-    const minimumTier = capabilityRegistry.getCapability(definition.capabilityId)?.entitlementRequirements.minimumTier || definition.frontDoor.minimumTier;
+    const minimumTier = capabilityRegistry.getCapability(definition.capabilityId)?.entitlementRequirements.minimumTier || definition.frontDoor?.minimumTier || 'ENTERPRISE';
     if (entitlementStatus !== 'ENTITLED') blockers.push(`UPGRADE_REQUIRED:${minimumTier}`);
-    if (!definition.frontDoor.configurable) blockers.push('FRONT_DOOR_CONFIGURATION_DISABLED');
+    if (!definition.frontDoor?.configurable) blockers.push('FRONT_DOOR_CONFIGURATION_DISABLED');
     if (definition.status === 'MOCK') blockers.push('BRIDGE_IMPLEMENTATION_IS_MOCK');
     if (!bridgeRegistry.getBridgeInstance(bridgeId)) blockers.push('BRIDGE_ADAPTER_NOT_REGISTERED');
     const missingConfiguration = definition.configurationRequirements.filter(
@@ -101,7 +101,7 @@ class ConnectorReadinessService {
       const minimumTier = definition.frontDoor.minimumTier;
 
       if (entitlementStatus !== 'ENTITLED') blockers.push(`UPGRADE_REQUIRED:${minimumTier}`);
-      if (!definition.frontDoor.configurable) blockers.push('FRONT_DOOR_CONFIGURATION_DISABLED');
+      if (!definition.frontDoor?.configurable) blockers.push('FRONT_DOOR_CONFIGURATION_DISABLED');
       if (!connection) blockers.push('CONNECTION_NOT_CONFIGURED');
       if (definition.status === 'MOCK') blockers.push('BRIDGE_IMPLEMENTATION_IS_MOCK');
       if (!bridgeRegistry.getBridgeInstance(definition.bridgeId)) blockers.push('BRIDGE_ADAPTER_NOT_REGISTERED');
