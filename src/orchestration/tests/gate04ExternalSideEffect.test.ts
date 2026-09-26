@@ -205,4 +205,36 @@ describe('Gate 04 — external side-effect identity and mapping', () => {
     expect(execution?.outcomeState).toBe('UNKNOWN_OUTCOME');
     expect(execution?.providerReference).toBe('FT_UNKNOWN_01');
   });
+
+  it('rejects terminal outcome regression and provider identity mutation', async () => {
+    const executionKey = 'exec_provider_state_machine_01';
+    await workflowStepExecutionRepository.claimExecution(tenantId, 'wf_gate04', 'step_payment', executionKey, 'worker_a', 300000);
+    const identity = deriveProviderOperationIdentity(executionKey, 'STK_PUSH');
+    await workflowStepExecutionRepository.bindProviderOperation(tenantId, executionKey, 'worker_a', {
+      operation: 'STK_PUSH', providerOperationIdentity: identity, providerName: 'SAFARICOM_MPESA',
+      providerReference: 'CO_STATE_01', providerIdempotencySupported: false, providerReconciliationSupported: true,
+      outcomeState: 'PROVIDER_ACCEPTED',
+    });
+    await expect(workflowStepExecutionRepository.bindProviderOperation(tenantId, executionKey, 'worker_a', {
+      operation: 'STK_PUSH', providerOperationIdentity: identity, providerName: 'SAFARICOM_MPESA',
+      providerReference: 'CO_STATE_01', providerIdempotencySupported: false, providerReconciliationSupported: true,
+      outcomeState: 'UNKNOWN_OUTCOME',
+    })).rejects.toThrow('Invalid external side-effect outcome transition');
+    await expect(workflowStepExecutionRepository.bindProviderOperation(tenantId, executionKey, 'worker_a', {
+      operation: 'STK_PUSH', providerOperationIdentity: 'forged-provider-operation', providerName: 'SAFARICOM_MPESA',
+      providerReference: 'CO_STATE_01', providerIdempotencySupported: false, providerReconciliationSupported: true,
+      outcomeState: 'PROVIDER_ACCEPTED',
+    })).rejects.toThrow('Provider operation identity cannot change');
+  });
+
+  it('requires reconciliation support before accepting a reconciled outcome', async () => {
+    const executionKey = 'exec_provider_state_machine_02';
+    await workflowStepExecutionRepository.claimExecution(tenantId, 'wf_gate04', 'step_payment', executionKey, 'worker_a', 300000);
+    const identity = deriveProviderOperationIdentity(executionKey, 'INITIATE_TRANSFER');
+    await expect(workflowStepExecutionRepository.bindProviderOperation(tenantId, executionKey, 'worker_a', {
+      operation: 'INITIATE_TRANSFER', providerOperationIdentity: identity, providerName: 'GENERIC_BANK',
+      providerReference: 'FT_STATE_02', providerIdempotencySupported: false, providerReconciliationSupported: false,
+      outcomeState: 'RECONCILED_SUCCESS',
+    })).rejects.toThrow('reconciled state without provider reconciliation support');
+  });
 });
