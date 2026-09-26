@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import {
   AlertCircle,
+  ArrowLeft,
   Building2,
   CheckCircle2,
   KeyRound,
@@ -16,16 +17,26 @@ interface LoginScreenProps {
   onBackToGateway?: () => void;
 }
 
-export function LoginScreen({ onBackToGateway }: LoginScreenProps) {
-  const { signIn, signUp, isFirebaseConfigured } = useAuth();
+type AuthMode = 'SIGN_IN' | 'SIGN_UP' | 'RESET_PASSWORD';
 
-  const [mode, setMode] = useState<'SIGN_IN' | 'SIGN_UP'>('SIGN_IN');
+export function LoginScreen({ onBackToGateway }: LoginScreenProps) {
+  const { signIn, signUp, resetPassword, isFirebaseConfigured } = useAuth();
+
+  const [mode, setMode] = useState<AuthMode>('SIGN_IN');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const switchMode = (nextMode: AuthMode) => {
+    setMode(nextMode);
+    setError(null);
+    setInfo(null);
+    setPassword('');
+    setConfirmPassword('');
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,8 +48,13 @@ export function LoginScreen({ onBackToGateway }: LoginScreenProps) {
       return;
     }
 
-    if (!email.trim() || !password.trim()) {
-      setError('Please provide both email and password.');
+    if (!email.trim()) {
+      setError('Please provide your email address.');
+      return;
+    }
+
+    if (mode !== 'RESET_PASSWORD' && !password.trim()) {
+      setError('Please provide your password.');
       return;
     }
 
@@ -52,9 +68,14 @@ export function LoginScreen({ onBackToGateway }: LoginScreenProps) {
     try {
       if (mode === 'SIGN_IN') {
         await signIn(email, password);
-      } else {
+      } else if (mode === 'SIGN_UP') {
         await signUp(email, password);
         setInfo('Account created successfully. Authenticating your Digital Space...');
+      } else {
+        await resetPassword(email);
+        // Keep account existence private: the UI does not disclose whether
+        // the supplied email is registered with Firebase Authentication.
+        setInfo('If an account exists for this email, a password reset link has been sent. Check your inbox and spam folder.');
       }
     } catch (err: any) {
       const code = err?.code || '';
@@ -66,6 +87,8 @@ export function LoginScreen({ onBackToGateway }: LoginScreenProps) {
         setError('Password should be at least 6 characters.');
       } else if (code === 'auth/invalid-email') {
         setError('Please enter a valid email address.');
+      } else if (mode === 'RESET_PASSWORD' && code === 'auth/user-not-found') {
+        setInfo('If an account exists for this email, a password reset link has been sent. Check your inbox and spam folder.');
       } else {
         setError(err?.message || 'Authentication failed. Please try again.');
       }
@@ -73,6 +96,9 @@ export function LoginScreen({ onBackToGateway }: LoginScreenProps) {
       setIsSubmitting(false);
     }
   };
+
+  const isReset = mode === 'RESET_PASSWORD';
+  const isSignUp = mode === 'SIGN_UP';
 
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-[#FBFBF9] text-neutral-900 flex items-center justify-center p-4 sm:p-6 antialiased">
@@ -88,9 +114,11 @@ export function LoginScreen({ onBackToGateway }: LoginScreenProps) {
             Your Digital Space
           </h1>
           <p className="mt-2 text-sm text-neutral-600">
-            {mode === 'SIGN_IN'
-              ? 'Sign in to continue to your business.'
-              : 'Create your account and start your digital journey.'}
+            {isReset
+              ? 'Recover access to your Digital Space.'
+              : isSignUp
+                ? 'Create your account and start your digital journey.'
+                : 'Sign in to continue to your business.'}
           </p>
         </div>
 
@@ -107,38 +135,32 @@ export function LoginScreen({ onBackToGateway }: LoginScreenProps) {
             </div>
           )}
 
-          <div className="flex border-b border-neutral-200 mb-6">
-            <button
-              type="button"
-              onClick={() => {
-                setMode('SIGN_IN');
-                setError(null);
-                setInfo(null);
-              }}
-              className={`flex-1 pb-3 text-xs font-bold uppercase tracking-wider text-center transition cursor-pointer ${
-                mode === 'SIGN_IN'
-                  ? 'text-neutral-950 border-b-2 border-neutral-950'
-                  : 'text-neutral-500 hover:text-neutral-800'
-              }`}
-            >
-              Sign In
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setMode('SIGN_UP');
-                setError(null);
-                setInfo(null);
-              }}
-              className={`flex-1 pb-3 text-xs font-bold uppercase tracking-wider text-center transition cursor-pointer ${
-                mode === 'SIGN_UP'
-                  ? 'text-neutral-950 border-b-2 border-neutral-950'
-                  : 'text-neutral-500 hover:text-neutral-800'
-              }`}
-            >
-              Create Account
-            </button>
-          </div>
+          {!isReset && (
+            <div className="flex border-b border-neutral-200 mb-6">
+              <button
+                type="button"
+                onClick={() => switchMode('SIGN_IN')}
+                className={`flex-1 pb-3 text-xs font-bold uppercase tracking-wider text-center transition cursor-pointer ${
+                  mode === 'SIGN_IN'
+                    ? 'text-neutral-950 border-b-2 border-neutral-950'
+                    : 'text-neutral-500 hover:text-neutral-800'
+                }`}
+              >
+                Sign In
+              </button>
+              <button
+                type="button"
+                onClick={() => switchMode('SIGN_UP')}
+                className={`flex-1 pb-3 text-xs font-bold uppercase tracking-wider text-center transition cursor-pointer ${
+                  mode === 'SIGN_UP'
+                    ? 'text-neutral-950 border-b-2 border-neutral-950'
+                    : 'text-neutral-500 hover:text-neutral-800'
+                }`}
+              >
+                Create Account
+              </button>
+            </div>
+          )}
 
           {error && (
             <div className="mb-4 p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-800 text-xs flex items-start gap-2">
@@ -173,25 +195,27 @@ export function LoginScreen({ onBackToGateway }: LoginScreenProps) {
               </div>
             </div>
 
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-neutral-600 mb-1.5">
-                Password
-              </label>
-              <div className="relative">
-                <KeyRound className="w-4 h-4 text-neutral-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                <input
-                  type="password"
-                  value={password}
-                  disabled={!isFirebaseConfigured || isSubmitting}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3.5 py-2.5 pl-10 text-sm text-neutral-900 placeholder-neutral-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-neutral-950 disabled:opacity-50 disabled:cursor-not-allowed transition"
-                  required
-                />
+            {!isReset && (
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-neutral-600 mb-1.5">
+                  Password
+                </label>
+                <div className="relative">
+                  <KeyRound className="w-4 h-4 text-neutral-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="password"
+                    value={password}
+                    disabled={!isFirebaseConfigured || isSubmitting}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3.5 py-2.5 pl-10 text-sm text-neutral-900 placeholder-neutral-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-neutral-950 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                    required
+                  />
+                </div>
               </div>
-            </div>
+            )}
 
-            {mode === 'SIGN_UP' && (
+            {isSignUp && (
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-neutral-600 mb-1.5">
                   Confirm Password
@@ -218,6 +242,11 @@ export function LoginScreen({ onBackToGateway }: LoginScreenProps) {
             >
               {isSubmitting ? (
                 <span>Connecting...</span>
+              ) : isReset ? (
+                <>
+                  <Mail className="w-4 h-4" />
+                  <span>Send Reset Link</span>
+                </>
               ) : mode === 'SIGN_IN' ? (
                 <>
                   <LogIn className="w-4 h-4" />
@@ -231,6 +260,27 @@ export function LoginScreen({ onBackToGateway }: LoginScreenProps) {
               )}
             </button>
           </form>
+
+          <div className="mt-5 text-center">
+            {isReset ? (
+              <button
+                type="button"
+                onClick={() => switchMode('SIGN_IN')}
+                className="inline-flex items-center gap-1.5 text-xs text-neutral-500 hover:text-neutral-900 font-medium transition cursor-pointer"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                Back to Sign In
+              </button>
+            ) : mode === 'SIGN_IN' ? (
+              <button
+                type="button"
+                onClick={() => switchMode('RESET_PASSWORD')}
+                className="text-xs text-neutral-500 hover:text-neutral-900 font-medium transition cursor-pointer"
+              >
+                Forgot your password?
+              </button>
+            ) : null}
+          </div>
 
           {onBackToGateway && (
             <div className="mt-5 text-center">
