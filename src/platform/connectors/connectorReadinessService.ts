@@ -86,7 +86,7 @@ class ConnectorReadinessService {
     if (healthStatus !== 'HEALTHY') blockers.push(`HEALTH_${healthStatus}`);
     return {
       tenantId, bridgeId, status: 'CONFIGURED', enabled: true,
-      healthStatus, ready: blockers.length === 0, blockers,
+      healthStatus, ready: blockers.length === 0, blockers, minimumTier, entitlementStatus,
     };
   }
 
