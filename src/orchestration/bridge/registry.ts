@@ -13,7 +13,7 @@ import { KernelError } from '../../kernel/errors/kernelErrors';
 const frontDoor = (minimumTier: 'FREE' | 'FOUNDATION' | 'GROWTH' | 'PRO' | 'ENTERPRISE', keys: string[]) => ({
   configurable: true as const,
   minimumTier,
-  configurationFields: keys.map((key) => ({ key, label: key.replace(/_/g, ' '), type: /secret|password|token|passkey|key/i.test(key) ? 'secret' as const : /port/i.test(key) ? 'number' as const : 'text' as const, required: true })),
+  configurationFields: keys.map((key) => ({ key, label: key.replace(/_/g, ' '), type: /secret|password|token|passkey|key/i.test(key) ? 'secret' as const : /url/i.test(key) ? 'url' as const : /port/i.test(key) ? 'number' as const : 'text' as const, required: true })),
 });
 
 
