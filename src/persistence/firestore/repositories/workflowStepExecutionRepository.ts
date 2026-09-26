@@ -45,11 +45,10 @@ export class WorkflowStepExecutionRepository implements IWorkflowStepExecutionRe
         Date.parse(current.leaseUntil) > now
       );
 
-      // A live lease is exclusive even when the same worker asks again. The
-      // durable execution key is the idempotency boundary; re-claiming an
-      // active execution would increment attempts and permit duplicate step
-      // invocation under the same worker identity.
-      if (activeLease) return null;
+      // A live lease is exclusive across workers. The same worker may make a
+      // sequential retry claim after its handler has returned a retryable
+      // failure; no other worker may reclaim that active execution.
+      if (activeLease && current?.workerId !== workerId) return null;
 
       const nowIso = new Date(now).toISOString();
       const next: WorkflowStepExecution = {
@@ -96,12 +95,7 @@ export class WorkflowStepExecutionRepository implements IWorkflowStepExecutionRe
         throw new KernelError('CONFLICT', `Workflow step execution '${executionKey}' has an unresolved external outcome; reconciliation is required before retry.`, 409);
       }
       const now = new Date().toISOString();
-      const released = {
-        ...current,
-        workerId: null,
-        leaseUntil: null,
-        updatedAt: now,
-      };
+      const released = { ...current, workerId: null, leaseUntil: null, updatedAt: now };
       await tx.set(path, released as unknown as Record<string, unknown>);
       return released;
     });
