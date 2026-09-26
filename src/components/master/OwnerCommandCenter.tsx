@@ -154,12 +154,12 @@ export const OwnerCommandCenter: React.FC<OwnerCommandCenterProps> = ({
         </div>
 
         <section className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-label="Organization summary">
-          {[
+          {([
             ['Organizations', dbks.length, Building2],
             ['Active', metrics.active, CheckCircle2],
             ['Setting up', metrics.settingUp, Clock3],
             ['Capabilities enabled', metrics.enabledCapabilities, Layers3],
-          ].map(([label, value, Icon]) => (
+          ] as const).map(([label, value, Icon]) => (
             <div key={String(label)} className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
               <div className="flex items-center justify-between gap-3">
                 <span className="text-xs font-bold uppercase tracking-wider text-neutral-500">{label}</span>
