@@ -9,6 +9,7 @@ import React, {
 import {
   createUserWithEmailAndPassword,
   onAuthStateChanged,
+  sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signOut,
   type User,
@@ -22,6 +23,7 @@ interface AuthContextValue {
   isFirebaseConfigured: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
+  resetPassword: (email: string) => Promise<void>;
   signOutUser: () => Promise<void>;
   getIdToken: (forceRefresh?: boolean) => Promise<string | null>;
 }
@@ -73,6 +75,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     );
   };
 
+  const resetPassword = async (email: string) => {
+    if (!isFirebaseConfigured || !firebaseAuth) {
+      throw new Error('Firebase Authentication is not configured in this environment.');
+    }
+    await sendPasswordResetEmail(firebaseAuth, email.trim());
+  };
+
   const signOutUser = async () => {
     if (isFirebaseConfigured && firebaseAuth) {
       await signOut(firebaseAuth);
@@ -93,6 +102,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isFirebaseConfigured,
     signIn,
     signUp,
+    resetPassword,
     signOutUser,
     getIdToken,
   };
