@@ -81,7 +81,7 @@ export interface BridgeDefinition {
   registeredAt: string;
   sideEffectCapabilities: BridgeSideEffectCapabilities;
   /** Universal front-door configuration contract; entitlement remains authoritative in Layer 4. */
-  frontDoor: BridgeFrontDoorPolicy;
+  frontDoor?: BridgeFrontDoorPolicy;
 }
 
 export interface Bridge<TReq = any, TRes = any, TCB = any> {
