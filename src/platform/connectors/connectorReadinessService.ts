@@ -4,6 +4,7 @@ import { bridgeRegistry } from '../../orchestration/bridge/registry';
 import { ConnectorConnectionStatus, ConnectorHealthStatus } from '../../persistence/types';
 import { connectionHub } from '../../orchestration/bridge/connectionHub';
 import { masterAuthority } from '../../kernel/master/masterAuthority';
+import { entitlementEngine } from '../../capability/entitlement';
 
 export interface ConnectorReadinessItem {
   bridgeId: string;
@@ -17,6 +18,8 @@ export interface ConnectorReadinessItem {
   adapterRegistered: boolean;
   ready: boolean;
   blockers: string[];
+  minimumTier: string;
+  entitlementStatus: string;
 }
 
 export interface ConnectorActivationResult {
@@ -27,6 +30,8 @@ export interface ConnectorActivationResult {
   healthStatus: string;
   ready: boolean;
   blockers: string[];
+  minimumTier: string;
+  entitlementStatus: string;
 }
 
 export interface ConnectorReadinessReport {
@@ -49,6 +54,10 @@ class ConnectorReadinessService {
     if (!connection) throw new Error(`Bridge '${bridgeId}' has no durable connection for DBK '${tenantId}'.`);
 
     const blockers: string[] = [];
+    const entitlementStatus = await entitlementEngine.evaluatePersistentEntitlement(tenantId, definition.capabilityId);
+    const minimumTier = definition.frontDoor.minimumTier;
+    if (entitlementStatus !== 'ENTITLED') blockers.push(`UPGRADE_REQUIRED:${minimumTier}`);
+    if (!definition.frontDoor.configurable) blockers.push('FRONT_DOOR_CONFIGURATION_DISABLED');
     if (definition.status === 'MOCK') blockers.push('BRIDGE_IMPLEMENTATION_IS_MOCK');
     if (!bridgeRegistry.getBridgeInstance(bridgeId)) blockers.push('BRIDGE_ADAPTER_NOT_REGISTERED');
     const missingConfiguration = definition.configurationRequirements.filter(
@@ -58,7 +67,7 @@ class ConnectorReadinessService {
     if (blockers.length) {
       return {
         tenantId, bridgeId, status: connection.status, enabled: connection.enabled,
-        healthStatus: connection.lastHealthStatus, ready: false, blockers,
+        healthStatus: connection.lastHealthStatus, ready: false, blockers, minimumTier, entitlementStatus,
       };
     }
 
@@ -84,10 +93,14 @@ class ConnectorReadinessService {
     const connections = await connectorConnectionRepository.listConnections(tenantId);
     const byBridge = new Map(connections.map((connection) => [connection.bridgeId, connection]));
 
-    const items: ConnectorReadinessItem[] = bridgeRegistry.listBridgeDefinitions().map((definition) => {
+    const items: ConnectorReadinessItem[] = await Promise.all(bridgeRegistry.listBridgeDefinitions().map(async (definition) => {
       const connection = byBridge.get(definition.bridgeId);
       const blockers: string[] = [];
+      const entitlementStatus = await entitlementEngine.evaluatePersistentEntitlement(tenantId, definition.capabilityId);
+      const minimumTier = definition.frontDoor.minimumTier;
 
+      if (entitlementStatus !== 'ENTITLED') blockers.push(`UPGRADE_REQUIRED:${minimumTier}`);
+      if (!definition.frontDoor.configurable) blockers.push('FRONT_DOOR_CONFIGURATION_DISABLED');
       if (!connection) blockers.push('CONNECTION_NOT_CONFIGURED');
       if (definition.status === 'MOCK') blockers.push('BRIDGE_IMPLEMENTATION_IS_MOCK');
       if (!bridgeRegistry.getBridgeInstance(definition.bridgeId)) blockers.push('BRIDGE_ADAPTER_NOT_REGISTERED');
@@ -111,10 +124,12 @@ class ConnectorReadinessService {
         enabled: connection?.enabled || false,
         healthStatus: connection?.lastHealthStatus ?? 'UNKNOWN',
         adapterRegistered: Boolean(bridgeRegistry.getBridgeInstance(definition.bridgeId)),
-        ready: blockers.length === 0,
+        ready: blockers.length === 0 && entitlementStatus === 'ENTITLED',
         blockers,
+        minimumTier,
+        entitlementStatus,
       };
-    });
+    }));
 
     return {
       tenantId,
