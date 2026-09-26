@@ -15,7 +15,9 @@
     "test:phase7": "vitest run src/platform/tests/phase7.test.ts",
     "verify:engineering": "bash scripts/verify-engineering.sh",
     "test:phase1": "vitest run src/blueprint/tests/phase1.test.ts",
-    "verify:phase1": "bash scripts/verify-phase1.sh"
+    "verify:phase1": "bash scripts/verify-phase1.sh",
+    "test:capabilities": "vitest run src/capability/tests",
+    "verify:capabilities": "bash scripts/verify-capabilities.sh"
   },
   "dependencies": {
     "@google-cloud/firestore": "^9.0.0",
@@ -45,7 +47,6 @@
     "tailwindcss": "^4.1.14",
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",
-    "vite": "^6.2.3",
     "vitest": "^4.1.10"
   }
 }
