@@ -67,8 +67,15 @@ export default function App() {
         const result = await listDbks(token);
         if (cancelled) return;
 
-        setDbks(result as DbkSummary[]);
-        const active = (result as DbkSummary[]).filter((dbk) => dbk.status === 'ACTIVE');
+        const summaries: DbkSummary[] = result.map((dbk) => ({
+          dbkId: dbk.dbkId,
+          status: dbk.status,
+          displayName: dbk.displayName,
+          legalName: dbk.legalName,
+          sector: dbk.sector,
+        }));
+        setDbks(summaries);
+        const active = summaries.filter((dbk) => dbk.status === 'ACTIVE');
         if (active.length === 1 && result.length === 1) {
           setDbkId(active[0].dbkId);
         }

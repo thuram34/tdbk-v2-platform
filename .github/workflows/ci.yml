@@ -35,6 +35,12 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Capability engineering gate
+        run: npm run test:capabilities
+
+      - name: Flow orchestration gate
+        run: npm run test:flow
+
       - name: Test
         run: npm test
 

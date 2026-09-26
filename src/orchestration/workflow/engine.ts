@@ -417,7 +417,7 @@ class WorkflowEngineService {
           throw new KernelError('CONFLICT', 'Workflow execution lease was lost; refusing to execute a stale step.', 409, context.requestId);
         }
 
-        const execution = await workflowStepExecutionRepository.claimExecution(
+        let execution = await workflowStepExecutionRepository.claimExecution(
           workflow.tenantId,
           workflow.workflowId,
           step.stepId,
@@ -427,7 +427,21 @@ class WorkflowEngineService {
         );
 
         if (!execution) {
-          throw new KernelError('CONFLICT', `Workflow step '${step.stepId}' is currently executing on another worker.`, 409, context.requestId);
+          const existingExecution = await workflowStepExecutionRepository.getExecution(
+            workflow.tenantId,
+            step.executionKey!
+          );
+
+          if (
+            existingExecution?.status === 'EXECUTING' &&
+            existingExecution.workerId === workerId &&
+            existingExecution.leaseUntil &&
+            Date.parse(existingExecution.leaseUntil) > Date.now()
+          ) {
+            execution = existingExecution;
+          } else {
+            throw new KernelError('CONFLICT', `Workflow step '${step.stepId}' is currently executing on another worker.`, 409, context.requestId);
+          }
         }
 
         // A completed durable execution is authoritative after restart. Rehydrate
@@ -833,24 +847,165 @@ class WorkflowEngineService {
     context: SecurityContext,
     workflow: WorkflowInstance
   ): Promise<void> {
+    const workerId = `compensation-${context.principal.id}-${context.requestId}`;
+
     for (let i = workflow.currentStepIndex - 1; i >= 0; i--) {
       const step = workflow.steps[i];
-      if (step.status === 'COMPLETED' && step.compensationStepId) {
-        const compHandler = this.stepHandlers.get(step.compensationStepId);
-        if (compHandler) {
-          try {
-            await compHandler({
-              workflow,
-              step,
-              input: step.output || {},
-              correlationId: workflow.correlationId,
-              executionKey: `comp_${workflow.workflowId}_${step.stepId}_${step.compensationStepId}`,
-            });
-            step.status = 'SKIPPED'; // marked rolled back
-          } catch (err: any) {
-            console.error(`Compensation step '${step.compensationStepId}' failed:`, err);
+      if (step.status !== 'COMPLETED' || !step.compensationStepId) continue;
+
+      const compHandler = this.stepHandlers.get(step.compensationStepId);
+      if (!compHandler) continue;
+
+      const executionKey = `comp_${workflow.workflowId}_${step.stepId}_${step.compensationStepId}`;
+
+      try {
+        const execution = await workflowStepExecutionRepository.claimExecution(
+          workflow.tenantId,
+          workflow.workflowId,
+          `compensation:${step.compensationStepId}`,
+          executionKey,
+          workerId,
+          300000
+        );
+
+        if (!execution || execution.status !== 'EXECUTING') continue;
+
+        const prepareExternalSideEffect = async (
+          preparation: ExternalSideEffectPreparation
+        ): Promise<ExternalSideEffectBinding> => {
+          const current = await workflowStepExecutionRepository.getExecution(
+            workflow.tenantId,
+            executionKey
+          );
+          if (!current) {
+            throw new KernelError('NOT_FOUND', `Compensation execution '${executionKey}' not found`, 404, context.requestId);
           }
+
+          if (current.providerOperationIdentity) {
+            if (
+              current.providerName !== preparation.providerName ||
+              (current.providerOperation && current.providerOperation !== preparation.operation)
+            ) {
+              throw new KernelError(
+                'CONFLICT',
+                'Compensation provider operation changed for the canonical execution identity.',
+                409,
+                context.requestId
+              );
+            }
+            return {
+              operation: preparation.operation,
+              providerOperationIdentity: current.providerOperationIdentity,
+              providerName: current.providerName || preparation.providerName,
+              providerReference: current.providerReference || null,
+              providerIdempotencySupported: current.providerIdempotencySupported === true,
+              providerReconciliationSupported: current.providerReconciliationSupported === true,
+              outcomeState: current.outcomeState || 'REQUESTED',
+            };
+          }
+
+          const providerOperationIdentity = deriveProviderOperationIdentity(
+            executionKey,
+            preparation.operation
+          );
+          const bound = await workflowStepExecutionRepository.bindProviderOperation(
+            workflow.tenantId,
+            executionKey,
+            workerId,
+            {
+              operation: preparation.operation,
+              providerOperationIdentity,
+              providerName: preparation.providerName,
+              providerReference: null,
+              providerIdempotencySupported: preparation.providerIdempotencySupported,
+              providerReconciliationSupported: preparation.providerReconciliationSupported,
+              outcomeState: 'REQUESTED',
+            }
+          );
+
+          return {
+            operation: preparation.operation,
+            providerOperationIdentity: bound.providerOperationIdentity!,
+            providerName: bound.providerName!,
+            providerReference: bound.providerReference || null,
+            providerIdempotencySupported: bound.providerIdempotencySupported === true,
+            providerReconciliationSupported: bound.providerReconciliationSupported === true,
+            outcomeState: bound.outcomeState || 'REQUESTED',
+          };
+        };
+
+        const recordExternalSideEffectOutcome = async (
+          outcome: Pick<ExternalSideEffectBinding, 'providerReference' | 'outcomeState'>
+        ): Promise<ExternalSideEffectBinding> => {
+          const current = await workflowStepExecutionRepository.getExecution(
+            workflow.tenantId,
+            executionKey
+          );
+          if (!current?.providerOperationIdentity || !current.providerName) {
+            throw new KernelError(
+              'CONFLICT',
+              'Compensation side-effect outcome cannot be recorded before the operation is durably bound.',
+              409,
+              context.requestId
+            );
+          }
+
+          const updated = await workflowStepExecutionRepository.bindProviderOperation(
+            workflow.tenantId,
+            executionKey,
+            workerId,
+            {
+              operation: current.providerOperation || 'COMPENSATION',
+              providerOperationIdentity: current.providerOperationIdentity,
+              providerName: current.providerName,
+              providerReference: outcome.providerReference,
+              providerIdempotencySupported: current.providerIdempotencySupported === true,
+              providerReconciliationSupported: current.providerReconciliationSupported === true,
+              outcomeState: outcome.outcomeState,
+            }
+          );
+
+          return {
+            operation: updated.providerOperation || 'COMPENSATION',
+            providerOperationIdentity: updated.providerOperationIdentity!,
+            providerName: updated.providerName!,
+            providerReference: updated.providerReference || null,
+            providerIdempotencySupported: updated.providerIdempotencySupported === true,
+            providerReconciliationSupported: updated.providerReconciliationSupported === true,
+            outcomeState: updated.outcomeState || outcome.outcomeState,
+          };
+        };
+
+        await compHandler({
+          workflow,
+          step,
+          input: step.output || {},
+          correlationId: workflow.correlationId,
+          executionKey,
+          prepareExternalSideEffect,
+          recordExternalSideEffectOutcome,
+        });
+
+        await workflowStepExecutionRepository.completeExecution(
+          workflow.tenantId,
+          executionKey,
+          workerId,
+          { compensatedStepId: step.stepId }
+        );
+        step.status = 'SKIPPED';
+      } catch (err: any) {
+        try {
+          await workflowStepExecutionRepository.failExecution(
+            workflow.tenantId,
+            executionKey,
+            workerId,
+            err?.message || 'Compensation step failed'
+          );
+        } catch {
+          // Preserve the original compensation failure; durable failure recording
+          // must not mask the rollback error.
         }
+        console.error(`Compensation step '${step.compensationStepId}' failed:`, err);
       }
     }
   }

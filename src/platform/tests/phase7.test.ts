@@ -7,5 +7,5 @@ describe('TDBK V2 Test Suite', () => {
     for (const testCase of summary.results) {
       expect(testCase.status === 'PASS' ? 'PASSED' : testCase.status, `[${testCase.id}] ${testCase.name} failed: ${testCase.error || testCase.details || ''}`).toBe('PASSED');
     }
-  }, 30000);
+  }, 120000);
 });

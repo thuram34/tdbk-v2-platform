@@ -532,18 +532,28 @@ export class Phase1TestRunner {
         id: 'P1_TEST_17',
         name: 'Silent Blueprint Mutation Restriction',
         category: 'VERSIONING_MUTATION',
-        expected: 'Silent blueprint switch DENIED',
+        expected: 'Silent blueprint switch DENIED and security audit recorded',
         actual: 'Silent blueprint switch ALLOWED unexpectedly',
         passed: false,
       });
     } catch (err: unknown) {
+      const denialAudit = auditLogger.getEventsForTenant('tenant_school_a').find(
+        (event) =>
+          event.action === 'mutateBlueprintBinding' &&
+          event.resource === 'dbk:tenant_school_a' &&
+          event.result === 'DENIED' &&
+          event.principalId === 'user_schoolA_admin'
+      );
+
       results.push({
         id: 'P1_TEST_17',
         name: 'Silent Blueprint Mutation Restriction',
         category: 'VERSIONING_MUTATION',
-        expected: 'Silent blueprint switch DENIED',
-        actual: `Mutation DENIED: ${(err as Error).message}`,
-        passed: true,
+        expected: 'Silent blueprint switch DENIED and security audit recorded',
+        actual: denialAudit
+          ? 'Mutation DENIED and audited: ' + (err as Error).message
+          : 'Mutation DENIED but audit event missing: ' + (err as Error).message,
+        passed: !!denialAudit,
       });
     }
 
