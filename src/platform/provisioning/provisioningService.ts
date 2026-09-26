@@ -22,6 +22,7 @@ import { idempotencyRepository } from '../../persistence/firestore/repositories/
 import { auditLogger } from '../../kernel/audit/auditLogger';
 import { KernelError } from '../../kernel/errors/kernelErrors';
 import { SectorType } from '../../blueprint/types';
+import { createHash } from 'node:crypto';
 
 export class ProvisioningService {
   private static instance: ProvisioningService;
@@ -288,8 +289,18 @@ export class ProvisioningService {
     // 1. Security Assertion: Authorized Business Owner or Master Admin can provision DBKs
     masterAuthority.assertOwnerOrMasterAuthority(context.principal, 'provisionDbk', context.requestId);
 
-    const correlationId = request.correlationId || context.correlationId || `corr_prov_${request.dbkId}_${Date.now()}`;
-    const idempotencyKey = request.idempotencyKey || `idem_${request.dbkId}`;
+    const slugify = (value: string) => value.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 48);
+    const requestedDbkId = request.dbkId;
+    const idempotencyKey = request.idempotencyKey || `idem_${requestedDbkId || slugify(request.legalName)}`;
+
+    const identitySeed = createHash('sha256')
+      .update(`${context.principal.id}:${idempotencyKey}`)
+      .digest('hex')
+      .slice(0, 12);
+    const effectiveDbkId = requestedDbkId
+      ? requestedDbkId
+      : `dbk-${slugify(request.legalName)}-${identitySeed}`;
+    const correlationId = request.correlationId || context.correlationId || `corr_prov_${effectiveDbkId}`;
 
     // 2. Validate Blueprint before claiming the durable provisioning idempotency key.
     // This prevents invalid requests from consuming a retry key.
@@ -302,7 +313,7 @@ export class ProvisioningService {
         `blueprint:${request.blueprintId}`,
         'DENIED',
         {
-          tenantId: request.dbkId,
+          tenantId: effectiveDbkId,
           requestId: context.requestId,
           details: { error: `Blueprint '${request.blueprintId}' not found` },
         }
@@ -317,18 +328,19 @@ export class ProvisioningService {
 
     // 3. Atomically claim the provisioning request. Firestore is authoritative;
     // there is no process-local idempotency authority to lose on restart.
-    const claim = await idempotencyRepository.claimIdempotencyRecord(request.dbkId, idempotencyKey, {
+    const idempotencyScope = effectiveDbkId;
+    const claim = await idempotencyRepository.claimIdempotencyRecord(idempotencyScope, idempotencyKey, {
       idempotencyKey,
-      tenantId: request.dbkId,
+      tenantId: idempotencyScope,
       action: 'DBK_PROVISIONING',
-      requestHash: `${request.dbkId}:${bp.id}:${bp.version}`,
+      requestHash: `${effectiveDbkId}:${bp.id}:${bp.version}`,
       status: 'IN_PROGRESS',
       createdAt: new Date().toISOString(),
       expiresAt: new Date(Date.now() + 86400000).toISOString(),
     });
 
     if (claim === 'COMPLETED') {
-      const completed = await idempotencyRepository.getIdempotencyRecord(request.dbkId, idempotencyKey);
+      const completed = await idempotencyRepository.getIdempotencyRecord(idempotencyScope, idempotencyKey);
       if (completed?.responsePayload) {
         const cached = completed.responsePayload as unknown as ProvisionDbkResult;
         return { ...cached, isIdempotentReplay: true };
@@ -346,12 +358,12 @@ export class ProvisioningService {
 
     try {
     // 4. Prevent duplicate creation under same dbkId with different keys
-    if (await dbkRegistry.hasDbk(request.dbkId)) {
-      const existing = await dbkRegistry.getDbk(context, request.dbkId);
+    if (await dbkRegistry.hasDbk(effectiveDbkId)) {
+      const existing = await dbkRegistry.getDbk(context, effectiveDbkId);
       if (existing && existing.status !== 'PROVISIONING_FAILED') {
         throw new KernelError(
           'CONFLICT',
-          `DBK with ID '${request.dbkId}' already exists in state '${existing.status}'`,
+          `DBK with ID '${effectiveDbkId}' already exists in state '${existing.status}'`,
           409,
           context.requestId
         );
@@ -360,7 +372,7 @@ export class ProvisioningService {
 
     // 5. Create DBK in PROVISIONING state
     const initialDbk: DbkIdentity = {
-      dbkId: request.dbkId,
+      dbkId: effectiveDbkId,
       legalName: request.legalName,
       displayName: request.displayName || request.legalName,
       sector: bp.sector,
@@ -397,7 +409,7 @@ export class ProvisioningService {
       context,
       'dbk.provisioning_requested.v1',
       {
-        dbkId: request.dbkId,
+        dbkId: effectiveDbkId,
         blueprintId: bp.id,
         sector: bp.sector,
         subscriptionTier: initialDbk.subscriptionTier,
@@ -410,10 +422,10 @@ export class ProvisioningService {
       'SECURITY_CONFIGURATION_CHANGE',
       context.principal.id,
       'DBK_CREATED',
-      `dbk:${request.dbkId}`,
+      `dbk:${effectiveDbkId}`,
       'ALLOWED',
       {
-        tenantId: request.dbkId,
+        tenantId: effectiveDbkId,
         requestId: context.requestId,
         details: {
           blueprintId: bp.id,
@@ -428,7 +440,7 @@ export class ProvisioningService {
       {
         stepId: 'step_1_validate_identity',
         stepType: 'PROVISIONING_VALIDATE_IDENTITY',
-        input: { dbkId: request.dbkId, legalName: request.legalName },
+        input: { dbkId: effectiveDbkId, legalName: request.legalName },
       },
       {
         stepId: 'step_2_validate_blueprint',
@@ -439,7 +451,7 @@ export class ProvisioningService {
         stepId: 'step_3_init_dna',
         stepType: 'PROVISIONING_INITIALIZE_DNA',
         input: {
-          dbkId: request.dbkId,
+          dbkId: effectiveDbkId,
           legalName: request.legalName,
           blueprintId: bp.id,
           blueprintVersion: bp.version,
@@ -448,13 +460,13 @@ export class ProvisioningService {
       {
         stepId: 'step_4_assign_entitlement',
         stepType: 'PROVISIONING_ASSIGN_ENTITLEMENT',
-        input: { dbkId: request.dbkId, subscriptionTier: initialDbk.subscriptionTier },
+        input: { dbkId: effectiveDbkId, subscriptionTier: initialDbk.subscriptionTier },
       },
       {
         stepId: 'step_5_init_capabilities',
         stepType: 'PROVISIONING_INITIALIZE_CAPABILITIES',
         input: {
-          dbkId: request.dbkId,
+          dbkId: effectiveDbkId,
           sector: bp.sector,
           subscriptionTier: initialDbk.subscriptionTier,
           blueprintId: bp.id,
@@ -465,7 +477,7 @@ export class ProvisioningService {
         stepId: 'step_6_init_branches',
         stepType: 'PROVISIONING_INITIALIZE_BRANCHES',
         input: {
-          dbkId: request.dbkId,
+          dbkId: effectiveDbkId,
           primaryBranchName: request.primaryBranchName,
           secondaryBranches: request.secondaryBranches,
         },
@@ -473,19 +485,19 @@ export class ProvisioningService {
       {
         stepId: 'step_7_create_workspace',
         stepType: 'PROVISIONING_CREATE_WORKSPACE_STATE',
-        input: { dbkId: request.dbkId },
+        input: { dbkId: effectiveDbkId },
       },
       {
         stepId: 'step_8_activate',
         stepType: 'PROVISIONING_VERIFY_AND_ACTIVATE',
-        input: { dbkId: request.dbkId },
+        input: { dbkId: effectiveDbkId },
       },
     ];
 
     const workflowCtx: SecurityContext = {
       ...context,
       tenantContext: {
-        tenantId: request.dbkId,
+        tenantId: effectiveDbkId,
         name: request.legalName,
         blueprintId: bp.id,
         status: 'PROVISIONING',
@@ -498,7 +510,7 @@ export class ProvisioningService {
       'DBK_PROVISIONING',
       'v1.0',
       workflowSteps,
-      { dbkId: request.dbkId, blueprintId: bp.id }
+      { dbkId: effectiveDbkId, blueprintId: bp.id }
     );
 
     const executedWorkflow = await workflowEngine.executeWorkflow(workflowCtx, workflowInstance.workflowId);
@@ -507,7 +519,7 @@ export class ProvisioningService {
       // Provisioning Failed
       await dbkRegistry.updateStatus(
         context,
-        request.dbkId,
+        effectiveDbkId,
         'PROVISIONING_FAILED',
         executedWorkflow.failureReason || 'Provisioning workflow failed'
       );
@@ -516,7 +528,7 @@ export class ProvisioningService {
         context,
         'dbk.provisioning_failed.v1',
         {
-          dbkId: request.dbkId,
+          dbkId: effectiveDbkId,
           workflowId: executedWorkflow.workflowId,
           error: executedWorkflow.failureReason,
           correlationId,
@@ -528,10 +540,10 @@ export class ProvisioningService {
         'SECURITY_CONFIGURATION_CHANGE',
         context.principal.id,
         'DBK_PROVISIONING_FAILED',
-        `dbk:${request.dbkId}`,
+        `dbk:${effectiveDbkId}`,
         'ERROR',
         {
-          tenantId: request.dbkId,
+          tenantId: effectiveDbkId,
           requestId: context.requestId,
           details: { error: executedWorkflow.failureReason, workflowId: executedWorkflow.workflowId },
         }
@@ -539,14 +551,14 @@ export class ProvisioningService {
 
       // Release the durable idempotency claim as a failed attempt so an
       // operator can safely retry provisioning without waiting for claim expiry.
-      await idempotencyRepository.failIdempotencyRecord(request.dbkId, idempotencyKey, {
+      await idempotencyRepository.failIdempotencyRecord(effectiveDbkId, idempotencyKey, {
         error: executedWorkflow.failureReason || 'Provisioning workflow failed',
         workflowId: executedWorkflow.workflowId,
       });
 
       return {
         success: false,
-        dbkId: request.dbkId,
+        dbkId: effectiveDbkId,
         status: 'PROVISIONING_FAILED',
         workflowId: executedWorkflow.workflowId,
         blueprintId: bp.id,
@@ -560,8 +572,8 @@ export class ProvisioningService {
     }
 
     // 8. Provisioning Succeeded
-    const finalDbk = (await dbkRegistry.getDbk(context, request.dbkId))!;
-    const branches = await branchManager.listPersistentBranches(context, request.dbkId);
+    const finalDbk = (await dbkRegistry.getDbk(context, effectiveDbkId))!;
+    const branches = await branchManager.listPersistentBranches(context, effectiveDbkId);
     finalDbk.branchTopology = branches;
     await dbkRegistry.saveDbk(context, finalDbk);
 
@@ -569,7 +581,7 @@ export class ProvisioningService {
       context,
       'dbk.provisioning_completed.v1',
       {
-        dbkId: request.dbkId,
+        dbkId: effectiveDbkId,
         workflowId: executedWorkflow.workflowId,
         blueprintId: bp.id,
         branchesCount: branches.length,
@@ -582,10 +594,10 @@ export class ProvisioningService {
       'SECURITY_CONFIGURATION_CHANGE',
       context.principal.id,
       'DBK_PROVISIONED',
-      `dbk:${request.dbkId}`,
+      `dbk:${effectiveDbkId}`,
       'ALLOWED',
       {
-        tenantId: request.dbkId,
+        tenantId: effectiveDbkId,
         requestId: context.requestId,
         details: {
           branchesCount: branches.length,
@@ -597,11 +609,11 @@ export class ProvisioningService {
 
     // Keep the legacy entitlement cache warm for synchronous test/UI compatibility.
     // Durable DBK identity remains the production authority.
-    entitlementEngine.setDbkSubscriptionTier(request.dbkId, finalDbk.subscriptionTier);
+    entitlementEngine.setDbkSubscriptionTier(effectiveDbkId, finalDbk.subscriptionTier);
 
     const result: ProvisionDbkResult = {
       success: true,
-      dbkId: request.dbkId,
+      dbkId: effectiveDbkId,
       status: 'ACTIVE',
       workflowId: executedWorkflow.workflowId,
       blueprintId: bp.id,
@@ -614,11 +626,11 @@ export class ProvisioningService {
 
     // Persist the completed result before returning success. The in-memory map remains
     // only as a test/latency cache; restart recovery comes from Firestore.
-    await idempotencyRepository.saveIdempotencyRecord(request.dbkId, idempotencyKey, {
+    await idempotencyRepository.saveIdempotencyRecord(effectiveDbkId, idempotencyKey, {
       idempotencyKey,
-      tenantId: request.dbkId,
+      tenantId: effectiveDbkId,
       action: 'DBK_PROVISIONING',
-      requestHash: `${request.dbkId}:${bp.id}:${bp.version}`,
+      requestHash: `${effectiveDbkId}:${bp.id}:${bp.version}`,
       status: 'COMPLETED',
       responsePayload: result as unknown as Record<string, unknown>,
       createdAt: new Date().toISOString(),
@@ -629,7 +641,7 @@ export class ProvisioningService {
       // Any unexpected exception after claiming the durable idempotency key must
       // release the claim as a failed attempt. Otherwise a crash/exception can
       // strand the request in IN_PROGRESS until expiry.
-      await idempotencyRepository.failIdempotencyRecord(request.dbkId, idempotencyKey, {
+      await idempotencyRepository.failIdempotencyRecord(effectiveDbkId, idempotencyKey, {
         error: err?.message || 'Unexpected provisioning exception',
         requestId: context.requestId,
         correlationId,

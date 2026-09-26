@@ -42,7 +42,7 @@ export interface LifecycleTransitionRecord {
 }
 
 export interface DbkIdentity {
-  dbkId: string;
+  dbkId?: string;
   legalName: string;
   displayName: string;
   sector: SectorType;

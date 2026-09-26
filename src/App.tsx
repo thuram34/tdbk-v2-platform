@@ -7,7 +7,6 @@ import { LoginScreen } from './components/auth/LoginScreen';
 import { DbkExperienceFlow } from './public/DbkExperienceFlow';
 import { SokoniExperience } from './sokoni/SokoniExperience';
 import { SokoniBusinessRegistration } from './sokoni/SokoniBusinessRegistration';
-import LegacyApp from './AppLegacy';
 import { useAuth } from './client/AuthContext';
 import { listDbks } from './client/masterControlApi';
 import type { DbkIdentity } from './platform/types';
@@ -15,7 +14,7 @@ import type { DbkIdentity } from './platform/types';
 type PublicView = 'FLOW' | 'LOGIN';
 
 export default function App() {
-  const { user, loading } = useAuth();
+  const { user, loading, signOutUser } = useAuth();
   const [publicView, setPublicView] = useState<PublicView>('FLOW');
   const [showPublicFlow, setShowPublicFlow] = useState(true);
   const [showBusinessDiscovery, setShowBusinessDiscovery] = useState(false);
@@ -26,7 +25,6 @@ export default function App() {
   const [dbksError, setDbksError] = useState<string | null>(null);
   const [showSokoni, setShowSokoni] = useState(() => typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('sokoni') === '1');
   const [showSokoniBusiness, setShowSokoniBusiness] = useState(() => typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('sokoniBusiness') === '1');
-  const [engineeringMode, setEngineeringMode] = useState(false);
 
   const loadDbks = useCallback(async () => {
     if (!user) {
@@ -45,6 +43,8 @@ export default function App() {
       setIdToken(token);
       const result = await listDbks(token);
       setDbks(result);
+      const requestedDbk = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('dbk') : null;
+      if (requestedDbk && result.some((dbk) => dbk.dbkId === requestedDbk)) setDbkId(requestedDbk);
     } catch (error) {
       console.error('Failed to load organizations:', error);
       setDbksError('We could not load your organizations. Please try again.');
@@ -101,8 +101,6 @@ export default function App() {
     setDbkId(null);
     setShowBusinessDiscovery(true);
   };
-
-  if (engineeringMode) return <LegacyApp />;
 
   if (showSokoni) {
     if (showSokoniBusiness) return <SokoniBusinessRegistration onExit={exitSokoniBusiness} />;
@@ -189,7 +187,7 @@ export default function App() {
   }
 
   if (dbkId) {
-    return <DbkApp dbkId={dbkId} />;
+    return <DbkApp dbkId={dbkId} onLogout={async () => { await signOutUser(); window.history.replaceState({}, '', window.location.pathname); }} />;
   }
 
   return (
@@ -202,14 +200,9 @@ export default function App() {
         onRefresh={loadDbks}
         onAddOrganization={addOrganization}
         onOpenOrganization={openOrganization}
+        onOpenSokoni={enterSokoni}
+        onLogout={async () => { await signOutUser(); window.history.replaceState({}, '', window.location.pathname); }}
       />
-      <button
-        type="button"
-        onClick={() => setEngineeringMode(true)}
-        className="fixed bottom-4 left-4 rounded-xl border border-neutral-200 bg-white px-3 py-2 text-[10px] font-semibold text-neutral-500 shadow-sm"
-      >
-        Engineering
-      </button>
     </>
   );
 }

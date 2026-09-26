@@ -1,0 +1,14 @@
+{
+  "name": "TDBK — Business Workspace",
+  "short_name": "TDBK",
+  "description": "Your provisioned TDBK business workspace.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#FBFBF9",
+  "theme_color": "#111111",
+  "icons": [
+    { "src": "/pwa-icon.svg", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/pwa-icon.svg", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

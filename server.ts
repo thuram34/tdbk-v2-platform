@@ -1738,6 +1738,27 @@ async function startServer() {
   });
 
   // -------------------------------------------------------------
+  // PWA MANIFEST — workspace-aware install target
+  // -------------------------------------------------------------
+  app.get('/manifest.webmanifest', (req: Request, res: Response) => {
+    const dbkId = typeof req.query.dbk === 'string' ? req.query.dbk.trim() : '';
+    const startUrl = dbkId ? `/?dbk=${encodeURIComponent(dbkId)}` : '/';
+    res.type('application/manifest+json').json({
+      name: dbkId ? 'TDBK — Business Workspace' : 'TDBK — Digital Business Space',
+      short_name: 'TDBK',
+      description: 'Your provisioned TDBK business workspace.',
+      start_url: startUrl,
+      scope: '/',
+      display: 'standalone',
+      background_color: '#FBFBF9',
+      theme_color: '#111111',
+      icons: [
+        { src: '/pwa-icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any maskable' },
+      ],
+    });
+  });
+
+  // -------------------------------------------------------------
   // VITE DEV / PRODUCTION MIDDLEWARE
   // -------------------------------------------------------------
   if (process.env.NODE_ENV !== 'production') {

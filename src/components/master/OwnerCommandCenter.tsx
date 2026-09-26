@@ -11,6 +11,8 @@ import {
   RefreshCw,
   ShieldCheck,
   Sparkles,
+  LogOut,
+  Store,
 } from 'lucide-react';
 import type { DbkExperienceProjection, DbkIdentity } from '../../platform/types';
 import { getExperienceProjection } from '../../client/masterControlApi';
@@ -23,6 +25,8 @@ interface OwnerCommandCenterProps {
   onRefresh: () => Promise<void> | void;
   onAddOrganization: () => void;
   onOpenOrganization: (dbkId: string) => void;
+  onOpenSokoni: () => void;
+  onLogout: () => Promise<void> | void;
 }
 
 const statusMeta = (status: DbkIdentity['status']) => {
@@ -50,6 +54,8 @@ export const OwnerCommandCenter: React.FC<OwnerCommandCenterProps> = ({
   onRefresh,
   onAddOrganization,
   onOpenOrganization,
+  onOpenSokoni,
+  onLogout,
 }) => {
   const [projections, setProjections] = useState<Record<string, DbkExperienceProjection>>({});
   const [projectionError, setProjectionError] = useState<string | null>(null);
@@ -112,13 +118,17 @@ export const OwnerCommandCenter: React.FC<OwnerCommandCenterProps> = ({
               <ShieldCheck className="h-5 w-5" />
             </div>
             <div className="min-w-0">
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-neutral-500">TDBK Master</p>
-              <p className="truncate text-sm font-bold">Owner / Operator Command Center</p>
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-neutral-500">TDBK</p>
+              <p className="truncate text-sm font-bold">Your Business Space</p>
             </div>
           </div>
-          <div className="hidden text-right sm:block">
-            <p className="text-xs font-semibold text-neutral-900">{userEmail || 'Authenticated operator'}</p>
-            <p className="mt-0.5 text-[11px] text-neutral-500">Identity verified · workspace access controlled</p>
+          <div className="flex items-center gap-2">
+            <div className="hidden text-right sm:block">
+              <p className="text-xs font-semibold text-neutral-900">{userEmail || 'Your account'}</p>
+              <p className="mt-0.5 text-[11px] text-neutral-500">Signed in</p>
+            </div>
+            <button type="button" onClick={onOpenSokoni} className="inline-flex items-center gap-2 rounded-xl border border-neutral-200 bg-white px-3 py-2.5 text-xs font-bold text-neutral-800 hover:border-neutral-400"><Store className="h-4 w-4" /> Sokoni</button>
+            <button type="button" onClick={() => void onLogout()} className="inline-flex items-center gap-2 rounded-xl bg-neutral-950 px-3 py-2.5 text-xs font-bold text-white hover:bg-neutral-800"><LogOut className="h-4 w-4" /> Sign out</button>
           </div>
         </div>
       </header>
@@ -129,7 +139,7 @@ export const OwnerCommandCenter: React.FC<OwnerCommandCenterProps> = ({
             <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-700">Your operating layer</p>
             <h1 className="mt-2 font-serif text-3xl font-bold tracking-tight sm:text-4xl">Everything you operate, in one place.</h1>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-neutral-600">
-              Manage your businesses, see what is ready, and enter a workspace when it is operational. TDBK uses server-authoritative organization state for these decisions.
+              Manage your businesses, see what is ready, and enter a workspace when it is operational. Each business gets one provisioned workspace.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -148,14 +158,14 @@ export const OwnerCommandCenter: React.FC<OwnerCommandCenterProps> = ({
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-neutral-950 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-neutral-800"
             >
               <Plus className="h-4 w-4" />
-              Add organization
+              Add business
             </button>
           </div>
         </div>
 
-        <section className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-label="Organization summary">
+        <section className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-label="Business summary">
           {([
-            ['Organizations', dbks.length, Building2],
+            ['Businesses', dbks.length, Building2],
             ['Active', metrics.active, CheckCircle2],
             ['Setting up', metrics.settingUp, Clock3],
             ['Capabilities enabled', metrics.enabledCapabilities, Layers3],
@@ -191,8 +201,8 @@ export const OwnerCommandCenter: React.FC<OwnerCommandCenterProps> = ({
         <section className="mt-8">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
-              <h2 className="text-lg font-bold">My organizations</h2>
-              <p className="mt-1 text-sm text-neutral-500">Select an active workspace to continue operating it.</p>
+              <h2 className="text-lg font-bold">My businesses</h2>
+              <p className="mt-1 text-sm text-neutral-500">Each business has one provisioned workspace. Select it to continue operating.</p>
             </div>
             <Activity className="h-5 w-5 text-neutral-400" />
           </div>
@@ -203,9 +213,9 @@ export const OwnerCommandCenter: React.FC<OwnerCommandCenterProps> = ({
             <div className="rounded-3xl border border-dashed border-neutral-300 bg-white p-10 text-center">
               <Building2 className="mx-auto h-8 w-8 text-neutral-400" />
               <h3 className="mt-4 text-lg font-bold">No organization yet</h3>
-              <p className="mx-auto mt-2 max-w-md text-sm text-neutral-500">Create your first organization and TDBK will provision its workspace from the selected business blueprint.</p>
+              <p className="mx-auto mt-2 max-w-md text-sm text-neutral-500">Create your first business and TDBK will provision its workspace once. Your business type is chosen during setup and then becomes authoritative.</p>
               <button type="button" onClick={onAddOrganization} className="mt-5 inline-flex items-center gap-2 rounded-xl bg-neutral-950 px-5 py-3 text-sm font-semibold text-white">
-                Create organization <ArrowRight className="h-4 w-4" />
+                Create business <ArrowRight className="h-4 w-4" />
               </button>
             </div>
           ) : (
@@ -234,7 +244,7 @@ export const OwnerCommandCenter: React.FC<OwnerCommandCenterProps> = ({
                         <p className="mt-1 font-semibold">{dbk.sector}</p>
                       </div>
                       <div className="rounded-2xl bg-neutral-50 p-3">
-                        <p className="text-xs text-neutral-500">Subscription</p>
+                        <p className="text-xs text-neutral-500">Plan</p>
                         <p className="mt-1 font-semibold">{dbk.subscriptionTier}</p>
                       </div>
                       <div className="rounded-2xl bg-neutral-50 p-3">
