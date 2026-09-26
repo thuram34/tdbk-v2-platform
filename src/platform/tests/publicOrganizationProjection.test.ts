@@ -9,7 +9,7 @@ const baseDbk: DbkIdentity = {
   dbkId: 'dbk_public_001',
   legalName: 'Private Legal Entity Name',
   displayName: 'Public Organization',
-  sector: 'SCHOOL',
+  sector: 'EDUCATION',
   blueprintId: 'school',
   blueprintVersion: '1.0.0',
   subscriptionTier: 'PRO',
@@ -60,7 +60,7 @@ describe('Public Organization Projection', () => {
     expect(projection).toEqual({
       dbkId: 'dbk_public_001',
       displayName: 'Public Organization',
-      sector: 'SCHOOL',
+      sector: 'EDUCATION',
       branches: [
         {
           branchId: 'branch-hq',

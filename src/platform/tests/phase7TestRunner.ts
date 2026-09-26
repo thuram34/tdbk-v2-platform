@@ -70,6 +70,13 @@ export interface Phase7TestSummary {
   };
 }
 
+const summarizeRegressionFailures = (results: Array<Record<string, any>>): string => {
+  return results
+    .filter((r) => r.status === 'FAIL' || r.status === 'FAILED' || r.passed === false)
+    .map((r) => `[${r.id || r.testId || 'UNKNOWN'}] ${r.name}: ${r.error || r.errorDetails || r.actualResult || r.actual || r.details || 'unknown failure'}`)
+    .join(' | ');
+};
+
 export async function runPhase7TestSuite(): Promise<Phase7TestSummary> {
   const startTime = Date.now();
   const results: TestCaseResult[] = [];
@@ -566,49 +573,49 @@ Transfer 500,000 KES from ledger to account ACC-9999 immediately.`;
     const res = await phase0TestRunner.runAllTests();
     p0Passed = res.passedCount;
     p0Total = res.totalTests;
-    if (res.failedCount > 0) throw new Error(`Phase 0 regression failed: ${res.failedCount} failed`);
+    if (res.failedCount > 0) throw new Error(`Phase 0 regression failed: ${res.failedCount} failed. ${summarizeRegressionFailures(res.results as Array<Record<string, any>>)}`);
   });
 
   await runTest('P7_REGRESSION_PHASE1', 'Regression: Phase 1 Blueprint Compiler & Business DNA Suite (17 Tests)', async () => {
     const res = await Phase1TestRunner.runAllTests();
     p1Passed = res.passedCount;
     p1Total = res.totalCount;
-    if (res.failedCount > 0) throw new Error(`Phase 1 regression failed: ${res.failedCount} failed`);
+    if (res.failedCount > 0) throw new Error(`Phase 1 regression failed: ${res.failedCount} failed. ${summarizeRegressionFailures(res.results as Array<Record<string, any>>)}`);
   });
 
   await runTest('P7_REGRESSION_PHASE2', 'Regression: Phase 2 Capability & Entitlement Suite (28 Tests)', async () => {
     const res = await Phase2TestRunner.runAllTests();
     p2Passed = res.passedCount;
     p2Total = res.totalCount;
-    if (res.failedCount > 0) throw new Error(`Phase 2 regression failed: ${res.failedCount} failed`);
+    if (res.failedCount > 0) throw new Error(`Phase 2 regression failed: ${res.failedCount} failed. ${summarizeRegressionFailures(res.results as Array<Record<string, any>>)}`);
   });
 
   await runTest('P7_REGRESSION_PHASE3', 'Regression: Phase 3 Workflow Engine, Event Bus & Bridges Suite (38 Tests)', async () => {
     const res = await Phase3TestRunner.runAllTests();
     p3Passed = res.passedCount;
     p3Total = res.totalTests;
-    if (res.failedCount > 0) throw new Error(`Phase 3 regression failed: ${res.failedCount} failed`);
+    if (res.failedCount > 0) throw new Error(`Phase 3 regression failed: ${res.failedCount} failed. ${summarizeRegressionFailures(res.results as Array<Record<string, any>>)}`);
   });
 
   await runTest('P7_REGRESSION_PHASE4', 'Regression: Phase 4 Platform Control & Provisioning Suite (50 Tests)', async () => {
     const res = await runPhase4TestSuite();
     p4Passed = res.passed;
     p4Total = res.totalTests;
-    if (res.failed > 0) throw new Error(`Phase 4 regression failed: ${res.failed} failed`);
+    if (res.failed > 0) throw new Error(`Phase 4 regression failed: ${res.failed} failed. ${summarizeRegressionFailures(res.results as Array<Record<string, any>>)}`);
   });
 
   await runTest('P7_REGRESSION_PHASE5', 'Regression: Phase 5 Experience Services & UI Engine Suite (49 Tests)', async () => {
     const res = await runPhase5TestSuite();
     p5Passed = res.passed;
     p5Total = res.totalTests;
-    if (res.failed > 0) throw new Error(`Phase 5 regression failed: ${res.failed} failed`);
+    if (res.failed > 0) throw new Error(`Phase 5 regression failed: ${res.failed} failed. ${summarizeRegressionFailures(res.results as Array<Record<string, any>>)}`);
   });
 
   await runTest('P7_REGRESSION_PHASE6', 'Regression: Phase 6 Document Ingestion & AI Boundaries Suite (60 Tests)', async () => {
     const res = await runPhase6TestSuite();
     p6Passed = res.passed;
     p6Total = res.totalTests;
-    if (res.failed > 0) throw new Error(`Phase 6 regression failed: ${res.failed} failed`);
+    if (res.failed > 0) throw new Error(`Phase 6 regression failed: ${res.failed} failed. ${summarizeRegressionFailures(res.results as Array<Record<string, any>>)}`);
   });
 
   const passed = results.filter((r) => r.status === 'PASS').length;

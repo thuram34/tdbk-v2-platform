@@ -54,6 +54,7 @@ import { pubSubConsumer } from './src/orchestration/events/pubsubConsumer';
 import { subscriptionRouter } from './src/platform/subscription/subscriptionRouter';
 import { tdbkAgentRuntime } from './src/platform/agent/agentRuntime';
 import { agentExecutionRepository } from './src/persistence/firestore/repositories/agentExecutionRepository';
+import { flowOrchestrator } from './src/platform/flow/flowOrchestrator';
 
 async function startServer() {
   // Explicit bootstrap boundary: Seed demo DBKs only in development, preview, or explicit flag
@@ -168,14 +169,25 @@ async function startServer() {
         });
       }
 
-      const result = await tdbkAgentRuntime.run({
-        instructionId: context.requestId,
-        text,
+      const flow = await flowOrchestrator.execute({
+        flowId: context.requestId,
+        name: 'agent-command',
         context,
-        requestedAuthority: req.body?.requestedAuthority,
+        execute: async (_state, advance) => {
+          return advance('RUNTIME', async () => ({
+            stage: 'RUNTIME',
+            status: 'COMPLETED',
+            output: await tdbkAgentRuntime.run({
+              instructionId: context.requestId,
+              text,
+              context,
+              requestedAuthority: req.body?.requestedAuthority,
+            }),
+          }));
+        },
       });
 
-      return res.json({ status: 'SUCCESS', result });
+      return res.json({ status: 'SUCCESS', result: flow.output, flow: flow.state });
     } catch (err) {
       if (err instanceof KernelError) {
         return res.status(err.statusCode).json(err.toJSON());
