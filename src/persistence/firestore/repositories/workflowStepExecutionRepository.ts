@@ -157,6 +157,40 @@ export class WorkflowStepExecutionRepository implements IWorkflowStepExecutionRe
       if (current.status !== 'EXECUTING' || current.workerId !== workerId) {
         throw new KernelError('CONFLICT', `Workflow step execution '${executionKey}' is no longer owned by '${workerId}'`, 409);
       }
+      const existingOutcome = current.outcomeState || null;
+      const requestedOutcome = mapping.outcomeState ?? existingOutcome ?? 'REQUESTED';
+
+      if (current.providerOperationIdentity && current.providerOperationIdentity !== mapping.providerOperationIdentity) {
+        throw new KernelError('CONFLICT', `Provider operation identity cannot change for execution '${executionKey}'.`, 409);
+      }
+      if (current.providerName && current.providerName !== mapping.providerName) {
+        throw new KernelError('CONFLICT', `Provider cannot change for execution '${executionKey}'.`, 409);
+      }
+      if (current.providerOperation && current.providerOperation !== mapping.operation) {
+        throw new KernelError('CONFLICT', `Provider operation cannot change for execution '${executionKey}'.`, 409);
+      }
+
+      const allowedTransitions: Record<NonNullable<WorkflowStepExecution['outcomeState']>, string[]> = {
+        REQUESTED: ['REQUESTED', 'PROVIDER_ACCEPTED', 'PROVIDER_REJECTED', 'UNKNOWN_OUTCOME', 'RECONCILIATION_REQUIRED'],
+        PROVIDER_ACCEPTED: ['PROVIDER_ACCEPTED'],
+        PROVIDER_REJECTED: ['PROVIDER_REJECTED'],
+        UNKNOWN_OUTCOME: ['UNKNOWN_OUTCOME', 'RECONCILIATION_REQUIRED', 'RECONCILED_SUCCESS', 'RECONCILED_FAILURE'],
+        RECONCILIATION_REQUIRED: ['RECONCILIATION_REQUIRED', 'RECONCILED_SUCCESS', 'RECONCILED_FAILURE'],
+        RECONCILED_SUCCESS: ['RECONCILED_SUCCESS'],
+        RECONCILED_FAILURE: ['RECONCILED_FAILURE'],
+      };
+
+      if (existingOutcome && !allowedTransitions[existingOutcome].includes(requestedOutcome)) {
+        throw new KernelError('CONFLICT', `Invalid external side-effect outcome transition '${existingOutcome}' -> '${requestedOutcome}'.`, 409);
+      }
+
+      if (
+        (requestedOutcome === 'RECONCILED_SUCCESS' || requestedOutcome === 'RECONCILED_FAILURE') &&
+        !current.providerReconciliationSupported
+      ) {
+        throw new KernelError('CONFLICT', 'External side effect cannot enter a reconciled state without provider reconciliation support.', 409);
+      }
+
       const now = new Date().toISOString();
       const updated: WorkflowStepExecution = {
         ...current,
