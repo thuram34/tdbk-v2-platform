@@ -5,6 +5,7 @@ import { ConnectorConnectionStatus, ConnectorHealthStatus } from '../../persiste
 import { connectionHub } from '../../orchestration/bridge/connectionHub';
 import { masterAuthority } from '../../kernel/master/masterAuthority';
 import { entitlementEngine } from '../../capability/entitlement';
+import { capabilityRegistry } from '../../capability/registry';
 
 export interface ConnectorReadinessItem {
   bridgeId: string;
@@ -55,7 +56,7 @@ class ConnectorReadinessService {
 
     const blockers: string[] = [];
     const entitlementStatus = await entitlementEngine.evaluatePersistentEntitlement(tenantId, definition.capabilityId);
-    const minimumTier = definition.frontDoor.minimumTier;
+    const minimumTier = capabilityRegistry.getCapability(definition.capabilityId)?.entitlementRequirements.minimumTier || definition.frontDoor.minimumTier;
     if (entitlementStatus !== 'ENTITLED') blockers.push(`UPGRADE_REQUIRED:${minimumTier}`);
     if (!definition.frontDoor.configurable) blockers.push('FRONT_DOOR_CONFIGURATION_DISABLED');
     if (definition.status === 'MOCK') blockers.push('BRIDGE_IMPLEMENTATION_IS_MOCK');
