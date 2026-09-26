@@ -7,7 +7,7 @@
 import { SecurityContext } from '../../kernel/types';
 import { KernelError } from '../../kernel/errors/kernelErrors';
 import { auditLogger } from '../../kernel/audit/auditLogger';
-import { classifyFlowFailure, isSecurityFailure } from './flowFailurePolicy';
+import { classifyFlowFailure, flowFailurePolicyForClassification, isSecurityFailure } from './flowFailurePolicy';
 import { FlowExecutionDefinition, FlowExecutionResult, FlowExecutionState, FlowFailureClass, FlowStage } from './flowTypes';
 
 export class FlowOrchestrator {
@@ -100,7 +100,7 @@ export class FlowOrchestrator {
   }
 
   private failState(state: FlowExecutionState, classification: FlowFailureClass, message: string, context: SecurityContext): void {
-    const policy = classifyFlowFailure(new Error(message));
+    const policy = flowFailurePolicyForClassification(classification);
     state.failure = { classification, retryable: policy.retryable, message };
     state.status = isSecurityFailure(classification) ? 'DENIED' : 'FAILED';
     state.completedAt = new Date().toISOString();
