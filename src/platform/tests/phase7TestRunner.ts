@@ -70,7 +70,14 @@ export interface Phase7TestSummary {
   };
 }
 
-const summarizeRegressionFailures = (results: Array<Record<string, any>>): string => {\n  return results\n    .filter((r) => r.status === 'FAIL' || r.status === 'FAILED' || r.passed === false)\n    .map((r) => `[${r.id || r.testId || 'UNKNOWN'}] ${r.name}: ${r.error || r.errorDetails || r.actualResult || r.actual || r.details || 'unknown failure'}`)\n    .join(' | ');\n};\n\nexport async function runPhase7TestSuite(): Promise<Phase7TestSummary> {
+const summarizeRegressionFailures = (results: Array<Record<string, any>>): string => {
+  return results
+    .filter((r) => r.status === 'FAIL' || r.status === 'FAILED' || r.passed === false)
+    .map((r) => `[${r.id || r.testId || 'UNKNOWN'}] ${r.name}: ${r.error || r.errorDetails || r.actualResult || r.actual || r.details || 'unknown failure'}`)
+    .join(' | ');
+};
+
+export async function runPhase7TestSuite(): Promise<Phase7TestSummary> {
   const startTime = Date.now();
   const results: TestCaseResult[] = [];
 
