@@ -23,6 +23,14 @@ export function certifyBridgeDefinition(definition: BridgeDefinition): Connector
     reasons.push(`health status is ${definition.healthStatus}`);
   }
 
+  if (!definition.frontDoor?.configurable) {
+    reasons.push('universal front-door configuration is not enabled');
+  }
+
+  if (!definition.frontDoor?.minimumTier) {
+    reasons.push('connector has no subscription-tier entitlement policy');
+  }
+
   const sideEffects = definition.sideEffectCapabilities;
   if (sideEffects.providerOperationIdentityRequired !== true) {
     reasons.push('provider operation identity is not required');
