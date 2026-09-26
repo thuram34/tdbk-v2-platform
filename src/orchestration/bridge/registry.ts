@@ -10,6 +10,12 @@ import {
 import { SecurityContext } from '../../kernel/types';
 import { auditLogger } from '../../kernel/audit/auditLogger';
 import { KernelError } from '../../kernel/errors/kernelErrors';
+const frontDoor = (minimumTier: 'FREE' | 'FOUNDATION' | 'GROWTH' | 'PRO' | 'ENTERPRISE', keys: string[]) => ({
+  configurable: true as const,
+  minimumTier,
+  configurationFields: keys.map((key) => ({ key, label: key.replace(/_/g, ' '), type: /secret|password|token|passkey|key/i.test(key) ? 'secret' as const : /url/i.test(key) ? 'url' as const : /port/i.test(key) ? 'number' as const : 'text' as const, required: true })),
+});
+
 
 class BridgeRegistryService {
   private bridgeDefinitions: Map<string, BridgeDefinition> = new Map();
@@ -31,7 +37,7 @@ class BridgeRegistryService {
         capabilityId: 'mpesa_bridge',
         supportedOperations: ['STK_PUSH', 'C2B_SIMULATION', 'QUERY_TRANSACTION', 'RECONCILE'],
         status: 'MOCK',
-        configurationRequirements: ['MPESA_CONSUMER_KEY', 'MPESA_CONSUMER_SECRET', 'MPESA_PASSKEY', 'MPESA_SHORTCODE'],
+        configurationRequirements: ['MPESA_CONSUMER_KEY', 'MPESA_CONSUMER_SECRET', 'MPESA_PASSKEY', 'MPESA_SHORTCODE', 'MPESA_CALLBACK_URL'],
         healthStatus: 'UNAVAILABLE',
         registeredAt: new Date().toISOString(),
         sideEffectCapabilities: {
@@ -40,12 +46,13 @@ class BridgeRegistryService {
           automaticUnknownReplay: false,
           providerOperationIdentityRequired: true,
         },
+        frontDoor: frontDoor('FOUNDATION', ['MPESA_CONSUMER_KEY', 'MPESA_CONSUMER_SECRET', 'MPESA_PASSKEY', 'MPESA_SHORTCODE', 'MPESA_CALLBACK_URL']),
       },
       {
         bridgeId: 'bridge_etims',
         provider: 'KRA_ETIMS',
         bridgeVersion: 'v1.0',
-        capabilityId: 'etims_bridge',
+        capabilityId: 'etims_compliance',
         supportedOperations: ['SUBMIT_INVOICE', 'CANCEL_INVOICE', 'QUERY_INVOICE_STATUS'],
         status: 'MOCK',
         configurationRequirements: ['ETIMS_PIN', 'ETIMS_DEVICE_SERIAL', 'ETIMS_BRANCH_CODE'],
@@ -57,12 +64,13 @@ class BridgeRegistryService {
           automaticUnknownReplay: false,
           providerOperationIdentityRequired: true,
         },
+        frontDoor: frontDoor('GROWTH', ['ETIMS_PIN', 'ETIMS_DEVICE_SERIAL', 'ETIMS_BRANCH_CODE']),
       },
       {
         bridgeId: 'bridge_whatsapp',
         provider: 'META_WHATSAPP',
         bridgeVersion: 'v1.0',
-        capabilityId: 'whatsapp_bridge',
+        capabilityId: 'whatsapp_automation',
         supportedOperations: ['SEND_TEMPLATE', 'SEND_TEXT', 'VERIFY_DELIVERY'],
         status: 'MOCK',
         configurationRequirements: ['WHATSAPP_PHONE_NUMBER_ID', 'WHATSAPP_ACCESS_TOKEN'],
@@ -74,12 +82,13 @@ class BridgeRegistryService {
           automaticUnknownReplay: false,
           providerOperationIdentityRequired: true,
         },
+        frontDoor: frontDoor('GROWTH', ['WHATSAPP_PHONE_NUMBER_ID', 'WHATSAPP_ACCESS_TOKEN']),
       },
       {
         bridgeId: 'bridge_email',
         provider: 'SYSTEM_SMTP',
         bridgeVersion: 'v1.0',
-        capabilityId: 'email_bridge',
+        capabilityId: 'email_dispatch',
         supportedOperations: ['SEND_EMAIL', 'SEND_TEMPLATE_EMAIL'],
         status: 'MOCK',
         configurationRequirements: ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASSWORD'],
@@ -91,6 +100,7 @@ class BridgeRegistryService {
           automaticUnknownReplay: false,
           providerOperationIdentityRequired: true,
         },
+        frontDoor: frontDoor('FOUNDATION', ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASSWORD']),
       },
       {
         bridgeId: 'bridge_sms',
@@ -108,6 +118,7 @@ class BridgeRegistryService {
           automaticUnknownReplay: false,
           providerOperationIdentityRequired: true,
         },
+        frontDoor: frontDoor('GROWTH', ['SMS_API_KEY', 'SMS_USERNAME', 'SMS_SENDER_ID']),
       },
       {
         bridgeId: 'bridge_bank',
@@ -125,6 +136,7 @@ class BridgeRegistryService {
           automaticUnknownReplay: false,
           providerOperationIdentityRequired: true,
         },
+        frontDoor: frontDoor('PRO', ['BANK_API_KEY', 'BANK_CLIENT_ID', 'BANK_ACCOUNT_NO']),
       },
     ];
 

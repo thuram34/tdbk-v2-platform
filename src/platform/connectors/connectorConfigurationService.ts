@@ -13,6 +13,8 @@ import { auditLogger } from '../../kernel/audit/auditLogger';
 import { ConnectorConnection, ConnectorSecretReference } from '../../persistence/types';
 import { connectorConnectionRepository } from '../../persistence/firestore/repositories/connectorConnectionRepository';
 import { bridgeRegistry } from '../../orchestration/bridge/registry';
+import { entitlementEngine } from '../../capability/entitlement';
+import { capabilityRegistry } from '../../capability/registry';
 
 export interface ConfigureConnectorRequest {
   tenantId: string;
@@ -100,6 +102,12 @@ class ConnectorConfigurationService {
 
     const definition = bridgeRegistry.getBridgeDefinition(request.bridgeId);
     if (!definition) throw new KernelError('VALIDATION_ERROR', `Unknown bridge '${request.bridgeId}'.`, 404, context.requestId);
+    if (!definition.frontDoor?.configurable) throw new KernelError('VALIDATION_ERROR', `Bridge '${request.bridgeId}' is not configurable through the front door.`, 409, context.requestId);
+    const entitlement = await entitlementEngine.evaluatePersistentEntitlement(request.tenantId, definition.capabilityId);
+    if (entitlement !== 'ENTITLED') {
+      const minimumTier = capabilityRegistry.getCapability(definition.capabilityId)?.entitlementRequirements.minimumTier || definition.frontDoor?.minimumTier || 'ENTERPRISE';
+      throw new KernelError('AUTHORIZATION_ERROR', `Connector '${request.bridgeId}' requires tier '${minimumTier}'.`, 402, context.requestId);
+    }
     this.validate(context, request, definition);
 
     const connectionId = `conn_${definition.bridgeId}`;

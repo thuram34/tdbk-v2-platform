@@ -4,6 +4,7 @@
  */
 
 import { SecurityContext } from '../../kernel/types';
+import { SubscriptionTier } from '../../capability/types';
 
 export type BridgeImplementationStatus =
   | 'DEFINED'
@@ -55,6 +56,19 @@ export interface CallbackVerificationResult {
   correlationId?: string;
 }
 
+export interface BridgeConfigurationField {
+  key: string;
+  label: string;
+  type: 'text' | 'secret' | 'url' | 'boolean' | 'number';
+  required: boolean;
+}
+
+export interface BridgeFrontDoorPolicy {
+  configurable: true;
+  minimumTier: SubscriptionTier;
+  configurationFields: BridgeConfigurationField[];
+}
+
 export interface BridgeDefinition {
   bridgeId: string;
   provider: string;
@@ -66,6 +80,8 @@ export interface BridgeDefinition {
   healthStatus: BridgeHealthStatus;
   registeredAt: string;
   sideEffectCapabilities: BridgeSideEffectCapabilities;
+  /** Universal front-door configuration contract; entitlement remains authoritative in Layer 4. */
+  frontDoor?: BridgeFrontDoorPolicy;
 }
 
 export interface Bridge<TReq = any, TRes = any, TCB = any> {
