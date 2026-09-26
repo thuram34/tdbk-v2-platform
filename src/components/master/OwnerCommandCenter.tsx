@@ -11,6 +11,8 @@ import {
   RefreshCw,
   ShieldCheck,
   Sparkles,
+  LogOut,
+  Store,
 } from 'lucide-react';
 import type { DbkExperienceProjection, DbkIdentity } from '../../platform/types';
 import { getExperienceProjection } from '../../client/masterControlApi';
@@ -23,6 +25,8 @@ interface OwnerCommandCenterProps {
   onRefresh: () => Promise<void> | void;
   onAddOrganization: () => void;
   onOpenOrganization: (dbkId: string) => void;
+  onOpenSokoni: () => void;
+  onLogout: () => Promise<void> | void;
 }
 
 const statusMeta = (status: DbkIdentity['status']) => {
@@ -50,6 +54,8 @@ export const OwnerCommandCenter: React.FC<OwnerCommandCenterProps> = ({
   onRefresh,
   onAddOrganization,
   onOpenOrganization,
+  onOpenSokoni,
+  onLogout,
 }) => {
   const [projections, setProjections] = useState<Record<string, DbkExperienceProjection>>({});
   const [projectionError, setProjectionError] = useState<string | null>(null);
@@ -191,8 +197,8 @@ export const OwnerCommandCenter: React.FC<OwnerCommandCenterProps> = ({
         <section className="mt-8">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
-              <h2 className="text-lg font-bold">My organizations</h2>
-              <p className="mt-1 text-sm text-neutral-500">Select an active workspace to continue operating it.</p>
+              <h2 className="text-lg font-bold">My businesses</h2>
+              <p className="mt-1 text-sm text-neutral-500">Each business has one provisioned workspace. Select it to continue operating.</p>
             </div>
             <Activity className="h-5 w-5 text-neutral-400" />
           </div>
@@ -203,9 +209,9 @@ export const OwnerCommandCenter: React.FC<OwnerCommandCenterProps> = ({
             <div className="rounded-3xl border border-dashed border-neutral-300 bg-white p-10 text-center">
               <Building2 className="mx-auto h-8 w-8 text-neutral-400" />
               <h3 className="mt-4 text-lg font-bold">No organization yet</h3>
-              <p className="mx-auto mt-2 max-w-md text-sm text-neutral-500">Create your first organization and TDBK will provision its workspace from the selected business blueprint.</p>
+              <p className="mx-auto mt-2 max-w-md text-sm text-neutral-500">Create your first business and TDBK will provision its workspace once. Your business type is chosen during setup and then becomes authoritative.</p>
               <button type="button" onClick={onAddOrganization} className="mt-5 inline-flex items-center gap-2 rounded-xl bg-neutral-950 px-5 py-3 text-sm font-semibold text-white">
-                Create organization <ArrowRight className="h-4 w-4" />
+                Create business <ArrowRight className="h-4 w-4" />
               </button>
             </div>
           ) : (
@@ -234,7 +240,7 @@ export const OwnerCommandCenter: React.FC<OwnerCommandCenterProps> = ({
                         <p className="mt-1 font-semibold">{dbk.sector}</p>
                       </div>
                       <div className="rounded-2xl bg-neutral-50 p-3">
-                        <p className="text-xs text-neutral-500">Subscription</p>
+                        <p className="text-xs text-neutral-500">Plan</p>
                         <p className="mt-1 font-semibold">{dbk.subscriptionTier}</p>
                       </div>
                       <div className="rounded-2xl bg-neutral-50 p-3">
