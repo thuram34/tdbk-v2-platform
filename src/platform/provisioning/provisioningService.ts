@@ -291,10 +291,7 @@ export class ProvisioningService {
 
     const slugify = (value: string) => value.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 48);
     const requestedDbkId = request.dbkId;
-    const idempotencyKey = request.idempotencyKey || (context.principal.isMaster ? `idem_${requestedDbkId || slugify(request.legalName)}` : '');
-    if (!idempotencyKey) {
-      throw new KernelError('VALIDATION_ERROR', 'An onboarding idempotency key is required.', 400, context.requestId);
-    }
+    const idempotencyKey = request.idempotencyKey || `idem_${requestedDbkId || slugify(request.legalName)}`;
 
     const identitySeed = createHash('sha256')
       .update(`${context.principal.id}:${idempotencyKey}`)
@@ -331,7 +328,7 @@ export class ProvisioningService {
 
     // 3. Atomically claim the provisioning request. Firestore is authoritative;
     // there is no process-local idempotency authority to lose on restart.
-    const idempotencyScope = context.principal.isMaster ? effectiveDbkId : context.principal.id;
+    const idempotencyScope = effectiveDbkId;
     const claim = await idempotencyRepository.claimIdempotencyRecord(idempotencyScope, idempotencyKey, {
       idempotencyKey,
       tenantId: idempotencyScope,
