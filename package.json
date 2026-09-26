@@ -17,7 +17,9 @@
     "test:phase1": "vitest run src/blueprint/tests/phase1.test.ts",
     "verify:phase1": "bash scripts/verify-phase1.sh",
     "test:capabilities": "vitest run src/capability/tests",
-    "verify:capabilities": "bash scripts/verify-capabilities.sh"
+    "verify:capabilities": "bash scripts/verify-capabilities.sh",
+    "test:flow": "vitest run src/platform/flow/flowOrchestrator.test.ts",
+    "verify:flow": "bash scripts/verify-flow.sh"
   },
   "dependencies": {
     "@google-cloud/firestore": "^9.0.0",
