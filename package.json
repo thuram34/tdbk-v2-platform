@@ -13,7 +13,9 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint src",
     "test:phase7": "vitest run src/platform/tests/phase7.test.ts",
-    "verify:engineering": "bash scripts/verify-engineering.sh"
+    "verify:engineering": "bash scripts/verify-engineering.sh",
+    "test:phase1": "vitest run src/blueprint/tests/phase1.test.ts",
+    "verify:phase1": "bash scripts/verify-phase1.sh"
   },
   "dependencies": {
     "@google-cloud/firestore": "^9.0.0",
