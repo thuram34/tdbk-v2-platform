@@ -37,7 +37,7 @@ class BridgeRegistryService {
         capabilityId: 'mpesa_bridge',
         supportedOperations: ['STK_PUSH', 'C2B_SIMULATION', 'QUERY_TRANSACTION', 'RECONCILE'],
         status: 'MOCK',
-        configurationRequirements: ['MPESA_CONSUMER_KEY', 'MPESA_CONSUMER_SECRET', 'MPESA_PASSKEY', 'MPESA_SHORTCODE'],
+        configurationRequirements: ['MPESA_CONSUMER_KEY', 'MPESA_CONSUMER_SECRET', 'MPESA_PASSKEY', 'MPESA_SHORTCODE', 'MPESA_CALLBACK_URL'],
         healthStatus: 'UNAVAILABLE',
         registeredAt: new Date().toISOString(),
         sideEffectCapabilities: {
@@ -46,7 +46,7 @@ class BridgeRegistryService {
           automaticUnknownReplay: false,
           providerOperationIdentityRequired: true,
         },
-        frontDoor: frontDoor('FOUNDATION', ['MPESA_CONSUMER_KEY', 'MPESA_CONSUMER_SECRET', 'MPESA_PASSKEY', 'MPESA_SHORTCODE']),
+        frontDoor: frontDoor('FOUNDATION', ['MPESA_CONSUMER_KEY', 'MPESA_CONSUMER_SECRET', 'MPESA_PASSKEY', 'MPESA_SHORTCODE', 'MPESA_CALLBACK_URL']),
       },
       {
         bridgeId: 'bridge_etims',
