@@ -53,7 +53,7 @@ describe('ConnectorConnectionRepository', () => {
   });
 
   it('preserves configuration across simulated restart before applying health state', async () => {
-    await connectorConnectionRepository.saveConnection(tenantId, connection());
+    await connectorConnectionRepository.saveConnection(tenantId, connectionId, connection());
     firestoreClient.simulateServerRestart();
 
     await connectorConnectionRepository.updateHealth(tenantId, connectionId, 'ERROR', 'PROVIDER_UNAVAILABLE');
