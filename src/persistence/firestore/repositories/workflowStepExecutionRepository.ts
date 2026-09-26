@@ -51,7 +51,7 @@ export class WorkflowStepExecutionRepository implements IWorkflowStepExecutionRe
       // durable execution key is the idempotency boundary; re-claiming an
       // active execution would increment attempts and permit duplicate step
       // invocation under the same worker identity.
-      if (activeLease) return current.workerId === workerId ? current : null;
+      if (activeLease) return null;
 
       const nowIso = new Date(now).toISOString();
       const next: WorkflowStepExecution = {
