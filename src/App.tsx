@@ -20,6 +20,7 @@ export default function App() {
   const [showPublicFlow, setShowPublicFlow] = useState(true);
   const [showBusinessDiscovery, setShowBusinessDiscovery] = useState(false);
   const [dbkId, setDbkId] = useState<string | null>(null);
+  const [idToken, setIdToken] = useState('');
   const [dbksLoading, setDbksLoading] = useState(true);
   const [dbks, setDbks] = useState<DbkIdentity[]>([]);
   const [dbksError, setDbksError] = useState<string | null>(null);
@@ -31,6 +32,7 @@ export default function App() {
     if (!user) {
       setDbks([]);
       setDbkId(null);
+      setIdToken('');
       setDbksLoading(false);
       return;
     }
@@ -40,6 +42,7 @@ export default function App() {
 
     try {
       const token = await user.getIdToken();
+      setIdToken(token);
       const result = await listDbks(token);
       setDbks(result);
     } catch (error) {
@@ -54,6 +57,7 @@ export default function App() {
     if (!user) {
       setDbks([]);
       setDbkId(null);
+      setIdToken('');
       setShowBusinessDiscovery(false);
       setDbksLoading(false);
       return;
@@ -193,8 +197,7 @@ export default function App() {
       <OwnerCommandCenter
         userEmail={user.email}
         dbks={dbks}
-        idTokenPromise={undefined as never}
-        idToken={''}
+        idToken={idToken}
         loading={dbksLoading}
         onRefresh={loadDbks}
         onAddOrganization={addOrganization}
