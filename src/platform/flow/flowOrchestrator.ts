@@ -55,7 +55,7 @@ export class FlowOrchestrator {
     try {
       const output = await definition.execute(state, advance);
 
-      if (state.status === 'WAITING') {
+      if (String(state.status) === 'WAITING') {
         return { state, output };
       }
 
