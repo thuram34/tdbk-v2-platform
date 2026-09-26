@@ -8,6 +8,7 @@ import { controlPlaneTool } from './tools/controlPlaneTool';
 import { businessStateTool } from './tools/businessStateTool';
 import { workflowTool } from './tools/workflowTool';
 import { agentExecutionRepository } from '../../persistence/firestore/repositories/agentExecutionRepository';
+import { agentActionExecutionRepository } from '../../persistence/firestore/repositories/agentActionExecutionRepository';
 import { AgentInstruction, AgentRunResult } from './types';
 
 const EXECUTABLE_ACTIONS = new Set([
@@ -80,9 +81,45 @@ export class TdbkAgentRuntime {
         results.push(result); agentAudit.action(instruction, action, result); continue;
       }
       try {
+        const actionExecutionId = instruction.instructionId + ':' + action.actionId;
+        const targetFingerprint = JSON.stringify({
+          tenantId: action.tenantId || tenantId,
+          branchId,
+          principalId: instruction.context.principal.id,
+          kind: action.kind,
+          workflowId: action.workflowId || null,
+          capabilityId: action.capabilityId || null,
+          bridgeId: action.bridgeId || null,
+          blueprintId: action.blueprintId || null,
+        });
+        const actionClaim = await agentActionExecutionRepository.claim({
+          executionId: actionExecutionId,
+          instructionId: instruction.instructionId,
+          actionId: action.actionId,
+          tenantId,
+          branchId,
+          principalId: instruction.context.principal.id,
+          actionKind: action.kind,
+          targetFingerprint,
+          leaseOwner,
+        });
+
+        if (actionClaim.status === 'IN_PROGRESS') {
+          const result = {
+            actionId: action.actionId,
+            status: 'FAILED' as const,
+            error: 'Agent action is already executing under an active durable lease.',
+          };
+          results.push(result); agentAudit.action(instruction, action, result); continue;
+        }
+
         let result;
-        if (EXECUTABLE_ACTIONS.has(action.kind)) result = await agentActionExecutor.execute(instruction, action);
-        else {
+        if (actionClaim.status === 'COMPLETED') {
+          result = actionClaim.record.result;
+          if (!result) throw new Error('Completed agent action has no durable result.');
+        } else if (EXECUTABLE_ACTIONS.has(action.kind)) {
+          result = await agentActionExecutor.execute(instruction, action);
+        } else {
           let data: unknown;
           if (action.kind === 'PLAN_SAFE_REPAIR') data = await agentRepairPlanner.plan(instruction.context);
           else if (action.kind === 'INSPECT_PLATFORM' || action.kind === 'INSPECT_DBKS') data = await controlPlaneTool.execute(instruction.context);
@@ -94,6 +131,15 @@ export class TdbkAgentRuntime {
           } else data = { planned: true, message: 'No mutation was executed for this action.' };
           result = { actionId: action.actionId, status: 'COMPLETED' as const, data };
         }
+
+        // Persist the action result before running postcondition verification.
+        // After a process crash, this result is the replay boundary: verification
+        // may run again, but the action itself must not execute again.
+        if (actionClaim.status === 'ACQUIRED') {
+          if (result.status === 'COMPLETED') await agentActionExecutionRepository.complete(actionExecutionId, leaseOwner, result);
+          else await agentActionExecutionRepository.fail(actionExecutionId, leaseOwner, result);
+        }
+
         if (result.status === 'COMPLETED') {
           const verification = await agentVerificationEngine.verify(instruction, action, result.data);
           result = { ...result, verification }; if (!verification.verified) result.status = 'FAILED';
