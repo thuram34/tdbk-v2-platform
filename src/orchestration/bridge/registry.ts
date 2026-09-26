@@ -10,6 +10,12 @@ import {
 import { SecurityContext } from '../../kernel/types';
 import { auditLogger } from '../../kernel/audit/auditLogger';
 import { KernelError } from '../../kernel/errors/kernelErrors';
+const frontDoor = (minimumTier: 'FREE' | 'FOUNDATION' | 'GROWTH' | 'PRO' | 'ENTERPRISE', keys: string[]) => ({
+  configurable: true as const,
+  minimumTier,
+  configurationFields: keys.map((key) => ({ key, label: key.replace(/_/g, ' '), type: 'text' as const, required: true })),
+});
+
 
 class BridgeRegistryService {
   private bridgeDefinitions: Map<string, BridgeDefinition> = new Map();
