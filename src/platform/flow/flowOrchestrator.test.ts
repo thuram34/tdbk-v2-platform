@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { flowOrchestrator } from './flowOrchestrator';
+import { flowFailurePolicyForClassification } from './flowFailurePolicy';
 import { AuthenticationError, AuthorizationError } from '../../kernel/errors/kernelErrors';
 import { SecurityContext } from '../../kernel/types';
 
