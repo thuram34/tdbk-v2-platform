@@ -15,9 +15,7 @@ export class WorkflowStepExecutionRepository implements IWorkflowStepExecutionRe
   private constructor() {}
 
   public static getInstance(): WorkflowStepExecutionRepository {
-    if (!WorkflowStepExecutionRepository.instance) {
-      WorkflowStepExecutionRepository.instance = new WorkflowStepExecutionRepository();
-    }
+    if (!WorkflowStepExecutionRepository.instance) WorkflowStepExecutionRepository.instance = new WorkflowStepExecutionRepository();
     return WorkflowStepExecutionRepository.instance;
   }
 
@@ -79,6 +77,33 @@ export class WorkflowStepExecutionRepository implements IWorkflowStepExecutionRe
 
       await tx.set(path, next as unknown as Record<string, unknown>);
       return next;
+    });
+  }
+
+  public async releaseExecutionForRetry(
+    tenantId: string,
+    executionKey: string,
+    workerId: string
+  ): Promise<WorkflowStepExecution> {
+    const path = this.getPath(tenantId, executionKey);
+    return await firestoreClient.runTransaction(async (tx) => {
+      const current = await tx.get<WorkflowStepExecution>(path);
+      if (!current) throw new KernelError('NOT_FOUND', `Workflow step execution '${executionKey}' not found`, 404);
+      if (current.status !== 'EXECUTING' || current.workerId !== workerId) {
+        throw new KernelError('CONFLICT', `Workflow step execution '${executionKey}' is no longer owned by '${workerId}'`, 409);
+      }
+      if (current.outcomeState === 'UNKNOWN_OUTCOME' || current.outcomeState === 'RECONCILIATION_REQUIRED') {
+        throw new KernelError('CONFLICT', `Workflow step execution '${executionKey}' has an unresolved external outcome; reconciliation is required before retry.`, 409);
+      }
+      const now = new Date().toISOString();
+      const released = {
+        ...current,
+        workerId: null,
+        leaseUntil: null,
+        updatedAt: now,
+      };
+      await tx.set(path, released as unknown as Record<string, unknown>);
+      return released;
     });
   }
 
