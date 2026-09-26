@@ -46,6 +46,7 @@ class BridgeRegistryService {
           automaticUnknownReplay: false,
           providerOperationIdentityRequired: true,
         },
+        frontDoor: frontDoor('FOUNDATION', ['MPESA_CONSUMER_KEY', 'MPESA_CONSUMER_SECRET', 'MPESA_PASSKEY', 'MPESA_SHORTCODE']),
       },
       {
         bridgeId: 'bridge_etims',
@@ -63,6 +64,7 @@ class BridgeRegistryService {
           automaticUnknownReplay: false,
           providerOperationIdentityRequired: true,
         },
+        frontDoor: frontDoor('GROWTH', ['ETIMS_PIN', 'ETIMS_DEVICE_SERIAL', 'ETIMS_BRANCH_CODE']),
       },
       {
         bridgeId: 'bridge_whatsapp',
@@ -80,6 +82,7 @@ class BridgeRegistryService {
           automaticUnknownReplay: false,
           providerOperationIdentityRequired: true,
         },
+        frontDoor: frontDoor('GROWTH', ['WHATSAPP_PHONE_NUMBER_ID', 'WHATSAPP_ACCESS_TOKEN']),
       },
       {
         bridgeId: 'bridge_email',
@@ -97,6 +100,7 @@ class BridgeRegistryService {
           automaticUnknownReplay: false,
           providerOperationIdentityRequired: true,
         },
+        frontDoor: frontDoor('FOUNDATION', ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASSWORD']),
       },
       {
         bridgeId: 'bridge_sms',
@@ -114,6 +118,7 @@ class BridgeRegistryService {
           automaticUnknownReplay: false,
           providerOperationIdentityRequired: true,
         },
+        frontDoor: frontDoor('GROWTH', ['SMS_API_KEY', 'SMS_USERNAME', 'SMS_SENDER_ID']),
       },
       {
         bridgeId: 'bridge_bank',
@@ -131,6 +136,7 @@ class BridgeRegistryService {
           automaticUnknownReplay: false,
           providerOperationIdentityRequired: true,
         },
+        frontDoor: frontDoor('PRO', ['BANK_API_KEY', 'BANK_CLIENT_ID', 'BANK_ACCOUNT_NO']),
       },
     ];
 
