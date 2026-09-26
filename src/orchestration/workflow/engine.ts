@@ -417,7 +417,7 @@ class WorkflowEngineService {
           throw new KernelError('CONFLICT', 'Workflow execution lease was lost; refusing to execute a stale step.', 409, context.requestId);
         }
 
-        const execution = await workflowStepExecutionRepository.claimExecution(
+        let execution = await workflowStepExecutionRepository.claimExecution(
           workflow.tenantId,
           workflow.workflowId,
           step.stepId,
@@ -427,7 +427,21 @@ class WorkflowEngineService {
         );
 
         if (!execution) {
-          throw new KernelError('CONFLICT', `Workflow step '${step.stepId}' is currently executing on another worker.`, 409, context.requestId);
+          const existingExecution = await workflowStepExecutionRepository.getExecution(
+            workflow.tenantId,
+            step.executionKey!
+          );
+
+          if (
+            existingExecution?.status === 'EXECUTING' &&
+            existingExecution.workerId === workerId &&
+            existingExecution.leaseUntil &&
+            Date.parse(existingExecution.leaseUntil) > Date.now()
+          ) {
+            execution = existingExecution;
+          } else {
+            throw new KernelError('CONFLICT', `Workflow step '${step.stepId}' is currently executing on another worker.`, 409, context.requestId);
+          }
         }
 
         // A completed durable execution is authoritative after restart. Rehydrate
