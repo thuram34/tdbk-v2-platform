@@ -187,7 +187,7 @@ export default function App() {
   }
 
   if (dbkId) {
-    return <DbkApp dbkId={dbkId} />;
+    return <DbkApp dbkId={dbkId} onLogout={async () => { await signOutUser(); window.history.replaceState({}, '', window.location.pathname); }} />;
   }
 
   return (
