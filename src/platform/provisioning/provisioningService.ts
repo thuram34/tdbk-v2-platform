@@ -290,7 +290,8 @@ export class ProvisioningService {
     masterAuthority.assertOwnerOrMasterAuthority(context.principal, 'provisionDbk', context.requestId);
 
     const slugify = (value: string) => value.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 48);
-    const idempotencyKey = request.idempotencyKey || (context.principal.isMaster ? `idem_${effectiveDbkId || slugify(request.legalName)}` : '');
+    const requestedDbkId = request.dbkId;
+    const idempotencyKey = request.idempotencyKey || (context.principal.isMaster ? `idem_${requestedDbkId || slugify(request.legalName)}` : '');
     if (!idempotencyKey) {
       throw new KernelError('VALIDATION_ERROR', 'An onboarding idempotency key is required.', 400, context.requestId);
     }
@@ -299,8 +300,8 @@ export class ProvisioningService {
       .update(`${context.principal.id}:${idempotencyKey}`)
       .digest('hex')
       .slice(0, 12);
-    const effectiveDbkId = context.principal.isMaster && effectiveDbkId
-      ? effectiveDbkId
+    const effectiveDbkId = context.principal.isMaster && requestedDbkId
+      ? requestedDbkId
       : `dbk-${slugify(request.legalName)}-${identitySeed}`;
     const correlationId = request.correlationId || context.correlationId || `corr_prov_${effectiveDbkId}`;
 
