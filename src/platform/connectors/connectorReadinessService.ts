@@ -6,6 +6,7 @@ import { connectionHub } from '../../orchestration/bridge/connectionHub';
 import { masterAuthority } from '../../kernel/master/masterAuthority';
 import { entitlementEngine } from '../../capability/entitlement';
 import { capabilityRegistry } from '../../capability/registry';
+import { EntitlementStatus, SubscriptionTier } from '../../capability/types';
 
 export interface ConnectorReadinessItem {
   bridgeId: string;
@@ -19,8 +20,8 @@ export interface ConnectorReadinessItem {
   adapterRegistered: boolean;
   ready: boolean;
   blockers: string[];
-  minimumTier: string;
-  entitlementStatus: string;
+  minimumTier: SubscriptionTier;
+  entitlementStatus: EntitlementStatus;
 }
 
 export interface ConnectorActivationResult {
@@ -31,8 +32,8 @@ export interface ConnectorActivationResult {
   healthStatus: string;
   ready: boolean;
   blockers: string[];
-  minimumTier: string;
-  entitlementStatus: string;
+  minimumTier: SubscriptionTier;
+  entitlementStatus: EntitlementStatus;
 }
 
 export interface ConnectorReadinessReport {
