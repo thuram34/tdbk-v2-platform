@@ -37,7 +37,7 @@ export function BusinessDiscovery({ onProvisioned }: BusinessDiscoveryProps) {
   const [blueprints, setBlueprints] = useState<Blueprint[]>([]);
   const [existingDbkId, setExistingDbkId] = useState<string | null>(null);
   const [existingDbkName, setExistingDbkName] = useState<string | null>(null);
-  const [selectedBlueprintId, setSelectedBlueprintId] = useState('hardware_v1');
+  const [selectedBlueprintId, setSelectedBlueprintId] = useState('');
   const [selectedCapabilities, setSelectedCapabilities] = useState<string[]>([]);
   const [businessName, setBusinessName] = useState('');
   const [branchName, setBranchName] = useState('Mombasa');
@@ -77,11 +77,11 @@ export function BusinessDiscovery({ onProvisioned }: BusinessDiscoveryProps) {
 
         const list: Blueprint[] = blueprintData.blueprints || [];
         setBlueprints(list);
-        const preferred = list.find((blueprint) => blueprint.id === 'hardware_v1') || list[0];
-        if (preferred) {
-          setSelectedBlueprintId(preferred.id);
+        if (list.length === 1) {
+          const onlyBlueprint = list[0];
+          setSelectedBlueprintId(onlyBlueprint.id);
           setSelectedCapabilities(
-            (preferred.supportedCapabilities || [])
+            (onlyBlueprint.supportedCapabilities || [])
               .filter((capability) => capability.isDefault)
               .map((capability) => capability.id)
           );
