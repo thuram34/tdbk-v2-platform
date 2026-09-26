@@ -98,7 +98,7 @@ class ConnectorReadinessService {
       const connection = byBridge.get(definition.bridgeId);
       const blockers: string[] = [];
       const entitlementStatus = await entitlementEngine.evaluatePersistentEntitlement(tenantId, definition.capabilityId);
-      const minimumTier = definition.frontDoor.minimumTier;
+      const minimumTier = capabilityRegistry.getCapability(definition.capabilityId)?.entitlementRequirements.minimumTier || definition.frontDoor?.minimumTier || 'ENTERPRISE';
 
       if (entitlementStatus !== 'ENTITLED') blockers.push(`UPGRADE_REQUIRED:${minimumTier}`);
       if (!definition.frontDoor?.configurable) blockers.push('FRONT_DOOR_CONFIGURATION_DISABLED');
