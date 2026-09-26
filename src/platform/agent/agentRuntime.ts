@@ -26,6 +26,21 @@ export class TdbkAgentRuntime {
     const plan = { instructionId: instruction.instructionId, intent: parsed.intent, actions: parsed.actions, generatedAt: startedAt };
     const leaseOwner = `${instruction.context.principal.id}:${Date.now()}:${Math.random().toString(36).slice(2, 10)}`;
 
+    // Replay identity is authoritative before any action execution. A command
+    // executionId cannot be rebound to a different tenant, branch, principal,
+    // or instruction even when a caller presents a new request context.
+    const existingExecution = tenantId
+      ? await agentExecutionRepository.get(tenantId, instruction.instructionId)
+      : await agentExecutionRepository.getSystem(instruction.instructionId);
+    if (existingExecution && (
+      existingExecution.tenantId !== tenantId ||
+      existingExecution.branchId !== branchId ||
+      existingExecution.principalId !== instruction.context.principal.id ||
+      existingExecution.instruction !== instruction.text.slice(0, 2000)
+    )) {
+      throw new Error('Agent instruction replay conflict: executionId is already bound to a different principal, scope, or instruction.');
+    }
+
     const claim = await agentExecutionRepository.claim({
       executionId: instruction.instructionId,
       instructionId: instruction.instructionId,
