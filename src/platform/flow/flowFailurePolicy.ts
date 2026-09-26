@@ -35,6 +35,25 @@ export function classifyFlowFailure(error: unknown): FlowFailurePolicy {
   return { classification: 'INTERNAL', retryable: false, preserveState: true, terminal: true };
 }
 
+export function flowFailurePolicyForClassification(classification: FlowFailureClass): FlowFailurePolicy {
+  switch (classification) {
+    case 'AUTHENTICATION':
+    case 'AUTHORIZATION':
+    case 'TENANT_ISOLATION':
+    case 'VALIDATION':
+    case 'NOT_FOUND':
+      return { classification, retryable: false, preserveState: true, terminal: true };
+    case 'CONFLICT':
+    case 'TRANSIENT':
+    case 'PERSISTENCE':
+      return { classification, retryable: true, preserveState: true, terminal: false };
+    case 'EXTERNAL_UNKNOWN':
+      return { classification, retryable: false, preserveState: true, terminal: false };
+    default:
+      return { classification: 'INTERNAL', retryable: false, preserveState: true, terminal: true };
+  }
+}
+
 export function isSecurityFailure(classification: FlowFailureClass): boolean {
   return classification === 'AUTHENTICATION' ||
     classification === 'AUTHORIZATION' ||
