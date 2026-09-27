@@ -147,12 +147,25 @@ export class WhatsappBridge implements Bridge<WhatsappMessageRequest, any, Whats
   public async execute(context: SecurityContext, operation: string, payload: WhatsappMessageRequest): Promise<NormalizedBridgeResult<any>> {
     const tenantId = context.tenantContext?.tenantId || context.principal.tenantId;
     const connection = await this.connection(tenantId);
-    if (!['SEND_TEMPLATE', 'SEND_TEXT', 'VERIFY_DELIVERY'].includes(operation)) {
+    if (!['SEND_TEMPLATE', 'SEND_TEXT', 'VERIFY_DELIVERY', 'SUBSCRIBE_WABA'].includes(operation)) {
       throw new KernelError('VALIDATION_ERROR', `Unsupported WhatsApp operation: '${operation}'`, 400, context.requestId);
     }
 
     const phoneNumberId = this.parameter(connection, 'WHATSAPP_PHONE_NUMBER_ID', 'phoneNumberId');
-    if (!phoneNumberId) throw new KernelError('INTEGRATION_UNAVAILABLE', 'WhatsApp phone number ID is not configured', 503, context.requestId);
+    const wabaId = this.parameter(connection, 'WHATSAPP_WABA_ID', 'wabaId');
+    if (!phoneNumberId && operation !== 'SUBSCRIBE_WABA') throw new KernelError('INTEGRATION_UNAVAILABLE', 'WhatsApp phone number ID is not configured', 503, context.requestId);
+    if (operation === 'SUBSCRIBE_WABA') {
+      if (!wabaId) throw new KernelError('INTEGRATION_UNAVAILABLE', 'WhatsApp WABA ID is not configured', 503, context.requestId);
+      const providerResponse = await this.graphRequest(connection, `${wabaId}/subscribed_apps`, 'POST');
+      return {
+        status: providerResponse?.success === true || providerResponse?.success === 'true' ? 'SUCCESS' : 'FAILED',
+        provider: this.provider,
+        providerReference: wabaId,
+        occurredAt: new Date().toISOString(),
+        correlationId: context.correlationId || context.requestId,
+        data: providerResponse,
+      };
+    }
     const recipient = this.normalizePhone(payload.recipientPhone);
 
     auditLogger.logEvent('BRIDGE_EXECUTION', context.principal.id, 'BRIDGE_REQUESTED', `bridge:${this.bridgeId}`, 'ALLOWED', {
@@ -227,6 +240,17 @@ export class WhatsappBridge implements Bridge<WhatsappMessageRequest, any, Whats
       correlationId: context.correlationId || context.requestId,
       data: { ...providerResponse, messagingProduct: 'whatsapp' },
     };
+  }
+
+  /**
+   * Meta's one-time webhook verification handshake.
+   * This is intentionally separate from POST webhook HMAC verification.
+   */
+  public verifyWebhookChallenge(mode: string | undefined, verifyToken: string | undefined, challenge: string | undefined, configuredToken: string): string {
+    if (mode !== 'subscribe' || !verifyToken || verifyToken !== configuredToken || !challenge) {
+      throw new KernelError('AUTHORIZATION_ERROR', 'WhatsApp Meta webhook verification failed', 403);
+    }
+    return challenge;
   }
 
   public async verifyCallback(rawCallback: WhatsappWebhook, signatureHeader?: string): Promise<CallbackVerificationResult> {
