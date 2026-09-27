@@ -109,7 +109,7 @@ export class EtimsBridge implements Bridge<EtimsInvoiceRequest, any, any> {
       GET_IMPORTS: '/imports/selectImportItems',
       UPDATE_IMPORT: '/imports/updateImportItems',
       GET_STOCK: '/stock/selectStockItems',
-      SAVE_STOCK: '/saveStockItems/saveStockItems',
+      SAVE_STOCK: '/stock/saveStockItems',
       SAVE_STOCK_MASTER: '/stockMaster/saveStockMaster',
       SAVE_ITEM_COMPOSITION: '/items/saveItemComposition',
     };
@@ -233,7 +233,9 @@ export class EtimsBridge implements Bridge<EtimsInvoiceRequest, any, any> {
     } else if (operation === 'GET_BRANCHES') {
       providerResponse = await this.post(connection, 'GET_BRANCHES', { tin, bhfId, lastReqDt: (payload as any).lastReqDt || this.parameter(connection, 'ETIMS_LAST_BRANCH_SYNC', 'lastReqDt') || '20000101000000' });
     } else if (operation === 'GET_ITEMS') {
-      providerResponse = await this.post(connection, 'GET_ITEMS', { tin, bhfId, lastReqDt: this.parameter(connection, 'ETIMS_LAST_ITEM_SYNC', 'lastReqDt') || '20000101000000' });
+      providerResponse = await this.post(connection, 'GET_ITEMS', { tin, bhfId, lastReqDt: (payload as any).lastReqDt || this.parameter(connection, 'ETIMS_LAST_ITEM_SYNC', 'lastReqDt') || '20000101000000' });
+    } else if (operation === 'GET_IMPORTS') {
+      providerResponse = await this.post(connection, 'GET_IMPORTS', { tin, bhfId, lastReqDt: (payload as any).lastReqDt || this.parameter(connection, 'ETIMS_LAST_IMPORT_SYNC', 'lastReqDt') || '20000101000000' });
     } else if (operation === 'SUBMIT_INVOICE' || operation === 'SAVE_SALES') {
       const salesDate = (payload.saleDate || this.date8()).replace(/-/g, '').slice(0, 8);
       const cfmDt = `${salesDate}${this.now14().slice(8)}`;
@@ -279,7 +281,7 @@ export class EtimsBridge implements Bridge<EtimsInvoiceRequest, any, any> {
         orgInvcNo: payload.originalInvoiceNumber || 0,
         custTin: payload.customerPin || null,
         custNm: payload.customerName || null,
-        salesTyCd: payload.originalInvoiceNumber ? 'N' : 'N',
+        salesTyCd: 'N',
         rcptTyCd: payload.receiptTypeCode || (payload.originalInvoiceNumber ? 'R' : 'S'),
         pmtTyCd: payload.paymentMethodCode || '01',
         salesSttsCd: '02',
