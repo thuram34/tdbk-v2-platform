@@ -347,6 +347,9 @@ export class EtimsBridge implements Bridge<EtimsInvoiceRequest, any, any> {
   public async handleCallback(context: SecurityContext, rawCallback: any): Promise<NormalizedBridgeResult<any>> {
     const authoritativeTenant = context.tenantContext?.tenantId || context.principal.tenantId;
     if (!authoritativeTenant) throw new KernelError('TENANT_ISOLATION_ERROR', 'eTIMS callback denied: authoritative tenant context is missing', 403, context.requestId);
+    if (rawCallback?.tenantId && rawCallback.tenantId !== authoritativeTenant) {
+      throw new KernelError('TENANT_ISOLATION_ERROR', 'eTIMS callback tenant conflicts with authoritative tenant context', 403, context.requestId);
+    }
     const verification = await this.verifyCallback(rawCallback);
     if (!verification.verified) throw new KernelError('AUTHORIZATION_ERROR', `eTIMS Callback Verification Failed: ${verification.reason}`, 401, context.requestId);
     return this.normalizeResponse(rawCallback);
