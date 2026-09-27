@@ -67,7 +67,7 @@ export class EtimsBridge implements Bridge<EtimsInvoiceRequest, any, any> {
   public readonly version = 'v2.0';
   public readonly sideEffectCapabilities = {
     providerIdempotency: false,
-    providerReconciliation: true,
+    providerReconciliation: false,
   };
 
   private parameter(connection: EtimsConnection, ...names: string[]): string | undefined {
