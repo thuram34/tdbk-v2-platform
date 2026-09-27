@@ -197,15 +197,19 @@ export class EtimsBridge implements Bridge<EtimsInvoiceRequest, any, any> {
         tin, bhfId, dvcSrlNo: this.parameter(connection, 'ETIMS_DEVICE_SERIAL', 'dvcSrlNo'),
       });
     } else if (operation === 'GET_CODES') {
-      providerResponse = await this.post(connection, 'GET_CODES', { tin, bhfId });
+      providerResponse = await this.post(connection, 'GET_CODES', { tin, bhfId, lastReqDt: (payload as any).lastReqDt || this.parameter(connection, 'ETIMS_LAST_CODE_SYNC', 'lastReqDt') || '20000101000000' });
     } else if (operation === 'GET_ITEM_CLASSES') {
-      providerResponse = await this.post(connection, 'GET_ITEM_CLASSES', { tin, bhfId });
+      providerResponse = await this.post(connection, 'GET_ITEM_CLASSES', { tin, bhfId, lastReqDt: (payload as any).lastReqDt || this.parameter(connection, 'ETIMS_LAST_ITEM_CLASS_SYNC', 'lastReqDt') || '20000101000000' });
+    } else if (operation === 'GET_PURCHASES') {
+      providerResponse = await this.post(connection, 'GET_PURCHASES', { tin, bhfId, lastReqDt: (payload as any).lastReqDt || this.parameter(connection, 'ETIMS_LAST_PURCHASE_SYNC', 'lastReqDt') || '20000101000000' });
+    } else if (operation === 'GET_STOCK') {
+      providerResponse = await this.post(connection, 'GET_STOCK', { tin, bhfId, lastReqDt: (payload as any).lastReqDt || this.parameter(connection, 'ETIMS_LAST_STOCK_SYNC', 'lastReqDt') || '20000101000000' });
     } else if (operation === 'GET_NOTICES') {
       providerResponse = await this.post(connection, 'GET_NOTICES', { tin, bhfId, lastReqDt: (payload as any).lastReqDt || this.parameter(connection, 'ETIMS_LAST_NOTICE_SYNC', 'lastReqDt') || '20000101000000' });
     } else if (operation === 'GET_CUSTOMER') {
-      providerResponse = await this.post(connection, 'GET_CUSTOMER', { tin, bhfId, custTin: payload.customerPin });
+      providerResponse = await this.post(connection, 'GET_CUSTOMER', { tin, bhfId, custmTin: payload.customerPin });
     } else if (operation === 'GET_BRANCHES') {
-      providerResponse = await this.post(connection, 'GET_BRANCHES', { tin, bhfId });
+      providerResponse = await this.post(connection, 'GET_BRANCHES', { tin, bhfId, lastReqDt: (payload as any).lastReqDt || this.parameter(connection, 'ETIMS_LAST_BRANCH_SYNC', 'lastReqDt') || '20000101000000' });
     } else if (operation === 'GET_ITEMS') {
       providerResponse = await this.post(connection, 'GET_ITEMS', { tin, bhfId, lastReqDt: this.parameter(connection, 'ETIMS_LAST_ITEM_SYNC', 'lastReqDt') || '20000101000000' });
     } else if (operation === 'SUBMIT_INVOICE' || operation === 'SAVE_SALES') {
