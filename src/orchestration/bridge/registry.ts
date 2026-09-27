@@ -36,7 +36,7 @@ class BridgeRegistryService {
         bridgeVersion: 'v2.0',
         capabilityId: 'mpesa_bridge',
         supportedOperations: ['STK_PUSH', 'STK_QUERY', 'C2B_REGISTER_URL', 'C2B_CALLBACK', 'QUERY_TRANSACTION', 'TRANSACTION_STATUS_CALLBACK', 'REVERSE_TRANSACTION', 'REVERSAL_CALLBACK', 'PULL_TRANSACTIONS'],
-        status: 'PRODUCTION_READY',
+        status: 'IMPLEMENTED',
         configurationRequirements: ['MPESA_CONSUMER_KEY', 'MPESA_CONSUMER_SECRET', 'MPESA_PASSKEY', 'MPESA_SHORTCODE', 'MPESA_CALLBACK_URL', 'MPESA_INITIATOR', 'MPESA_TRANSACTION_STATUS_RESULT_URL', 'MPESA_REVERSAL_RESULT_URL']
         healthStatus: 'UNAVAILABLE',
         registeredAt: new Date().toISOString(),
