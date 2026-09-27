@@ -34,7 +34,7 @@ describe('DBK capability operation guard', () => {
   });
 
   it('allows an authorized principal after the capability is durably activated in the runtime store', async () => {
-    const admin = context(['TENANT_ADMIN'], ['manage:payments']);
+    const admin = context(['TENANT_ADMIN', 'DBK_ADMIN'], ['manage:payments']);
     await dbkCapabilityManager.enableCapabilityPersistent(
       admin,
       'tenant_capability_guard',
