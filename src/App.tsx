@@ -4,7 +4,7 @@ import { DbkApp } from './components/experience/DbkApp';
 import { OwnerCommandCenter } from './components/master/OwnerCommandCenter';
 import { BusinessDiscovery } from './components/onboarding/BusinessDiscovery';
 import { LoginScreen } from './components/auth/LoginScreen';
-import { DbkExperienceFlow } from './public/DbkExperienceFlow';
+import { PublicGateway } from './public/PublicGateway';
 import { SokoniExperience } from './sokoni/SokoniExperience';
 import { SokoniBusinessRegistration } from './sokoni/SokoniBusinessRegistration';
 import { useAuth } from './client/AuthContext';
@@ -16,7 +16,6 @@ type PublicView = 'FLOW' | 'LOGIN';
 export default function App() {
   const { user, loading, signOutUser } = useAuth();
   const [publicView, setPublicView] = useState<PublicView>('FLOW');
-  const [showPublicFlow, setShowPublicFlow] = useState(true);
   const [showBusinessDiscovery, setShowBusinessDiscovery] = useState(false);
   const [dbkId, setDbkId] = useState<string | null>(null);
   const [idToken, setIdToken] = useState('');
@@ -28,113 +27,13 @@ export default function App() {
 
   const loadDbks = useCallback(async () => {
     if (!user) {
-      setDbks([]);
-      setDbkId(null);
-      setIdToken('');
-      setDbksLoading(false);
-      return;
-    }
-
-    setDbksLoading(true);
-    setDbksError(null);
-
-    try {
-      const token = await user.getIdToken();
-      setIdToken(token);
-      const result = await listDbks(token);
-      setDbks(result);
-      const requestedDbk = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('dbk') : null;
-      if (requestedDbk && result.some((dbk) => dbk.dbkId === requestedDbk)) setDbkId(requestedDbk);
-    } catch (error) {
-      console.error('Failed to load organizations:', error);
-      setDbksError('We could not load your organizations. Please try again.');
-    } finally {
-      setDbksLoading(false);
-    }
-  }, [user]);
-
-  useEffect(() => {
-    if (!user) {
-      setDbks([]);
-      setDbkId(null);
-      setIdToken('');
-      setShowBusinessDiscovery(false);
-      setDbksLoading(false);
-      return;
-    }
-
-    // An authenticated session is the boundary into the private operating layer.
-    // Do not leave an already-authenticated operator on the public gateway.
-    setShowPublicFlow(false);
-    void loadDbks();
-  }, [user, loadDbks]);
-
-  const enterSokoni = () => {
-    setShowSokoniBusiness(false);
-    setShowSokoni(true);
-    window.history.pushState({}, '', '?sokoni=1');
-  };
-
-  const enterSokoniBusiness = () => {
-    setShowSokoni(true);
-    setShowSokoniBusiness(true);
-    window.history.pushState({}, '', '?sokoni=1&sokoniBusiness=1');
-  };
-
-  const exitSokoniBusiness = () => {
-    setShowSokoniBusiness(false);
-    setShowSokoni(true);
-    window.history.pushState({}, '', '?sokoni=1');
-  };
-
-  const exitSokoni = () => {
-    setShowSokoniBusiness(false);
-    setShowSokoni(false);
-    window.history.pushState({}, '', window.location.pathname);
-  };
-
-  const openOrganization = (id: string) => {
-    setDbkId(id);
-  };
-
-  const addOrganization = () => {
-    setDbkId(null);
-    setShowBusinessDiscovery(true);
-  };
-
-  if (showSokoni) {
-    if (showSokoniBusiness) return <SokoniBusinessRegistration onExit={exitSokoniBusiness} />;
-    return (
-      <>
-        <SokoniExperience onBack={exitSokoni} />
-        <button
-          type="button"
-          onClick={enterSokoniBusiness}
-          className="fixed bottom-20 right-4 z-50 inline-flex items-center gap-2 rounded-full bg-neutral-950 px-4 py-3 text-xs font-black text-white shadow-xl transition hover:-translate-y-0.5 sm:bottom-5 sm:right-5"
-        >
-          List your presence on Sokoni →
-        </button>
-      </>
-    );
-  }
-
-  if (loading) {
-    return <div className="min-h-screen bg-[#FBFBF9] flex items-center justify-center text-sm text-neutral-500">Opening TDBK…</div>;
-  }
-
-  if (!user) {
-    if (showPublicFlow || publicView === 'FLOW') {
+    if (publicView === 'FLOW') {
       return (
         <div className="relative">
-          <DbkExperienceFlow
-            onSignIn={() => {
-              setShowPublicFlow(false);
-              setPublicView('LOGIN');
-            }}
-            onLaunchWorkspace={() => {
-              setShowPublicFlow(false);
-              setPublicView('LOGIN');
-            }}
+          <PublicGateway
+            onSignIn={() => setPublicView('LOGIN')}
+            onLaunchWorkspace={() => setPublicView('LOGIN')}
+            onSelectSector={() => setPublicView('LOGIN')}
           />
           <button
             type="button"
@@ -150,10 +49,10 @@ export default function App() {
     return (
       <div className="min-h-screen bg-[#FBFBF9] text-neutral-900">
         <header className="h-16 flex items-center justify-between border-b border-neutral-200 bg-white px-4 sm:px-6">
-          <button onClick={() => { setPublicView('FLOW'); setShowPublicFlow(true); }} className="text-sm font-semibold text-neutral-600">← Return to TDBK</button>
+          <button onClick={() => setPublicView('FLOW')} className="text-sm font-semibold text-neutral-600">← Return to TDBK</button>
           <div className="font-serif font-bold text-sm">Thuram Digital Bridge Kenya</div>
         </header>
-        <LoginScreen onBackToGateway={() => { setPublicView('FLOW'); setShowPublicFlow(true); }} />
+        <LoginScreen onBackToGateway={() => setPublicView('FLOW')} />
       </div>
     );
   }
