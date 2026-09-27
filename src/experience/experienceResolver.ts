@@ -104,6 +104,7 @@ export class ExperienceResolver {
       navigation,
       dashboardWidgets,
       discoveryItems,
+      connections: workspace.connections,
       currentPrincipal: {
         userId: context.principal.id,
         tenantId: context.principal.tenantId,
