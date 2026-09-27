@@ -21,6 +21,7 @@ import {
   Compass,
   Menu,
   X,
+  X,
 } from 'lucide-react';
 import { CommercialBridge } from './CommercialBridge';
 
@@ -290,6 +291,7 @@ export function PublicGateway({ onSelectSector, onSignIn }: PublicGatewayProps) 
             <a href="#digital-space-showcase" className="hover:text-neutral-950 focus:outline-none focus:ring-2 focus:ring-neutral-950 rounded-md px-1 transition">Workspace Showcase</a>
             <a href="#how-it-works" className="hover:text-neutral-950 focus:outline-none focus:ring-2 focus:ring-neutral-950 rounded-md px-1 transition">How It Works</a>
             <a href="#services" className="hover:text-neutral-950 focus:outline-none focus:ring-2 focus:ring-neutral-950 rounded-md px-1 transition">Sale & Services</a>
+            <a href="#gazette" className="hover:text-neutral-950 focus:outline-none focus:ring-2 focus:ring-neutral-950 rounded-md px-1 transition">Gazette</a>
           </nav>
 
           <div className="hidden md:flex items-center space-x-3">
@@ -371,6 +373,13 @@ export function PublicGateway({ onSelectSector, onSignIn }: PublicGatewayProps) 
                 className="px-3 py-2.5 rounded-xl hover:bg-neutral-50 hover:text-neutral-950 transition"
               >
                 Sale & Services
+              </a>
+              <a
+                href="#gazette"
+                onClick={() => setMobileMenuOpen(false)}
+                className="px-3 py-2.5 rounded-xl hover:bg-neutral-50 hover:text-neutral-950 transition"
+              >
+                Gazette
               </a>
             </nav>
             <div className="pt-3 border-t border-neutral-100 flex flex-col gap-2">
@@ -822,6 +831,78 @@ export function PublicGateway({ onSelectSector, onSignIn }: PublicGatewayProps) 
             onSelectSector={handleCreateSpace}
             onBuildDigitalSpace={(sector) => handleCreateSpace(sector || 'EDUCATION')}
           />
+        </section>
+
+        {/* 7. TDBK GAZETTE — DIGITAL BRIDGE MARKET INTELLIGENCE */}
+        <section id="gazette" className="py-20 bg-neutral-100/60 border-t border-neutral-200/80 px-4 sm:px-6 lg:px-8 scroll-mt-24">
+          <div className="max-w-7xl mx-auto">
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-5 mb-10">
+              <div className="max-w-2xl">
+                <span className="text-xs font-bold uppercase tracking-[0.18em] text-neutral-600 block mb-2">
+                  TDBK Intelligence
+                </span>
+                <h2 className="text-3xl sm:text-4xl font-serif font-bold text-neutral-950 tracking-tight">
+                  The TDBK Gazette
+                </h2>
+                <p className="text-sm sm:text-base text-neutral-600 mt-3 leading-relaxed">
+                  Market updates, digital infrastructure developments, regulatory signals,
+                  technology movements, and opportunities relevant to Kenya’s digital-business ecosystem.
+                </p>
+              </div>
+              <div className="text-xs font-mono uppercase tracking-wider text-neutral-500">
+                DIGITAL BRIDGE MARKET INTELLIGENCE
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+              {[
+                {
+                  tag: 'MARKET',
+                  title: 'Digital business movements',
+                  summary: 'Track how Kenyan businesses are adopting connectivity, automation, payments, cloud tools, and managed digital operations.',
+                },
+                {
+                  tag: 'OPPORTUNITIES',
+                  title: 'Tender & opportunity signals',
+                  summary: 'Surface relevant tenders, procurement needs, partnerships, installations, and digital transformation opportunities.',
+                },
+                {
+                  tag: 'REGULATORY',
+                  title: 'Regulatory & compliance signals',
+                  summary: 'Follow changes affecting eTIMS, data protection, digital records, payments, education, healthcare, and other connected operations.',
+                },
+                {
+                  tag: 'INFRASTRUCTURE',
+                  title: 'Digital bridge developments',
+                  summary: 'Follow connectivity, cloud, AI, WhatsApp, M-Pesa, eTIMS, networking, security, and other infrastructure changes that can shape TDBK capabilities.',
+                },
+              ].map((item) => (
+                <article key={item.tag} className="bg-white rounded-2xl p-6 border border-neutral-200/80 shadow-xs">
+                  <div className="text-[10px] font-bold tracking-[0.16em] text-neutral-500 mb-4">
+                    {item.tag}
+                  </div>
+                  <h3 className="text-base font-bold text-neutral-950 mb-2">
+                    {item.title}
+                  </h3>
+                  <p className="text-xs text-neutral-600 leading-relaxed">
+                    {item.summary}
+                  </p>
+                </article>
+              ))}
+            </div>
+
+            <div className="mt-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 rounded-2xl border border-neutral-200 bg-white px-5 py-4">
+              <div>
+                <div className="text-sm font-bold text-neutral-950">The feed should evolve with the market.</div>
+                <div className="text-xs text-neutral-500 mt-1">
+                  This surface is reserved for verified TDBK market intelligence rather than invented or stale news.
+                </div>
+              </div>
+              <span className="inline-flex w-fit rounded-full bg-neutral-100 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-neutral-600">
+                Intelligence Feed
+              </span>
+            </div>
+          </div>
         </section>
 
       </main>
