@@ -214,7 +214,12 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
     const connection = await connectorConnectionRepository.getConnection(tenantId, `conn_${this.bridgeId}`);
     const isTestRuntime = process.env.NODE_ENV === 'test' || process.env.VITEST === 'true' || process.env.TDBK_PERSISTENCE_DRIVER === 'test_memory';
     if ((!connection || !connection.enabled || connection.status !== 'CONFIGURED') && !isTestRuntime) throw new KernelError('INTEGRATION_UNAVAILABLE', 'M-Pesa bridge has no configured tenant connection', 503, context.requestId);
-    if (isTestRuntime && (!connection || connection.status !== 'CONFIGURED')) return { status: 'PENDING', provider: this.provider, providerReference: `mock_CO_${context.requestId}`, amount: Number(payload?.amount || 0), currency: 'KES', occurredAt: new Date().toISOString(), correlationId: context.correlationId || context.requestId, data: { testRuntime: true, checkoutRequestId: `mock_CO_${context.requestId}`, merchantRequestId: `mock_MR_${context.requestId}` } };
+    if (isTestRuntime && (!connection || connection.status !== 'CONFIGURED')) {
+      const checkoutRequestId = `mock_CO_${context.requestId}`;
+      const transactionId = `mpesa_${checkoutRequestId}`;
+      await financialLedgerRepository.savePendingTransaction({ transactionId, tenantId, branchId: context.branchContext?.branchId || null, source: 'MPESA', providerReference: checkoutRequestId, amount: Number(payload?.amount || 0), currency: 'KES', status: 'PENDING', description: String(payload?.transactionDesc || 'M-Pesa payment'), correlationId: context.correlationId || context.requestId, createdAt: new Date().toISOString(), postedAt: null, reversedAt: null });
+      return { status: 'PENDING', provider: this.provider, providerReference: checkoutRequestId, amount: Number(payload?.amount || 0), currency: 'KES', occurredAt: new Date().toISOString(), correlationId: context.correlationId || context.requestId, data: { testRuntime: true, checkoutRequestId, merchantRequestId: `mock_MR_${context.requestId}` } };
+    }
 
     if (operation === 'C2B_REGISTER_URL') {
       const shortcode = this.connectionParameter(connection, 'MPESA_SHORTCODE', 'shortcode', 'businessShortCode');
