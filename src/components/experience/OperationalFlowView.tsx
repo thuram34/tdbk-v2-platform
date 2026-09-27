@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { DbkExperienceResolved } from '../../experience/types';
-import { ShoppingCart, Smartphone, CheckCircle, RefreshCw, Send, AlertCircle } from 'lucide-react';
+import { AlertCircle, CheckCircle, Package, RefreshCw, Send, ShoppingCart } from 'lucide-react';
 
 interface OperationalFlowViewProps {
   experience: DbkExperienceResolved;
@@ -13,161 +13,99 @@ export const OperationalFlowView: React.FC<OperationalFlowViewProps> = ({
   capabilityId,
   onDispatchCommand,
 }) => {
-  const [phoneNumber, setPhoneNumber] = useState('+254712345678');
-  const [amount, setAmount] = useState('1500');
-  const [reference, setReference] = useState('INV-2026-004');
+  const [inventoryRecordId, setInventoryRecordId] = useState('stock_item_001');
+  const [quantity, setQuantity] = useState('1');
+  const [customerName, setCustomerName] = useState('');
+  const [paymentStatus, setPaymentStatus] = useState<'PAID' | 'PENDING' | 'CREDIT'>('PAID');
+  const [saleId, setSaleId] = useState(() => `sale-${Date.now()}`);
   const [isProcessing, setIsProcessing] = useState(false);
   const [transactionResult, setTransactionResult] = useState<any>(null);
 
-  const handleCheckout = async (e: React.FormEvent) => {
+  const isSalesCounter = capabilityId === 'sales_counter';
+
+  const handleSale = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsProcessing(true);
     setTransactionResult(null);
 
     try {
-      const res = await onDispatchCommand('INVOKE_ACTION', {
-        actionName: `EXECUTE_${capabilityId.toUpperCase()}`,
-        payload: { phoneNumber, amount, reference },
+      const res = await onDispatchCommand('EXECUTE_SALE', {
+        saleId,
+        items: [{ inventoryRecordId: inventoryRecordId.trim(), quantity: Number(quantity) }],
+        paymentStatus,
+        customerName: customerName.trim() || undefined,
       });
 
-      const result = res?.result || {};
-      const succeeded = res?.success === true;
+      const commandResponse = res?.commandResponse;
+      const result = commandResponse?.result || {};
+      const succeeded = commandResponse?.success === true;
       setTransactionResult({
         status: succeeded ? 'SUCCESS' : 'FAILED',
-        message: succeeded
-          ? 'Command accepted by the TDBK runtime.'
-          : (res?.error?.message || 'Command was not accepted'),
-        providerReference: result.providerReference || result.receipt || result.transactionId,
-        amount,
-        reference,
-        timestamp: res?.serverTimestamp || new Date().toISOString(),
+        message: succeeded ? 'Sale completed and committed by the TDBK runtime.' : (commandResponse?.error?.message || 'Sale was not accepted'),
+        saleId: result.saleId || saleId,
+        totalAmountKes: result.totalAmountKes,
+        idempotent: result.idempotent,
+        eventId: result.eventId,
+        timestamp: commandResponse?.serverTimestamp || new Date().toISOString(),
       });
-    } catch {
-      setTransactionResult({ status: 'FAILED', message: 'Transaction could not be authorized' });
+
+      if (succeeded && !result.idempotent) setSaleId(`sale-${Date.now()}`);
+    } catch (error: any) {
+      setTransactionResult({ status: 'FAILED', message: error?.message || 'Sale could not be authorized', saleId, timestamp: new Date().toISOString() });
     } finally {
       setIsProcessing(false);
     }
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="bg-neutral-900 border border-neutral-800 rounded-lg p-5">
-        <div className="flex items-center space-x-2">
-          <span className="px-2 py-0.5 text-[10px] font-mono font-bold uppercase rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-            OPERATIONAL FLOW
-          </span>
-          <span className="px-2 py-0.5 text-[10px] font-mono font-bold uppercase rounded bg-neutral-800 text-neutral-300">
-            {experience.activeBranch.name}
-          </span>
+    <div className='space-y-6'>
+      <div className='rounded-lg border border-neutral-800 bg-neutral-900 p-5'>
+        <div className='flex items-center space-x-2'>
+          <span className='rounded border border-emerald-500/30 bg-emerald-500/20 px-2 py-0.5 text-[10px] font-mono font-bold uppercase text-emerald-400'>OPERATIONAL FLOW</span>
+          <span className='rounded bg-neutral-800 px-2 py-0.5 text-[10px] font-mono font-bold text-neutral-300'>{experience.activeBranch.name}</span>
         </div>
-        <h1 className="text-xl font-bold text-white mt-2">
-          {capabilityId.replace(/_/g, ' ').toUpperCase()} Terminal
-        </h1>
-        <p className="text-xs text-neutral-400 mt-1">
-          High-throughput transactional flow connected directly to TDBK Kernel Authorization and Audit Log.
-        </p>
+        <h1 className='mt-2 text-xl font-bold text-white'>{capabilityId.replace(/_/g, ' ').toUpperCase()} Terminal</h1>
+        <p className='mt-1 text-xs text-neutral-400'>Server-authoritative operation through the Experience Command boundary, branch authority, transaction service, persistence and audit/outbox.</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Terminal Form */}
-        <div className="bg-neutral-900 border border-neutral-800 rounded-lg p-5 md:col-span-2">
-          <h2 className="text-sm font-bold text-white mb-4 flex items-center space-x-2">
-            <Smartphone className="w-4 h-4 text-emerald-400" />
-            <span>M-Pesa STK Push / Instant Settlement</span>
-          </h2>
-
-          <form onSubmit={handleCheckout} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-[11px] font-mono text-neutral-400 mb-1">
-                  Customer M-Pesa Phone Number
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={phoneNumber}
-                  onChange={(e) => setPhoneNumber(e.target.value)}
-                  className="w-full bg-neutral-950 border border-neutral-800 rounded px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-mono text-neutral-400 mb-1">
-                  Amount to Bill (KES)
-                </label>
-                <input
-                  type="number"
-                  required
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  className="w-full bg-neutral-950 border border-neutral-800 rounded px-3 py-2 text-xs font-mono font-bold text-emerald-400 focus:outline-none focus:border-indigo-500"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-mono text-neutral-400 mb-1">
-                Account / Invoice Reference
-              </label>
-              <input
-                type="text"
-                required
-                value={reference}
-                onChange={(e) => setReference(e.target.value)}
-                className="w-full bg-neutral-950 border border-neutral-800 rounded px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={isProcessing}
-              className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-bold rounded transition flex items-center justify-center space-x-2 cursor-pointer"
-            >
-              {isProcessing ? (
-                <>
-                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                  <span>Authorizing via TDBK Kernel & Daraja Gateway...</span>
-                </>
-              ) : (
-                <>
-                  <Send className="w-3.5 h-3.5" />
-                  <span>Trigger Instant M-Pesa STK Push (KES {Number(amount).toLocaleString()})</span>
-                </>
-              )}
-            </button>
-          </form>
+      {!isSalesCounter ? (
+        <div className='rounded-lg border border-amber-800/60 bg-amber-950/20 p-6 text-sm text-amber-200'>
+          <div className='flex items-start gap-3'><AlertCircle className='mt-0.5 h-5 w-5 shrink-0' /><div>
+            <p className='font-semibold'>This operational surface is not wired to an executable command yet.</p>
+            <p className='mt-1 text-xs leading-5 text-amber-300/80'>The UI will not fabricate provider execution. The implemented transaction path currently supports the Sales Counter through EXECUTE_SALE.</p>
+          </div></div>
         </div>
-
-        {/* Transaction Summary Panel */}
-        <div className="bg-neutral-900 border border-neutral-800 rounded-lg p-5">
-          <h3 className="text-xs font-bold text-neutral-300 uppercase tracking-wider font-mono mb-3">
-            Transaction Status
-          </h3>
-
-          {transactionResult ? (
-            <div className="space-y-3">
-              <div className="p-3.5 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs">
-                <div className="flex items-center space-x-1.5 font-bold">
-                  <CheckCircle className="w-4 h-4" />
-                  <span>{transactionResult.status === 'SUCCESS' ? 'Command Accepted' : 'Command Failed'}</span>
-                </div>
-                <div className="mt-2 space-y-1 font-mono text-[11px]">
-                  {transactionResult.providerReference && <div>Provider Ref: {transactionResult.providerReference}</div>}
-                  <div>Status: {transactionResult.message}</div>
-                  <div>Amount: KES {transactionResult.amount}</div>
-                  <div>Ref: {transactionResult.reference}</div>
-                  <div>Time: {transactionResult.timestamp}</div>
-                </div>
+      ) : (
+        <div className='grid grid-cols-1 gap-6 md:grid-cols-3'>
+          <div className='rounded-lg border border-neutral-800 bg-neutral-900 p-5 md:col-span-2'>
+            <h2 className='mb-4 flex items-center space-x-2 text-sm font-bold text-white'><ShoppingCart className='h-4 w-4 text-emerald-400' /><span>Complete Sale</span></h2>
+            <form onSubmit={handleSale} className='space-y-4'>
+              <div className='grid grid-cols-1 gap-4 md:grid-cols-2'>
+                <div><label className='mb-1 block text-[11px] font-mono text-neutral-400'>Inventory Record ID</label><input type='text' required value={inventoryRecordId} onChange={(e) => setInventoryRecordId(e.target.value)} className='w-full rounded border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs text-white focus:border-indigo-500 focus:outline-none' /></div>
+                <div><label className='mb-1 block text-[11px] font-mono text-neutral-400'>Quantity</label><input type='number' min='1' step='1' required value={quantity} onChange={(e) => setQuantity(e.target.value)} className='w-full rounded border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs font-mono font-bold text-emerald-400 focus:border-indigo-500 focus:outline-none' /></div>
               </div>
-            </div>
-          ) : (
-            <div className="p-6 text-center text-xs text-neutral-500 border border-dashed border-neutral-800 rounded">
-              Ready for counter checkout. Emits authoritative commands to server.
-            </div>
-          )}
+              <div className='grid grid-cols-1 gap-4 md:grid-cols-2'>
+                <div><label className='mb-1 block text-[11px] font-mono text-neutral-400'>Customer Name (optional)</label><input type='text' value={customerName} onChange={(e) => setCustomerName(e.target.value)} className='w-full rounded border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs text-white focus:border-indigo-500 focus:outline-none' /></div>
+                <div><label className='mb-1 block text-[11px] font-mono text-neutral-400'>Payment Status</label><select value={paymentStatus} onChange={(e) => setPaymentStatus(e.target.value as 'PAID' | 'PENDING' | 'CREDIT')} className='w-full rounded border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs text-white focus:border-indigo-500 focus:outline-none'><option value='PAID'>PAID</option><option value='PENDING'>PENDING</option><option value='CREDIT'>CREDIT</option></select></div>
+              </div>
+              <div><label className='mb-1 block text-[11px] font-mono text-neutral-400'>Sale ID / Idempotency Key</label><input type='text' required value={saleId} onChange={(e) => setSaleId(e.target.value)} className='w-full rounded border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs font-mono text-white focus:border-indigo-500 focus:outline-none' /></div>
+              <button type='submit' disabled={isProcessing} className='flex w-full cursor-pointer items-center justify-center space-x-2 rounded bg-emerald-600 py-2.5 text-xs font-bold text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50'>
+                {isProcessing ? <><RefreshCw className='h-3.5 w-3.5 animate-spin' /><span>Committing sale…</span></> : <><Send className='h-3.5 w-3.5' /><span>Complete Sale</span></>}
+              </button>
+            </form>
+          </div>
+
+          <div className='rounded-lg border border-neutral-800 bg-neutral-900 p-5'>
+            <h3 className='mb-3 text-xs font-bold uppercase tracking-wider text-neutral-300 font-mono'>Transaction Status</h3>
+            {transactionResult ? (
+              <div className={'rounded border p-3.5 text-xs ' + (transactionResult.status === 'SUCCESS' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400' : 'border-rose-500/30 bg-rose-500/10 text-rose-300')}>
+                <div className='flex items-center space-x-1.5 font-bold'>{transactionResult.status === 'SUCCESS' ? <CheckCircle className='h-4 w-4' /> : <AlertCircle className='h-4 w-4' />}<span>{transactionResult.status === 'SUCCESS' ? 'Sale Completed' : 'Sale Failed'}</span></div>
+                <div className='mt-2 space-y-1 font-mono text-[11px]'><div>Status: {transactionResult.message}</div><div>Sale ID: {transactionResult.saleId}</div>{transactionResult.totalAmountKes !== undefined && <div>Total: KES {Number(transactionResult.totalAmountKes).toLocaleString()}</div>}{transactionResult.eventId && <div>Event: {transactionResult.eventId}</div>}{transactionResult.idempotent !== undefined && <div>Idempotent: {String(transactionResult.idempotent)}</div>}<div>Time: {transactionResult.timestamp}</div></div>
+              </div>
+            ) : <div className='rounded border border-dashed border-neutral-800 p-6 text-center text-xs text-neutral-500'><Package className='mx-auto mb-2 h-5 w-5' />Ready for counter checkout. The server owns stock, sale and event truth.</div>}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };
