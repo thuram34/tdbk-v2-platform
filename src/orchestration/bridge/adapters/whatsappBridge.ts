@@ -259,10 +259,19 @@ export class WhatsappBridge implements Bridge<WhatsappMessageRequest, any, Whats
     if (!signature || !rawBody) {
       return { verified: false, providerIdentity: this.provider, reason: 'Missing Meta webhook signature or raw body', replayProtectionPassed: false };
     }
-    const tenantId = rawCallback.tenantId;
-    // App secret is tenant-specific and resolved in handleCallback, because webhook routing
-    // must occur before a tenant connection can be selected.
-    return { verified: true, providerIdentity: this.provider, replayProtectionPassed: true, tenantId, correlationId: rawCallback.correlationId };
+
+    // The provider app secret is tenant-scoped and cannot be resolved safely from an
+    // untrusted webhook payload. The authoritative cryptographic verification therefore
+    // happens in handleCallback() after the trusted tenant connection is selected.
+    // Never report an unverified callback as authenticated at this interface boundary.
+    return {
+      verified: false,
+      providerIdentity: this.provider,
+      reason: 'Tenant-scoped Meta HMAC verification requires trusted connection context',
+      replayProtectionPassed: false,
+      tenantId: rawCallback.tenantId,
+      correlationId: rawCallback.correlationId,
+    };
   }
 
   public verifyMetaSignature(rawBody: string, signatureHeader: string, appSecret: string): boolean {
