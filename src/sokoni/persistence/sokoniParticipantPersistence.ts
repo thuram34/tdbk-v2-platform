@@ -114,7 +114,9 @@ export async function saveSokoniParticipant(input: SokoniParticipantRegistration
   const participantId = participantRef.id;
   const media = await uploadParticipantMedia(participantId, input.photos);
   const now = new Date().toISOString();
-  const commercialState: SokoniCommercialState = input.offeringCode ? 'PAYMENT_REQUIRED' : 'NONE';
+  const selectedOffering = getSokoniCommercialOffering(input.offeringCode);
+  const commercialState: SokoniCommercialState = selectedOffering?.requiresPayment ? 'PAYMENT_REQUIRED' : 'NONE';
+  const publicationStatus: SokoniPublicationStatus = commercialState === 'PAYMENT_REQUIRED' ? 'DRAFT' : 'ACTIVE';
   const listings: SokoniListing[] = input.listings.filter((item) => item.name.trim()).map((item) => ({
     id: crypto.randomUUID(),
     kind: item.kind,
@@ -134,7 +136,7 @@ export async function saveSokoniParticipant(input: SokoniParticipantRegistration
     publicContacts: { phone: input.publicPhone.trim(), ...(input.publicContact?.trim() ? { other: input.publicContact.trim() } : {}) },
     media,
     listings,
-    publicationStatus: 'ACTIVE',
+    publicationStatus,
     commercial: { offeringCode: input.offeringCode || null, state: commercialState },
     tdbkRelationship: 'NOT_ENROLLED',
     createdAt: now,
