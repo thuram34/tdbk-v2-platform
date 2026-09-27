@@ -195,7 +195,7 @@ export class EtimsBridge implements Bridge<EtimsInvoiceRequest, any, any> {
     };
     const key = cursorKeys[operation];
     const resultDt = String(response?.resultDt || '').trim();
-    if (!key || !/^\\d{14}$/.test(resultDt)) return;
+    if (!key || !/^\d{14}$/.test(resultDt)) return;
     await connectorConnectionRepository.updateParameters(tenantId, connection.connectionId, { [key]: resultDt });
   }
 
