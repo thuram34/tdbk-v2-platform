@@ -2,7 +2,7 @@ import { collection, doc, getDoc, getDocs, limit, query, setDoc, where } from 'f
 import { deleteObject, getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import { signInAnonymously } from 'firebase/auth';
 import { auth, db, storage } from '../../client/firebase';
-import { getSokoniCommercialOffering } from '../sokoniCommercialConfig';
+import { getSokoniCommercialOffering, getSokoniPublicationDecision } from '../sokoniCommercialConfig';
 import type { SokoniOrientationContext } from '../sokoniParticipationConfig';
 
 export type SokoniParticipantKind =
@@ -115,8 +115,9 @@ export async function saveSokoniParticipant(input: SokoniParticipantRegistration
   const media = await uploadParticipantMedia(participantId, input.photos);
   const now = new Date().toISOString();
   const selectedOffering = getSokoniCommercialOffering(input.offeringCode);
-  const commercialState: SokoniCommercialState = selectedOffering?.requiresPayment ? 'PAYMENT_REQUIRED' : 'NONE';
-  const publicationStatus: SokoniPublicationStatus = commercialState === 'PAYMENT_REQUIRED' ? 'DRAFT' : 'ACTIVE';
+  const publicationDecision = getSokoniPublicationDecision(input.offeringCode);
+  const commercialState: SokoniCommercialState = publicationDecision.commercialState;
+  const publicationStatus: SokoniPublicationStatus = publicationDecision.publicationStatus;
   const listings: SokoniListing[] = input.listings.filter((item) => item.name.trim()).map((item) => ({
     id: crypto.randomUUID(),
     kind: item.kind,
