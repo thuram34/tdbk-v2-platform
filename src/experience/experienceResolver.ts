@@ -9,6 +9,8 @@ import { masterAuthority } from '../kernel/master/masterAuthority';
 import { auditLogger } from '../kernel/audit/auditLogger';
 import { entityEngine } from './entity/entityEngine';
 import { dbkCapabilityManager } from '../capability/dbkCapabilityManager';
+import { capabilityRegistry } from '../capability/registry';
+import { rbacEngine } from '../kernel/authorization/rbacEngine';
 import { discoveryEngine } from '../capability/discovery';
 import { KernelError } from '../kernel/errors/kernelErrors';
 import { saleTransactionService } from '../business/sales/saleTransactionService';
@@ -148,12 +150,25 @@ export class ExperienceResolver {
         if (!capabilityId || !record) {
           throw new KernelError('VALIDATION_ERROR', 'Missing capabilityId or record payload', 400, context.requestId);
         }
+        const cap = capabilityRegistry.getCapability(String(capabilityId));
+        const ownerOverride = masterAuthority.isMasterAdmin(context.principal) || masterAuthority.isOwnerPortfolio(context.principal);
+        if (cap && !ownerOverride) {
+          const roleAllowed = cap.requiredRoles.length === 0 || cap.requiredRoles.some((role) => context.principal.roles.includes(role));
+          const permissionAllowed = cap.requiredPermissions.length === 0 || cap.requiredPermissions.every((permission) => rbacEngine.hasPermission(context.principal, permission));
+          if (!roleAllowed || !permissionAllowed) {
+            throw new KernelError('AUTHORIZATION_ERROR', 'You are not authorized to operate this capability.', 403, context.requestId);
+          }
+        }
         await entityEngine.savePersistentRecord(context, req.targetDbkId, String(capabilityId), record as any);
         updatedExperience = await this.resolveExperience(context, req.targetDbkId);
       } else if (req.commandType === 'ENABLE_CAPABILITY') {
         const { capabilityId } = req.payload || {};
         if (!capabilityId) {
           throw new KernelError('VALIDATION_ERROR', 'Missing capabilityId', 400, context.requestId);
+        }
+        const ownerOverride = masterAuthority.isMasterAdmin(context.principal) || masterAuthority.isOwnerPortfolio(context.principal);
+        if (!ownerOverride && !context.principal.roles.some((role) => ['TENANT_ADMIN', 'SYSTEM_ADMIN'].includes(role)) && !rbacEngine.hasPermission(context.principal, 'admin:*')) {
+          throw new KernelError('AUTHORIZATION_ERROR', 'Capability administration requires tenant administrator authority.', 403, context.requestId);
         }
         const enabled = await dbkCapabilityManager.enableCapabilityPersistent(
           context,
@@ -168,6 +183,10 @@ export class ExperienceResolver {
         const { capabilityId, configData } = req.payload || {};
         if (!capabilityId) {
           throw new KernelError('VALIDATION_ERROR', 'Missing capabilityId', 400, context.requestId);
+        }
+        const ownerOverride = masterAuthority.isMasterAdmin(context.principal) || masterAuthority.isOwnerPortfolio(context.principal);
+        if (!ownerOverride && !context.principal.roles.some((role) => ['TENANT_ADMIN', 'SYSTEM_ADMIN'].includes(role)) && !rbacEngine.hasPermission(context.principal, 'admin:*')) {
+          throw new KernelError('AUTHORIZATION_ERROR', 'Capability administration requires tenant administrator authority.', 403, context.requestId);
         }
         await dbkCapabilityManager.configureCapabilityPersistent(
           context,
