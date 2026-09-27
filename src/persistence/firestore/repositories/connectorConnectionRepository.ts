@@ -83,6 +83,25 @@ export class ConnectorConnectionRepository implements IConnectorConnectionReposi
     await firestoreClient.delete(this.getPath(tenantId, connectionId));
   }
 
+  public async updateParameters(
+    tenantId: string,
+    connectionId: string,
+    parameters: Record<string, string>,
+  ): Promise<void> {
+    const path = this.getPath(tenantId, connectionId);
+    const now = new Date().toISOString();
+    await firestoreClient.runTransaction(async (transaction) => {
+      const connection = await transaction.get<ConnectorConnection>(path);
+      if (!connection) throw new Error(`Connector connection '${connectionId}' not found.`);
+      this.assertTenantBoundary(tenantId, connection);
+      await transaction.update<ConnectorConnection>(path, {
+        parameters: { ...connection.parameters, ...parameters },
+        configurationVersion: (connection.configurationVersion || 0) + 1,
+        updatedAt: now,
+      });
+    });
+  }
+
   public async updateHealth(
     tenantId: string,
     connectionId: string,
