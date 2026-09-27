@@ -94,6 +94,10 @@ export class EtimsBridge implements Bridge<EtimsInvoiceRequest, any, any> {
     const defaults: Record<string, string> = {
       INITIALIZE: '/initializer/selectInitInfo',
       GET_CODES: '/code/selectCodes',
+      GET_NOTICES: '/notices/selectNotices',
+      SAVE_BRANCH_CUSTOMERS: '/branches/saveBrancheCustomers',
+      SAVE_BRANCH_USERS: '/branches/saveBrancheUsers',
+      SAVE_BRANCH_INSURANCE: '/branches/saveBrancheInsurances',
       GET_ITEM_CLASSES: '/itemClass/selectItemsClass',
       GET_CUSTOMER: '/customers/selectCustomer',
       GET_BRANCHES: '/branches/selectBranches',
@@ -106,6 +110,8 @@ export class EtimsBridge implements Bridge<EtimsInvoiceRequest, any, any> {
       UPDATE_IMPORT: '/imports/updateImportItems',
       GET_STOCK: '/stock/selectStockItems',
       SAVE_STOCK: '/saveStockItems/saveStockItems',
+      SAVE_STOCK_MASTER: '/stockMaster/saveStockMaster',
+      SAVE_ITEM_COMPOSITION: '/items/saveItemComposition',
     };
     const configured = this.parameter(connection, `ETIMS_PATH_${operation}`, operation.toLowerCase());
     return `${base}${configured || defaults[operation] || ''}`;
@@ -181,7 +187,7 @@ export class EtimsBridge implements Bridge<EtimsInvoiceRequest, any, any> {
     const regrNm = this.parameter(connection, 'ETIMS_REGISTRANT_NAME', 'regrNm') || 'TDBK';
     if (!tin) throw new KernelError('INTEGRATION_UNAVAILABLE', 'eTIMS PIN is not configured', 503, context.requestId);
 
-    if (!['INITIALIZE','GET_CODES','GET_ITEM_CLASSES','GET_CUSTOMER','GET_BRANCHES','GET_ITEMS','SAVE_ITEM','SUBMIT_INVOICE','SAVE_SALES','GET_PURCHASES','SAVE_PURCHASE','GET_IMPORTS','UPDATE_IMPORT','GET_STOCK','SAVE_STOCK'].includes(operation)) {
+    if (!['INITIALIZE','GET_CODES','GET_ITEM_CLASSES','GET_CUSTOMER','GET_BRANCHES','GET_NOTICES','SAVE_BRANCH_CUSTOMERS','SAVE_BRANCH_USERS','SAVE_BRANCH_INSURANCE','GET_ITEMS','SAVE_ITEM','SAVE_ITEM_COMPOSITION','SUBMIT_INVOICE','SAVE_SALES','GET_PURCHASES','SAVE_PURCHASE','GET_IMPORTS','UPDATE_IMPORT','GET_STOCK','SAVE_STOCK','SAVE_STOCK_MASTER'].includes(operation)) {
       throw new KernelError('VALIDATION_ERROR', `Unsupported eTIMS operation: '${operation}'`, 400, context.requestId);
     }
 
@@ -194,6 +200,8 @@ export class EtimsBridge implements Bridge<EtimsInvoiceRequest, any, any> {
       providerResponse = await this.post(connection, 'GET_CODES', { tin, bhfId });
     } else if (operation === 'GET_ITEM_CLASSES') {
       providerResponse = await this.post(connection, 'GET_ITEM_CLASSES', { tin, bhfId });
+    } else if (operation === 'GET_NOTICES') {
+      providerResponse = await this.post(connection, 'GET_NOTICES', { tin, bhfId, lastReqDt: (payload as any).lastReqDt || this.parameter(connection, 'ETIMS_LAST_NOTICE_SYNC', 'lastReqDt') || '20000101000000' });
     } else if (operation === 'GET_CUSTOMER') {
       providerResponse = await this.post(connection, 'GET_CUSTOMER', { tin, bhfId, custTin: payload.customerPin });
     } else if (operation === 'GET_BRANCHES') {
@@ -284,9 +292,11 @@ export class EtimsBridge implements Bridge<EtimsInvoiceRequest, any, any> {
       }
       providerResponse = await this.post(connection, 'SAVE_SALES', body);
     } else {
+      const extra = (payload as any).etimsData || (payload as any).data || {};
       providerResponse = await this.post(connection, operation, {
         tin,
         bhfId,
+        ...extra,
         ...(operation === 'SAVE_ITEM' ? {
           itemCd: payload.items[0]?.itemCode,
           itemClsCd: payload.items[0]?.itemClassificationCode,
