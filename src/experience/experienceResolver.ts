@@ -11,6 +11,7 @@ import { entityEngine } from './entity/entityEngine';
 import { dbkCapabilityManager } from '../capability/dbkCapabilityManager';
 import { capabilityRegistry } from '../capability/registry';
 import { rbacEngine } from '../kernel/authorization/rbacEngine';
+import { branchAuthority } from '../kernel/branch/branchAuthority';
 import { discoveryEngine } from '../capability/discovery';
 import { KernelError } from '../kernel/errors/kernelErrors';
 import { saleTransactionService } from '../business/sales/saleTransactionService';
@@ -140,6 +141,13 @@ export class ExperienceResolver {
       if (req.commandType === 'SWITCH_BRANCH') {
         const branchId = req.payload?.branchId as string;
         const workspace = await workspaceManager.compileWorkspaceState(context, req.targetDbkId);
+        await branchAuthority.assertPersistentBranchContext(
+          context.principal,
+          req.targetDbkId,
+          branchId,
+          'SWITCH_BRANCH',
+          context.requestId,
+        );
         const branchExists = workspace.activeBranches.some((b) => b.branchId === branchId);
         if (!branchExists) {
           throw new KernelError('VALIDATION_ERROR', `Branch '${branchId}' not found on DBK '${req.targetDbkId}'`, 404, context.requestId);
