@@ -94,6 +94,10 @@ export class EtimsBridge implements Bridge<EtimsInvoiceRequest, any, any> {
     const defaults: Record<string, string> = {
       INITIALIZE: '/initializer/selectInitInfo',
       GET_CODES: '/code/selectCodes',
+      GET_NOTICES: '/notices/selectNotices',
+      SAVE_BRANCH_CUSTOMERS: '/branches/saveBrancheCustomers',
+      SAVE_BRANCH_USERS: '/branches/saveBrancheUsers',
+      SAVE_BRANCH_INSURANCE: '/branches/saveBrancheInsurances',
       GET_ITEM_CLASSES: '/itemClass/selectItemsClass',
       GET_CUSTOMER: '/customers/selectCustomer',
       GET_BRANCHES: '/branches/selectBranches',
@@ -105,7 +109,9 @@ export class EtimsBridge implements Bridge<EtimsInvoiceRequest, any, any> {
       GET_IMPORTS: '/imports/selectImportItems',
       UPDATE_IMPORT: '/imports/updateImportItems',
       GET_STOCK: '/stock/selectStockItems',
-      SAVE_STOCK: '/saveStockItems/saveStockItems',
+      SAVE_STOCK: '/stock/saveStockItems',
+      SAVE_STOCK_MASTER: '/stockMaster/saveStockMaster',
+      SAVE_ITEM_COMPOSITION: '/items/saveItemComposition',
     };
     const configured = this.parameter(connection, `ETIMS_PATH_${operation}`, operation.toLowerCase());
     return `${base}${configured || defaults[operation] || ''}`;
@@ -171,6 +177,28 @@ export class EtimsBridge implements Bridge<EtimsInvoiceRequest, any, any> {
     }
   }
 
+  private async persistSyncCursor(
+    tenantId: string,
+    connection: EtimsConnection,
+    operation: string,
+    response: any,
+  ): Promise<void> {
+    const cursorKeys: Record<string, string> = {
+      GET_CODES: 'ETIMS_LAST_CODE_SYNC',
+      GET_ITEM_CLASSES: 'ETIMS_LAST_ITEM_CLASS_SYNC',
+      GET_BRANCHES: 'ETIMS_LAST_BRANCH_SYNC',
+      GET_NOTICES: 'ETIMS_LAST_NOTICE_SYNC',
+      GET_ITEMS: 'ETIMS_LAST_ITEM_SYNC',
+      GET_PURCHASES: 'ETIMS_LAST_PURCHASE_SYNC',
+      GET_IMPORTS: 'ETIMS_LAST_IMPORT_SYNC',
+      GET_STOCK: 'ETIMS_LAST_STOCK_SYNC',
+    };
+    const key = cursorKeys[operation];
+    const resultDt = String(response?.resultDt || '').trim();
+    if (!key || !/^\d{14}$/.test(resultDt)) return;
+    await connectorConnectionRepository.updateParameters(tenantId, connection.connectionId, { [key]: resultDt });
+  }
+
   public async execute(context: SecurityContext, operation: string, payload: EtimsInvoiceRequest): Promise<NormalizedBridgeResult<any>> {
     const tenantId = context.tenantContext?.tenantId || context.principal.tenantId;
     const connection = await this.requireConnection(tenantId);
@@ -181,7 +209,7 @@ export class EtimsBridge implements Bridge<EtimsInvoiceRequest, any, any> {
     const regrNm = this.parameter(connection, 'ETIMS_REGISTRANT_NAME', 'regrNm') || 'TDBK';
     if (!tin) throw new KernelError('INTEGRATION_UNAVAILABLE', 'eTIMS PIN is not configured', 503, context.requestId);
 
-    if (!['INITIALIZE','GET_CODES','GET_ITEM_CLASSES','GET_CUSTOMER','GET_BRANCHES','GET_ITEMS','SAVE_ITEM','SUBMIT_INVOICE','SAVE_SALES','GET_PURCHASES','SAVE_PURCHASE','GET_IMPORTS','UPDATE_IMPORT','GET_STOCK','SAVE_STOCK'].includes(operation)) {
+    if (!['INITIALIZE','GET_CODES','GET_ITEM_CLASSES','GET_CUSTOMER','GET_BRANCHES','GET_NOTICES','SAVE_BRANCH_CUSTOMERS','SAVE_BRANCH_USERS','SAVE_BRANCH_INSURANCE','GET_ITEMS','SAVE_ITEM','SAVE_ITEM_COMPOSITION','SUBMIT_INVOICE','SAVE_SALES','GET_PURCHASES','SAVE_PURCHASE','GET_IMPORTS','UPDATE_IMPORT','GET_STOCK','SAVE_STOCK','SAVE_STOCK_MASTER'].includes(operation)) {
       throw new KernelError('VALIDATION_ERROR', `Unsupported eTIMS operation: '${operation}'`, 400, context.requestId);
     }
 
@@ -191,15 +219,23 @@ export class EtimsBridge implements Bridge<EtimsInvoiceRequest, any, any> {
         tin, bhfId, dvcSrlNo: this.parameter(connection, 'ETIMS_DEVICE_SERIAL', 'dvcSrlNo'),
       });
     } else if (operation === 'GET_CODES') {
-      providerResponse = await this.post(connection, 'GET_CODES', { tin, bhfId });
+      providerResponse = await this.post(connection, 'GET_CODES', { tin, bhfId, lastReqDt: (payload as any).lastReqDt || this.parameter(connection, 'ETIMS_LAST_CODE_SYNC', 'lastReqDt') || '20000101000000' });
     } else if (operation === 'GET_ITEM_CLASSES') {
-      providerResponse = await this.post(connection, 'GET_ITEM_CLASSES', { tin, bhfId });
+      providerResponse = await this.post(connection, 'GET_ITEM_CLASSES', { tin, bhfId, lastReqDt: (payload as any).lastReqDt || this.parameter(connection, 'ETIMS_LAST_ITEM_CLASS_SYNC', 'lastReqDt') || '20000101000000' });
+    } else if (operation === 'GET_PURCHASES') {
+      providerResponse = await this.post(connection, 'GET_PURCHASES', { tin, bhfId, lastReqDt: (payload as any).lastReqDt || this.parameter(connection, 'ETIMS_LAST_PURCHASE_SYNC', 'lastReqDt') || '20000101000000' });
+    } else if (operation === 'GET_STOCK') {
+      providerResponse = await this.post(connection, 'GET_STOCK', { tin, bhfId, lastReqDt: (payload as any).lastReqDt || this.parameter(connection, 'ETIMS_LAST_STOCK_SYNC', 'lastReqDt') || '20000101000000' });
+    } else if (operation === 'GET_NOTICES') {
+      providerResponse = await this.post(connection, 'GET_NOTICES', { tin, bhfId, lastReqDt: (payload as any).lastReqDt || this.parameter(connection, 'ETIMS_LAST_NOTICE_SYNC', 'lastReqDt') || '20000101000000' });
     } else if (operation === 'GET_CUSTOMER') {
-      providerResponse = await this.post(connection, 'GET_CUSTOMER', { tin, bhfId, custTin: payload.customerPin });
+      providerResponse = await this.post(connection, 'GET_CUSTOMER', { tin, bhfId, custmTin: payload.customerPin });
     } else if (operation === 'GET_BRANCHES') {
-      providerResponse = await this.post(connection, 'GET_BRANCHES', { tin, bhfId });
+      providerResponse = await this.post(connection, 'GET_BRANCHES', { tin, bhfId, lastReqDt: (payload as any).lastReqDt || this.parameter(connection, 'ETIMS_LAST_BRANCH_SYNC', 'lastReqDt') || '20000101000000' });
     } else if (operation === 'GET_ITEMS') {
-      providerResponse = await this.post(connection, 'GET_ITEMS', { tin, bhfId, lastReqDt: this.parameter(connection, 'ETIMS_LAST_ITEM_SYNC', 'lastReqDt') || '20000101000000' });
+      providerResponse = await this.post(connection, 'GET_ITEMS', { tin, bhfId, lastReqDt: (payload as any).lastReqDt || this.parameter(connection, 'ETIMS_LAST_ITEM_SYNC', 'lastReqDt') || '20000101000000' });
+    } else if (operation === 'GET_IMPORTS') {
+      providerResponse = await this.post(connection, 'GET_IMPORTS', { tin, bhfId, lastReqDt: (payload as any).lastReqDt || this.parameter(connection, 'ETIMS_LAST_IMPORT_SYNC', 'lastReqDt') || '20000101000000' });
     } else if (operation === 'SUBMIT_INVOICE' || operation === 'SAVE_SALES') {
       const salesDate = (payload.saleDate || this.date8()).replace(/-/g, '').slice(0, 8);
       const cfmDt = `${salesDate}${this.now14().slice(8)}`;
@@ -245,7 +281,7 @@ export class EtimsBridge implements Bridge<EtimsInvoiceRequest, any, any> {
         orgInvcNo: payload.originalInvoiceNumber || 0,
         custTin: payload.customerPin || null,
         custNm: payload.customerName || null,
-        salesTyCd: payload.originalInvoiceNumber ? 'N' : 'N',
+        salesTyCd: 'N',
         rcptTyCd: payload.receiptTypeCode || (payload.originalInvoiceNumber ? 'R' : 'S'),
         pmtTyCd: payload.paymentMethodCode || '01',
         salesSttsCd: '02',
@@ -284,9 +320,11 @@ export class EtimsBridge implements Bridge<EtimsInvoiceRequest, any, any> {
       }
       providerResponse = await this.post(connection, 'SAVE_SALES', body);
     } else {
+      const extra = (payload as any).etimsData || (payload as any).data || {};
       providerResponse = await this.post(connection, operation, {
         tin,
         bhfId,
+        ...extra,
         ...(operation === 'SAVE_ITEM' ? {
           itemCd: payload.items[0]?.itemCode,
           itemClsCd: payload.items[0]?.itemClassificationCode,
@@ -301,6 +339,8 @@ export class EtimsBridge implements Bridge<EtimsInvoiceRequest, any, any> {
         } : {}),
       });
     }
+
+    await this.persistSyncCursor(tenantId, connection, operation, providerResponse);
 
     const data = providerResponse?.data || providerResponse;
     const providerReference = String(data?.invcNo || data?.rcptNo || data?.sdcId || payload.invoiceNumber);
@@ -337,6 +377,9 @@ export class EtimsBridge implements Bridge<EtimsInvoiceRequest, any, any> {
   public async handleCallback(context: SecurityContext, rawCallback: any): Promise<NormalizedBridgeResult<any>> {
     const authoritativeTenant = context.tenantContext?.tenantId || context.principal.tenantId;
     if (!authoritativeTenant) throw new KernelError('TENANT_ISOLATION_ERROR', 'eTIMS callback denied: authoritative tenant context is missing', 403, context.requestId);
+    if (rawCallback?.tenantId && rawCallback.tenantId !== authoritativeTenant) {
+      throw new KernelError('TENANT_ISOLATION_ERROR', 'eTIMS callback tenant conflicts with authoritative tenant context', 403, context.requestId);
+    }
     const verification = await this.verifyCallback(rawCallback);
     if (!verification.verified) throw new KernelError('AUTHORIZATION_ERROR', `eTIMS Callback Verification Failed: ${verification.reason}`, 401, context.requestId);
     return this.normalizeResponse(rawCallback);
