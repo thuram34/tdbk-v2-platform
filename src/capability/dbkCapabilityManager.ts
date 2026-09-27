@@ -151,7 +151,7 @@ export class DbkCapabilityManagerService {
     this.assertTenant(securityContext, dbkId, action);
     const principal = securityContext.principal;
     const ownerOverride = masterAuthority.isMasterAdmin(principal) || masterAuthority.isOwnerPortfolio(principal);
-    const roleAllowed = principal.roles.some((role) => ['TENANT_ADMIN', 'SYSTEM_ADMIN'].includes(role));
+    const roleAllowed = principal.roles.some((role) => ['TENANT_ADMIN', 'SYSTEM_ADMIN', 'DBK_ADMIN'].includes(role));
     if (!ownerOverride && !roleAllowed && !rbacEngine.hasPermission(principal, 'admin:*')) {
       throw new KernelError('AUTHORIZATION_ERROR', 'Capability administration requires tenant administrator authority.', 403, securityContext.requestId);
     }
