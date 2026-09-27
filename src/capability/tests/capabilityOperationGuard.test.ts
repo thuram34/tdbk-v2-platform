@@ -13,7 +13,7 @@ const context = (roles: string[], permissions: string[]): SecurityContext => ({
     roles,
     permissions,
     authTime: Date.now(),
-    tokenSource: 'TEST',
+    tokenSource: 'JWT',
     isMaster: false,
   },
   tenantContext: {
