@@ -132,14 +132,6 @@ export default function App() {
               setPublicView('LOGIN');
             }
           }}
-          onLaunchWorkspace={() => {
-            if (user) {
-              setShowPublicGatewayPreview(false);
-            } else {
-              setShowPublicGatewayPreview(false);
-              setPublicView('LOGIN');
-            }
-          }}
           onSelectSector={() => {
             if (user) {
               setShowPublicGatewayPreview(false);
