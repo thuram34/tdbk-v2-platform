@@ -15,6 +15,7 @@ import { branchAuthority } from '../kernel/branch/branchAuthority';
 import { discoveryEngine } from '../capability/discovery';
 import { KernelError } from '../kernel/errors/kernelErrors';
 import { saleTransactionService } from '../business/sales/saleTransactionService';
+import { connectionHub } from '../orchestration/bridge/connectionHub';
 
 export class ExperienceResolver {
   private static instance: ExperienceResolver;
