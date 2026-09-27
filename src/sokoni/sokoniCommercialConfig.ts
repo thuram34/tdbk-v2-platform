@@ -38,3 +38,21 @@ export function getSokoniCommercialOffering(code: string | null | undefined): So
   if (!code) return null;
   return SOKONI_COMMERCIAL_OFFERINGS.find((offering) => offering.enabled && offering.code === code) ?? null;
 }
+
+
+export type SokoniPublicationDecision = {
+  publicationStatus: 'ACTIVE' | 'DRAFT';
+  commercialState: 'NONE' | 'PAYMENT_REQUIRED';
+};
+
+/**
+ * Resolves the publication boundary without initiating payment.
+ * Paid presence can be saved, but it cannot become publicly ACTIVE until a
+ * separate payment/activation contract confirms it.
+ */
+export function getSokoniPublicationDecision(code: string | null | undefined): SokoniPublicationDecision {
+  const offering = getSokoniCommercialOffering(code);
+  return offering?.requiresPayment
+    ? { publicationStatus: 'DRAFT', commercialState: 'PAYMENT_REQUIRED' }
+    : { publicationStatus: 'ACTIVE', commercialState: 'NONE' };
+}
