@@ -27,6 +27,14 @@ export interface MpesaSTKPushRequest {
   accountReference: string;
   transactionDesc: string;
   callbackUrl?: string;
+  checkoutRequestId?: string;
+  transactionId?: string;
+  providerReference?: string;
+  remarks?: string;
+  occasion?: string;
+  startDate?: string;
+  endDate?: string;
+  offsetValue?: number;
 }
 
 export interface MpesaRawCallback {
@@ -530,6 +538,36 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
         details: { reason: verification.reason },
       });
       throw new KernelError('AUTHORIZATION_ERROR', `M-Pesa Callback Verification Failed: ${verification.reason}`, 401, context.requestId);
+    }
+
+    const asyncResult = (rawCallback as any)?.Result;
+    if (asyncResult) {
+      const resultCode = Number(asyncResult.ResultCode);
+      const parameters = this.extractResultParameters(rawCallback);
+      const transactionId = String(parameters.TransactionID || asyncResult.TransactionID || '');
+      const transactionStatus = String(parameters.TransactionStatus || asyncResult.ResultDesc || '');
+      const isReversal = Boolean(parameters.ReversalTransactionID || parameters.ReversalReceiptNumber || String(asyncResult.ResultType || '').toLowerCase().includes('reversal'));
+      const status = resultCode === 0
+        ? (isReversal ? 'SUCCESS' : (transactionStatus.toLowerCase().includes('completed') ? 'SUCCESS' : 'UNKNOWN'))
+        : 'FAILED';
+      return {
+        status,
+        provider: this.provider,
+        providerReference: transactionId || String(asyncResult.ConversationID || 'ASYNC_RESULT'),
+        amount: Number(parameters.TransactionAmount || parameters.Amount || 0) || undefined,
+        currency: 'KES',
+        occurredAt: new Date().toISOString(),
+        correlationId: context.correlationId || context.requestId,
+        data: {
+          callbackType: isReversal ? 'REVERSAL' : 'TRANSACTION_STATUS',
+          resultCode,
+          resultDesc: asyncResult.ResultDesc,
+          transactionId,
+          transactionStatus,
+          parameters,
+        },
+        errorDetails: resultCode === 0 ? undefined : asyncResult.ResultDesc,
+      };
     }
 
     // C2B callbacks are posted by Daraja as a flat payload to the ConfirmationURL.
