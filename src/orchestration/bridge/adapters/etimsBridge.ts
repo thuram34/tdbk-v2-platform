@@ -25,6 +25,7 @@ export interface EtimsInvoiceItem {
   discountRate?: number;
   discountAmount?: number;
   taxTypeCode: string;
+  taxRate?: number;
   taxableAmount?: number;
   taxAmount?: number;
   totalAmount?: number;
