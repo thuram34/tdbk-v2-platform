@@ -20,6 +20,7 @@ import {
   Activity,
   Compass,
   Menu,
+  X,
 } from 'lucide-react';
 import { CommercialBridge } from './CommercialBridge';
 
@@ -371,13 +372,6 @@ export function PublicGateway({ onSelectSector, onSignIn, onLaunchWorkspace }: P
                 className="px-3 py-2.5 rounded-xl hover:bg-neutral-50 hover:text-neutral-950 transition"
               >
                 Sale & Services
-              </a>
-              <a
-                href="#gazette"
-                onClick={() => setMobileMenuOpen(false)}
-                className="px-3 py-2.5 rounded-xl hover:bg-neutral-50 hover:text-neutral-950 transition"
-              >
-                Gazette
               </a>
             </nav>
             <div className="pt-3 border-t border-neutral-100 flex flex-col gap-2">
@@ -836,7 +830,7 @@ export function PublicGateway({ onSelectSector, onSignIn, onLaunchWorkspace }: P
       {/* 8. FOOTER */}
       <footer className="bg-neutral-950 text-white border-t border-neutral-800 py-16 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-10 pb-12 border-b border-neutral-800 text-sm">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-10 pb-12 border-b border-neutral-800 text-sm">
             <div className="md:col-span-1">
               <div className="flex items-center space-x-2.5 mb-4">
                 <div className="w-8 h-8 rounded-lg bg-white text-neutral-950 flex items-center justify-center font-serif font-bold">
