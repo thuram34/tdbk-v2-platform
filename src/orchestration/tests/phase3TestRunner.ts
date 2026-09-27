@@ -809,7 +809,7 @@ export class Phase3TestRunner {
         invoiceNumber: 'INV-2026-001',
         totalAmount: 11600,
         taxAmount: 1600,
-        items: [{ itemName: 'School Uniform', qty: 1, unitPrice: 10000, taxRate: 16 }],
+        items: [{ itemName: 'School Uniform', quantity: 1, unitPrice: 10000, taxRate: 16, taxTypeCode: 'A' }],
       });
       results.push({
         id: 'P3_TEST_31',
