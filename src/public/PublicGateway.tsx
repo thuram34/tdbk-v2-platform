@@ -35,7 +35,6 @@ export type BusinessSector =
 export interface PublicGatewayProps {
   onSelectSector?: (sector: BusinessSector) => void;
   onSignIn?: () => void;
-  onLaunchWorkspace?: () => void;
 }
 
 interface WorkspaceShowcaseItem {
@@ -191,7 +190,7 @@ const SHOWCASE_DATA: WorkspaceShowcaseItem[] = [
   },
 ];
 
-export function PublicGateway({ onSelectSector, onSignIn, onLaunchWorkspace }: PublicGatewayProps) {
+export function PublicGateway({ onSelectSector, onSignIn }: PublicGatewayProps) {
   // Carousel State
   const [activeSlideIndex, setActiveSlideIndex] = useState<number>(0);
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
