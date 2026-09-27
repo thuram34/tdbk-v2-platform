@@ -44,7 +44,7 @@ export class NavigationEngine {
         const roleAllowed = capability.requiredRoles.length === 0 || capability.requiredRoles.some((role) => roles.includes(role));
         const permissionAllowed = capability.requiredPermissions.length === 0 || capability.requiredPermissions.every((permission) => rbacEngine.hasPermission(context.principal, permission));
         const ownerOverride = masterAuthority.isMasterAdmin(context.principal) || masterAuthority.isOwnerPortfolio(context.principal);
-        if (!ownerOverride && (!roleAllowed || !permissionAllowed)) continue;
+        if (!ownerOverride && !roleAllowed && !permissionAllowed) continue;
       }
 
       // Role filtering for capabilities
