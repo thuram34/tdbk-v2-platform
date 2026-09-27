@@ -12,6 +12,7 @@ import { masterAuthority } from '../kernel/master/masterAuthority';
 import { DbkCapabilityRecord, CapabilityLifecycleState, EntitlementStatus } from './types';
 import { capabilityRegistry } from './registry';
 import { capabilityStateRepository } from '../persistence/firestore/repositories/capabilityStateRepository';
+import { rbacEngine } from '../kernel/authorization/rbacEngine';
 
 export class DbkCapabilityManagerService {
   // Map of `dbkId` -> Map of `capabilityId` -> `DbkCapabilityRecord`
@@ -146,6 +147,16 @@ export class DbkCapabilityManagerService {
     return persisted;
   }
 
+  private assertCapabilityAdmin(securityContext: SecurityContext, dbkId: string, action: string): void {
+    this.assertTenant(securityContext, dbkId, action);
+    const principal = securityContext.principal;
+    const ownerOverride = masterAuthority.isMasterAdmin(principal) || masterAuthority.isOwnerPortfolio(principal);
+    const roleAllowed = principal.roles.some((role) => ['TENANT_ADMIN', 'SYSTEM_ADMIN'].includes(role));
+    if (!ownerOverride && !roleAllowed && !rbacEngine.hasPermission(principal, 'admin:*')) {
+      throw new KernelError('AUTHORIZATION_ERROR', 'Capability administration requires tenant administrator authority.', 403, securityContext.requestId);
+    }
+  }
+
   /**
    * Enables or updates a capability record state for a DBK.
    */
@@ -156,7 +167,7 @@ export class DbkCapabilityManagerService {
     entitlement: EntitlementStatus,
     requiresConfig: boolean
   ): DbkCapabilityRecord {
-    this.assertTenant(securityContext, dbkId, 'enableCapability');
+    this.assertCapabilityAdmin(securityContext, dbkId, 'enableCapability');
 
     const cap = capabilityRegistry.getCapability(capabilityId);
     if (!cap) {
@@ -248,7 +259,7 @@ export class DbkCapabilityManagerService {
     capabilityId: string,
     configData: Record<string, unknown>
   ): DbkCapabilityRecord {
-    this.assertTenant(securityContext, dbkId, 'configureCapability');
+    this.assertCapabilityAdmin(securityContext, dbkId, 'configureCapability');
 
     const existing = this.getDbkCapabilityRecord(securityContext, dbkId, capabilityId);
     if (!existing) {
@@ -298,7 +309,7 @@ export class DbkCapabilityManagerService {
    * Disables a capability for a DBK.
    */
   public disableCapability(securityContext: SecurityContext, dbkId: string, capabilityId: string): DbkCapabilityRecord {
-    this.assertTenant(securityContext, dbkId, 'disableCapability');
+    this.assertCapabilityAdmin(securityContext, dbkId, 'disableCapability');
 
     const existing = this.getDbkCapabilityRecord(securityContext, dbkId, capabilityId);
     const cap = capabilityRegistry.getCapability(capabilityId);
@@ -342,7 +353,7 @@ export class DbkCapabilityManagerService {
     capabilityId: string,
     reason: string
   ): DbkCapabilityRecord {
-    this.assertTenant(securityContext, dbkId, 'suspendCapabilityForDbk');
+    this.assertCapabilityAdmin(securityContext, dbkId, 'suspendCapabilityForDbk');
 
     const existing = this.getDbkCapabilityRecord(securityContext, dbkId, capabilityId);
     const cap = capabilityRegistry.getCapability(capabilityId);
