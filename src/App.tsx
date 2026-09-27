@@ -161,8 +161,9 @@ export default function App() {
   if (showBusinessDiscovery) {
     return (
       <BusinessDiscovery
-        onProvisioned={async () => {
+        onProvisioned={async (provisionedDbkId: string) => {
           setShowBusinessDiscovery(false);
+          setDbkId(provisionedDbkId);
           await loadDbks();
         }}
       />
