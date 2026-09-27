@@ -30,24 +30,7 @@ class BridgeRegistryService {
    */
   private seedDefaultBridges(): void {
     const defaultBridges: BridgeDefinition[] = [
-      {
-        bridgeId: 'bridge_mpesa',
-        provider: 'SAFARICOM_MPESA',
-        bridgeVersion: 'v1.0',
-        capabilityId: 'mpesa_bridge',
-        supportedOperations: ['STK_PUSH', 'C2B_CALLBACK', 'QUERY_TRANSACTION', 'RECONCILE'],
-        status: 'IMPLEMENTED',
-        configurationRequirements: ['MPESA_CONSUMER_KEY', 'MPESA_CONSUMER_SECRET', 'MPESA_PASSKEY', 'MPESA_SHORTCODE', 'MPESA_CALLBACK_URL'],
-        healthStatus: 'UNAVAILABLE',
-        registeredAt: new Date().toISOString(),
-        sideEffectCapabilities: {
-          providerIdempotency: false,
-          providerReconciliation: true,
-          automaticUnknownReplay: false,
-          providerOperationIdentityRequired: true,
-        },
-        frontDoor: frontDoor('FOUNDATION', ['MPESA_CONSUMER_KEY', 'MPESA_CONSUMER_SECRET', 'MPESA_PASSKEY', 'MPESA_SHORTCODE', 'MPESA_CALLBACK_URL']),
-      },
+
       {
         bridgeId: 'bridge_etims',
         provider: 'KRA_ETIMS',
