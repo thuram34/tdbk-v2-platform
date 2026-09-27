@@ -161,12 +161,16 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
       throw new KernelError('TENANT_ISOLATION_ERROR', 'M-Pesa operation denied: missing tenant context', 403, context.requestId);
     }
 
-    if (!['STK_PUSH', 'QUERY_TRANSACTION', 'RECONCILE'].includes(operation)) {
+    if (!['STK_PUSH', 'C2B_CALLBACK', 'QUERY_TRANSACTION', 'RECONCILE'].includes(operation)) {
       throw new KernelError('VALIDATION_ERROR', `Unsupported M-Pesa operation: '${operation}'`, 400, context.requestId);
     }
 
-    if (operation !== 'STK_PUSH') {
-      throw new KernelError('INTEGRATION_UNAVAILABLE', `M-Pesa operation '${operation}' requires its provider-specific command implementation`, 501, context.requestId);
+    if (operation === 'C2B_CALLBACK') {
+      throw new KernelError('VALIDATION_ERROR', 'C2B_CALLBACK is delivered through handleCallback, not execute', 400, context.requestId);
+    }
+
+    if (operation === 'QUERY_TRANSACTION' || operation === 'RECONCILE') {
+      throw new KernelError('INTEGRATION_UNAVAILABLE', `M-Pesa ${operation} requires an asynchronous Transaction Status result endpoint and SecurityCredential; use callback reconciliation until those tenant credentials are configured`, 501, context.requestId);
     }
 
     if (!Number.isFinite(payload.amount) || payload.amount <= 0) {
@@ -434,6 +438,49 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
         details: { reason: verification.reason },
       });
       throw new KernelError('AUTHORIZATION_ERROR', `M-Pesa Callback Verification Failed: ${verification.reason}`, 401, context.requestId);
+    }
+
+    // C2B callbacks are posted by Daraja as a flat payload to the ConfirmationURL.
+    // Safaricom's public contract does not define an application signature header;
+    // authenticity is therefore anchored to the configured callback endpoint,
+    // short-code/tenant binding, durable idempotency, and reconciliation.
+    if ((rawCallback as any)?.TransID) {
+      const c2b = rawCallback as any;
+      const amount = Number(c2b.TransAmount || 0);
+      const providerReference = String(c2b.TransID);
+      if (!providerReference || !Number.isFinite(amount) || amount < 0) {
+        throw new KernelError('VALIDATION_ERROR', 'Malformed M-Pesa C2B callback payload', 400, context.requestId);
+      }
+      const tenantId = context.tenantContext?.tenantId || context.principal.tenantId;
+      if (!tenantId) throw new KernelError('TENANT_ISOLATION_ERROR', 'M-Pesa C2B callback denied: missing tenant context', 403, context.requestId);
+      auditLogger.logEvent('BRIDGE_EXECUTION', context.principal.id, 'BRIDGE_CALLBACK_RECEIVED', `bridge:${this.bridgeId}`, 'ALLOWED', {
+        tenantId, requestId: context.requestId, details: { providerReference, type: 'C2B', amount, billRefNumber: c2b.BillRefNumber || null },
+      });
+      return {
+        status: 'SUCCESS',
+        provider: this.provider,
+        providerReference,
+        amount,
+        currency: 'KES',
+        occurredAt: new Date().toISOString(),
+        correlationId: context.correlationId || context.requestId,
+        data: {
+          callbackType: 'C2B',
+          transactionType: c2b.TransactionType,
+          transId: providerReference,
+          transTime: c2b.TransTime,
+          businessShortCode: c2b.BusinessShortCode,
+          billRefNumber: c2b.BillRefNumber,
+          invoiceNumber: c2b.InvoiceNumber,
+          msisdn: c2b.MSISDN,
+          firstName: c2b.FirstName,
+          middleName: c2b.MiddleName,
+          lastName: c2b.LastName,
+          orgAccountBalance: c2b.OrgAccountBalance,
+          thirdPartyTransID: c2b.ThirdPartyTransID,
+          safaricomResponse: { ResultCode: '0', ResultDesc: 'Accepted' },
+        },
+      };
     }
 
     const stk = rawCallback.Body?.stkCallback;
