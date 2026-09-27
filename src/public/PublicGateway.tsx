@@ -21,7 +21,8 @@ import {
   Compass,
   Menu,
   X,
-  X,
+  LogIn,
+  LayoutDashboard,
 } from 'lucide-react';
 import { CommercialBridge } from './CommercialBridge';
 
@@ -197,6 +198,17 @@ export function PublicGateway({ onSelectSector, onSignIn }: PublicGatewayProps) 
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
   const [touchEndX, setTouchEndX] = useState<number | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
+  const [journeyStep, setJourneyStep] = useState(0);
+  const [journeyPaused, setJourneyPaused] = useState(false);
+
+  useEffect(() => {
+    if (journeyPaused) return;
+    const timer = window.setInterval(() => {
+      setJourneyStep((prev) => (prev + 1) % 4);
+    }, 2800);
+    return () => window.clearInterval(timer);
+  }, [journeyPaused]);
+
 
   const carouselRef = useRef<HTMLDivElement>(null);
 
@@ -399,54 +411,159 @@ export function PublicGateway({ onSelectSector, onSignIn }: PublicGatewayProps) 
       </header>
 
       <main>
-        {/* 2. HERO SECTION */}
-        <section id="overview" className="pt-16 pb-14 md:pt-24 md:pb-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto scroll-mt-24">
-          <div className="text-center max-w-3xl mx-auto">
-            <div className="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-neutral-100 border border-neutral-200 text-xs font-semibold text-neutral-800 mb-6">
-              <Sparkles className="w-3.5 h-3.5 text-neutral-900" />
-              <span>Your Digital Space</span>
-            </div>
-            <h1 className="text-4xl sm:text-5xl md:text-6xl font-serif font-bold text-neutral-950 tracking-tight leading-[1.15] mb-6">
-              Give your business its own digital space.
-            </h1>
-            <p className="text-lg sm:text-xl text-neutral-600 leading-relaxed font-normal mb-10 max-w-2xl mx-auto">
-              From classrooms in Eldoret to retail shops in Nairobi and medical clinics in Kisumu,
-              DBK brings your daily tools, customer records, payments, and operations into one connected space.
-            </p>
+        {/* 2. HERO SECTION — TDBK JOURNEY SHOWCASE */}
+        <section id="overview" className="pt-12 pb-16 md:pt-20 md:pb-24 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto scroll-mt-24">
+          <div className="grid lg:grid-cols-[0.9fr_1.1fr] gap-10 lg:gap-16 items-center">
+            <div className="max-w-2xl">
+              <div className="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-neutral-100 border border-neutral-200 text-xs font-semibold text-neutral-800 mb-6">
+                <Sparkles className="w-3.5 h-3.5 text-neutral-900" />
+                <span>Digital Business Spaces</span>
+              </div>
+              <h1 className="text-4xl sm:text-5xl md:text-6xl font-serif font-bold text-neutral-950 tracking-tight leading-[1.08] mb-6">
+                See how your business travels through TDBK.
+              </h1>
+              <p className="text-lg sm:text-xl text-neutral-600 leading-relaxed max-w-xl mb-8">
+                From discovering a School DBK to signing in and arriving inside the operational workspace,
+                TDBK turns the customer journey into one connected digital space.
+              </p>
 
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-              <a
-                href="#business-spaces"
-                className="w-full sm:w-auto px-7 py-3.5 rounded-xl bg-neutral-950 text-white text-base font-semibold hover:bg-neutral-800 transition shadow-sm flex items-center justify-center space-x-2.5 cursor-pointer focus:outline-none focus:ring-2 focus:ring-neutral-950"
-              >
-                <span>Get Your DBK</span>
-                <ArrowRight className="w-4 h-4" />
-              </a>
-              <a
-                href="#business-spaces"
-                className="w-full sm:w-auto px-7 py-3.5 rounded-xl bg-white text-neutral-800 border border-neutral-300 text-base font-semibold hover:bg-neutral-50 transition flex items-center justify-center space-x-2 cursor-pointer focus:outline-none focus:ring-2 focus:ring-neutral-950"
-              >
-                <span>Explore spaces</span>
-              </a>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <button
+                  onClick={() => handleCreateSpace('EDUCATION')}
+                  className="px-6 py-3.5 rounded-xl bg-neutral-950 text-white text-sm font-semibold hover:bg-neutral-800 transition shadow-sm flex items-center justify-center space-x-2 cursor-pointer"
+                >
+                  <span>Create a DBK</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+                <a
+                  href="#business-spaces"
+                  className="px-6 py-3.5 rounded-xl bg-white text-neutral-800 border border-neutral-300 text-sm font-semibold hover:bg-neutral-50 transition flex items-center justify-center"
+                >
+                  Explore spaces
+                </a>
+              </div>
             </div>
 
-            {/* Subtle Kenyan Trust Indicators */}
-            <div className="mt-14 pt-8 border-t border-neutral-200/80 grid grid-cols-2 md:grid-cols-4 gap-6 text-left">
-              <div>
-                <div className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">M-Pesa Ready</div>
-                <div className="text-sm font-bold text-neutral-900">Instant Lipa Na M-Pesa</div>
-              </div>
-              <div>
-                <div className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">eTIMS Compliance</div>
-                <div className="text-sm font-bold text-neutral-900">Validated Invoicing</div>
-              </div>
-              <div>
-                <div className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">Connected Operations</div>
-                <div className="text-sm font-bold text-neutral-900">One operational workspace</div>
-              </div>
-              <div>
-                <div className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">Kenya Ready</div>
-                <div className="text-sm font-bold text-neutral-900">Built for local operations</div>
+            {/* The journey stays inside ONE card and travels left → right. */}
+            <div
+              className="relative rounded-[28px] bg-neutral-950 p-2 sm:p-3 shadow-2xl border border-neutral-800 overflow-hidden"
+              onMouseEnter={() => setJourneyPaused(true)}
+              onMouseLeave={() => setJourneyPaused(false)}
+              onFocus={() => setJourneyPaused(true)}
+              onBlur={() => setJourneyPaused(false)}
+            >
+              <div className="rounded-[22px] overflow-hidden bg-[#F7F8F6] border border-neutral-800">
+                <div className="px-4 sm:px-6 py-3.5 bg-neutral-900 text-white flex items-center justify-between border-b border-neutral-800">
+                  <div className="flex items-center gap-3">
+                    <div className="flex gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-neutral-700" />
+                      <span className="w-2 h-2 rounded-full bg-neutral-700" />
+                      <span className="w-2 h-2 rounded-full bg-neutral-700" />
+                    </div>
+                    <div className="h-4 w-px bg-neutral-700" />
+                    <div>
+                      <div className="text-xs font-bold tracking-tight">TDBK / School</div>
+                      <div className="text-[10px] text-neutral-400">Illustrative customer journey</div>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-mono uppercase tracking-wider text-neutral-400">
+                    Step {journeyStep + 1} / 4
+                  </span>
+                </div>
+
+                <div className="overflow-hidden">
+                  <div
+                    className="flex transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]"
+                    style={{ transform: `translateX(-${journeyStep * 100}%)` }}
+                  >
+                    {[
+                      {
+                        label: '01 / DISCOVER',
+                        title: 'School DBK',
+                        subtitle: 'Start with the space, not the software.',
+                        icon: GraduationCap,
+                        body: 'Premier Academy',
+                        detail: 'CBC • Students • Fees • Attendance',
+                      },
+                      {
+                        label: '02 / SIGN IN',
+                        title: 'Welcome back',
+                        subtitle: 'Identity opens the right business environment.',
+                        icon: LogIn,
+                        body: 'School Administrator',
+                        detail: 'Secure account access • TDBK identity',
+                      },
+                      {
+                        label: '03 / SELECT',
+                        title: 'Your Businesses',
+                        subtitle: 'One operator can manage multiple DBKs.',
+                        icon: Building2,
+                        body: 'Premier Academy',
+                        detail: 'School DBK • 6 capabilities active',
+                      },
+                      {
+                        label: '04 / WORKSPACE',
+                        title: 'School Workspace',
+                        subtitle: 'Arrive where the real work happens.',
+                        icon: LayoutDashboard,
+                        body: 'Premier Academy',
+                        detail: 'Students • CBC • Fees • Attendance • M-Pesa',
+                      },
+                    ].map((step) => {
+                      const StepIcon = step.icon;
+                      return (
+                        <div key={step.label} className="min-w-full p-5 sm:p-7 md:p-8">
+                          <div className="flex items-center justify-between mb-8">
+                            <span className="text-[10px] sm:text-xs font-bold uppercase tracking-[0.18em] text-neutral-500">
+                              {step.label}
+                            </span>
+                            <div className="w-10 h-10 rounded-xl bg-white border border-neutral-200 flex items-center justify-center text-neutral-900 shadow-sm">
+                              <StepIcon className="w-5 h-5" />
+                            </div>
+                          </div>
+
+                          <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm p-5 sm:p-6 min-h-[220px] flex flex-col justify-between">
+                            <div>
+                              <div className="text-[10px] font-mono uppercase tracking-wider text-neutral-400 mb-2">
+                                TDBK DIGITAL SPACE
+                              </div>
+                              <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-neutral-950 mb-2">
+                                {step.title}
+                              </h2>
+                              <p className="text-sm text-neutral-600 leading-relaxed mb-6">
+                                {step.subtitle}
+                              </p>
+                            </div>
+
+                            <div className="rounded-xl bg-neutral-50 border border-neutral-200 p-4">
+                              <div className="text-sm font-bold text-neutral-950">{step.body}</div>
+                              <div className="text-xs text-neutral-500 mt-1">{step.detail}</div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="px-5 sm:px-7 py-4 bg-white border-t border-neutral-200 flex items-center justify-between">
+                  <div className="flex items-center gap-1.5" aria-label="Journey steps">
+                    {[0, 1, 2, 3].map((step) => (
+                      <button
+                        key={step}
+                        type="button"
+                        onClick={() => setJourneyStep(step)}
+                        aria-label={`Show journey step ${step + 1}`}
+                        className={`h-1.5 rounded-full transition-all cursor-pointer ${
+                          step === journeyStep ? 'w-8 bg-neutral-950' : 'w-2 bg-neutral-300 hover:bg-neutral-400'
+                        }`}
+                      />
+                    ))}
+                  </div>
+                  <span className="text-[10px] sm:text-xs font-medium text-neutral-500">
+                    School → Sign In → Business → Workspace
+                  </span>
+                </div>
               </div>
             </div>
           </div>
