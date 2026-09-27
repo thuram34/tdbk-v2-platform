@@ -280,16 +280,7 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
       throw new KernelError('VALIDATION_ERROR', 'M-Pesa STK requires phoneNumber, accountReference and transactionDesc', 400, context.requestId);
     }
 
-    const connection = await connectorConnectionRepository.getConnection(
-      tenantId,
-      `conn_${this.bridgeId}`
-    );
-    const isTestRuntime = process.env.NODE_ENV === 'test' || process.env.VITEST === 'true' || process.env.TDBK_PERSISTENCE_DRIVER === 'test_memory';
-    if ((!connection || !connection.enabled || connection.status !== 'CONFIGURED') && !isTestRuntime) {
-      throw new KernelError('INTEGRATION_UNAVAILABLE', 'M-Pesa bridge has no configured tenant connection', 503, context.requestId);
-    }
-
-    if (process.env.NODE_ENV !== 'production') {
+    if (isTestRuntime) {
       const checkoutReqId = `mock_CO_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
       await financialLedgerRepository.savePendingTransaction({
         transactionId: `mpesa_${checkoutReqId}`,
