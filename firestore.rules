@@ -30,8 +30,11 @@ service cloud.firestore {
     match /sokoniParticipants/{participantId} {
       allow read: if resource.data.publicationStatus == 'ACTIVE';
       allow create: if isSignedIn()
-        && request.resource.data.publicationStatus == 'ACTIVE'
-        && request.resource.data.tdbkRelationship == 'NOT_ENROLLED';
+        && request.resource.data.tdbkRelationship == 'NOT_ENROLLED'
+        && (
+          (request.resource.data.publicationStatus == 'ACTIVE' && request.resource.data.commercial.state == 'NONE') ||
+          (request.resource.data.publicationStatus == 'DRAFT' && request.resource.data.commercial.state == 'PAYMENT_REQUIRED')
+        );
       // Owner-management is intentionally not invented in this task.
       allow update, delete: if false;
     }
