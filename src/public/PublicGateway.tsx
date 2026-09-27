@@ -19,7 +19,6 @@ import {
   FileText,
   Activity,
   Compass,
-  X,
   Menu,
 } from 'lucide-react';
 import { CommercialBridge } from './CommercialBridge';
@@ -196,11 +195,7 @@ export function PublicGateway({ onSelectSector, onSignIn, onLaunchWorkspace }: P
   const [activeSlideIndex, setActiveSlideIndex] = useState<number>(0);
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
   const [touchEndX, setTouchEndX] = useState<number | null>(null);
-  const [selectedOnboardingSector, setSelectedOnboardingSector] = useState<BusinessSector | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
-  const [businessNameInput, setBusinessNameInput] = useState<string>('');
-  const [countyInput, setCountyInput] = useState<string>('Nairobi');
 
   const carouselRef = useRef<HTMLDivElement>(null);
 
@@ -251,8 +246,7 @@ export function PublicGateway({ onSelectSector, onSignIn, onLaunchWorkspace }: P
   };
 
   const handleCreateSpace = (sector: BusinessSector) => {
-    setSelectedOnboardingSector(sector);
-    setIsModalOpen(true);
+    onSelectSector?.(sector);
   };
 
   const handleSelectBusinessCard = (sector: BusinessSector) => {
@@ -296,7 +290,6 @@ export function PublicGateway({ onSelectSector, onSignIn, onLaunchWorkspace }: P
             <a href="#digital-space-showcase" className="hover:text-neutral-950 focus:outline-none focus:ring-2 focus:ring-neutral-950 rounded-md px-1 transition">Workspace Showcase</a>
             <a href="#how-it-works" className="hover:text-neutral-950 focus:outline-none focus:ring-2 focus:ring-neutral-950 rounded-md px-1 transition">How It Works</a>
             <a href="#services" className="hover:text-neutral-950 focus:outline-none focus:ring-2 focus:ring-neutral-950 rounded-md px-1 transition">Sale & Services</a>
-            <a href="#gazette" className="hover:text-neutral-950 focus:outline-none focus:ring-2 focus:ring-neutral-950 rounded-md px-1 transition">Gazette</a>
           </nav>
 
           <div className="hidden md:flex items-center space-x-3">
@@ -431,7 +424,7 @@ export function PublicGateway({ onSelectSector, onSignIn, onLaunchWorkspace }: P
                 href="#business-spaces"
                 className="w-full sm:w-auto px-7 py-3.5 rounded-xl bg-white text-neutral-800 border border-neutral-300 text-base font-semibold hover:bg-neutral-50 transition flex items-center justify-center space-x-2 cursor-pointer focus:outline-none focus:ring-2 focus:ring-neutral-950"
               >
-                <span>Explore businesses</span>
+                <span>Explore spaces</span>
               </a>
             </div>
 
@@ -446,12 +439,12 @@ export function PublicGateway({ onSelectSector, onSignIn, onLaunchWorkspace }: P
                 <div className="text-sm font-bold text-neutral-900">Validated Invoicing</div>
               </div>
               <div>
-                <div className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">County Reach</div>
-                <div className="text-sm font-bold text-neutral-900">47 Counties Supported</div>
+                <div className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">Connected Operations</div>
+                <div className="text-sm font-bold text-neutral-900">One operational workspace</div>
               </div>
               <div>
-                <div className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">Offline Resilience</div>
-                <div className="text-sm font-bold text-neutral-900">Local First Sync</div>
+                <div className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">Kenya Ready</div>
+                <div className="text-sm font-bold text-neutral-900">Built for local operations</div>
               </div>
             </div>
           </div>
@@ -838,63 +831,6 @@ export function PublicGateway({ onSelectSector, onSignIn, onLaunchWorkspace }: P
           />
         </section>
 
-        {/* 7. GAZETTE */}
-        <section id="gazette" className="py-16 bg-neutral-100/60 border-t border-neutral-200/80 px-4 sm:px-6 lg:px-8 scroll-mt-24">
-          <div className="max-w-7xl mx-auto">
-            <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-4">
-              <div>
-                <span className="text-xs font-bold uppercase tracking-widest text-neutral-600 block mb-2">
-                  Advisory & Regulatory Guidance
-                </span>
-                <h2 className="text-2xl sm:text-3xl font-serif font-bold text-neutral-950 tracking-tight">
-                  The TDBK Gazette
-                </h2>
-                <p className="text-sm text-neutral-600 mt-1">
-                  Practical regulatory circular summaries, compliance advisories, and operational guidance for Kenyan commerce.
-                </p>
-              </div>
-              <div className="text-xs font-mono text-neutral-600">
-                KENYA COMMERCIAL STANDARDS & ADVISORIES
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {[
-                {
-                  date: 'September 2026',
-                  tag: 'eTIMS COMPLIANCE',
-                  title: 'Electronic Tax Register Updates & Threshold Guidance',
-                  summary: 'Practical handbook on continuous transaction transmission and exemption guidelines for SME merchants.',
-                },
-                {
-                  date: 'August 2026',
-                  tag: 'CURRICULUM',
-                  title: 'Ministry CBC Digital Assessment Standards',
-                  summary: 'Standardized assessment rubrics for Junior Secondary formative scoring and parental progress sharing.',
-                },
-                {
-                  date: 'July 2026',
-                  tag: 'DATA PRIVACY',
-                  title: 'Office of Data Protection Commissioner (ODPC) Guidelines',
-                  summary: 'Secure handling of patient histories, student records, and customer identification across cloud repositories.',
-                },
-              ].map((item, idx) => (
-                <div key={idx} className="bg-white rounded-2xl p-6 border border-neutral-200/80 shadow-xs">
-                  <div className="flex items-center justify-between text-xs font-mono text-neutral-500 mb-3">
-                    <span>{item.date}</span>
-                    <span className="px-2 py-0.5 rounded bg-neutral-100 text-neutral-700 font-bold">{item.tag}</span>
-                  </div>
-                  <h4 className="text-base font-bold text-neutral-950 mb-2">{item.title}</h4>
-                  <p className="text-xs text-neutral-600 leading-relaxed">{item.summary}</p>
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-8 text-center text-xs text-neutral-500">
-              Illustrative industry guidance & compliance summaries curated for Kenyan business owners.
-            </div>
-          </div>
-        </section>
       </main>
 
       {/* 8. FOOTER */}
@@ -940,16 +876,6 @@ export function PublicGateway({ onSelectSector, onSignIn, onLaunchWorkspace }: P
                 <li><a href="#consultation-section" className="hover:text-white transition">Managed IT & Support Retainers</a></li>
               </ul>
             </div>
-
-            <div>
-              <h5 className="font-bold text-xs uppercase tracking-wider text-neutral-400 mb-4">Compliance & Security</h5>
-              <ul className="space-y-2.5 text-xs text-neutral-400">
-                <li>Kenya Data Protection Act 2019</li>
-                <li>Central Bank of Kenya Standards</li>
-                <li>Ministry of Education CBC Support</li>
-                <li>SSL / TLS 256-bit Encryption</li>
-              </ul>
-            </div>
           </div>
 
           <div className="pt-8 flex flex-col sm:flex-row items-center justify-between text-xs text-neutral-500 gap-4">
@@ -968,101 +894,6 @@ export function PublicGateway({ onSelectSector, onSignIn, onLaunchWorkspace }: P
         </div>
       </footer>
 
-      {/* Onboarding Dialog / Workspace Creation Modal */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 sm:p-8 shadow-2xl border border-neutral-200">
-            <div className="flex items-center justify-between pb-4 border-b border-neutral-100 mb-5">
-              <div className="flex items-center space-x-2">
-                <Sparkles className="w-5 h-5 text-neutral-900" />
-                <h3 className="font-bold text-base text-neutral-950">Create Your Digital Space</h3>
-              </div>
-              <button
-                onClick={() => setIsModalOpen(false)}
-                aria-label="Close dialog"
-                className="w-8 h-8 rounded-lg hover:bg-neutral-100 flex items-center justify-center text-neutral-500 hover:text-neutral-950 transition cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="space-y-4 mb-6">
-              <div>
-                <label className="block text-xs font-semibold text-neutral-600 uppercase tracking-wider mb-1.5">
-                  Selected Industry Sector
-                </label>
-                <div className="px-3.5 py-2.5 rounded-xl bg-neutral-100 text-sm font-bold text-neutral-900 border border-neutral-200">
-                  {selectedOnboardingSector || 'EDUCATION'}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-neutral-600 uppercase tracking-wider mb-1.5">
-                  Business / Institution Name
-                </label>
-                <input
-                  type="text"
-                  value={businessNameInput}
-                  onChange={(e) => setBusinessNameInput(e.target.value)}
-                  placeholder="e.g. Sunrise Academy or Karen Grocers"
-                  className="w-full px-4 py-2.5 rounded-xl border border-neutral-300 text-sm text-neutral-950 placeholder-neutral-400 focus:outline-none focus:border-neutral-950"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-neutral-600 uppercase tracking-wider mb-1.5">
-                  County Location
-                </label>
-                <select
-                  value={countyInput}
-                  onChange={(e) => setCountyInput(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl border border-neutral-300 text-sm text-neutral-950 focus:outline-none focus:border-neutral-950 cursor-pointer bg-white"
-                >
-                  <option value="Nairobi">Nairobi County</option>
-                  <option value="Mombasa">Mombasa County</option>
-                  <option value="Kiambu">Kiambu County</option>
-                  <option value="Nakuru">Nakuru County</option>
-                  <option value="Uasin Gishu">Uasin Gishu County (Eldoret)</option>
-                  <option value="Kisumu">Kisumu County</option>
-                  <option value="Kilifi">Kilifi County</option>
-                  <option value="Machakos">Machakos County</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="flex items-center space-x-3">
-              <button
-                type="button"
-                onClick={() => setIsModalOpen(false)}
-                className="flex-1 py-2.5 rounded-xl border border-neutral-300 text-sm font-semibold text-neutral-700 hover:bg-neutral-50 transition cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsModalOpen(false);
-                  const sector = selectedOnboardingSector || 'EDUCATION';
-                  if (onSelectSector) {
-                    onSelectSector(sector);
-                  } else if (onSignIn) {
-                    onSignIn();
-                  } else if (onLaunchWorkspace) {
-                    onLaunchWorkspace();
-                  } else {
-                    alert(`Digital space reserved for ${businessNameInput || 'your enterprise'} in ${countyInput}. Signing in will provision your workspace.`);
-                  }
-                }}
-                className="flex-1 py-2.5 rounded-xl bg-neutral-950 text-white text-sm font-semibold hover:bg-neutral-800 transition shadow-sm cursor-pointer"
-              >
-                Continue
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
-
-export default PublicGateway;
