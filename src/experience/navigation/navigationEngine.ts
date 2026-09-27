@@ -3,6 +3,8 @@ import { ExperienceNavItem } from '../types';
 import { capabilityViewRegistry } from '../registry/viewRegistry';
 import { SecurityContext } from '../../kernel/types';
 import { masterAuthority } from '../../kernel/master/masterAuthority';
+import { capabilityRegistry } from '../../capability/registry';
+import { rbacEngine } from '../../kernel/authorization/rbacEngine';
 
 export class NavigationEngine {
   private static instance: NavigationEngine;
@@ -37,6 +39,14 @@ export class NavigationEngine {
 
     let order = 1;
     for (const capId of workspace.enabledCapabilities) {
+      const capability = capabilityRegistry.getCapability(capId);
+      if (context && capability) {
+        const roleAllowed = capability.requiredRoles.length === 0 || capability.requiredRoles.some((role) => roles.includes(role));
+        const permissionAllowed = capability.requiredPermissions.length === 0 || capability.requiredPermissions.every((permission) => rbacEngine.hasPermission(context.principal, permission));
+        const ownerOverride = masterAuthority.isMasterAdmin(context.principal) || masterAuthority.isOwnerPortfolio(context.principal);
+        if (!ownerOverride && (!roleAllowed || !permissionAllowed)) continue;
+      }
+
       // Role filtering for capabilities
       if (context && !isTenantAdmin) {
         if (roles.includes('TEACHER')) {
