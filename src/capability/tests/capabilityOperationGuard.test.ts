@@ -32,4 +32,22 @@ describe('DBK capability operation guard', () => {
       dbkCapabilityManager.assertCapabilityOperational(ctx, 'tenant_capability_guard', 'mpesa_bridge', 'TEST_OPERATION'),
     ).rejects.toThrow();
   });
+
+  it('allows an authorized principal after the capability is durably activated in the runtime store', async () => {
+    const admin = context(['TENANT_ADMIN'], ['manage:payments']);
+    await dbkCapabilityManager.enableCapabilityPersistent(
+      admin,
+      'tenant_capability_guard',
+      'mpesa_bridge',
+      'ENTITLED',
+      false,
+    );
+    const record = await dbkCapabilityManager.assertCapabilityOperational(
+      admin,
+      'tenant_capability_guard',
+      'mpesa_bridge',
+      'TEST_OPERATION',
+    );
+    expect(['ENABLED', 'CONFIGURED']).toContain(record.state);
+  });
 });
