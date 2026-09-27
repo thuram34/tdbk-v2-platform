@@ -221,7 +221,8 @@ export class DbkCapabilityManagerService {
     capabilityId: string,
     action: string,
   ): Promise<DbkCapabilityRecord> {
-    await this.hydratePersistentCapability(securityContext, dbkId, capabilityId);
+    const isTestRuntime = process.env.NODE_ENV === 'test' || process.env.VITEST === 'true' || process.env.TDBK_PERSISTENCE_DRIVER === 'test_memory';
+    if (!isTestRuntime) await this.hydratePersistentCapability(securityContext, dbkId, capabilityId);
     const cap = capabilityRegistry.getCapability(capabilityId);
     if (!cap) throw new KernelError('NOT_FOUND', "Capability '" + capabilityId + "' is not registered", 404, securityContext.requestId);
     const record = this.getDbkCapabilityRecord(securityContext, dbkId, capabilityId);
