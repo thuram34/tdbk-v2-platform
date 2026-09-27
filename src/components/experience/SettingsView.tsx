@@ -1,6 +1,6 @@
 import React from 'react';
 import { DbkExperienceResolved } from '../../experience/types';
-import { Sliders, Building2, GitBranch, Layers, ShieldCheck, Database, RefreshCw } from 'lucide-react';
+import { Sliders, Building2, GitBranch, Layers, ShieldCheck, Database, RefreshCw, PlugZap } from 'lucide-react';
 
 interface SettingsViewProps {
   experience: DbkExperienceResolved;
@@ -19,6 +19,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ experience }) => {
     activeBranch,
     availableBranches,
     terminology,
+    connections,
     serverTimestamp,
   } = experience;
 
@@ -113,7 +114,41 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ experience }) => {
           </div>
         </div>
 
-        {/* Terminology Map Inspector */}
+        {/* Unified Connections */}
+      <div className="bg-neutral-900 border border-neutral-800 rounded-lg p-5 space-y-4 md:col-span-2">
+        <div className="flex items-center justify-between border-b border-neutral-800 pb-3">
+          <div className="flex items-center gap-2">
+            <PlugZap className="w-4 h-4 text-emerald-400" />
+            <div>
+              <h2 className="text-sm font-bold text-white">Connections</h2>
+              <p className="text-[10px] text-neutral-500">Tenant-scoped provider state from the authoritative Connection Hub.</p>
+            </div>
+          </div>
+          <span className="text-[10px] font-mono text-neutral-500">{connections.filter((c) => c.ready).length}/{connections.length} ready</span>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          {connections.map((connection) => (
+            <div key={connection.bridgeId} className="rounded-lg border border-neutral-800 bg-neutral-950 p-3">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <div className="text-xs font-semibold text-white">{connection.provider}</div>
+                  <div className="mt-0.5 text-[10px] font-mono text-neutral-500">{connection.bridgeId}</div>
+                </div>
+                <span className={`rounded px-1.5 py-0.5 text-[9px] font-mono font-bold ${connection.ready ? 'bg-emerald-500/15 text-emerald-300' : 'bg-amber-500/15 text-amber-300'}`}>
+                  {connection.ready ? 'READY' : connection.status}
+                </span>
+              </div>
+              <div className="mt-3 text-[10px] text-neutral-400">
+                <div>Health: <span className="text-neutral-200">{connection.healthStatus}</span></div>
+                <div>Entitlement: <span className="text-neutral-200">{connection.entitlementStatus}</span></div>
+                {connection.blockers.length > 0 && <div className="mt-1 text-amber-300">{connection.blockers[0]}</div>}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Terminology Map Inspector */}
         <div className="bg-neutral-900 border border-neutral-800 rounded-lg p-5 space-y-4 md:col-span-2">
           <div className="flex items-center space-x-2 pb-3 border-b border-neutral-800">
             <Layers className="w-4 h-4 text-amber-400" />
