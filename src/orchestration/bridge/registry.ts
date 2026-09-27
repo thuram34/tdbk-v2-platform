@@ -51,7 +51,7 @@ class BridgeRegistryService {
       {
         bridgeId: 'bridge_etims',
         provider: 'KRA_ETIMS',
-        bridgeVersion: 'v1.0',
+        bridgeVersion: 'v2.0',
         capabilityId: 'etims_compliance',
         supportedOperations: ['SUBMIT_INVOICE', 'CANCEL_INVOICE', 'QUERY_INVOICE_STATUS'],
         status: 'MOCK',
