@@ -212,6 +212,35 @@ export class DbkCapabilityManagerService {
   }
 
   /**
+   * Authoritative runtime guard for operating an enabled DBK capability.
+   * Activation/configuration authority is deliberately separate from runtime operation.
+   */
+  public async assertCapabilityOperational(
+    securityContext: SecurityContext,
+    dbkId: string,
+    capabilityId: string,
+    action: string,
+  ): Promise<DbkCapabilityRecord> {
+    await this.hydratePersistentCapability(securityContext, dbkId, capabilityId);
+    const cap = capabilityRegistry.getCapability(capabilityId);
+    if (!cap) throw new KernelError('NOT_FOUND', "Capability '" + capabilityId + "' is not registered", 404, securityContext.requestId);
+    const record = this.getDbkCapabilityRecord(securityContext, dbkId, capabilityId);
+    if (!record) throw new KernelError('AUTHORIZATION_ERROR', "Capability '" + capabilityId + "' is not enabled for this DBK", 403, securityContext.requestId);
+    const ownerOverride = masterAuthority.isMasterAdmin(securityContext.principal) || masterAuthority.isOwnerPortfolio(securityContext.principal);
+    if (!ownerOverride) {
+      const roleAllowed = cap.requiredRoles.length === 0 || cap.requiredRoles.some((role) => securityContext.principal.roles.includes(role));
+      const permissionAllowed = cap.requiredPermissions.length === 0 || cap.requiredPermissions.every((permission) => rbacEngine.hasPermission(securityContext.principal, permission));
+      if (!roleAllowed || !permissionAllowed) {
+        auditLogger.logEvent('AUTHORIZATION_DENIED', securityContext.principal.id, action, 'capability:' + capabilityId, 'DENIED', { tenantId: dbkId, requestId: securityContext.requestId, details: { requiredRoles: cap.requiredRoles, requiredPermissions: cap.requiredPermissions } });
+        throw new KernelError('AUTHORIZATION_ERROR', "Not authorized to operate capability '" + capabilityId + "'", 403, securityContext.requestId);
+      }
+    }
+    if (record.entitlement !== 'ENTITLED') throw new KernelError('AUTHORIZATION_ERROR', "Capability '" + capabilityId + "' is not entitled for this DBK", 403, securityContext.requestId);
+    if (!['ENABLED', 'CONFIGURED'].includes(record.state)) throw new KernelError('AUTHORIZATION_ERROR', "Capability '" + capabilityId + "' is not operational (state: " + record.state + ")", 403, securityContext.requestId);
+    return record;
+  }
+
+  /**
    * Production-safe enable path: hydrate authoritative state, mutate, then
    * durably commit before returning. The process-local map is only a cache.
    */
