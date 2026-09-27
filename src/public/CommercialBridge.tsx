@@ -53,7 +53,8 @@ type ServiceCategory =
   | 'SECURITY'
   | 'CLOUD'
   | 'TRAINING'
-  | 'SUPPORT';
+  | 'SUPPORT'
+  | 'GROWTH';
 
 export const CommercialBridge: React.FC<CommercialBridgeProps> = ({
   onSelectSector,
@@ -708,6 +709,7 @@ export const CommercialBridge: React.FC<CommercialBridgeProps> = ({
             { id: 'CLOUD', label: 'Cloud & Software' },
             { id: 'TRAINING', label: 'Training & Setup' },
             { id: 'SUPPORT', label: 'Managed IT' },
+            { id: 'GROWTH', label: 'SEO & Digital Growth' },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -917,6 +919,37 @@ export const CommercialBridge: React.FC<CommercialBridgeProps> = ({
               </div>
               <a href="#consultation-section" className="pt-4 mt-4 border-t border-neutral-100 text-xs font-semibold text-emerald-700 hover:underline">
                 Schedule Training →
+              </a>
+            </div>
+          )}
+
+          {/* I. SEO & Digital Growth */}
+          {(activeServiceCategory === 'ALL' || activeServiceCategory === 'GROWTH') && (
+            <div className="bg-white rounded-2xl p-6 border border-neutral-200/80 shadow-xs flex flex-col justify-between">
+              <div>
+                <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center mb-4">
+                  <Globe className="w-5 h-5" />
+                </div>
+                <div className="text-[11px] font-bold text-neutral-600 uppercase tracking-wider mb-1">
+                  Service 09
+                </div>
+                <h3 className="text-base font-bold text-neutral-950 mb-2">SEO & Digital Growth</h3>
+                <p className="text-xs text-neutral-600 leading-relaxed mb-4">
+                  Improve how customers discover your business in Google Search and local results with a measurable technical and content foundation.
+                </p>
+                <ul className="space-y-1.5 text-xs text-neutral-700">
+                  <li>• Technical SEO Audit & Site Health</li>
+                  <li>• On-Page SEO, Titles & Meta Descriptions</li>
+                  <li>• Google Search Console & Indexing Setup</li>
+                  <li>• Local SEO & Google Business Profile Optimization</li>
+                  <li>• Sitemap, Structured Data & Core Web Vitals Review</li>
+                </ul>
+                <div className="mt-4 pt-3 border-t border-neutral-100 text-[11px] text-neutral-500">
+                  <span className="font-semibold text-neutral-700">Assigned:</span> SEO & Digital Growth Engineer
+                </div>
+              </div>
+              <a href="#consultation-section" className="pt-4 mt-4 border-t border-neutral-100 text-xs font-semibold text-emerald-700 hover:underline">
+                Request SEO Audit →
               </a>
             </div>
           )}
