@@ -14,6 +14,7 @@ import { bridgeRegistry } from './registry';
 import { masterAuthority } from '../../kernel/master/masterAuthority';
 import { auditLogger } from '../../kernel/audit/auditLogger';
 import { Bridge } from './types';
+import { rbacEngine } from '../../kernel/authorization/rbacEngine';
 
 export interface ConnectionHealthResult {
   connection: ConnectorConnection;
@@ -80,6 +81,10 @@ class ConnectionHubService {
   public async setStatus(context: SecurityContext, bridgeId: string, status: ConnectorConnectionStatus, enabled: boolean): Promise<ConnectorConnection> {
     const tenantId = this.tenantId(context);
     await masterAuthority.assertTenantAuthority(context, tenantId, 'CHANGE_CONNECTION_STATUS');
+    const canManage = masterAuthority.isMasterAdmin(context.principal) || masterAuthority.isOwnerPortfolio(context.principal) ||
+      context.principal.roles.some((role) => ['TENANT_ADMIN', 'SYSTEM_ADMIN', 'OWNER_OPERATOR', 'BUSINESS_OWNER'].includes(role)) ||
+      rbacEngine.hasPermission(context.principal, 'connectors:write');
+    if (!canManage) throw new KernelError('AUTHORIZATION_ERROR', 'Connector status changes require connector administration authority.', 403, context.requestId);
     const connection = await this.getConnection(context, bridgeId);
     if (!connection) throw new KernelError('INTEGRATION_UNAVAILABLE', `Bridge '${bridgeId}' connection not found`, 404, context.requestId);
     if (connection.tenantId !== tenantId) throw new KernelError('TENANT_ISOLATION_ERROR', 'Cross-tenant connection mutation denied', 403, context.requestId);
