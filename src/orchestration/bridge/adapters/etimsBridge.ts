@@ -177,6 +177,28 @@ export class EtimsBridge implements Bridge<EtimsInvoiceRequest, any, any> {
     }
   }
 
+  private async persistSyncCursor(
+    tenantId: string,
+    connection: EtimsConnection,
+    operation: string,
+    response: any,
+  ): Promise<void> {
+    const cursorKeys: Record<string, string> = {
+      GET_CODES: 'ETIMS_LAST_CODE_SYNC',
+      GET_ITEM_CLASSES: 'ETIMS_LAST_ITEM_CLASS_SYNC',
+      GET_BRANCHES: 'ETIMS_LAST_BRANCH_SYNC',
+      GET_NOTICES: 'ETIMS_LAST_NOTICE_SYNC',
+      GET_ITEMS: 'ETIMS_LAST_ITEM_SYNC',
+      GET_PURCHASES: 'ETIMS_LAST_PURCHASE_SYNC',
+      GET_IMPORTS: 'ETIMS_LAST_IMPORT_SYNC',
+      GET_STOCK: 'ETIMS_LAST_STOCK_SYNC',
+    };
+    const key = cursorKeys[operation];
+    const resultDt = String(response?.resultDt || '').trim();
+    if (!key || !/^\\d{14}$/.test(resultDt)) return;
+    await connectorConnectionRepository.updateParameters(tenantId, connection.connectionId, { [key]: resultDt });
+  }
+
   public async execute(context: SecurityContext, operation: string, payload: EtimsInvoiceRequest): Promise<NormalizedBridgeResult<any>> {
     const tenantId = context.tenantContext?.tenantId || context.principal.tenantId;
     const connection = await this.requireConnection(tenantId);
@@ -315,6 +337,8 @@ export class EtimsBridge implements Bridge<EtimsInvoiceRequest, any, any> {
         } : {}),
       });
     }
+
+    await this.persistSyncCursor(tenantId, connection, operation, providerResponse);
 
     const data = providerResponse?.data || providerResponse;
     const providerReference = String(data?.invcNo || data?.rcptNo || data?.sdcId || payload.invoiceNumber);
