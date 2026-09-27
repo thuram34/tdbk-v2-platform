@@ -60,7 +60,7 @@ export class WhatsappBridge implements Bridge<WhatsappMessageRequest, any, Whats
   public readonly provider = 'META_WHATSAPP';
   public readonly capabilityId = 'whatsapp_bridge';
   public readonly version = 'v2.0';
-  public readonly sideEffectCapabilities = { providerIdempotency: false, providerReconciliation: true };
+  public readonly sideEffectCapabilities = { providerIdempotency: false, providerReconciliation: false };
 
   private parameter(connection: WhatsappConnection, ...names: string[]): string | undefined {
     for (const name of names) {
