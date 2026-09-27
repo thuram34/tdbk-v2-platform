@@ -32,16 +32,8 @@ export default function App() {
         <div className="relative">
           <PublicGateway
             onSignIn={() => setPublicView('LOGIN')}
-            onLaunchWorkspace={() => setPublicView('LOGIN')}
             onSelectSector={() => setPublicView('LOGIN')}
           />
-          <button
-            type="button"
-            onClick={enterSokoni}
-            className="fixed bottom-4 left-4 z-50 rounded-full border border-neutral-300 bg-white/95 px-4 py-2.5 text-xs font-bold text-neutral-900 shadow-lg backdrop-blur"
-          >
-            Discover with Sokoni →
-          </button>
         </div>
       );
     }
