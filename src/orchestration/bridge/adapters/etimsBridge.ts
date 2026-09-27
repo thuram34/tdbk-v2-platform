@@ -335,7 +335,7 @@ export class EtimsBridge implements Bridge<EtimsInvoiceRequest, any, any> {
           pkgUnitCd: payload.items[0]?.packageUnitCode || 'NT',
           qtyUnitCd: payload.items[0]?.quantityUnitCode || 'U',
           orgnNatCd: 'KE', itemTyCd: '2', useYn: 'Y',
-          regrNm, regrId, modrNm: regrNm, modrId,
+          regrNm, regrId, modrNm: regrNm, modrId: regrId,
         } : {}),
       });
     }
