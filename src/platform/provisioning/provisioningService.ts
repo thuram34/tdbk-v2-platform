@@ -24,6 +24,42 @@ import { KernelError } from '../../kernel/errors/kernelErrors';
 import { SectorType } from '../../blueprint/types';
 import { createHash } from 'node:crypto';
 
+type CanonicalValue = null | boolean | number | string | CanonicalValue[] | { [key: string]: CanonicalValue };
+
+function canonicalize(value: unknown): CanonicalValue {
+  if (value === null || typeof value === 'boolean' || typeof value === 'number' || typeof value === 'string') return value;
+  if (Array.isArray(value)) return value.map(canonicalize);
+  if (typeof value === 'object') {
+    return Object.keys(value as Record<string, unknown>).sort().reduce<Record<string, CanonicalValue>>((acc, key) => {
+      const child = (value as Record<string, unknown>)[key];
+      if (child !== undefined) acc[key] = canonicalize(child);
+      return acc;
+    }, {});
+  }
+  throw new TypeError('Unsupported value in provisioning request identity');
+}
+
+function provisioningRequestHash(
+  effectiveDbkId: string,
+  request: ProvisionDbkRequest,
+  blueprintId: string,
+  blueprintVersion: string,
+  subscriptionTier: string,
+): string {
+  const identity = {
+    dbkId: effectiveDbkId,
+    legalName: request.legalName,
+    displayName: request.displayName ?? null,
+    blueprintId,
+    blueprintVersion,
+    subscriptionTier,
+    primaryBranchName: request.primaryBranchName ?? null,
+    secondaryBranches: request.secondaryBranches ?? [],
+    customPreferences: request.customPreferences ?? {},
+  };
+  return createHash('sha256').update(JSON.stringify(canonicalize(identity))).digest('hex');
+}
+
 export class ProvisioningService {
   private static instance: ProvisioningService;
   private handlersRegistered = false;
@@ -333,7 +369,7 @@ export class ProvisioningService {
       idempotencyKey,
       tenantId: idempotencyScope,
       action: 'DBK_PROVISIONING',
-      requestHash: `${effectiveDbkId}:${bp.id}:${bp.version}`,
+      requestHash: provisioningRequestHash(effectiveDbkId, request, bp.id, bp.version, initialDbk.subscriptionTier),
       status: 'IN_PROGRESS',
       createdAt: new Date().toISOString(),
       expiresAt: new Date(Date.now() + 86400000).toISOString(),
@@ -630,7 +666,7 @@ export class ProvisioningService {
       idempotencyKey,
       tenantId: effectiveDbkId,
       action: 'DBK_PROVISIONING',
-      requestHash: `${effectiveDbkId}:${bp.id}:${bp.version}`,
+      requestHash: provisioningRequestHash(effectiveDbkId, request, bp.id, bp.version, finalDbk.subscriptionTier),
       status: 'COMPLETED',
       responsePayload: result as unknown as Record<string, unknown>,
       createdAt: new Date().toISOString(),
