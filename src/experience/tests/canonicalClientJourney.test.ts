@@ -143,7 +143,7 @@ describe('TDBK canonical client journey acceptance', () => {
       `/tenants/${dbkId}/entities/stock_control/records/${inventoryRecordId}`,
     );
     const persistedOutbox = await firestoreClient.get(
-      `/tenants/${dbkId}/outbox/events/sale-canonical-sale-001`,
+      `/tenants/${dbkId}/outbox/sale-canonical-sale-001`,
     );
 
     expect(persistedSale).toBeTruthy();
