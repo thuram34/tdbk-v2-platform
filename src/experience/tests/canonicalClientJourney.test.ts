@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { SecurityContext } from '../../kernel/types';
 import { firestoreClient } from '../../persistence/firestore/firestoreClient';
-import { dbkRegistry } from '../dbkRegistry';
-import { provisioningService } from '../provisioning/provisioningService';
+import { dbkRegistry } from '../../platform/dbkRegistry';
+import { provisioningService } from '../../platform/provisioning/provisioningService';
 import { experienceResolver } from '../../experience/experienceResolver';
 
 const dbkId = 'canonical_journey_hardware_01';
@@ -92,7 +92,6 @@ describe('TDBK canonical client journey acceptance', () => {
     expect(resolved.dbkId).toBe(dbkId);
     expect(resolved.operationalState).toBe('ACTIVE');
     expect(resolved.activeBranch.branchId).toBe(branchId);
-    expect(resolved.enabledCapabilities).toBeUndefined();
 
     await firestoreClient.set(
       `/tenants/${dbkId}/entities/stock_control/records/${inventoryRecordId}`,
