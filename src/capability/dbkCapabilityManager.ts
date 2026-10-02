@@ -12,6 +12,7 @@ import { masterAuthority } from '../kernel/master/masterAuthority';
 import { DbkCapabilityRecord, CapabilityLifecycleState, EntitlementStatus } from './types';
 import { capabilityRegistry } from './registry';
 import { capabilityStateRepository } from '../persistence/firestore/repositories/capabilityStateRepository';
+import { rbacEngine } from '../kernel/authorization/rbacEngine';
 
 export class DbkCapabilityManagerService {
   // Map of `dbkId` -> Map of `capabilityId` -> `DbkCapabilityRecord`
@@ -146,6 +147,16 @@ export class DbkCapabilityManagerService {
     return persisted;
   }
 
+  private assertCapabilityAdmin(securityContext: SecurityContext, dbkId: string, action: string): void {
+    this.assertTenant(securityContext, dbkId, action);
+    const principal = securityContext.principal;
+    const ownerOverride = masterAuthority.isMasterAdmin(principal) || masterAuthority.isOwnerPortfolio(principal);
+    const roleAllowed = principal.roles.some((role) => ['TENANT_ADMIN', 'SYSTEM_ADMIN', 'DBK_ADMIN'].includes(role));
+    if (!ownerOverride && !roleAllowed && !rbacEngine.hasPermission(principal, 'admin:*')) {
+      throw new KernelError('AUTHORIZATION_ERROR', 'Capability administration requires tenant administrator authority.', 403, securityContext.requestId);
+    }
+  }
+
   /**
    * Enables or updates a capability record state for a DBK.
    */
@@ -156,7 +167,7 @@ export class DbkCapabilityManagerService {
     entitlement: EntitlementStatus,
     requiresConfig: boolean
   ): DbkCapabilityRecord {
-    this.assertTenant(securityContext, dbkId, 'enableCapability');
+    this.assertCapabilityAdmin(securityContext, dbkId, 'enableCapability');
 
     const cap = capabilityRegistry.getCapability(capabilityId);
     if (!cap) {
@@ -198,6 +209,36 @@ export class DbkCapabilityManagerService {
     );
 
     return newRecord;
+  }
+
+  /**
+   * Authoritative runtime guard for operating an enabled DBK capability.
+   * Activation/configuration authority is deliberately separate from runtime operation.
+   */
+  public async assertCapabilityOperational(
+    securityContext: SecurityContext,
+    dbkId: string,
+    capabilityId: string,
+    action: string,
+  ): Promise<DbkCapabilityRecord> {
+    const isTestRuntime = process.env.NODE_ENV === 'test' || process.env.VITEST === 'true' || process.env.TDBK_PERSISTENCE_DRIVER === 'test_memory';
+    if (!isTestRuntime) await this.hydratePersistentCapability(securityContext, dbkId, capabilityId);
+    const cap = capabilityRegistry.getCapability(capabilityId);
+    if (!cap) throw new KernelError('NOT_FOUND', "Capability '" + capabilityId + "' is not registered", 404, securityContext.requestId);
+    const record = this.getDbkCapabilityRecord(securityContext, dbkId, capabilityId);
+    if (!record) throw new KernelError('AUTHORIZATION_ERROR', "Capability '" + capabilityId + "' is not enabled for this DBK", 403, securityContext.requestId);
+    const ownerOverride = masterAuthority.isMasterAdmin(securityContext.principal) || masterAuthority.isOwnerPortfolio(securityContext.principal);
+    if (!ownerOverride) {
+      const roleAllowed = cap.requiredRoles.length === 0 || cap.requiredRoles.some((role) => securityContext.principal.roles.includes(role));
+      const permissionAllowed = cap.requiredPermissions.length === 0 || cap.requiredPermissions.every((permission) => rbacEngine.hasPermission(securityContext.principal, permission));
+      if (!roleAllowed || !permissionAllowed) {
+        auditLogger.logEvent('AUTHORIZATION_DENIED', securityContext.principal.id, action, 'capability:' + capabilityId, 'DENIED', { tenantId: dbkId, requestId: securityContext.requestId, details: { requiredRoles: cap.requiredRoles, requiredPermissions: cap.requiredPermissions } });
+        throw new KernelError('AUTHORIZATION_ERROR', "Not authorized to operate capability '" + capabilityId + "'", 403, securityContext.requestId);
+      }
+    }
+    if (record.entitlement !== 'ENTITLED') throw new KernelError('AUTHORIZATION_ERROR', "Capability '" + capabilityId + "' is not entitled for this DBK", 403, securityContext.requestId);
+    if (!['ENABLED', 'CONFIGURED'].includes(record.state)) throw new KernelError('AUTHORIZATION_ERROR', "Capability '" + capabilityId + "' is not operational (state: " + record.state + ")", 403, securityContext.requestId);
+    return record;
   }
 
   /**
@@ -248,7 +289,7 @@ export class DbkCapabilityManagerService {
     capabilityId: string,
     configData: Record<string, unknown>
   ): DbkCapabilityRecord {
-    this.assertTenant(securityContext, dbkId, 'configureCapability');
+    this.assertCapabilityAdmin(securityContext, dbkId, 'configureCapability');
 
     const existing = this.getDbkCapabilityRecord(securityContext, dbkId, capabilityId);
     if (!existing) {
@@ -298,7 +339,7 @@ export class DbkCapabilityManagerService {
    * Disables a capability for a DBK.
    */
   public disableCapability(securityContext: SecurityContext, dbkId: string, capabilityId: string): DbkCapabilityRecord {
-    this.assertTenant(securityContext, dbkId, 'disableCapability');
+    this.assertCapabilityAdmin(securityContext, dbkId, 'disableCapability');
 
     const existing = this.getDbkCapabilityRecord(securityContext, dbkId, capabilityId);
     const cap = capabilityRegistry.getCapability(capabilityId);
@@ -342,7 +383,7 @@ export class DbkCapabilityManagerService {
     capabilityId: string,
     reason: string
   ): DbkCapabilityRecord {
-    this.assertTenant(securityContext, dbkId, 'suspendCapabilityForDbk');
+    this.assertCapabilityAdmin(securityContext, dbkId, 'suspendCapabilityForDbk');
 
     const existing = this.getDbkCapabilityRecord(securityContext, dbkId, capabilityId);
     const cap = capabilityRegistry.getCapability(capabilityId);

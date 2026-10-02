@@ -7,6 +7,7 @@ import { masterAuthority } from '../../kernel/master/masterAuthority';
 import { entitlementEngine } from '../../capability/entitlement';
 import { capabilityRegistry } from '../../capability/registry';
 import { EntitlementStatus, SubscriptionTier } from '../../capability/types';
+import { rbacEngine } from '../../kernel/authorization/rbacEngine';
 
 export interface ConnectorReadinessItem {
   bridgeId: string;
@@ -50,6 +51,10 @@ class ConnectorReadinessService {
 
   public async activate(context: SecurityContext, tenantId: string, bridgeId: string): Promise<ConnectorActivationResult> {
     await masterAuthority.assertTenantAuthority(context, tenantId, 'ACTIVATE_CONNECTOR');
+    const canManage = masterAuthority.isMasterAdmin(context.principal) || masterAuthority.isOwnerPortfolio(context.principal) ||
+      context.principal.roles.some((role) => ['TENANT_ADMIN', 'SYSTEM_ADMIN', 'OWNER_OPERATOR', 'BUSINESS_OWNER'].includes(role)) ||
+      rbacEngine.hasPermission(context.principal, 'connectors:write');
+    if (!canManage) throw new Error('Connector activation requires connector administration authority.');
     const definition = bridgeRegistry.getBridgeDefinition(bridgeId);
     if (!definition) throw new Error(`Unknown bridge '${bridgeId}'.`);
     const connection = await connectorConnectionRepository.getConnection(tenantId, `conn_${bridgeId}`);

@@ -4,7 +4,7 @@ import { DbkApp } from './components/experience/DbkApp';
 import { OwnerCommandCenter } from './components/master/OwnerCommandCenter';
 import { BusinessDiscovery } from './components/onboarding/BusinessDiscovery';
 import { LoginScreen } from './components/auth/LoginScreen';
-import { DbkExperienceFlow } from './public/DbkExperienceFlow';
+import { PublicGateway } from './public/PublicGateway';
 import { SokoniExperience } from './sokoni/SokoniExperience';
 import { SokoniBusinessRegistration } from './sokoni/SokoniBusinessRegistration';
 import { useAuth } from './client/AuthContext';
@@ -16,7 +16,6 @@ type PublicView = 'FLOW' | 'LOGIN';
 export default function App() {
   const { user, loading, signOutUser } = useAuth();
   const [publicView, setPublicView] = useState<PublicView>('FLOW');
-  const [showPublicFlow, setShowPublicFlow] = useState(true);
   const [showBusinessDiscovery, setShowBusinessDiscovery] = useState(false);
   const [dbkId, setDbkId] = useState<string | null>(null);
   const [idToken, setIdToken] = useState('');
@@ -43,8 +42,12 @@ export default function App() {
       setIdToken(token);
       const result = await listDbks(token);
       setDbks(result);
-      const requestedDbk = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('dbk') : null;
-      if (requestedDbk && result.some((dbk) => dbk.dbkId === requestedDbk)) setDbkId(requestedDbk);
+      const requestedDbk = typeof window !== 'undefined'
+        ? new URLSearchParams(window.location.search).get('dbk')
+        : null;
+      if (requestedDbk && result.some((dbk) => dbk.dbkId === requestedDbk)) {
+        setDbkId(requestedDbk);
+      }
     } catch (error) {
       console.error('Failed to load organizations:', error);
       setDbksError('We could not load your organizations. Please try again.');
@@ -63,9 +66,6 @@ export default function App() {
       return;
     }
 
-    // An authenticated session is the boundary into the private operating layer.
-    // Do not leave an already-authenticated operator on the public gateway.
-    setShowPublicFlow(false);
     void loadDbks();
   }, [user, loadDbks]);
 
@@ -103,7 +103,10 @@ export default function App() {
   };
 
   if (showSokoni) {
-    if (showSokoniBusiness) return <SokoniBusinessRegistration onExit={exitSokoniBusiness} />;
+    if (showSokoniBusiness) {
+      return <SokoniBusinessRegistration onExit={exitSokoniBusiness} />;
+    }
+
     return (
       <>
         <SokoniExperience onBack={exitSokoni} />
@@ -123,18 +126,12 @@ export default function App() {
   }
 
   if (!user) {
-    if (showPublicFlow || publicView === 'FLOW') {
+    if (publicView === 'FLOW') {
       return (
         <div className="relative">
-          <DbkExperienceFlow
-            onSignIn={() => {
-              setShowPublicFlow(false);
-              setPublicView('LOGIN');
-            }}
-            onLaunchWorkspace={() => {
-              setShowPublicFlow(false);
-              setPublicView('LOGIN');
-            }}
+          <PublicGateway
+            onSignIn={() => setPublicView('LOGIN')}
+            onSelectSector={() => setPublicView('LOGIN')}
           />
           <button
             type="button"
@@ -150,10 +147,12 @@ export default function App() {
     return (
       <div className="min-h-screen bg-[#FBFBF9] text-neutral-900">
         <header className="h-16 flex items-center justify-between border-b border-neutral-200 bg-white px-4 sm:px-6">
-          <button onClick={() => { setPublicView('FLOW'); setShowPublicFlow(true); }} className="text-sm font-semibold text-neutral-600">← Return to TDBK</button>
+          <button onClick={() => setPublicView('FLOW')} className="text-sm font-semibold text-neutral-600">
+            ← Return to TDBK
+          </button>
           <div className="font-serif font-bold text-sm">Thuram Digital Bridge Kenya</div>
         </header>
-        <LoginScreen onBackToGateway={() => { setPublicView('FLOW'); setShowPublicFlow(true); }} />
+        <LoginScreen onBackToGateway={() => setPublicView('FLOW')} />
       </div>
     );
   }
@@ -161,8 +160,9 @@ export default function App() {
   if (showBusinessDiscovery) {
     return (
       <BusinessDiscovery
-        onProvisioned={async () => {
+        onProvisioned={async (provisionedDbkId: string) => {
           setShowBusinessDiscovery(false);
+          setDbkId(provisionedDbkId);
           await loadDbks();
         }}
       />
@@ -187,22 +187,31 @@ export default function App() {
   }
 
   if (dbkId) {
-    return <DbkApp dbkId={dbkId} onLogout={async () => { await signOutUser(); window.history.replaceState({}, '', window.location.pathname); }} />;
+    return (
+      <DbkApp
+        dbkId={dbkId}
+        onLogout={async () => {
+          await signOutUser();
+          window.history.replaceState({}, '', window.location.pathname);
+        }}
+      />
+    );
   }
 
   return (
-    <>
-      <OwnerCommandCenter
-        userEmail={user.email}
-        dbks={dbks}
-        idToken={idToken}
-        loading={dbksLoading}
-        onRefresh={loadDbks}
-        onAddOrganization={addOrganization}
-        onOpenOrganization={openOrganization}
-        onOpenSokoni={enterSokoni}
-        onLogout={async () => { await signOutUser(); window.history.replaceState({}, '', window.location.pathname); }}
-      />
-    </>
+    <OwnerCommandCenter
+      userEmail={user.email}
+      dbks={dbks}
+      idToken={idToken}
+      loading={dbksLoading}
+      onRefresh={loadDbks}
+      onAddOrganization={addOrganization}
+      onOpenOrganization={openOrganization}
+      onOpenSokoni={enterSokoni}
+      onLogout={async () => {
+        await signOutUser();
+        window.history.replaceState({}, '', window.location.pathname);
+      }}
+    />
   );
 }

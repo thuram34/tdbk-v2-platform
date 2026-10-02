@@ -187,6 +187,18 @@ export interface DbkExperienceResolved {
   navigation: ExperienceNavItem[];
   dashboardWidgets: ExperienceWidget[];
   discoveryItems: ExperienceDiscoveryItem[];
+  connections: Array<{
+    bridgeId: string;
+    provider: string;
+    capabilityId: string;
+    status: string;
+    enabled: boolean;
+    healthStatus: string;
+    ready: boolean;
+    blockers: string[];
+    minimumTier: SubscriptionTier;
+    entitlementStatus: string;
+  }>;
   currentPrincipal: {
     userId: string;
     tenantId: string;

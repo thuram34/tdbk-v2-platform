@@ -10,6 +10,7 @@ import {
   NormalizedBridgeResult,
 } from '../types';
 import { SecurityContext } from '../../../kernel/types';
+import { publicEncrypt, constants } from 'crypto';
 import { auditLogger } from '../../../kernel/audit/auditLogger';
 import { KernelError } from '../../../kernel/errors/kernelErrors';
 import { publishBridgeEvent } from '../bridgeEventPublisher';
@@ -26,6 +27,14 @@ export interface MpesaSTKPushRequest {
   accountReference: string;
   transactionDesc: string;
   callbackUrl?: string;
+  checkoutRequestId?: string;
+  transactionId?: string;
+  providerReference?: string;
+  remarks?: string;
+  occasion?: string;
+  startDate?: string;
+  endDate?: string;
+  offsetValue?: number;
 }
 
 export interface MpesaRawCallback {
@@ -50,8 +59,8 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
   public readonly bridgeId = 'bridge_mpesa';
   public readonly provider = 'SAFARICOM_MPESA';
   public readonly capabilityId = 'mpesa_bridge';
-  public readonly version = 'v1.0';
-  public readonly sideEffectCapabilities = { providerIdempotency: false, providerReconciliation: true };
+  public readonly version = 'v2.0';
+  public readonly sideEffectCapabilities = { providerIdempotency: false, providerReconciliation: true, automaticUnknownReplay: false, providerOperationIdentityRequired: true };
 
   
   public async health(context: SecurityContext): Promise<{ status: BridgeHealthStatus; details?: Record<string, unknown> }> {
@@ -137,6 +146,43 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
     return undefined;
   }
 
+  private async darajaRequest(connection: any, path: string, method: 'GET' | 'POST', body?: Record<string, unknown>): Promise<any> {
+    const baseUrl = this.connectionParameter(connection, 'MPESA_BASE_URL', 'baseUrl') || 'https://api.safaricom.co.ke';
+    const consumerKey = await this.connectionSecret(connection, 'MPESA_CONSUMER_KEY', 'consumerKey');
+    const consumerSecret = await this.connectionSecret(connection, 'MPESA_CONSUMER_SECRET', 'consumerSecret');
+    if (!consumerKey || !consumerSecret) throw new Error('M-Pesa consumer credentials are missing');
+    const oauthPath = this.connectionParameter(connection, 'MPESA_OAUTH_PATH', 'oauthPath') || '/oauth/v1/generate?grant_type=client_credentials';
+    const auth = Buffer.from(consumerKey + ':' + consumerSecret).toString('base64');
+    const tokenResponse = await fetch(baseUrl.replace(/\/$/, '') + oauthPath, { method: 'GET', headers: { Authorization: 'Basic ' + auth, Accept: 'application/json' } });
+    const tokenBody: any = await tokenResponse.json().catch(() => ({}));
+    if (!tokenResponse.ok || !tokenBody.access_token) throw new Error(tokenBody.errorMessage || ('Daraja OAuth failed (' + tokenResponse.status + ')'));
+    const response = await fetch(baseUrl.replace(/\/$/, '') + path, { method, headers: { Authorization: 'Bearer ' + tokenBody.access_token, 'Content-Type': 'application/json', Accept: 'application/json' }, body: method === 'POST' ? JSON.stringify(body || {}) : undefined });
+    const responseBody: any = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(responseBody.errorMessage || responseBody.ResponseDescription || responseBody.ResultDesc || ('Daraja request failed (' + response.status + ')'));
+    return responseBody;
+  }
+
+  private async securityCredential(connection: any): Promise<string> {
+    const direct = await this.connectionSecret(connection, 'MPESA_SECURITY_CREDENTIAL', 'securityCredential');
+    if (direct) return direct;
+    const initiatorPassword = await this.connectionSecret(connection, 'MPESA_INITIATOR_PASSWORD', 'initiatorPassword');
+    const certificate = await this.connectionSecret(connection, 'MPESA_CERTIFICATE', 'certificate', 'MPESA_PUBLIC_CERTIFICATE');
+    if (!initiatorPassword || !certificate) throw new Error('M-Pesa SecurityCredential requires MPESA_SECURITY_CREDENTIAL or initiator password + Safaricom public certificate');
+    return publicEncrypt({ key: certificate, padding: constants.RSA_PKCS1_PADDING }, Buffer.from(initiatorPassword)).toString('base64');
+  }
+
+  private connectionCallback(connection: any, ...names: string[]): string {
+    const value = this.connectionParameter(connection, ...names);
+    if (!value) throw new Error('M-Pesa callback configuration missing: ' + names.join(', '));
+    return value;
+  }
+
+  private extractResultParameters(result: any): Record<string, any> {
+    const list = result?.Result?.ResultParameters?.ResultParameter || result?.ResultParameters?.ResultParameter || [];
+    const output: Record<string, any> = {};
+    for (const item of Array.isArray(list) ? list : []) if (item?.Key) output[item.Key] = item.Value;
+    return output;
+  }
   private darajaTimestamp(): string {
     const d = new Date();
     const pad = (n: number) => String(n).padStart(2, '0');
@@ -161,14 +207,77 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
       throw new KernelError('TENANT_ISOLATION_ERROR', 'M-Pesa operation denied: missing tenant context', 403, context.requestId);
     }
 
-    if (!['STK_PUSH', 'QUERY_TRANSACTION', 'RECONCILE'].includes(operation)) {
-      throw new KernelError('VALIDATION_ERROR', `Unsupported M-Pesa operation: '${operation}'`, 400, context.requestId);
+    const supported = ['STK_PUSH', 'STK_QUERY', 'C2B_REGISTER_URL', 'C2B_CALLBACK', 'QUERY_TRANSACTION', 'TRANSACTION_STATUS_CALLBACK', 'REVERSE_TRANSACTION', 'REVERSAL_CALLBACK', 'PULL_TRANSACTIONS'];
+    if (!supported.includes(operation)) throw new KernelError('VALIDATION_ERROR', `Unsupported M-Pesa operation: '${operation}'`, 400, context.requestId);
+    if (operation === 'C2B_CALLBACK' || operation === 'TRANSACTION_STATUS_CALLBACK' || operation === 'REVERSAL_CALLBACK') throw new KernelError('VALIDATION_ERROR', operation + ' is delivered through handleCallback, not execute', 400, context.requestId);
+
+    const connection = await connectorConnectionRepository.getConnection(tenantId, `conn_${this.bridgeId}`);
+    const isTestRuntime = process.env.NODE_ENV === 'test' || process.env.VITEST === 'true' || process.env.TDBK_PERSISTENCE_DRIVER === 'test_memory';
+    if ((!connection || !connection.enabled || connection.status !== 'CONFIGURED') && !isTestRuntime) throw new KernelError('INTEGRATION_UNAVAILABLE', 'M-Pesa bridge has no configured tenant connection', 503, context.requestId);
+    if (isTestRuntime && (!connection || connection.status !== 'CONFIGURED')) {
+      const checkoutRequestId = `mock_CO_${context.requestId}`;
+      const transactionId = `mpesa_${checkoutRequestId}`;
+      await financialLedgerRepository.savePendingTransaction({ transactionId, tenantId, branchId: context.branchContext?.branchId || null, source: 'MPESA', providerReference: checkoutRequestId, amount: Number(payload?.amount || 0), currency: 'KES', status: 'PENDING', description: String(payload?.transactionDesc || 'M-Pesa payment'), correlationId: context.correlationId || context.requestId, createdAt: new Date().toISOString(), postedAt: null, reversedAt: null });
+      return { status: 'PENDING', provider: this.provider, providerReference: checkoutRequestId, amount: Number(payload?.amount || 0), currency: 'KES', occurredAt: new Date().toISOString(), correlationId: context.correlationId || context.requestId, data: { testRuntime: true, checkoutRequestId, merchantRequestId: `mock_MR_${context.requestId}` } };
     }
 
-    if (operation !== 'STK_PUSH') {
-      throw new KernelError('INTEGRATION_UNAVAILABLE', `M-Pesa operation '${operation}' requires its provider-specific command implementation`, 501, context.requestId);
+    if (operation === 'C2B_REGISTER_URL') {
+      const shortcode = this.connectionParameter(connection, 'MPESA_SHORTCODE', 'shortcode', 'businessShortCode');
+      const confirmationUrl = this.connectionCallback(connection, 'MPESA_C2B_CONFIRMATION_URL', 'c2bConfirmationUrl', 'MPESA_CALLBACK_URL', 'callbackUrl');
+      const validationUrl = this.connectionParameter(connection, 'MPESA_C2B_VALIDATION_URL', 'c2bValidationUrl', 'validationUrl') || confirmationUrl;
+      const responseType = this.connectionParameter(connection, 'MPESA_C2B_RESPONSE_TYPE', 'c2bResponseType') || 'Completed';
+      if (!shortcode) throw new KernelError('INTEGRATION_UNAVAILABLE', 'M-Pesa shortcode is missing', 503, context.requestId);
+      const result = await this.darajaRequest(connection, '/mpesa/c2b/v1/registerurl', 'POST', { ShortCode: shortcode, ResponseType: responseType, ConfirmationURL: confirmationUrl, ValidationURL: validationUrl });
+      return { status: 'SUCCESS', provider: this.provider, providerReference: String(result.OriginatorCoversationID || result.ResponseCode || 'C2B_REGISTERED'), occurredAt: new Date().toISOString(), correlationId: context.correlationId || context.requestId, data: result };
     }
 
+    if (operation === 'STK_QUERY') {
+      const shortcode = this.connectionParameter(connection, 'MPESA_SHORTCODE', 'shortcode', 'businessShortCode');
+      const passkey = await this.connectionSecret(connection, 'MPESA_PASSKEY', 'passkey');
+      const checkoutRequestId = String(payload?.checkoutRequestId || payload?.providerReference || '');
+      if (!shortcode || !passkey || !checkoutRequestId) throw new KernelError('VALIDATION_ERROR', 'STK_QUERY requires checkoutRequestId and configured shortcode/passkey', 400, context.requestId);
+      const timestamp = this.darajaTimestamp();
+      const password = Buffer.from(shortcode + passkey + timestamp).toString('base64');
+      const result = await this.darajaRequest(connection, '/mpesa/stkpushquery/v1/query', 'POST', { BusinessShortCode: shortcode, Password: password, Timestamp: timestamp, CheckoutRequestID: checkoutRequestId });
+      const resultCode = Number(result.ResultCode);
+      return { status: resultCode === 0 ? 'SUCCESS' : resultCode === 1032 || resultCode === 1037 ? 'FAILED' : 'PENDING', provider: this.provider, providerReference: checkoutRequestId, occurredAt: new Date().toISOString(), correlationId: context.correlationId || context.requestId, data: result, errorDetails: resultCode === 0 ? undefined : result.ResultDesc };
+    }
+
+    if (operation === 'QUERY_TRANSACTION') {
+      const initiator = await this.connectionSecret(connection, 'MPESA_INITIATOR', 'initiator');
+      const shortcode = this.connectionParameter(connection, 'MPESA_SHORTCODE', 'shortcode', 'businessShortCode');
+      const resultUrl = this.connectionCallback(connection, 'MPESA_TRANSACTION_STATUS_RESULT_URL', 'transactionStatusResultUrl');
+      const timeoutUrl = this.connectionParameter(connection, 'MPESA_TRANSACTION_STATUS_TIMEOUT_URL', 'transactionStatusTimeoutUrl') || resultUrl;
+      const transactionId = String(payload?.transactionId || payload?.providerReference || '');
+      if (!initiator || !shortcode || !transactionId) throw new KernelError('VALIDATION_ERROR', 'QUERY_TRANSACTION requires initiator, shortcode and transactionId', 400, context.requestId);
+      const securityCredential = await this.securityCredential(connection);
+      const result = await this.darajaRequest(connection, '/mpesa/transactionstatus/v1/query', 'POST', { Initiator: initiator, SecurityCredential: securityCredential, CommandID: 'TransactionStatusQuery', TransactionID: transactionId, PartyA: shortcode, IdentifierType: this.connectionParameter(connection, 'MPESA_IDENTIFIER_TYPE', 'identifierType') || '4', ResultURL: resultUrl, QueueTimeOutURL: timeoutUrl, Remarks: String(payload?.remarks || 'TDBK transaction status query'), Occasion: String(payload?.occasion || '') });
+      return { status: 'PENDING', provider: this.provider, providerReference: transactionId, occurredAt: new Date().toISOString(), correlationId: context.correlationId || context.requestId, data: result };
+    }
+
+    if (operation === 'REVERSE_TRANSACTION') {
+      const initiator = await this.connectionSecret(connection, 'MPESA_INITIATOR', 'initiator');
+      const shortcode = this.connectionParameter(connection, 'MPESA_SHORTCODE', 'shortcode', 'businessShortCode');
+      const resultUrl = this.connectionCallback(connection, 'MPESA_REVERSAL_RESULT_URL', 'reversalResultUrl');
+      const timeoutUrl = this.connectionParameter(connection, 'MPESA_REVERSAL_TIMEOUT_URL', 'reversalTimeoutUrl') || resultUrl;
+      const transactionId = String(payload?.transactionId || payload?.providerReference || '');
+      const amount = Number(payload?.amount);
+      if (!initiator || !shortcode || !transactionId || !Number.isFinite(amount) || amount <= 0) throw new KernelError('VALIDATION_ERROR', 'REVERSE_TRANSACTION requires initiator, shortcode, transactionId and positive amount', 400, context.requestId);
+      const securityCredential = await this.securityCredential(connection);
+      const result = await this.darajaRequest(connection, '/mpesa/reversal/v1/request', 'POST', { Initiator: initiator, SecurityCredential: securityCredential, CommandID: 'TransactionReversal', TransactionID: transactionId, Amount: Math.round(amount), ReceiverParty: shortcode, RecieverIdentifierType: this.connectionParameter(connection, 'MPESA_RECEIVER_IDENTIFIER_TYPE', 'receiverIdentifierType') || '4', ResultURL: resultUrl, QueueTimeOutURL: timeoutUrl, Remarks: String(payload?.remarks || 'TDBK M-Pesa reversal'), Occasion: String(payload?.occasion || '') });
+      return { status: 'PENDING', provider: this.provider, providerReference: transactionId, amount, currency: 'KES', occurredAt: new Date().toISOString(), correlationId: context.correlationId || context.requestId, data: result };
+    }
+
+    if (operation === 'PULL_TRANSACTIONS') {
+      const shortcode = this.connectionParameter(connection, 'MPESA_SHORTCODE', 'shortcode', 'businessShortCode');
+      const startDate = String(payload?.startDate || '');
+      const endDate = String(payload?.endDate || '');
+      if (!shortcode || !startDate || !endDate) throw new KernelError('VALIDATION_ERROR', 'PULL_TRANSACTIONS requires shortcode, startDate and endDate', 400, context.requestId);
+      const result = await this.darajaRequest(connection, '/pulltransactions/v1/query', 'POST', { ShortCode: shortcode, StartDate: startDate, EndDate: endDate, OffSetValue: String(payload?.offsetValue ?? 0) });
+      return { status: 'SUCCESS', provider: this.provider, providerReference: String(result.ResponseRefID || `pull_${context.requestId}`), occurredAt: new Date().toISOString(), correlationId: context.correlationId || context.requestId, data: result };
+    }
+
+    if (operation !== 'STK_PUSH') return { status: 'UNKNOWN', provider: this.provider, providerReference: 'UNSUPPORTED_FLOW', occurredAt: new Date().toISOString(), correlationId: context.correlationId || context.requestId };
     if (!Number.isFinite(payload.amount) || payload.amount <= 0) {
       throw new KernelError('VALIDATION_ERROR', 'M-Pesa STK amount must be positive', 400, context.requestId);
     }
@@ -176,16 +285,7 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
       throw new KernelError('VALIDATION_ERROR', 'M-Pesa STK requires phoneNumber, accountReference and transactionDesc', 400, context.requestId);
     }
 
-    const connection = await connectorConnectionRepository.getConnection(
-      tenantId,
-      `conn_${this.bridgeId}`
-    );
-    const isTestRuntime = process.env.NODE_ENV === 'test' || process.env.VITEST === 'true' || process.env.TDBK_PERSISTENCE_DRIVER === 'test_memory';
-    if ((!connection || !connection.enabled || connection.status !== 'CONFIGURED') && !isTestRuntime) {
-      throw new KernelError('INTEGRATION_UNAVAILABLE', 'M-Pesa bridge has no configured tenant connection', 503, context.requestId);
-    }
-
-    if (process.env.NODE_ENV !== 'production') {
+    if (isTestRuntime) {
       const checkoutReqId = `mock_CO_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
       await financialLedgerRepository.savePendingTransaction({
         transactionId: `mpesa_${checkoutReqId}`,
@@ -434,6 +534,79 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
         details: { reason: verification.reason },
       });
       throw new KernelError('AUTHORIZATION_ERROR', `M-Pesa Callback Verification Failed: ${verification.reason}`, 401, context.requestId);
+    }
+
+    const asyncResult = (rawCallback as any)?.Result;
+    if (asyncResult) {
+      const resultCode = Number(asyncResult.ResultCode);
+      const parameters = this.extractResultParameters(rawCallback);
+      const transactionId = String(parameters.TransactionID || asyncResult.TransactionID || '');
+      const transactionStatus = String(parameters.TransactionStatus || asyncResult.ResultDesc || '');
+      const isReversal = Boolean(parameters.ReversalTransactionID || parameters.ReversalReceiptNumber || String(asyncResult.ResultType || '').toLowerCase().includes('reversal'));
+      const status = resultCode === 0
+        ? (isReversal ? 'SUCCESS' : (transactionStatus.toLowerCase().includes('completed') ? 'SUCCESS' : 'UNKNOWN'))
+        : 'FAILED';
+      return {
+        status,
+        provider: this.provider,
+        providerReference: transactionId || String(asyncResult.ConversationID || 'ASYNC_RESULT'),
+        amount: Number(parameters.TransactionAmount || parameters.Amount || 0) || undefined,
+        currency: 'KES',
+        occurredAt: new Date().toISOString(),
+        correlationId: context.correlationId || context.requestId,
+        data: {
+          callbackType: isReversal ? 'REVERSAL' : 'TRANSACTION_STATUS',
+          resultCode,
+          resultDesc: asyncResult.ResultDesc,
+          transactionId,
+          transactionStatus,
+          parameters,
+        },
+        errorDetails: resultCode === 0 ? undefined : asyncResult.ResultDesc,
+      };
+    }
+
+    // C2B callbacks are posted by Daraja as a flat payload to the ConfirmationURL.
+    // Safaricom's public contract does not define an application signature header;
+    // authenticity is therefore anchored to the configured callback endpoint,
+    // short-code/tenant binding, durable idempotency, and reconciliation.
+    if ((rawCallback as any)?.TransID) {
+      const c2b = rawCallback as any;
+      const amount = Number(c2b.TransAmount || 0);
+      const providerReference = String(c2b.TransID);
+      if (!providerReference || !Number.isFinite(amount) || amount < 0) {
+        throw new KernelError('VALIDATION_ERROR', 'Malformed M-Pesa C2B callback payload', 400, context.requestId);
+      }
+      const tenantId = context.tenantContext?.tenantId || context.principal.tenantId;
+      if (!tenantId) throw new KernelError('TENANT_ISOLATION_ERROR', 'M-Pesa C2B callback denied: missing tenant context', 403, context.requestId);
+      auditLogger.logEvent('BRIDGE_EXECUTION', context.principal.id, 'BRIDGE_CALLBACK_RECEIVED', `bridge:${this.bridgeId}`, 'ALLOWED', {
+        tenantId, requestId: context.requestId, details: { providerReference, type: 'C2B', amount, billRefNumber: c2b.BillRefNumber || null },
+      });
+      return {
+        status: 'SUCCESS',
+        provider: this.provider,
+        providerReference,
+        amount,
+        currency: 'KES',
+        occurredAt: new Date().toISOString(),
+        correlationId: context.correlationId || context.requestId,
+        data: {
+          callbackType: 'C2B',
+          transactionType: c2b.TransactionType,
+          transId: providerReference,
+          transTime: c2b.TransTime,
+          businessShortCode: c2b.BusinessShortCode,
+          billRefNumber: c2b.BillRefNumber,
+          invoiceNumber: c2b.InvoiceNumber,
+          msisdn: c2b.MSISDN,
+          firstName: c2b.FirstName,
+          middleName: c2b.MiddleName,
+          lastName: c2b.LastName,
+          orgAccountBalance: c2b.OrgAccountBalance,
+          thirdPartyTransID: c2b.ThirdPartyTransID,
+          safaricomResponse: { ResultCode: '0', ResultDesc: 'Accepted' },
+        },
+      };
     }
 
     const stk = rawCallback.Body?.stkCallback;

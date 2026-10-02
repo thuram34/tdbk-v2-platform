@@ -95,6 +95,19 @@ export interface ProvisionDbkResult {
   correlationId: string;
 }
 
+export interface DbkWorkspaceConnection {
+  bridgeId: string;
+  provider: string;
+  capabilityId: string;
+  status: string;
+  enabled: boolean;
+  healthStatus: string;
+  ready: boolean;
+  blockers: string[];
+  minimumTier: SubscriptionTier;
+  entitlementStatus: string;
+}
+
 export interface DbkWorkspaceState {
   dbkId: string;
   displayName: string;
@@ -110,6 +123,7 @@ export interface DbkWorkspaceState {
   currentBranchContext?: BranchContext;
   enabledCapabilities: string[];
   discoverableCapabilities: string[];
+  connections: DbkWorkspaceConnection[];
   terminology: BlueprintTerminology | Record<string, string>;
   lastSyncedAt: string;
 }

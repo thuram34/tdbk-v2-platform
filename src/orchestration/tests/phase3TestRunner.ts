@@ -809,7 +809,7 @@ export class Phase3TestRunner {
         invoiceNumber: 'INV-2026-001',
         totalAmount: 11600,
         taxAmount: 1600,
-        items: [{ itemName: 'School Uniform', qty: 1, unitPrice: 10000, taxRate: 16 }],
+        items: [{ itemName: 'School Uniform', quantity: 1, unitPrice: 10000, taxRate: 16, taxTypeCode: 'A' }],
       });
       results.push({
         id: 'P3_TEST_31',
@@ -819,7 +819,7 @@ export class Phase3TestRunner {
         actual: 'Synthetic eTIMS submission was allowed',
       });
     } catch (e: any) {
-      const passed = e?.message?.includes('eTIMS provider client is not connected');
+      const passed = e?.message?.includes('eTIMS bridge has no configured tenant connection');
       results.push({
         id: 'P3_TEST_31',
         name: 'eTIMS provider boundary refuses synthetic submission',

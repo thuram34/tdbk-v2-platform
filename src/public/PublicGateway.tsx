@@ -19,8 +19,10 @@ import {
   FileText,
   Activity,
   Compass,
-  X,
   Menu,
+  X,
+  LogIn,
+  LayoutDashboard,
 } from 'lucide-react';
 import { CommercialBridge } from './CommercialBridge';
 
@@ -35,7 +37,6 @@ export type BusinessSector =
 export interface PublicGatewayProps {
   onSelectSector?: (sector: BusinessSector) => void;
   onSignIn?: () => void;
-  onLaunchWorkspace?: () => void;
 }
 
 interface WorkspaceShowcaseItem {
@@ -191,16 +192,23 @@ const SHOWCASE_DATA: WorkspaceShowcaseItem[] = [
   },
 ];
 
-export function PublicGateway({ onSelectSector, onSignIn, onLaunchWorkspace }: PublicGatewayProps) {
+export function PublicGateway({ onSelectSector, onSignIn }: PublicGatewayProps) {
   // Carousel State
   const [activeSlideIndex, setActiveSlideIndex] = useState<number>(0);
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
   const [touchEndX, setTouchEndX] = useState<number | null>(null);
-  const [selectedOnboardingSector, setSelectedOnboardingSector] = useState<BusinessSector | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
-  const [businessNameInput, setBusinessNameInput] = useState<string>('');
-  const [countyInput, setCountyInput] = useState<string>('Nairobi');
+  const [journeyStep, setJourneyStep] = useState(0);
+  const [journeyPaused, setJourneyPaused] = useState(false);
+
+  useEffect(() => {
+    if (journeyPaused) return;
+    const timer = window.setInterval(() => {
+      setJourneyStep((prev) => (prev + 1) % 4);
+    }, 2800);
+    return () => window.clearInterval(timer);
+  }, [journeyPaused]);
+
 
   const carouselRef = useRef<HTMLDivElement>(null);
 
@@ -251,8 +259,7 @@ export function PublicGateway({ onSelectSector, onSignIn, onLaunchWorkspace }: P
   };
 
   const handleCreateSpace = (sector: BusinessSector) => {
-    setSelectedOnboardingSector(sector);
-    setIsModalOpen(true);
+    onSelectSector?.(sector);
   };
 
   const handleSelectBusinessCard = (sector: BusinessSector) => {
@@ -404,54 +411,159 @@ export function PublicGateway({ onSelectSector, onSignIn, onLaunchWorkspace }: P
       </header>
 
       <main>
-        {/* 2. HERO SECTION */}
-        <section id="overview" className="pt-16 pb-14 md:pt-24 md:pb-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto scroll-mt-24">
-          <div className="text-center max-w-3xl mx-auto">
-            <div className="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-neutral-100 border border-neutral-200 text-xs font-semibold text-neutral-800 mb-6">
-              <Sparkles className="w-3.5 h-3.5 text-neutral-900" />
-              <span>Your Digital Space</span>
-            </div>
-            <h1 className="text-4xl sm:text-5xl md:text-6xl font-serif font-bold text-neutral-950 tracking-tight leading-[1.15] mb-6">
-              Give your business its own digital space.
-            </h1>
-            <p className="text-lg sm:text-xl text-neutral-600 leading-relaxed font-normal mb-10 max-w-2xl mx-auto">
-              From classrooms in Eldoret to retail shops in Nairobi and medical clinics in Kisumu,
-              DBK brings your daily tools, customer records, payments, and operations into one connected space.
-            </p>
+        {/* 2. HERO SECTION — TDBK JOURNEY SHOWCASE */}
+        <section id="overview" className="pt-12 pb-16 md:pt-20 md:pb-24 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto scroll-mt-24">
+          <div className="grid lg:grid-cols-[0.9fr_1.1fr] gap-10 lg:gap-16 items-center">
+            <div className="max-w-2xl">
+              <div className="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-neutral-100 border border-neutral-200 text-xs font-semibold text-neutral-800 mb-6">
+                <Sparkles className="w-3.5 h-3.5 text-neutral-900" />
+                <span>Digital Business Spaces</span>
+              </div>
+              <h1 className="text-4xl sm:text-5xl md:text-6xl font-serif font-bold text-neutral-950 tracking-tight leading-[1.08] mb-6">
+                See how your business travels through TDBK.
+              </h1>
+              <p className="text-lg sm:text-xl text-neutral-600 leading-relaxed max-w-xl mb-8">
+                From discovering a School DBK to signing in and arriving inside the operational workspace,
+                TDBK turns the customer journey into one connected digital space.
+              </p>
 
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-              <a
-                href="#business-spaces"
-                className="w-full sm:w-auto px-7 py-3.5 rounded-xl bg-neutral-950 text-white text-base font-semibold hover:bg-neutral-800 transition shadow-sm flex items-center justify-center space-x-2.5 cursor-pointer focus:outline-none focus:ring-2 focus:ring-neutral-950"
-              >
-                <span>Get Your DBK</span>
-                <ArrowRight className="w-4 h-4" />
-              </a>
-              <a
-                href="#business-spaces"
-                className="w-full sm:w-auto px-7 py-3.5 rounded-xl bg-white text-neutral-800 border border-neutral-300 text-base font-semibold hover:bg-neutral-50 transition flex items-center justify-center space-x-2 cursor-pointer focus:outline-none focus:ring-2 focus:ring-neutral-950"
-              >
-                <span>Explore businesses</span>
-              </a>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <button
+                  onClick={() => handleCreateSpace('EDUCATION')}
+                  className="px-6 py-3.5 rounded-xl bg-neutral-950 text-white text-sm font-semibold hover:bg-neutral-800 transition shadow-sm flex items-center justify-center space-x-2 cursor-pointer"
+                >
+                  <span>Create a DBK</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+                <a
+                  href="#business-spaces"
+                  className="px-6 py-3.5 rounded-xl bg-white text-neutral-800 border border-neutral-300 text-sm font-semibold hover:bg-neutral-50 transition flex items-center justify-center"
+                >
+                  Explore spaces
+                </a>
+              </div>
             </div>
 
-            {/* Subtle Kenyan Trust Indicators */}
-            <div className="mt-14 pt-8 border-t border-neutral-200/80 grid grid-cols-2 md:grid-cols-4 gap-6 text-left">
-              <div>
-                <div className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">M-Pesa Ready</div>
-                <div className="text-sm font-bold text-neutral-900">Instant Lipa Na M-Pesa</div>
-              </div>
-              <div>
-                <div className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">eTIMS Compliance</div>
-                <div className="text-sm font-bold text-neutral-900">Validated Invoicing</div>
-              </div>
-              <div>
-                <div className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">County Reach</div>
-                <div className="text-sm font-bold text-neutral-900">47 Counties Supported</div>
-              </div>
-              <div>
-                <div className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">Offline Resilience</div>
-                <div className="text-sm font-bold text-neutral-900">Local First Sync</div>
+            {/* The journey stays inside ONE card and travels left → right. */}
+            <div
+              className="relative rounded-[28px] bg-neutral-950 p-2 sm:p-3 shadow-2xl border border-neutral-800 overflow-hidden"
+              onMouseEnter={() => setJourneyPaused(true)}
+              onMouseLeave={() => setJourneyPaused(false)}
+              onFocus={() => setJourneyPaused(true)}
+              onBlur={() => setJourneyPaused(false)}
+            >
+              <div className="rounded-[22px] overflow-hidden bg-[#F7F8F6] border border-neutral-800">
+                <div className="px-4 sm:px-6 py-3.5 bg-neutral-900 text-white flex items-center justify-between border-b border-neutral-800">
+                  <div className="flex items-center gap-3">
+                    <div className="flex gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-neutral-700" />
+                      <span className="w-2 h-2 rounded-full bg-neutral-700" />
+                      <span className="w-2 h-2 rounded-full bg-neutral-700" />
+                    </div>
+                    <div className="h-4 w-px bg-neutral-700" />
+                    <div>
+                      <div className="text-xs font-bold tracking-tight">TDBK / School</div>
+                      <div className="text-[10px] text-neutral-400">Illustrative customer journey</div>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-mono uppercase tracking-wider text-neutral-400">
+                    Step {journeyStep + 1} / 4
+                  </span>
+                </div>
+
+                <div className="overflow-hidden">
+                  <div
+                    className="flex transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]"
+                    style={{ transform: `translateX(-${journeyStep * 100}%)` }}
+                  >
+                    {[
+                      {
+                        label: '01 / DISCOVER',
+                        title: 'School DBK',
+                        subtitle: 'Start with the space, not the software.',
+                        icon: GraduationCap,
+                        body: 'Premier Academy',
+                        detail: 'CBC • Students • Fees • Attendance',
+                      },
+                      {
+                        label: '02 / SIGN IN',
+                        title: 'Welcome back',
+                        subtitle: 'Identity opens the right business environment.',
+                        icon: LogIn,
+                        body: 'School Administrator',
+                        detail: 'Secure account access • TDBK identity',
+                      },
+                      {
+                        label: '03 / SELECT',
+                        title: 'Your Businesses',
+                        subtitle: 'One operator can manage multiple DBKs.',
+                        icon: Building2,
+                        body: 'Premier Academy',
+                        detail: 'School DBK • 6 capabilities active',
+                      },
+                      {
+                        label: '04 / WORKSPACE',
+                        title: 'School Workspace',
+                        subtitle: 'Arrive where the real work happens.',
+                        icon: LayoutDashboard,
+                        body: 'Premier Academy',
+                        detail: 'Students • CBC • Fees • Attendance • M-Pesa',
+                      },
+                    ].map((step) => {
+                      const StepIcon = step.icon;
+                      return (
+                        <div key={step.label} className="min-w-full p-5 sm:p-7 md:p-8">
+                          <div className="flex items-center justify-between mb-8">
+                            <span className="text-[10px] sm:text-xs font-bold uppercase tracking-[0.18em] text-neutral-500">
+                              {step.label}
+                            </span>
+                            <div className="w-10 h-10 rounded-xl bg-white border border-neutral-200 flex items-center justify-center text-neutral-900 shadow-sm">
+                              <StepIcon className="w-5 h-5" />
+                            </div>
+                          </div>
+
+                          <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm p-5 sm:p-6 min-h-[220px] flex flex-col justify-between">
+                            <div>
+                              <div className="text-[10px] font-mono uppercase tracking-wider text-neutral-400 mb-2">
+                                TDBK DIGITAL SPACE
+                              </div>
+                              <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-neutral-950 mb-2">
+                                {step.title}
+                              </h2>
+                              <p className="text-sm text-neutral-600 leading-relaxed mb-6">
+                                {step.subtitle}
+                              </p>
+                            </div>
+
+                            <div className="rounded-xl bg-neutral-50 border border-neutral-200 p-4">
+                              <div className="text-sm font-bold text-neutral-950">{step.body}</div>
+                              <div className="text-xs text-neutral-500 mt-1">{step.detail}</div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="px-5 sm:px-7 py-4 bg-white border-t border-neutral-200 flex items-center justify-between">
+                  <div className="flex items-center gap-1.5" aria-label="Journey steps">
+                    {[0, 1, 2, 3].map((step) => (
+                      <button
+                        key={step}
+                        type="button"
+                        onClick={() => setJourneyStep(step)}
+                        aria-label={`Show journey step ${step + 1}`}
+                        className={`h-1.5 rounded-full transition-all cursor-pointer ${
+                          step === journeyStep ? 'w-8 bg-neutral-950' : 'w-2 bg-neutral-300 hover:bg-neutral-400'
+                        }`}
+                      />
+                    ))}
+                  </div>
+                  <span className="text-[10px] sm:text-xs font-medium text-neutral-500">
+                    School → Sign In → Business → Workspace
+                  </span>
+                </div>
               </div>
             </div>
           </div>
@@ -838,69 +950,84 @@ export function PublicGateway({ onSelectSector, onSignIn, onLaunchWorkspace }: P
           />
         </section>
 
-        {/* 7. GAZETTE */}
-        <section id="gazette" className="py-16 bg-neutral-100/60 border-t border-neutral-200/80 px-4 sm:px-6 lg:px-8 scroll-mt-24">
+        {/* 7. TDBK GAZETTE — DIGITAL BRIDGE MARKET INTELLIGENCE */}
+        <section id="gazette" className="py-20 bg-neutral-100/60 border-t border-neutral-200/80 px-4 sm:px-6 lg:px-8 scroll-mt-24">
           <div className="max-w-7xl mx-auto">
-            <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-4">
-              <div>
-                <span className="text-xs font-bold uppercase tracking-widest text-neutral-600 block mb-2">
-                  Advisory & Regulatory Guidance
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-5 mb-10">
+              <div className="max-w-2xl">
+                <span className="text-xs font-bold uppercase tracking-[0.18em] text-neutral-600 block mb-2">
+                  TDBK Intelligence
                 </span>
-                <h2 className="text-2xl sm:text-3xl font-serif font-bold text-neutral-950 tracking-tight">
+                <h2 className="text-3xl sm:text-4xl font-serif font-bold text-neutral-950 tracking-tight">
                   The TDBK Gazette
                 </h2>
-                <p className="text-sm text-neutral-600 mt-1">
-                  Practical regulatory circular summaries, compliance advisories, and operational guidance for Kenyan commerce.
+                <p className="text-sm sm:text-base text-neutral-600 mt-3 leading-relaxed">
+                  Market updates, digital infrastructure developments, regulatory signals,
+                  technology movements, and opportunities relevant to Kenya’s digital-business ecosystem.
                 </p>
               </div>
-              <div className="text-xs font-mono text-neutral-600">
-                KENYA COMMERCIAL STANDARDS & ADVISORIES
+              <div className="text-xs font-mono uppercase tracking-wider text-neutral-500">
+                DIGITAL BRIDGE MARKET INTELLIGENCE
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
               {[
                 {
-                  date: 'September 2026',
-                  tag: 'eTIMS COMPLIANCE',
-                  title: 'Electronic Tax Register Updates & Threshold Guidance',
-                  summary: 'Practical handbook on continuous transaction transmission and exemption guidelines for SME merchants.',
+                  tag: 'MARKET',
+                  title: 'Digital business movements',
+                  summary: 'Track how Kenyan businesses are adopting connectivity, automation, payments, cloud tools, and managed digital operations.',
                 },
                 {
-                  date: 'August 2026',
-                  tag: 'CURRICULUM',
-                  title: 'Ministry CBC Digital Assessment Standards',
-                  summary: 'Standardized assessment rubrics for Junior Secondary formative scoring and parental progress sharing.',
+                  tag: 'OPPORTUNITIES',
+                  title: 'Tender & opportunity signals',
+                  summary: 'Surface relevant tenders, procurement needs, partnerships, installations, and digital transformation opportunities.',
                 },
                 {
-                  date: 'July 2026',
-                  tag: 'DATA PRIVACY',
-                  title: 'Office of Data Protection Commissioner (ODPC) Guidelines',
-                  summary: 'Secure handling of patient histories, student records, and customer identification across cloud repositories.',
+                  tag: 'REGULATORY',
+                  title: 'Regulatory & compliance signals',
+                  summary: 'Follow changes affecting eTIMS, data protection, digital records, payments, education, healthcare, and other connected operations.',
                 },
-              ].map((item, idx) => (
-                <div key={idx} className="bg-white rounded-2xl p-6 border border-neutral-200/80 shadow-xs">
-                  <div className="flex items-center justify-between text-xs font-mono text-neutral-500 mb-3">
-                    <span>{item.date}</span>
-                    <span className="px-2 py-0.5 rounded bg-neutral-100 text-neutral-700 font-bold">{item.tag}</span>
+                {
+                  tag: 'INFRASTRUCTURE',
+                  title: 'Digital bridge developments',
+                  summary: 'Follow connectivity, cloud, AI, WhatsApp, M-Pesa, eTIMS, networking, security, and other infrastructure changes that can shape TDBK capabilities.',
+                },
+              ].map((item) => (
+                <article key={item.tag} className="bg-white rounded-2xl p-6 border border-neutral-200/80 shadow-xs">
+                  <div className="text-[10px] font-bold tracking-[0.16em] text-neutral-500 mb-4">
+                    {item.tag}
                   </div>
-                  <h4 className="text-base font-bold text-neutral-950 mb-2">{item.title}</h4>
-                  <p className="text-xs text-neutral-600 leading-relaxed">{item.summary}</p>
-                </div>
+                  <h3 className="text-base font-bold text-neutral-950 mb-2">
+                    {item.title}
+                  </h3>
+                  <p className="text-xs text-neutral-600 leading-relaxed">
+                    {item.summary}
+                  </p>
+                </article>
               ))}
             </div>
 
-            <div className="mt-8 text-center text-xs text-neutral-500">
-              Illustrative industry guidance & compliance summaries curated for Kenyan business owners.
+            <div className="mt-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 rounded-2xl border border-neutral-200 bg-white px-5 py-4">
+              <div>
+                <div className="text-sm font-bold text-neutral-950">The feed should evolve with the market.</div>
+                <div className="text-xs text-neutral-500 mt-1">
+                  This surface is reserved for verified TDBK market intelligence rather than invented or stale news.
+                </div>
+              </div>
+              <span className="inline-flex w-fit rounded-full bg-neutral-100 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-neutral-600">
+                Intelligence Feed
+              </span>
             </div>
           </div>
         </section>
+
       </main>
 
       {/* 8. FOOTER */}
       <footer className="bg-neutral-950 text-white border-t border-neutral-800 py-16 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-10 pb-12 border-b border-neutral-800 text-sm">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-10 pb-12 border-b border-neutral-800 text-sm">
             <div className="md:col-span-1">
               <div className="flex items-center space-x-2.5 mb-4">
                 <div className="w-8 h-8 rounded-lg bg-white text-neutral-950 flex items-center justify-center font-serif font-bold">
@@ -940,16 +1067,6 @@ export function PublicGateway({ onSelectSector, onSignIn, onLaunchWorkspace }: P
                 <li><a href="#consultation-section" className="hover:text-white transition">Managed IT & Support Retainers</a></li>
               </ul>
             </div>
-
-            <div>
-              <h5 className="font-bold text-xs uppercase tracking-wider text-neutral-400 mb-4">Compliance & Security</h5>
-              <ul className="space-y-2.5 text-xs text-neutral-400">
-                <li>Kenya Data Protection Act 2019</li>
-                <li>Central Bank of Kenya Standards</li>
-                <li>Ministry of Education CBC Support</li>
-                <li>SSL / TLS 256-bit Encryption</li>
-              </ul>
-            </div>
           </div>
 
           <div className="pt-8 flex flex-col sm:flex-row items-center justify-between text-xs text-neutral-500 gap-4">
@@ -968,101 +1085,6 @@ export function PublicGateway({ onSelectSector, onSignIn, onLaunchWorkspace }: P
         </div>
       </footer>
 
-      {/* Onboarding Dialog / Workspace Creation Modal */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 sm:p-8 shadow-2xl border border-neutral-200">
-            <div className="flex items-center justify-between pb-4 border-b border-neutral-100 mb-5">
-              <div className="flex items-center space-x-2">
-                <Sparkles className="w-5 h-5 text-neutral-900" />
-                <h3 className="font-bold text-base text-neutral-950">Create Your Digital Space</h3>
-              </div>
-              <button
-                onClick={() => setIsModalOpen(false)}
-                aria-label="Close dialog"
-                className="w-8 h-8 rounded-lg hover:bg-neutral-100 flex items-center justify-center text-neutral-500 hover:text-neutral-950 transition cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="space-y-4 mb-6">
-              <div>
-                <label className="block text-xs font-semibold text-neutral-600 uppercase tracking-wider mb-1.5">
-                  Selected Industry Sector
-                </label>
-                <div className="px-3.5 py-2.5 rounded-xl bg-neutral-100 text-sm font-bold text-neutral-900 border border-neutral-200">
-                  {selectedOnboardingSector || 'EDUCATION'}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-neutral-600 uppercase tracking-wider mb-1.5">
-                  Business / Institution Name
-                </label>
-                <input
-                  type="text"
-                  value={businessNameInput}
-                  onChange={(e) => setBusinessNameInput(e.target.value)}
-                  placeholder="e.g. Sunrise Academy or Karen Grocers"
-                  className="w-full px-4 py-2.5 rounded-xl border border-neutral-300 text-sm text-neutral-950 placeholder-neutral-400 focus:outline-none focus:border-neutral-950"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-neutral-600 uppercase tracking-wider mb-1.5">
-                  County Location
-                </label>
-                <select
-                  value={countyInput}
-                  onChange={(e) => setCountyInput(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl border border-neutral-300 text-sm text-neutral-950 focus:outline-none focus:border-neutral-950 cursor-pointer bg-white"
-                >
-                  <option value="Nairobi">Nairobi County</option>
-                  <option value="Mombasa">Mombasa County</option>
-                  <option value="Kiambu">Kiambu County</option>
-                  <option value="Nakuru">Nakuru County</option>
-                  <option value="Uasin Gishu">Uasin Gishu County (Eldoret)</option>
-                  <option value="Kisumu">Kisumu County</option>
-                  <option value="Kilifi">Kilifi County</option>
-                  <option value="Machakos">Machakos County</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="flex items-center space-x-3">
-              <button
-                type="button"
-                onClick={() => setIsModalOpen(false)}
-                className="flex-1 py-2.5 rounded-xl border border-neutral-300 text-sm font-semibold text-neutral-700 hover:bg-neutral-50 transition cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsModalOpen(false);
-                  const sector = selectedOnboardingSector || 'EDUCATION';
-                  if (onSelectSector) {
-                    onSelectSector(sector);
-                  } else if (onSignIn) {
-                    onSignIn();
-                  } else if (onLaunchWorkspace) {
-                    onLaunchWorkspace();
-                  } else {
-                    alert(`Digital space reserved for ${businessNameInput || 'your enterprise'} in ${countyInput}. Signing in will provision your workspace.`);
-                  }
-                }}
-                className="flex-1 py-2.5 rounded-xl bg-neutral-950 text-white text-sm font-semibold hover:bg-neutral-800 transition shadow-sm cursor-pointer"
-              >
-                Continue
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
-
-export default PublicGateway;

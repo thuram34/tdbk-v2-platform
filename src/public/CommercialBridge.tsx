@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Laptop,
   Receipt,
@@ -53,7 +53,8 @@ type ServiceCategory =
   | 'SECURITY'
   | 'CLOUD'
   | 'TRAINING'
-  | 'SUPPORT';
+  | 'SUPPORT'
+  | 'GROWTH';
 
 export const CommercialBridge: React.FC<CommercialBridgeProps> = ({
   onSelectSector,
@@ -69,6 +70,32 @@ export const CommercialBridge: React.FC<CommercialBridgeProps> = ({
   const [consultationSector, setConsultationSector] = useState<string>('Retail & Shops');
   const [consultationNotes, setConsultationNotes] = useState('');
   const [consultationSuccess, setConsultationSuccess] = useState(false);
+  const [quoteService, setQuoteService] = useState('SEO & Digital Growth');
+  const [quoteQuantity, setQuoteQuantity] = useState(1);
+  const [quoteScope, setQuoteScope] = useState('Implementation');
+  const [quoteLabour, setQuoteLabour] = useState(0);
+  const [quoteMaterials, setQuoteMaterials] = useState(0);
+
+  const quoteServices = [
+    { name: 'SEO & Digital Growth', unit: 'project', base: 15000 },
+    { name: 'Domain & DNS Setup', unit: 'setup', base: 3500 },
+    { name: 'Website Development', unit: 'project', base: 20000 },
+    { name: 'Windows Installation', unit: 'device', base: 2500 },
+    { name: 'Software / Office Installation', unit: 'device', base: 1500 },
+    { name: 'CCTV Installation', unit: 'project', base: 15000 },
+    { name: 'Network Installation', unit: 'project', base: 12000 },
+    { name: 'Digital Signage Installation', unit: 'project', base: 10000 },
+    { name: 'Smart Classroom Setup', unit: 'classroom', base: 25000 },
+    { name: 'Managed IT Support', unit: 'month', base: 5000 },
+  ];
+
+  const selectedQuoteService = quoteServices.find((s) => s.name === quoteService) ?? quoteServices[0];
+  const quoteSubtotal = useMemo(
+    () => selectedQuoteService.base * Math.max(1, quoteQuantity) + Math.max(0, quoteLabour) + Math.max(0, quoteMaterials),
+    [selectedQuoteService.base, quoteQuantity, quoteLabour, quoteMaterials]
+  );
+  const quoteVat = quoteSubtotal * 0.16;
+  const quoteTotal = quoteSubtotal + quoteVat;
 
   const handleConsultationSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -708,6 +735,7 @@ export const CommercialBridge: React.FC<CommercialBridgeProps> = ({
             { id: 'CLOUD', label: 'Cloud & Software' },
             { id: 'TRAINING', label: 'Training & Setup' },
             { id: 'SUPPORT', label: 'Managed IT' },
+            { id: 'GROWTH', label: 'SEO & Digital Growth' },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -917,6 +945,37 @@ export const CommercialBridge: React.FC<CommercialBridgeProps> = ({
               </div>
               <a href="#consultation-section" className="pt-4 mt-4 border-t border-neutral-100 text-xs font-semibold text-emerald-700 hover:underline">
                 Schedule Training →
+              </a>
+            </div>
+          )}
+
+          {/* I. SEO & Digital Growth */}
+          {(activeServiceCategory === 'ALL' || activeServiceCategory === 'GROWTH') && (
+            <div className="bg-white rounded-2xl p-6 border border-neutral-200/80 shadow-xs flex flex-col justify-between">
+              <div>
+                <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center mb-4">
+                  <Globe className="w-5 h-5" />
+                </div>
+                <div className="text-[11px] font-bold text-neutral-600 uppercase tracking-wider mb-1">
+                  Service 09
+                </div>
+                <h3 className="text-base font-bold text-neutral-950 mb-2">SEO & Digital Growth</h3>
+                <p className="text-xs text-neutral-600 leading-relaxed mb-4">
+                  Improve how customers discover your business in Google Search and local results with a measurable technical and content foundation.
+                </p>
+                <ul className="space-y-1.5 text-xs text-neutral-700">
+                  <li>• Technical SEO Audit & Site Health</li>
+                  <li>• On-Page SEO, Titles & Meta Descriptions</li>
+                  <li>• Google Search Console & Indexing Setup</li>
+                  <li>• Local SEO & Google Business Profile Optimization</li>
+                  <li>• Sitemap, Structured Data & Core Web Vitals Review</li>
+                </ul>
+                <div className="mt-4 pt-3 border-t border-neutral-100 text-[11px] text-neutral-500">
+                  <span className="font-semibold text-neutral-700">Assigned:</span> SEO & Digital Growth Engineer
+                </div>
+              </div>
+              <a href="#consultation-section" className="pt-4 mt-4 border-t border-neutral-100 text-xs font-semibold text-emerald-700 hover:underline">
+                Request SEO Audit →
               </a>
             </div>
           )}
@@ -1223,6 +1282,57 @@ export const CommercialBridge: React.FC<CommercialBridgeProps> = ({
 
         <div className="mt-8 text-center text-xs text-neutral-600">
           Illustrative sector packages. Equipment combinations can be customized to match your exact branch requirements.
+        </div>
+      </section>
+
+      {/* =========================================================================
+          5. TDBK QUOTE BUILDER
+         ========================================================================= */}
+      <section id="quote-builder" className="scroll-mt-24 pt-8">
+        <div className="rounded-3xl border border-neutral-200 bg-white p-6 sm:p-8 shadow-xs">
+          <div className="max-w-3xl mb-8">
+            <span className="text-xs font-bold uppercase tracking-widest text-emerald-700 block mb-2">TDBK Quote Engine</span>
+            <h2 className="text-3xl sm:text-4xl font-serif font-bold text-neutral-950 tracking-tight">Quote any service.</h2>
+            <p className="mt-3 text-sm sm:text-base text-neutral-600 leading-relaxed">Select a service, quantity and delivery costs. The quote engine calculates a transparent estimate before a formal quotation is issued.</p>
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            <div className="lg:col-span-7 grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <label className="text-xs font-semibold text-neutral-700">Service
+                <select value={quoteService} onChange={(e) => setQuoteService(e.target.value)} className="mt-1.5 w-full px-3 py-2.5 rounded-xl border border-neutral-200 bg-white text-sm">
+                  {quoteServices.map((s) => <option key={s.name}>{s.name}</option>)}
+                </select>
+              </label>
+              <label className="text-xs font-semibold text-neutral-700">Scope
+                <select value={quoteScope} onChange={(e) => setQuoteScope(e.target.value)} className="mt-1.5 w-full px-3 py-2.5 rounded-xl border border-neutral-200 bg-white text-sm">
+                  <option>Audit</option><option>Setup</option><option>Implementation</option><option>Maintenance</option><option>Full Project</option>
+                </select>
+              </label>
+              <label className="text-xs font-semibold text-neutral-700">Quantity
+                <input type="number" min="1" value={quoteQuantity} onChange={(e) => setQuoteQuantity(Math.max(1, Number(e.target.value) || 1))} className="mt-1.5 w-full px-3 py-2.5 rounded-xl border border-neutral-200 bg-white text-sm" />
+              </label>
+              <label className="text-xs font-semibold text-neutral-700">Labour (KSh)
+                <input type="number" min="0" value={quoteLabour} onChange={(e) => setQuoteLabour(Math.max(0, Number(e.target.value) || 0))} className="mt-1.5 w-full px-3 py-2.5 rounded-xl border border-neutral-200 bg-white text-sm" />
+              </label>
+              <label className="text-xs font-semibold text-neutral-700">Materials / extras (KSh)
+                <input type="number" min="0" value={quoteMaterials} onChange={(e) => setQuoteMaterials(Math.max(0, Number(e.target.value) || 0))} className="mt-1.5 w-full px-3 py-2.5 rounded-xl border border-neutral-200 bg-white text-sm sm:col-span-2" />
+              </label>
+            </div>
+            <div className="lg:col-span-5 rounded-2xl bg-neutral-950 text-white p-6">
+              <div className="text-xs uppercase tracking-widest text-neutral-400 mb-3">Estimate</div>
+              <div className="text-sm text-neutral-300">{selectedQuoteService.name} • {quoteScope}</div>
+              <div className="mt-6 space-y-2 text-sm">
+                <div className="flex justify-between"><span>Service</span><span>KSh {selectedQuoteService.base.toLocaleString()}</span></div>
+                <div className="flex justify-between"><span>Quantity</span><span>{quoteQuantity}</span></div>
+                <div className="flex justify-between"><span>Labour</span><span>KSh {quoteLabour.toLocaleString()}</span></div>
+                <div className="flex justify-between"><span>Materials / extras</span><span>KSh {quoteMaterials.toLocaleString()}</span></div>
+                <div className="border-t border-neutral-800 pt-3 mt-3 flex justify-between text-neutral-300"><span>Subtotal</span><span>KSh {quoteSubtotal.toLocaleString()}</span></div>
+                <div className="flex justify-between text-neutral-400"><span>VAT estimate</span><span>KSh {quoteVat.toLocaleString()}</span></div>
+              </div>
+              <div className="border-t border-neutral-700 mt-4 pt-4 flex justify-between items-end"><span className="font-semibold">Estimated total</span><span className="text-2xl font-bold">KSh {quoteTotal.toLocaleString()}</span></div>
+              <a href="#consultation-section" className="mt-5 w-full inline-flex justify-center rounded-xl bg-white text-neutral-950 py-3 text-sm font-bold hover:bg-neutral-100 transition">Request Formal Quote →</a>
+            </div>
+          </div>
+          <p className="mt-5 text-[11px] text-neutral-500">Prices are configurable estimates, not a final tax invoice. Licensing, equipment, travel and project-specific scope are confirmed before formal quotation.</p>
         </div>
       </section>
 

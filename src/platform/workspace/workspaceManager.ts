@@ -13,6 +13,7 @@ import { blueprintRegistry } from '../../blueprint/registry';
 import { dbkCapabilityManager } from '../../capability/dbkCapabilityManager';
 import { discoveryEngine } from '../../capability/discovery';
 import { KernelError } from '../../kernel/errors/kernelErrors';
+import { connectorReadinessService } from '../connectors/connectorReadinessService';
 
 export class WorkspaceManagerService {
   private static instance: WorkspaceManagerService;
@@ -61,6 +62,9 @@ export class WorkspaceManagerService {
     }
 
     const terminology = blueprint?.terminology || {};
+    // Connector state is part of the authoritative workspace projection so the
+    // DBK experience does not maintain a separate integrations surface/state.
+    const connectorReport = await connectorReadinessService.inspect(context, dbkId);
 
     return {
       dbkId: dbk.dbkId,
@@ -77,6 +81,18 @@ export class WorkspaceManagerService {
       currentBranchContext: context.branchContext,
       enabledCapabilities,
       discoverableCapabilities,
+      connections: connectorReport.items.map((item) => ({
+        bridgeId: item.bridgeId,
+        provider: item.provider,
+        capabilityId: item.capabilityId,
+        status: item.connectionStatus,
+        enabled: item.enabled,
+        healthStatus: item.healthStatus,
+        ready: item.ready,
+        blockers: item.blockers,
+        minimumTier: item.minimumTier,
+        entitlementStatus: item.entitlementStatus,
+      })),
       terminology,
       lastSyncedAt: new Date().toISOString(),
     };
