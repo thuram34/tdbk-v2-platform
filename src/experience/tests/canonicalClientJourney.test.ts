@@ -4,7 +4,7 @@ import { firestoreClient } from '../../persistence/firestore/firestoreClient';
 import { dbkRegistry } from '../../platform/dbkRegistry';
 import { provisioningService } from '../../platform/provisioning/provisioningService';
 import { experienceResolver } from '../../experience/experienceResolver';
-import { outboxRepository } from '../../orchestration/outbox/outboxRepository';
+import { outboxRepository } from '../../persistence/firestore/repositories/outboxRepository';
 
 const dbkId = 'canonical_journey_hardware_01';
 const inventoryRecordId = 'canonical_stock_001';
