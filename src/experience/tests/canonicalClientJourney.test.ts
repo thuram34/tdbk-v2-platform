@@ -4,6 +4,7 @@ import { firestoreClient } from '../../persistence/firestore/firestoreClient';
 import { dbkRegistry } from '../../platform/dbkRegistry';
 import { provisioningService } from '../../platform/provisioning/provisioningService';
 import { experienceResolver } from '../../experience/experienceResolver';
+import { outboxRepository } from '../../orchestration/outbox/outboxRepository';
 
 const dbkId = 'canonical_journey_hardware_01';
 const inventoryRecordId = 'canonical_stock_001';
@@ -142,8 +143,9 @@ describe('TDBK canonical client journey acceptance', () => {
     const persistedStock = await firestoreClient.get(
       `/tenants/${dbkId}/entities/stock_control/records/${inventoryRecordId}`,
     );
-    const persistedOutbox = await firestoreClient.get(
-      `/tenants/${dbkId}/outbox/sale-canonical-sale-001`,
+    const persistedOutbox = await outboxRepository.getOutbox(
+      dbkId,
+      'sale-canonical-sale-001',
     );
 
     expect(persistedSale).toBeTruthy();
