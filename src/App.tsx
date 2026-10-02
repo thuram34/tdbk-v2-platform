@@ -131,7 +131,6 @@ export default function App() {
         <div className="relative">
           <PublicGateway
             onSignIn={() => setPublicView('LOGIN')}
-            onLaunchWorkspace={() => setPublicView('LOGIN')}
             onSelectSector={() => setPublicView('LOGIN')}
           />
           <button
