@@ -35,6 +35,8 @@ export interface BlueprintCapabilityRequirement {
   category: string;
   isDefault: boolean;
   description: string;
+  /** Engine entitlement boundary surfaced for onboarding presentation only. */
+  minimumTier?: import('../capability/types').SubscriptionTier;
 }
 
 export interface Blueprint {
