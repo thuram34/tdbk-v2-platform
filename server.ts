@@ -628,7 +628,17 @@ async function startServer() {
   // PHASE 1: BLUEPRINT & BUSINESS DNA ENDPOINTS
   // -------------------------------------------------------------
   app.get('/api/blueprints', async (req: Request, res: Response) => {
-    res.json({ status: 'SUCCESS', blueprints: blueprintRegistry.getAllBlueprints() });
+    const blueprints = blueprintRegistry.getAllBlueprints().map((blueprint) => ({
+      ...blueprint,
+      supportedCapabilities: blueprint.supportedCapabilities.map((capability) => {
+        const definition = capabilityRegistry.getCapability(capability.id);
+        return {
+          ...capability,
+          minimumTier: definition?.entitlementRequirements.minimumTier,
+        };
+      }),
+    }));
+    res.json({ status: 'SUCCESS', blueprints });
   });
 
   app.get('/api/blueprints/:id', async (req: Request, res: Response) => {
