@@ -33,6 +33,13 @@ type BusinessDiscoveryProps = {
   onProvisioned: (dbkId: string) => void;
 };
 
+const TIER_ORDER: SubscriptionTier[] = ['FREE', 'FOUNDATION', 'GROWTH', 'PRO', 'ENTERPRISE'];
+
+function tierAllows(selectedTier: SubscriptionTier, requiredTier?: SubscriptionTier): boolean {
+  if (!requiredTier) return true;
+  return TIER_ORDER.indexOf(selectedTier) >= TIER_ORDER.indexOf(requiredTier);
+}
+
 export function BusinessDiscovery({ onProvisioned }: BusinessDiscoveryProps) {
   const { getIdToken } = useAuth();
   const [step, setStep] = useState<'DISCOVER' | 'CAPABILITIES' | 'REVIEW'>('DISCOVER');
@@ -343,15 +350,12 @@ export function BusinessDiscovery({ onProvisioned }: BusinessDiscoveryProps) {
             <div className="grid md:grid-cols-2 gap-3">
               {(selectedBlueprint.supportedCapabilities || []).map((capability) => {
                 const selected = selectedCapabilities.includes(capability.id);
-                const tierOrder: SubscriptionTier[] = ['FREE', 'FOUNDATION', 'GROWTH', 'PRO', 'ENTERPRISE'];
-                const requiredTierIndex = capability.minimumTier ? tierOrder.indexOf(capability.minimumTier) : 0;
-                const selectedTierIndex = tierOrder.indexOf(subscriptionTier);
-                const entitled = requiredTierIndex <= selectedTierIndex;
+                const entitled = tierAllows(subscriptionTier, capability.minimumTier);
                 const locked = !capability.isDefault && !entitled;
                 return <button key={capability.id} type="button" disabled={capability.isDefault || locked} onClick={() => toggleCapability(capability.id)} className={`text-left rounded-2xl border p-5 transition ${selected ? 'border-emerald-600 bg-emerald-50' : 'border-neutral-200 bg-white'} ${capability.isDefault || locked ? 'cursor-default' : 'hover:border-neutral-400'} `}>
                   <div className="flex items-start justify-between gap-4"><div><div className="text-[10px] font-mono uppercase text-neutral-500">{capability.category}</div><div className="mt-1 font-bold text-sm">{capability.name}</div></div><span className={`w-6 h-6 rounded-full border flex items-center justify-center ${selected ? 'bg-emerald-600 border-emerald-600 text-white' : 'border-neutral-300 text-transparent'}`}><Check className="w-4 h-4" /></span></div>
                   <p className="mt-2 text-xs text-neutral-600 leading-relaxed">{capability.description}</p>
-                  <div className="mt-3 text-[10px] font-bold uppercase tracking-wider ${entitled ? 'text-emerald-700' : 'text-amber-700'}">{capability.isDefault ? 'Engine blueprint capability' : entitled ? 'Available on this tier' : `Requires ${capability.minimumTier || 'a higher'} tier`}</div>
+                  <div className={`mt-3 text-[10px] font-bold uppercase tracking-wider ${entitled ? 'text-emerald-700' : 'text-amber-700'}`}>{capability.isDefault ? 'Engine blueprint capability' : entitled ? 'Available on this tier' : `Requires ${capability.minimumTier || 'a higher'} tier`}</div>
                 </button>;
               })}
             </div>
