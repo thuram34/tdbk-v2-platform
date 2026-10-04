@@ -330,7 +330,15 @@ export function BusinessDiscovery({ onProvisioned }: BusinessDiscoveryProps) {
                   <button
                     key={plan.id}
                     type="button"
-                    onClick={() => setSubscriptionTier(plan.id)}
+                    onClick={() => {
+                      setSubscriptionTier(plan.id);
+                      setSelectedCapabilities((current) =>
+                        current.filter((capabilityId) => {
+                          const capability = selectedBlueprint.supportedCapabilities?.find((item) => item.id === capabilityId);
+                          return capability?.isDefault || tierAllows(plan.id, capability?.minimumTier);
+                        })
+                      );
+                    }}
                     className={`rounded-2xl border p-4 text-left transition ${subscriptionTier === plan.id ? 'border-emerald-600 bg-emerald-50 shadow-sm' : 'border-neutral-200 bg-white hover:border-neutral-400'}`}
                   >
                     <div className="flex items-center justify-between gap-3">
@@ -370,7 +378,10 @@ export function BusinessDiscovery({ onProvisioned }: BusinessDiscoveryProps) {
               <h2 className="mt-3 text-2xl font-serif font-bold">{businessName}</h2>
               <div className="mt-5 grid gap-4 text-sm md:grid-cols-3"><div className="rounded-xl bg-neutral-50 p-4"><div className="text-[10px] uppercase text-neutral-500">Business type</div><div className="font-semibold mt-1">{selectedBlueprint.name}</div></div><div className="rounded-xl bg-neutral-50 p-4"><div className="text-[10px] uppercase text-neutral-500">Subscription tier</div><div className="font-semibold mt-1">{subscriptionTier}</div></div><div className="rounded-xl bg-neutral-50 p-4"><div className="text-[10px] uppercase text-neutral-500">Primary location</div><div className="font-semibold mt-1">{branchName || 'Head Office'}</div></div></div>
               {narrative && <p className="mt-5 text-sm text-neutral-600 leading-relaxed">{narrative}</p>}
-              <div className="mt-6"><div className="text-xs font-bold uppercase tracking-wider text-neutral-500 mb-3">Starting tools</div><div className="flex flex-wrap gap-2">{selectedCapabilities.map((id) => <span key={id} className="inline-flex items-center gap-1.5 rounded-full bg-neutral-100 px-3 py-1.5 text-xs"><WalletCards className="w-3.5 h-3.5" />{selectedBlueprint.supportedCapabilities?.find((capability) => capability.id === id)?.name || id}</span>)}</div><p className="mt-3 text-xs text-neutral-500">Included tools are part of your starting business setup. Optional tools are requests for activation and are not granted until the Engine confirms them.</p></div>
+              <div className="mt-6"><div className="text-xs font-bold uppercase tracking-wider text-neutral-500 mb-3">Starting tools</div><div className="flex flex-wrap gap-2">{selectedCapabilities.map((id) => {
+                const capability = selectedBlueprint.supportedCapabilities?.find((item) => item.id === id);
+                return <span key={id} className="inline-flex items-center gap-1.5 rounded-full bg-neutral-100 px-3 py-1.5 text-xs"><WalletCards className="w-3.5 h-3.5" />{capability?.name || id}{capability?.minimumTier && !tierAllows(subscriptionTier, capability.minimumTier) ? ` · requires ${capability.minimumTier}` : ''}</span>;
+              })}</div><p className="mt-3 text-xs text-neutral-500">The Engine remains authoritative: blueprint capabilities may be visible here while entitlement determines whether they are operational in the workspace.</p></div>
             </section>
             <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Your account will be connected to the business, then TDBK will provision the workspace and prepare the selected starting tools.</div>
             <div className="flex justify-between"><button disabled={provisioning} onClick={() => setStep('CAPABILITIES')} className="inline-flex items-center gap-2 rounded-xl border border-neutral-200 bg-white px-4 py-3 text-sm font-semibold"><ChevronLeft className="w-4 h-4" /> Back</button><button disabled={provisioning} onClick={handleProvision} className="inline-flex items-center gap-2 rounded-xl bg-emerald-700 px-5 py-3 text-sm font-bold text-white disabled:opacity-50">{provisioning ? <><Loader2 className="w-4 h-4 animate-spin" /> Provisioning your workspace…</> : <>Create my workspace <ArrowRight className="w-4 h-4" /></>}</button></div>
