@@ -11,6 +11,7 @@ import {
   WalletCards,
 } from 'lucide-react';
 import { useAuth } from '../../client/AuthContext';
+import type { SubscriptionTier } from '../../capability/types';
 
 type Blueprint = {
   id: string;
@@ -24,6 +25,7 @@ type Blueprint = {
     category: string;
     isDefault: boolean;
     description: string;
+    minimumTier?: SubscriptionTier;
   }>;
 };
 
@@ -39,6 +41,7 @@ export function BusinessDiscovery({ onProvisioned }: BusinessDiscoveryProps) {
   const [existingDbkName, setExistingDbkName] = useState<string | null>(null);
   const [selectedBlueprintId, setSelectedBlueprintId] = useState('');
   const [selectedCapabilities, setSelectedCapabilities] = useState<string[]>([]);
+  const [subscriptionTier, setSubscriptionTier] = useState<SubscriptionTier>('FOUNDATION');
   const [businessName, setBusinessName] = useState('');
   const [branchName, setBranchName] = useState('Mombasa');
   const [narrative, setNarrative] = useState('');
@@ -160,6 +163,7 @@ export function BusinessDiscovery({ onProvisioned }: BusinessDiscoveryProps) {
           displayName: businessName.trim(),
           blueprintId: selectedBlueprint.id,
           blueprintVersion: selectedBlueprint.version,
+          subscriptionTier,
           primaryBranchName: branchName.trim() || 'Head Office',
           idempotencyKey: provisionRequestId,
         }),
@@ -174,6 +178,9 @@ export function BusinessDiscovery({ onProvisioned }: BusinessDiscoveryProps) {
       // before handing control to the workspace. DBK does not create or persist DNA locally.
       const dbkId = provisionData.result?.dbkId;
       if (!dbkId) throw new Error('TDBK completed provisioning without returning an authoritative business identity.');
+      if (provisionData.result?.subscriptionTier !== subscriptionTier) {
+        throw new Error('TDBK provisioned the business, but the authoritative subscription tier does not match the selected plan.');
+      }
 
       const dnaResponse = await fetch(`/api/dna/${dbkId}`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -303,13 +310,49 @@ export function BusinessDiscovery({ onProvisioned }: BusinessDiscoveryProps) {
         {step === 'CAPABILITIES' && selectedBlueprint && (
           <div className="space-y-6">
             <section className="rounded-2xl border border-neutral-200 bg-white p-5 sm:p-7 shadow-sm">
+              <div className="flex items-center gap-3"><WalletCards className="w-5 h-5" /><div><div className="text-xs uppercase tracking-wider text-neutral-500">Subscription</div><h2 className="text-xl font-bold">Choose the workspace entitlement tier</h2></div></div>
+              <p className="mt-3 text-sm text-neutral-600">The Engine uses this tier to determine which capabilities this business can activate. The same TDBK workspace then morphs around the selected business blueprint.</p>
+              <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {([
+                  { id: 'FREE', label: 'Free', description: 'Entry-level TDBK access.' },
+                  { id: 'FOUNDATION', label: 'Foundation', description: 'Core business operations.' },
+                  { id: 'GROWTH', label: 'Growth', description: 'Expanded capabilities and integrations.' },
+                  { id: 'PRO', label: 'Pro', description: 'Advanced finance, AI and operational capabilities.' },
+                  { id: 'ENTERPRISE', label: 'Enterprise', description: 'Highest platform entitlement tier.' },
+                ] as Array<{ id: SubscriptionTier; label: string; description: string }>).map((plan) => (
+                  <button
+                    key={plan.id}
+                    type="button"
+                    onClick={() => setSubscriptionTier(plan.id)}
+                    className={`rounded-2xl border p-4 text-left transition ${subscriptionTier === plan.id ? 'border-emerald-600 bg-emerald-50 shadow-sm' : 'border-neutral-200 bg-white hover:border-neutral-400'}`}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="font-bold">{plan.label}</span>
+                      {subscriptionTier === plan.id && <Check className="h-4 w-4 text-emerald-700" />}
+                    </div>
+                    <p className="mt-1 text-xs leading-5 text-neutral-600">{plan.description}</p>
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            <section className="rounded-2xl border border-neutral-200 bg-white p-5 sm:p-7 shadow-sm">
               <div className="flex items-center gap-3"><Store className="w-5 h-5" /><div><div className="text-xs uppercase tracking-wider text-neutral-500">Business type</div><h2 className="text-xl font-bold">{selectedBlueprint.name}</h2></div></div>
               <p className="mt-3 text-sm text-neutral-600">Here are the starting tools available for this business. Included tools are part of the business model. Optional tools are requests you can add now — and you can add more later.</p>
             </section>
             <div className="grid md:grid-cols-2 gap-3">
               {(selectedBlueprint.supportedCapabilities || []).map((capability) => {
                 const selected = selectedCapabilities.includes(capability.id);
-                return <button key={capability.id} type="button" disabled={capability.isDefault} onClick={() => toggleCapability(capability.id)} className={`text-left rounded-2xl border p-5 transition ${selected ? 'border-emerald-600 bg-emerald-50' : 'border-neutral-200 bg-white'} ${capability.isDefault ? 'cursor-default' : 'hover:border-neutral-400'}`}><div className="flex items-start justify-between gap-4"><div><div className="text-[10px] font-mono uppercase text-neutral-500">{capability.category}</div><div className="mt-1 font-bold text-sm">{capability.name}</div></div><span className={`w-6 h-6 rounded-full border flex items-center justify-center ${selected ? 'bg-emerald-600 border-emerald-600 text-white' : 'border-neutral-300 text-transparent'}`}><Check className="w-4 h-4" /></span></div><p className="mt-2 text-xs text-neutral-600 leading-relaxed">{capability.description}</p>{capability.isDefault ? <div className="mt-3 text-[10px] font-bold uppercase tracking-wider text-emerald-700">Included by Engine blueprint</div> : <div className="mt-3 text-[10px] font-bold uppercase tracking-wider text-neutral-500">Requested for activation</div>}</button>;
+                const tierOrder: SubscriptionTier[] = ['FREE', 'FOUNDATION', 'GROWTH', 'PRO', 'ENTERPRISE'];
+                const requiredTierIndex = capability.minimumTier ? tierOrder.indexOf(capability.minimumTier) : 0;
+                const selectedTierIndex = tierOrder.indexOf(subscriptionTier);
+                const entitled = requiredTierIndex <= selectedTierIndex;
+                const locked = !capability.isDefault && !entitled;
+                return <button key={capability.id} type="button" disabled={capability.isDefault || locked} onClick={() => toggleCapability(capability.id)} className={`text-left rounded-2xl border p-5 transition ${selected ? 'border-emerald-600 bg-emerald-50' : 'border-neutral-200 bg-white'} ${capability.isDefault || locked ? 'cursor-default' : 'hover:border-neutral-400'} `}>
+                  <div className="flex items-start justify-between gap-4"><div><div className="text-[10px] font-mono uppercase text-neutral-500">{capability.category}</div><div className="mt-1 font-bold text-sm">{capability.name}</div></div><span className={`w-6 h-6 rounded-full border flex items-center justify-center ${selected ? 'bg-emerald-600 border-emerald-600 text-white' : 'border-neutral-300 text-transparent'}`}><Check className="w-4 h-4" /></span></div>
+                  <p className="mt-2 text-xs text-neutral-600 leading-relaxed">{capability.description}</p>
+                  <div className="mt-3 text-[10px] font-bold uppercase tracking-wider ${entitled ? 'text-emerald-700' : 'text-amber-700'}">{capability.isDefault ? 'Engine blueprint capability' : entitled ? 'Available on this tier' : `Requires ${capability.minimumTier || 'a higher'} tier`}</div>
+                </button>;
               })}
             </div>
             <div className="flex justify-between"><button onClick={() => setStep('DISCOVER')} className="inline-flex items-center gap-2 rounded-xl border border-neutral-200 bg-white px-4 py-3 text-sm font-semibold"><ChevronLeft className="w-4 h-4" /> Back</button><button onClick={() => setStep('REVIEW')} className="inline-flex items-center gap-2 rounded-xl bg-neutral-950 px-5 py-3 text-sm font-semibold text-white">Review <ArrowRight className="w-4 h-4" /></button></div>
@@ -321,7 +364,7 @@ export function BusinessDiscovery({ onProvisioned }: BusinessDiscoveryProps) {
             <section className="rounded-2xl border border-neutral-200 bg-white p-6 sm:p-8 shadow-sm">
               <div className="flex items-center gap-2 text-emerald-700 text-xs font-bold uppercase tracking-wider"><Sparkles className="w-4 h-4" /> This is what TDBK understands</div>
               <h2 className="mt-3 text-2xl font-serif font-bold">{businessName}</h2>
-              <div className="mt-5 grid md:grid-cols-2 gap-4 text-sm"><div className="rounded-xl bg-neutral-50 p-4"><div className="text-[10px] uppercase text-neutral-500">Business type</div><div className="font-semibold mt-1">{selectedBlueprint.name}</div></div><div className="rounded-xl bg-neutral-50 p-4"><div className="text-[10px] uppercase text-neutral-500">Primary location</div><div className="font-semibold mt-1">{branchName || 'Head Office'}</div></div></div>
+              <div className="mt-5 grid gap-4 text-sm md:grid-cols-3"><div className="rounded-xl bg-neutral-50 p-4"><div className="text-[10px] uppercase text-neutral-500">Business type</div><div className="font-semibold mt-1">{selectedBlueprint.name}</div></div><div className="rounded-xl bg-neutral-50 p-4"><div className="text-[10px] uppercase text-neutral-500">Subscription tier</div><div className="font-semibold mt-1">{subscriptionTier}</div></div><div className="rounded-xl bg-neutral-50 p-4"><div className="text-[10px] uppercase text-neutral-500">Primary location</div><div className="font-semibold mt-1">{branchName || 'Head Office'}</div></div></div>
               {narrative && <p className="mt-5 text-sm text-neutral-600 leading-relaxed">{narrative}</p>}
               <div className="mt-6"><div className="text-xs font-bold uppercase tracking-wider text-neutral-500 mb-3">Starting tools</div><div className="flex flex-wrap gap-2">{selectedCapabilities.map((id) => <span key={id} className="inline-flex items-center gap-1.5 rounded-full bg-neutral-100 px-3 py-1.5 text-xs"><WalletCards className="w-3.5 h-3.5" />{selectedBlueprint.supportedCapabilities?.find((capability) => capability.id === id)?.name || id}</span>)}</div><p className="mt-3 text-xs text-neutral-500">Included tools are part of your starting business setup. Optional tools are requests for activation and are not granted until the Engine confirms them.</p></div>
             </section>
