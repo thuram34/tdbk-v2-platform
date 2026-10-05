@@ -18,6 +18,7 @@ export default function App() {
   const [publicView, setPublicView] = useState<PublicView>('FLOW');
   const [showBusinessDiscovery, setShowBusinessDiscovery] = useState(false);
   const [dbkId, setDbkId] = useState<string | null>(null);
+  const [justProvisioned, setJustProvisioned] = useState(false);
   const [idToken, setIdToken] = useState('');
   const [dbksLoading, setDbksLoading] = useState(true);
   const [dbks, setDbks] = useState<DbkIdentity[]>([]);
@@ -162,6 +163,7 @@ export default function App() {
       <BusinessDiscovery
         onProvisioned={async (provisionedDbkId: string) => {
           setShowBusinessDiscovery(false);
+          setJustProvisioned(true);
           setDbkId(provisionedDbkId);
           await loadDbks();
         }}
@@ -190,6 +192,7 @@ export default function App() {
     return (
       <DbkApp
         dbkId={dbkId}
+        autoOpenInstall={justProvisioned}
         onLogout={async () => {
           await signOutUser();
           window.history.replaceState({}, '', window.location.pathname);
