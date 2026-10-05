@@ -11,6 +11,7 @@
 import { AiConversation, AiConversationMessage } from '../types';
 import { SecurityContext } from '../../kernel/types';
 import { tenantIsolation } from '../../kernel/tenancy/tenantIsolation';
+import { masterAuthority } from '../../kernel/master/masterAuthority';
 import { documentStore } from '../storage/documentStore';
 import { auditLogger } from '../../kernel/audit/auditLogger';
 import { KernelError } from '../../kernel/errors/kernelErrors';
@@ -120,7 +121,7 @@ ${docSummaries || 'No recent documents found.'}
 
   /** Authoritative production conversation read from Firestore. */
   public async getPersistentConversation(ctx: SecurityContext, tenantId: string, branchId: string, conversationId?: string): Promise<AiConversation> {
-    tenantIsolation.assertTenantIsolation(ctx.principal, tenantId);
+    await masterAuthority.assertTenantAuthority(ctx.principal, tenantId, 'READ_AI_CONVERSATION', ctx.requestId);
     const convId = conversationId || `conv_${ctx.principal.id}_${branchId}`;
     const metadata = await aiConversationRepository.getConversationMetadata(tenantId, convId);
     if (metadata && metadata.branchId !== branchId && !ctx.principal.isMaster) {
@@ -141,7 +142,7 @@ ${docSummaries || 'No recent documents found.'}
 
   /** Persist a message before returning it; production callers should use this path. */
   public async addPersistentMessage(ctx: SecurityContext, tenantId: string, branchId: string, conversationId: string, message: Omit<AiConversationMessage, 'id' | 'timestamp'>): Promise<AiConversationMessage> {
-    tenantIsolation.assertTenantIsolation(ctx.principal, tenantId);
+    await masterAuthority.assertTenantAuthority(ctx.principal, tenantId, 'WRITE_AI_CONVERSATION', ctx.requestId);
     const conversation = await this.getPersistentConversation(ctx, tenantId, branchId, conversationId);
     if (conversation.principalId !== ctx.principal.id && !ctx.principal.isMaster) {
       throw new KernelError('AUTHORIZATION_DENIED' as any, 'Conversation access denied', 403, ctx.requestId);
