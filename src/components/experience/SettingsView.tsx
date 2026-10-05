@@ -21,6 +21,7 @@ import { DbkExperienceResolved } from '../../experience/types';
 interface SettingsViewProps {
   experience: DbkExperienceResolved;
   onDispatchCommand: (commandType: string, payload: Record<string, unknown>) => Promise<any>;
+  onRefreshExperience: () => Promise<void>;
 }
 
 const providerMeta: Record<string, { name: string; description: string; icon: React.ElementType }> = {
@@ -60,7 +61,7 @@ const toneClasses: Record<string, string> = {
   neutral: 'border-neutral-200 bg-neutral-50 text-neutral-600',
 };
 
-export const SettingsView: React.FC<SettingsViewProps> = ({ experience }) => {
+export const SettingsView: React.FC<SettingsViewProps> = ({ experience, onRefreshExperience }) => {
   const {
     dbkId,
     legalName,
@@ -156,7 +157,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ experience }) => {
 
       setSaveSuccess('Connection configuration saved. Refreshing workspace status…');
       setDraft({});
-      window.setTimeout(() => window.location.reload(), 450);
+      await onRefreshExperience();
     } catch (error: any) {
       setSaveError(error?.message || 'The connection could not be saved.');
     } finally {
