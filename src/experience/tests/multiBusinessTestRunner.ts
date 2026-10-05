@@ -51,7 +51,7 @@ export async function runMultiBusinessTestSuite(): Promise<MultiBusinessTestSumm
       legalName,
       displayName: legalName,
       blueprintId,
-      subscriptionTier: 'PRO',
+      subscriptionTier: 'FREE',
       primaryBranchName: `${legalName} HQ`,
       idempotencyKey: `idemp_${dbkId}_${runId}`,
     });
@@ -300,7 +300,7 @@ export async function runMultiBusinessTestSuite(): Promise<MultiBusinessTestSumm
       dbkId: newDbkId,
       legalName: 'TDBK Grand Hotel',
       blueprintId: 'hotel_v1',
-      subscriptionTier: 'ENTERPRISE',
+      subscriptionTier: 'FREE',
     });
 
     const passed = provRes.success && provRes.dbkId === newDbkId;
