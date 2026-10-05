@@ -79,9 +79,10 @@ export class BranchAuthorityService {
       throw new AuthorizationError('Target branchId required for branch operation', requestId);
     }
 
-    if (!masterAuthority.isMasterAdmin(principal) && principal.tenantId !== tenantId) {
-      throw new AuthorizationError('Branch authorization denied: tenant boundary violation', requestId);
-    }
+    // Tenant scope is authoritative here. Business Owners can operate across
+    // the DBKs they own, while tenant-bound roles remain restricted to their
+    // assigned tenant through MasterAuthority's shared policy.
+    await masterAuthority.assertTenantAuthority(principal, tenantId, action, requestId);
 
     if (!masterAuthority.isMasterAdmin(principal) && principal.branchId != null && principal.branchId !== requestedBranchId) {
       throw new AuthorizationError(
