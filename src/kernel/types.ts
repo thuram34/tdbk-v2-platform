@@ -95,5 +95,8 @@ export interface HealthStatus {
     tenancy: boolean;
     auth: boolean;
     audit: boolean;
+    firestore?: boolean;
+    eventBus?: boolean;
+    bridgeAdapters?: boolean;
   };
 }
