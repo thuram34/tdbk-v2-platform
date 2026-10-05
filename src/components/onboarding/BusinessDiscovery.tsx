@@ -209,28 +209,9 @@ export function BusinessDiscovery({ onProvisioned }: BusinessDiscoveryProps) {
         throw new Error('TDBK saved the business, but the authoritative Business Context could not be verified.');
       }
 
-      const defaultCapabilityIds = new Set(
-        (selectedBlueprint.supportedCapabilities || [])
-          .filter((capability) => capability.isDefault)
-          .map((capability) => capability.id)
-      );
-
-      for (const capabilityId of selectedCapabilities) {
-        if (defaultCapabilityIds.has(capabilityId)) continue;
-        const enableResponse = await fetch('/api/capability/enable', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ dbkId, capabilityId }),
-        });
-        if (!enableResponse.ok) {
-          const enableData = await enableResponse.json().catch(() => ({}));
-          throw new Error(enableData.error?.message || `Capability '${capabilityId}' could not be enabled.`);
-        }
-      }
-
+      // Initial provisioning never grants paid capabilities.
+      // Provisioning initializes entitlement-aware capability records; activation
+      // happens later through the subscription authority and the capability gate.
       window.sessionStorage.removeItem('tdbk:onboarding:request-id');
       onProvisioned(dbkId);
     } catch (err: any) {
@@ -304,7 +285,7 @@ export function BusinessDiscovery({ onProvisioned }: BusinessDiscoveryProps) {
           <div className="space-y-6">
             <section className="rounded-2xl border border-neutral-200 bg-white p-5 sm:p-7 shadow-sm">
               <div className="flex items-center gap-3"><Store className="w-5 h-5" /><div><div className="text-xs uppercase tracking-wider text-neutral-500">Business type</div><h2 className="text-xl font-bold">{selectedBlueprint.name}</h2></div></div>
-              <p className="mt-3 text-sm text-neutral-600">Here are the starting tools available for this business. Included tools are part of the business model. Optional tools are requests you can add now — and you can add more later.</p>
+              <p className="mt-3 text-sm text-neutral-600">Here are the starting tools available for this business. Included tools are part of the business model. Optional tools can be activated after the workspace has the required subscription tier.</p>
             </section>
             <div className="grid md:grid-cols-2 gap-3">
               {(selectedBlueprint.supportedCapabilities || []).map((capability) => {
@@ -323,9 +304,9 @@ export function BusinessDiscovery({ onProvisioned }: BusinessDiscoveryProps) {
               <h2 className="mt-3 text-2xl font-serif font-bold">{businessName}</h2>
               <div className="mt-5 grid md:grid-cols-2 gap-4 text-sm"><div className="rounded-xl bg-neutral-50 p-4"><div className="text-[10px] uppercase text-neutral-500">Business type</div><div className="font-semibold mt-1">{selectedBlueprint.name}</div></div><div className="rounded-xl bg-neutral-50 p-4"><div className="text-[10px] uppercase text-neutral-500">Primary location</div><div className="font-semibold mt-1">{branchName || 'Head Office'}</div></div></div>
               {narrative && <p className="mt-5 text-sm text-neutral-600 leading-relaxed">{narrative}</p>}
-              <div className="mt-6"><div className="text-xs font-bold uppercase tracking-wider text-neutral-500 mb-3">Starting tools</div><div className="flex flex-wrap gap-2">{selectedCapabilities.map((id) => <span key={id} className="inline-flex items-center gap-1.5 rounded-full bg-neutral-100 px-3 py-1.5 text-xs"><WalletCards className="w-3.5 h-3.5" />{selectedBlueprint.supportedCapabilities?.find((capability) => capability.id === id)?.name || id}</span>)}</div><p className="mt-3 text-xs text-neutral-500">Included tools are part of your starting business setup. Optional tools are requests for activation and are not granted until the Engine confirms them.</p></div>
+              <div className="mt-6"><div className="text-xs font-bold uppercase tracking-wider text-neutral-500 mb-3">Starting tools</div><div className="flex flex-wrap gap-2">{selectedCapabilities.map((id) => <span key={id} className="inline-flex items-center gap-1.5 rounded-full bg-neutral-100 px-3 py-1.5 text-xs"><WalletCards className="w-3.5 h-3.5" />{selectedBlueprint.supportedCapabilities?.find((capability) => capability.id === id)?.name || id}</span>)}</div><p className="mt-3 text-xs text-neutral-500">Included tools are part of your starting business setup. Optional tools are not activated during free provisioning; they become available after the required subscription tier is activated.</p></div>
             </section>
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Your account will be connected to the business, then TDBK will provision the workspace and prepare the selected starting tools.</div>
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Your account will be connected to the business, then TDBK will provision the workspace. Paid tools can be activated after the required subscription tier is confirmed.</div>
             <div className="flex justify-between"><button disabled={provisioning} onClick={() => setStep('CAPABILITIES')} className="inline-flex items-center gap-2 rounded-xl border border-neutral-200 bg-white px-4 py-3 text-sm font-semibold"><ChevronLeft className="w-4 h-4" /> Back</button><button disabled={provisioning} onClick={handleProvision} className="inline-flex items-center gap-2 rounded-xl bg-emerald-700 px-5 py-3 text-sm font-bold text-white disabled:opacity-50">{provisioning ? <><Loader2 className="w-4 h-4 animate-spin" /> Provisioning your workspace…</> : <>Create my workspace <ArrowRight className="w-4 h-4" /></>}</button></div>
           </div>
         )}
