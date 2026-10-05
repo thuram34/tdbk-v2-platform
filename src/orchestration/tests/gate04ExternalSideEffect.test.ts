@@ -58,7 +58,14 @@ describe('Gate 04 — external side-effect identity and mapping', () => {
       providerOperationIdentityRequired: true,
     });
 
-    for (const bridgeId of ['bridge_bank', 'bridge_email', 'bridge_etims', 'bridge_sms', 'bridge_whatsapp']) {
+    expect(bridgeRegistry.getBridgeDefinition('bridge_etims')?.sideEffectCapabilities).toEqual({
+      providerIdempotency: false,
+      providerReconciliation: true,
+      automaticUnknownReplay: false,
+      providerOperationIdentityRequired: true,
+    });
+
+    for (const bridgeId of ['bridge_bank', 'bridge_email', 'bridge_sms', 'bridge_whatsapp']) {
       expect(bridgeRegistry.getBridgeDefinition(bridgeId)?.sideEffectCapabilities).toEqual({
         providerIdempotency: false,
         providerReconciliation: false,
