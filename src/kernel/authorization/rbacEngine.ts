@@ -51,22 +51,20 @@ export class RBACEngineService {
       };
     }
 
-    // 2. Tenant isolation check (if tenant-scoped)
+    // 2. Tenant authority check (if tenant-scoped).
+    // Business Owners are portfolio-scoped, so they must be evaluated through
+    // MasterAuthority rather than the strict principal.tenantId equality barrier.
     let validatedTenantContext: TenantContext | null = null;
     if (tenantId) {
       try {
-        validatedTenantContext = tenantIsolation.assertTenantIsolation(
-          principal,
-          tenantId,
-          action,
-          requestId
-        );
+        await masterAuthority.assertTenantAuthority(principal, tenantId, action, requestId);
+        validatedTenantContext = tenantIsolation.resolveTenantContext(tenantId);
       } catch (err) {
         if (err instanceof Error) {
           return {
             allowed: false,
             reason: err.message,
-            ruleEvaluated: 'TENANT_ISOLATION_RULE',
+            ruleEvaluated: 'TENANT_AUTHORITY_RULE',
             evaluatedAt,
           };
         }
@@ -166,7 +164,7 @@ export class RBACEngineService {
     }
 
     try {
-      if (tenantId) tenantIsolation.assertTenantIsolation(principal, tenantId, action, requestId);
+      if (tenantId) await masterAuthority.assertTenantAuthority(principal, tenantId, action, requestId);
       if (branchId) {
         await branchAuthority.assertPersistentBranchContext(
           principal,
