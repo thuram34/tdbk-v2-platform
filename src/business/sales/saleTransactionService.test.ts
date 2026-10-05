@@ -127,7 +127,7 @@ describe('SaleTransactionService', () => {
       dbkId: tenantId,
       capabilityId: 'sales_counter',
       capabilityVersion: '1.0.0',
-      state: 'UPGRADE_REQUIRED',
+      state: 'DISCOVERABLE',
       entitlement: 'UPGRADE_REQUIRED',
       configurationState: { isConfigured: false },
       updatedAt: new Date().toISOString(),
