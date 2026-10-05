@@ -3,6 +3,7 @@ import { saleTransactionService } from './saleTransactionService';
 import { firestoreClient } from '../../persistence/firestore/firestoreClient';
 import { outboxRepository } from '../../persistence/firestore/repositories/outboxRepository';
 import type { SecurityContext } from '../../kernel/types';
+import { dbkCapabilityManager } from '../../capability/dbkCapabilityManager';
 
 const tenantId = 'tenant_sale_test';
 const branchId = 'branch_main';
@@ -68,9 +69,62 @@ async function seedInventory(
   );
 }
 
+async function seedSalesCapability(tenant = tenantId) {
+  const record = dbkCapabilityManager.saveDbkCapabilityRecord(makeContext({
+    principal: {
+      ...makeContext().principal,
+      tenantId: tenant,
+      permissions: ['execute:sales'],
+      roles: ['CASHIER'],
+    },
+    tenantContext: {
+      tenantId: tenant,
+      name: 'Sale Test Tenant',
+      blueprintId: 'hardware_v1',
+      status: 'ACTIVE',
+    },
+    branchContext: {
+      branchId,
+      name: 'Main Branch',
+      isHeadquarters: true,
+      status: 'ACTIVE',
+    },
+  }), {
+    dbkId: tenant,
+    capabilityId: 'sales_counter',
+    capabilityVersion: '1.0.0',
+    state: 'ENABLED',
+    entitlement: 'ENTITLED',
+    configurationState: { isConfigured: true },
+    updatedAt: new Date().toISOString(),
+  });
+  await dbkCapabilityManager.persistCapabilityRecord(makeContext({
+    principal: {
+      ...makeContext().principal,
+      tenantId: tenant,
+      permissions: ['execute:sales'],
+      roles: ['CASHIER'],
+    },
+    tenantContext: {
+      tenantId: tenant,
+      name: 'Sale Test Tenant',
+      blueprintId: 'hardware_v1',
+      status: 'ACTIVE',
+    },
+    branchContext: {
+      branchId,
+      name: 'Main Branch',
+      isHeadquarters: true,
+      status: 'ACTIVE',
+    },
+  }), record);
+}
+
 describe('SaleTransactionService', () => {
   beforeEach(async () => {
     await firestoreClient.clearAllForTesting();
+    dbkCapabilityManager.clearStoreForTesting();
+    await seedSalesCapability();
   });
 
   it('SALE_01: completes a sale, decrements stock, persists the sale and creates the outbox event', async () => {
