@@ -171,7 +171,7 @@ describe('TDBK V2 — Production Identity & Claims Management', () => {
       dbkId: `dbk_owner_test_${Date.now()}`,
       legalName: 'Owner Enterprise Campus',
       blueprintId: 'school_v1',
-      subscriptionTier: 'PRO',
+      subscriptionTier: 'FREE',
       primaryBranchName: 'Main Campus',
     });
 
