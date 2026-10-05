@@ -20,7 +20,7 @@ import { workflowEngine } from '../../orchestration/workflow/engine';
 import { eventBus } from '../../orchestration/events/eventBus';
 import { idempotencyRepository } from '../../persistence/firestore/repositories/idempotencyRepository';
 import { auditLogger } from '../../kernel/audit/auditLogger';
-import { KernelError } from '../../kernel/errors/kernelErrors';
+import { AuthorizationError, KernelError } from '../../kernel/errors/kernelErrors';
 import { SectorType } from '../../blueprint/types';
 import { createHash } from 'node:crypto';
 
@@ -296,10 +296,8 @@ export class ProvisioningService {
     const requestedSubscriptionTier = request.subscriptionTier;
     const isMasterProvisioner = masterAuthority.isMasterAdmin(context.principal);
     if (!isMasterProvisioner && requestedSubscriptionTier && requestedSubscriptionTier !== 'FREE') {
-      throw new KernelError(
-        'AUTHORIZATION_ERROR',
+      throw new AuthorizationError(
         'Business owners cannot grant themselves a paid subscription tier during workspace provisioning. Create the workspace on FREE and activate paid tiers through the subscription authority.',
-        403,
         context.requestId,
       );
     }
