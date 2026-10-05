@@ -253,7 +253,29 @@ export class DbkCapabilityManagerService {
     requiresConfig: boolean
   ): Promise<DbkCapabilityRecord> {
     await this.hydratePersistentCapability(securityContext, dbkId, capabilityId);
-    const updated = this.enableCapability(securityContext, dbkId, capabilityId, entitlement, requiresConfig);
+
+    const authoritativeEntitlement = await entitlementEngine.evaluatePersistentEntitlement(
+      dbkId,
+      capabilityId,
+    );
+    if (authoritativeEntitlement !== 'ENTITLED') {
+      const capability = capabilityRegistry.getCapability(capabilityId);
+      const requiredTier = capability?.entitlementRequirements.minimumTier || 'FOUNDATION';
+      throw new KernelError(
+        'AUTHORIZATION_ERROR',
+        "Capability '" + capabilityId + "' requires an entitled subscription (minimum tier: " + requiredTier + ").",
+        402,
+        securityContext.requestId,
+      );
+    }
+
+    const updated = this.enableCapability(
+      securityContext,
+      dbkId,
+      capabilityId,
+      authoritativeEntitlement,
+      requiresConfig,
+    );
     return await this.persistCapabilityRecord(securityContext, updated);
   }
 
