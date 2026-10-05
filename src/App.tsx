@@ -46,8 +46,12 @@ export default function App() {
       const requestedDbk = typeof window !== 'undefined'
         ? new URLSearchParams(window.location.search).get('dbk')
         : null;
-      if (requestedDbk && result.some((dbk) => dbk.dbkId === requestedDbk)) {
-        setDbkId(requestedDbk);
+      const rememberedDbk = typeof window !== 'undefined'
+        ? window.localStorage.getItem('tdbk:last-workspace')
+        : null;
+      const preferredDbk = requestedDbk || rememberedDbk;
+      if (preferredDbk && result.some((dbk) => dbk.dbkId === preferredDbk && dbk.status === 'ACTIVE')) {
+        setDbkId(preferredDbk);
       }
     } catch (error) {
       console.error('Failed to load organizations:', error);
