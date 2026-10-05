@@ -61,7 +61,7 @@ class BridgeRegistryService {
         registeredAt: new Date().toISOString(),
         sideEffectCapabilities: {
           providerIdempotency: false,
-          providerReconciliation: true,
+          providerReconciliation: false,
           automaticUnknownReplay: false,
           providerOperationIdentityRequired: true,
         },
