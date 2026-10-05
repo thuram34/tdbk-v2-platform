@@ -43,6 +43,7 @@ class EventBusService {
       { eventType: 'document.issued.v1', version: 'v1', description: 'Business document officially issued' },
       { eventType: 'notification.requested.v1', version: 'v1', description: 'Notification request created' },
       { eventType: 'notification.sent.v1', version: 'v1', description: 'Notification delivered' },
+      { eventType: 'notification.received.v1', version: 'v1', description: 'Notification received from external provider' },
       { eventType: 'notification.failed.v1', version: 'v1', description: 'Notification delivery failed' },
       { eventType: 'external.request.created.v1', version: 'v1', description: 'Bridge external request generated' },
       { eventType: 'external.request.succeeded.v1', version: 'v1', description: 'Bridge external request succeeded' },
