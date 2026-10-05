@@ -237,6 +237,31 @@ export const DbkShell: React.FC<DbkShellProps> = ({
     setIsMobileMenuOpen(false);
   };
 
+  const provisioningStageLabel: Record<string, string> = {
+    REGISTRATION_ACCEPTED: 'Registration accepted',
+    IDENTITY_READY: 'Identity ready',
+    BLUEPRINT_READY: 'Blueprint ready',
+    DNA_READY: 'Business DNA ready',
+    ENTITLEMENT_READY: 'Entitlement ready',
+    CAPABILITIES_READY: 'Capabilities ready',
+    BRANCHES_READY: 'Branches ready',
+    WORKSPACE_READY: 'Workspace ready',
+    ACTIVATION_VERIFIED: 'Activation verified',
+    FAILED: 'Provisioning failed',
+  };
+
+  const shellStatusLabel = experience?.shellReadiness === 'READY'
+    ? 'Shell ready'
+    : experience?.shellReadiness === 'BUILDING'
+      ? 'Building workspace'
+      : experience?.shellReadiness === 'BLOCKED'
+        ? 'Provisioning blocked'
+        : experience?.shellReadiness === 'SUSPENDED'
+          ? 'Workspace suspended'
+          : experience?.shellReadiness === 'ARCHIVED'
+            ? 'Workspace archived'
+            : 'Preparing workspace';
+
   return (
     <div className="flex min-h-screen flex-col bg-[#F7F7F4] font-sans text-neutral-950">
       <header className="sticky top-0 z-40 border-b border-neutral-200 bg-white/95 backdrop-blur">
@@ -420,6 +445,17 @@ export const DbkShell: React.FC<DbkShellProps> = ({
                     <p className="mt-3 text-[11px] font-black uppercase tracking-[0.18em] text-emerald-700">Your TDBK workspace</p>
                     <h1 className="mt-1 truncate text-2xl font-bold tracking-tight sm:text-3xl">{experience.displayName}</h1>
                     <p className="mt-1 text-sm text-neutral-500">{currentNav?.label || 'Today at a glance'} · {experience.operationalState === 'ACTIVE' ? 'Operational' : experience.operationalState.toLowerCase()}</p>
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <span className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 bg-neutral-50 px-2.5 py-1 text-[10px] font-bold text-neutral-600">
+                        <span className={experience.shellReadiness === 'READY' ? 'h-1.5 w-1.5 rounded-full bg-emerald-500' : 'h-1.5 w-1.5 rounded-full bg-amber-500'} />
+                        {shellStatusLabel}
+                      </span>
+                      {experience.provisioningStage && (
+                        <span className="rounded-full border border-neutral-200 bg-white px-2.5 py-1 text-[10px] font-semibold text-neutral-500">
+                          {provisioningStageLabel[experience.provisioningStage] || experience.provisioningStage}
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <button type="button" onClick={() => setActiveViewId('nav_overview')} className="inline-flex items-center gap-2 rounded-xl border border-neutral-200 bg-white px-3.5 py-2.5 text-xs font-bold text-neutral-700 hover:bg-neutral-50"><CheckCircle2 className="h-4 w-4 text-emerald-600" /> Today</button>
