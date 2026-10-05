@@ -52,7 +52,7 @@ class BridgeRegistryService {
       {
         bridgeId: 'bridge_etims',
         provider: 'KRA_ETIMS',
-        bridgeVersion: 'v1.0',
+        bridgeVersion: 'v2.0',
         capabilityId: 'etims_compliance',
         supportedOperations: ['INITIALIZE', 'GET_CODES', 'GET_ITEM_CLASSES', 'GET_CUSTOMER', 'GET_BRANCHES', 'GET_ITEMS', 'SAVE_ITEM', 'SUBMIT_INVOICE', 'GET_PURCHASES', 'SAVE_PURCHASE', 'GET_IMPORTS', 'UPDATE_IMPORT', 'GET_STOCK'],
         status: 'IMPLEMENTED',
@@ -61,7 +61,7 @@ class BridgeRegistryService {
         registeredAt: new Date().toISOString(),
         sideEffectCapabilities: {
           providerIdempotency: false,
-          providerReconciliation: false,
+          providerReconciliation: true,
           automaticUnknownReplay: false,
           providerOperationIdentityRequired: true,
         },
