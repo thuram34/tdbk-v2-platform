@@ -82,7 +82,7 @@ export class SaleTransactionService {
       );
     }
 
-    rbacEngine.assertAuthorization(
+    const authorization = await rbacEngine.authorizeAsync(
       context.principal,
       'execute',
       'sales:transaction',
@@ -93,6 +93,9 @@ export class SaleTransactionService {
         requestId: context.requestId,
       },
     );
+    if (!authorization.allowed) {
+      throw new KernelError('AUTHORIZATION_ERROR', authorization.reason, 403, context.requestId);
+    }
 
     await dbkCapabilityManager.assertCapabilityOperational(
       context,
