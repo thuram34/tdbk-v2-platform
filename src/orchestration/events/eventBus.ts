@@ -292,6 +292,18 @@ class EventBusService {
   }
 
   /**
+   * Returns whether the in-process event bus has its core event contracts and
+   * subscription wiring initialized. Durable delivery still relies on the
+   * Firestore-backed idempotency/outbox path.
+   */
+  public isReady(): boolean {
+    return (
+      this.eventRegistry.has('payment.confirmed.v1:v1') &&
+      this.subscribers.has('payment.confirmed.v1')
+    );
+  }
+
+  /**
    * Returns recorded event history, optionally filtered by tenant ID.
    */
   public getEventHistory(tenantId?: string): EventEnvelope[] {
@@ -318,6 +330,7 @@ class EventBusService {
     this.eventRegistry.clear();
     this.eventHistory = [];
     this.seedDefaultEventRegistry();
+    this.subscribe('payment.confirmed.v1', handleSubscriptionPaymentConfirmed);
   }
 }
 
