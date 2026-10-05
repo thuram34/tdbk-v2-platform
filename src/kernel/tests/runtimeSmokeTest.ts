@@ -53,8 +53,8 @@ export class RuntimeSmokeTestRunner {
     results.push({
       testId: 'RUNTIME_04',
       name: 'Readiness correctly detects dependency availability',
-      status: ready.components ? 'PASSED' : 'FAILED',
-      details: `Ready components checked: ${Object.keys(ready.components).join(', ')}`,
+      status: ready.components?.firestore && ready.components?.eventBus && ready.components?.bridgeAdapters ? 'PASSED' : 'FAILED',
+      details: `Ready components checked: ${Object.entries(ready.components).filter(([, value]) => value).map(([key]) => key).join(', ')}`,
     });
 
     // RUNTIME_05 & 06
