@@ -76,7 +76,7 @@ export class ProvisioningService {
     });
 
     // 2. VALIDATE_BLUEPRINT
-    workflowEngine.registerStepHandler('PROVISIONING_VALIDATE_BLUEPRINT', async ({ input }) => {
+    workflowEngine.registerStepHandler('PROVISIONING_VALIDATE_BLUEPRINT', async ({ input, workflow }) => {
       const blueprintId = input.blueprintId as string;
       const blueprintVersion = input.blueprintVersion as string | undefined;
 
@@ -89,7 +89,8 @@ export class ProvisioningService {
         };
       }
 
-      await this.setProvisioningStage(createStepContext(workflow, String((input as any).dbkId || '')), String((input as any).dbkId || ''), 'BLUEPRINT_READY');
+      const dbkId = input.dbkId as string;
+      await this.setProvisioningStage(createStepContext(workflow, dbkId), dbkId, 'BLUEPRINT_READY');
       return {
         success: true,
         output: {
@@ -153,7 +154,7 @@ export class ProvisioningService {
     });
 
     // 4. ASSIGN_ENTITLEMENT
-    workflowEngine.registerStepHandler('PROVISIONING_ASSIGN_ENTITLEMENT', async ({ input }) => {
+    workflowEngine.registerStepHandler('PROVISIONING_ASSIGN_ENTITLEMENT', async ({ input, workflow }) => {
       const dbkId = input.dbkId as string;
       const tier = (input.subscriptionTier as any) || 'FOUNDATION';
 
@@ -163,7 +164,7 @@ export class ProvisioningService {
       if (!durableDbk || durableDbk.subscriptionTier !== tier) {
         return { success: false, error: 'Durable DBK subscription tier does not match provisioning request', failureClassification: 'PERMANENT' };
       }
-      await this.setProvisioningStage(createStepContext({ workflowId: 'provisioning' }, dbkId), dbkId, 'ENTITLEMENT_READY');
+      await this.setProvisioningStage(createStepContext(workflow, dbkId), dbkId, 'ENTITLEMENT_READY');
       return { success: true, output: { subscriptionTier: tier } };
     });
 
@@ -299,6 +300,7 @@ export class ProvisioningService {
   ): Promise<void> {
     const dbk = await dbkRegistry.getDbkInternal(dbkId);
     if (!dbk) return;
+    dbk.provisioningStage = stage;
     dbk.metadata = {
       ...(dbk.metadata || {}),
       provisioningStage: stage,
@@ -441,6 +443,7 @@ export class ProvisioningService {
           correlationId,
         },
       ],
+      provisioningStage: 'REGISTRATION_ACCEPTED',
       metadata: { ...(request.customPreferences || {}), provisioningStage: 'REGISTRATION_ACCEPTED' as DbkProvisioningStage },
     };
 
