@@ -617,6 +617,7 @@ export class ProvisioningService {
         subscriptionTier: initialDbk.subscriptionTier,
         branches: [],
         workspaceVersion: 1,
+        provisioningStage: 'FAILED',
         error: executedWorkflow.failureReason || 'Workflow execution failed',
         correlationId,
       };
@@ -674,6 +675,7 @@ export class ProvisioningService {
       subscriptionTier: finalDbk.subscriptionTier,
       branches,
       workspaceVersion: finalDbk.workspaceVersion,
+      provisioningStage: finalDbk.provisioningStage || 'ACTIVATION_VERIFIED',
       correlationId,
     };
 
