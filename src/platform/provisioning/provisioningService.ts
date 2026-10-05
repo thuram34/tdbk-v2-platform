@@ -4,7 +4,7 @@
  * Orchestrates server-authoritative DBK provisioning workflows with idempotency and state machine validation.
  */
 
-import { ProvisionDbkRequest, ProvisionDbkResult, DbkIdentity } from '../types';
+import { ProvisionDbkRequest, ProvisionDbkResult, DbkIdentity, DbkProvisioningStage } from '../types';
 import { SecurityContext } from '../../kernel/types';
 import { masterAuthority } from '../../kernel/master/masterAuthority';
 import { dbkRegistry } from '../dbkRegistry';
@@ -284,6 +284,24 @@ export class ProvisioningService {
    * Authoritative DBK Provisioning Flow.
    * AUTHORIZED: TDBK MASTER ADMIN or Business Owner portfolio authority.
    */
+  private async setProvisioningStage(
+    context: SecurityContext,
+    dbkId: string,
+    stage: DbkProvisioningStage,
+    reason?: string,
+  ): Promise<void> {
+    const dbk = await dbkRegistry.getDbkInternal(dbkId);
+    if (!dbk) return;
+    dbk.metadata = {
+      ...(dbk.metadata || {}),
+      provisioningStage: stage,
+      provisioningStageUpdatedAt: new Date().toISOString(),
+      ...(reason ? { provisioningStageReason: reason } : {}),
+    };
+    dbk.updatedAt = new Date().toISOString();
+    await dbkRegistry.saveDbk(context, dbk);
+  }
+
   public async provisionDbk(context: SecurityContext, request: ProvisionDbkRequest): Promise<ProvisionDbkResult> {
     this.registerProvisioningStepHandlers();
     // 1. Security Assertion: Authorized Business Owner or Master Admin can provision DBKs
@@ -416,10 +434,12 @@ export class ProvisioningService {
           correlationId,
         },
       ],
-      metadata: request.customPreferences || {},
+      metadata: { ...(request.customPreferences || {}), provisioningStage: 'REGISTRATION_ACCEPTED' as DbkProvisioningStage },
     };
 
     await dbkRegistry.saveDbk(context, initialDbk);
+
+    await this.setProvisioningStage(context, effectiveDbkId, 'IDENTITY_READY');
 
     // 6. Emit DBK_PROVISIONING_REQUESTED & STARTED
     eventBus.publishEvent(
@@ -522,6 +542,8 @@ export class ProvisioningService {
       correlationId,
     };
 
+    await this.setProvisioningStage(context, effectiveDbkId, 'BLUEPRINT_READY');
+
     const workflowInstance = await workflowEngine.createPersistentWorkflow(
       workflowCtx,
       'DBK_PROVISIONING',
@@ -533,6 +555,8 @@ export class ProvisioningService {
     const executedWorkflow = await workflowEngine.executeWorkflow(workflowCtx, workflowInstance.workflowId);
 
     if (executedWorkflow.status !== 'COMPLETED') {
+      await this.setProvisioningStage(context, effectiveDbkId, 'FAILED', executedWorkflow.failureReason || 'Provisioning workflow failed');
+
       // Provisioning Failed
       await dbkRegistry.updateStatus(
         context,
@@ -587,6 +611,8 @@ export class ProvisioningService {
         correlationId,
       };
     }
+
+    await this.setProvisioningStage(context, effectiveDbkId, 'ACTIVATION_VERIFIED');
 
     // 8. Provisioning Succeeded
     const finalDbk = (await dbkRegistry.getDbk(context, effectiveDbkId))!;
