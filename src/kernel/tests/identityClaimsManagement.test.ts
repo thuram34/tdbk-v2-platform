@@ -543,7 +543,7 @@ describe('TDBK V2 — Production Identity & Claims Management', () => {
         dbkId: tenantAId,
         legalName: 'Owner A Enterprise DBK',
         blueprintId: 'school_v1',
-        subscriptionTier: 'PRO',
+        subscriptionTier: 'FREE',
       });
 
       // Owner B provisions Tenant B
