@@ -440,7 +440,7 @@ export const DbkShell: React.FC<DbkShellProps> = ({
                   onRefreshExperience={() => resolveExperience(selectedDbkId, selectedBranchId)}
                 />
               ) : activeViewId === 'nav_settings' || activeViewId === 'settings' ? (
-                <SettingsView experience={experience} onDispatchCommand={handleDispatchCommand} />
+                <SettingsView experience={experience} onDispatchCommand={handleDispatchCommand} onRefreshExperience={() => resolveExperience(selectedDbkId, selectedBranchId)} />
               ) : currentNav?.viewType === 'CUSTOM_CLASSROOM' || activeViewId === 'smart_classroom' ? (
                 <SmartClassroomView
                   tenantId={selectedDbkId}
