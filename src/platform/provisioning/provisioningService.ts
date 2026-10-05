@@ -71,6 +71,7 @@ export class ProvisioningService {
         };
       }
 
+      await this.setProvisioningStage(createStepContext(workflow, dbkId), dbkId, 'IDENTITY_READY');
       return { success: true, output: { validated: true } };
     });
 
@@ -88,6 +89,7 @@ export class ProvisioningService {
         };
       }
 
+      await this.setProvisioningStage(createStepContext(workflow, String((input as any).dbkId || '')), String((input as any).dbkId || ''), 'BLUEPRINT_READY');
       return {
         success: true,
         output: {
@@ -139,6 +141,7 @@ export class ProvisioningService {
           blueprintId,
           blueprintVersion
         );
+        await this.setProvisioningStage(mockCtx, dbkId, 'DNA_READY');
         return { success: true, output: { dbkId: dna.dbkId, sector: dna.identity.businessType } };
       } catch (err: any) {
         return {
@@ -160,6 +163,7 @@ export class ProvisioningService {
       if (!durableDbk || durableDbk.subscriptionTier !== tier) {
         return { success: false, error: 'Durable DBK subscription tier does not match provisioning request', failureClassification: 'PERMANENT' };
       }
+      await this.setProvisioningStage(createStepContext({ workflowId: 'provisioning' }, dbkId), dbkId, 'ENTITLEMENT_READY');
       return { success: true, output: { subscriptionTier: tier } };
     });
 
@@ -220,6 +224,7 @@ export class ProvisioningService {
         initializedCount++;
       }
 
+      await this.setProvisioningStage(mockCtx, dbkId, 'CAPABILITIES_READY');
       return { success: true, output: { initializedCapabilities: initializedCount } };
     });
 
@@ -248,6 +253,7 @@ export class ProvisioningService {
         branches.push(branch);
       }
 
+      await this.setProvisioningStage(mockCtx, dbkId, 'BRANCHES_READY');
       return { success: true, output: { branchCount: branches.length, branches } };
     });
 
@@ -258,6 +264,7 @@ export class ProvisioningService {
 
       try {
         const workspace = await workspaceManager.compileWorkspaceState(mockCtx, dbkId);
+        await this.setProvisioningStage(mockCtx, dbkId, 'WORKSPACE_READY');
         return { success: true, output: { workspaceVersion: workspace.workspaceVersion } };
       } catch (err: any) {
         return {
