@@ -88,6 +88,8 @@ export class ExperienceResolver {
       displayName: workspace.displayName,
       sector: workspace.sector,
       status: workspace.status,
+      provisioningStage: workspace.provisioningStage,
+      shellReadiness: workspace.shellReadiness,
       subscriptionTier: workspace.subscriptionTier,
       workspaceVersion: workspace.workspaceVersion,
       configurationVersion: workspace.configurationVersion,
