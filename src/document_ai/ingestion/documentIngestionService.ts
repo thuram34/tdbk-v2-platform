@@ -18,6 +18,7 @@ import {
 } from '../types';
 import { SecurityContext } from '../../kernel/types';
 import { tenantIsolation } from '../../kernel/tenancy/tenantIsolation';
+import { masterAuthority } from '../../kernel/master/masterAuthority';
 import { KernelError } from '../../kernel/errors/kernelErrors';
 import { auditLogger } from '../../kernel/audit/auditLogger';
 import { documentStore } from '../storage/documentStore';
@@ -84,7 +85,7 @@ export class DocumentIngestionService {
     req: IngestDocumentRequest
   ): Promise<DocumentMetadata> {
     // 1. Authoritative Tenant Isolation Check
-    tenantIsolation.assertTenantIsolation(ctx.principal, req.tenantId);
+    await masterAuthority.assertTenantAuthority(ctx.principal, req.tenantId, 'INGEST_DOCUMENT', ctx.requestId);
 
     // 1b. Check DBK status (Suspended DBK cannot ingest documents)
     const tenant = await dbkRegistry.getDbk(ctx, req.tenantId);
