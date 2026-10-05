@@ -18,6 +18,7 @@ import {
 } from '../types';
 import { SecurityContext } from '../../kernel/types';
 import { tenantIsolation } from '../../kernel/tenancy/tenantIsolation';
+import { masterAuthority } from '../../kernel/master/masterAuthority';
 import { rbacEngine } from '../../kernel/authorization/rbacEngine';
 import { KernelError } from '../../kernel/errors/kernelErrors';
 import { auditLogger } from '../../kernel/audit/auditLogger';
@@ -61,7 +62,7 @@ export class AiCommandBoundary {
       causationId?: string;
     }
   ): Promise<AiProposedAction> {
-    tenantIsolation.assertTenantIsolation(ctx.principal, params.tenantId);
+    await masterAuthority.assertTenantAuthority(ctx.principal, params.tenantId, 'CREATE_AI_PROPOSAL', ctx.requestId);
 
     // Validate branch existence
     if (params.branchId) {
@@ -251,7 +252,7 @@ export class AiCommandBoundary {
     tenantId: string,
     proposalId: string
   ): Promise<AiProposedAction | null> {
-    tenantIsolation.assertTenantIsolation(ctx.principal, tenantId);
+    await masterAuthority.assertTenantAuthority(ctx.principal, tenantId, 'READ_AI_PROPOSAL', ctx.requestId);
     const proposal = await aiProposalRepository.getProposal(tenantId, proposalId);
     if (proposal && proposal.tenantId !== tenantId) {
       throw new KernelError('FORBIDDEN_OPERATION' as any, 'AI proposal tenant boundary violation', 403, ctx.requestId);
@@ -265,7 +266,7 @@ export class AiCommandBoundary {
     status?: ProposalStatus,
     branchId?: string
   ): Promise<AiProposedAction[]> {
-    tenantIsolation.assertTenantIsolation(ctx.principal, tenantId);
+    await masterAuthority.assertTenantAuthority(ctx.principal, tenantId, 'LIST_AI_PROPOSALS', ctx.requestId);
     const proposals = await aiProposalRepository.listProposals(tenantId, branchId);
     return status ? proposals.filter((proposal) => proposal.status === status) : proposals;
   }
@@ -279,7 +280,7 @@ export class AiCommandBoundary {
     proposalId: string,
     adjustedPayload?: Record<string, any>
   ): Promise<{ success: boolean; proposal: AiProposedAction; recordId?: string }> {
-    tenantIsolation.assertTenantIsolation(ctx.principal, tenantId);
+    await masterAuthority.assertTenantAuthority(ctx.principal, tenantId, 'APPROVE_AI_PROPOSAL', ctx.requestId);
 
     // AI CANNOT SELF-APPROVE: Caller must not be an automated AI system principal
     if (ctx.principal.id === 'AI_AGENT' || ctx.principal.id === 'TDBK_AI_ASSISTANT') {
@@ -574,7 +575,7 @@ export class AiCommandBoundary {
     proposalId: string,
     reason: string
   ): Promise<AiProposedAction> {
-    tenantIsolation.assertTenantIsolation(ctx.principal, tenantId);
+    await masterAuthority.assertTenantAuthority(ctx.principal, tenantId, 'REJECT_AI_PROPOSAL', ctx.requestId);
 
     const proposal = await this.getPersistentProposal(ctx, tenantId, proposalId);
     if (!proposal) {
