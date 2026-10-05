@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
+import { useAuth } from '../../client/AuthContext';
 import {
   AlertCircle,
-  ArrowRight,
   Building2,
   Check,
   CheckCircle2,
@@ -12,7 +12,6 @@ import {
   Link2,
   Loader2,
   PlugZap,
-  RefreshCw,
   Settings2,
   ShieldCheck,
   Sliders,
@@ -81,6 +80,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ experience }) => {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
+  const { getIdToken } = useAuth();
 
   const selectedConnection = useMemo(
     () => connections.find((connection) => connection.bridgeId === selectedBridgeId) || null,
@@ -105,6 +105,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ experience }) => {
 
   const saveConnector = async () => {
     if (!selectedConnection || !selectedBridgeId) return;
+
     const requirements = bridgeRequirements[selectedBridgeId] || [];
     const missing = requirements.filter((key) => !draft[key]?.trim());
     if (missing.length > 0) {
@@ -118,18 +119,44 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ experience }) => {
     setSaveSuccess(null);
 
     try {
-      const token = await (async () => {
-        const response = await fetch('/api/kernel/context?tenantId=' + encodeURIComponent(dbkId));
-        // The context endpoint needs the caller's Authorization header. Use the browser's
-        // existing auth context through the server command boundary in production.
-        return response.ok ? true : true;
-      })();
-      void token;
+      const token = await getIdToken();
+      if (!token) throw new Error('Your session has expired. Please sign in again.');
 
-      // Connector configuration deliberately receives secret REFERENCES, never secret values.
-      const { useAuth } = await import('../../client/AuthContext');
-      void useAuth;
-      throw new Error('This connector form requires the authenticated session handler.');
+      const parameters: Record<string, string> = {};
+      const secretRefs: Record<string, { provider: 'GCP_SECRET_MANAGER'; name: string }> = {};
+
+      requirements.forEach((key) => {
+        const value = draft[key].trim();
+        if (isSecretField(key)) {
+          secretRefs[key] = { provider: 'GCP_SECRET_MANAGER', name: value };
+        } else {
+          parameters[key] = value;
+        }
+      });
+
+      const response = await fetch('/api/connectors/configure', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          tenantId: dbkId,
+          bridgeId: selectedBridgeId,
+          parameters,
+          secretRefs,
+          enabled: true,
+        }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.error?.message || 'The connection could not be saved.');
+      }
+
+      setSaveSuccess('Connection configuration saved. Refreshing workspace status…');
+      setDraft({});
+      window.setTimeout(() => window.location.reload(), 450);
     } catch (error: any) {
       setSaveError(error?.message || 'The connection could not be saved.');
     } finally {
