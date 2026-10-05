@@ -51,7 +51,7 @@ export class ProvisioningService {
     if (this.handlersRegistered) return;
 
     // 1. VALIDATE_IDENTITY
-    workflowEngine.registerStepHandler('PROVISIONING_VALIDATE_IDENTITY', async ({ input }) => {
+    workflowEngine.registerStepHandler('PROVISIONING_VALIDATE_IDENTITY', async ({ input, workflow }) => {
       const dbkId = input.dbkId as string;
       const legalName = input.legalName as string;
 
