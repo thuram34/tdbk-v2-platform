@@ -4,6 +4,7 @@ import { KernelError } from '../../kernel/errors/kernelErrors';
 import { firestoreClient } from '../../persistence/firestore/firestoreClient';
 import { outboxEngine } from '../../orchestration/outbox/outboxEngine';
 import { rbacEngine } from '../../kernel/authorization/rbacEngine';
+import { dbkCapabilityManager } from '../../capability/dbkCapabilityManager';
 
 export interface SaleItemInput {
   inventoryRecordId: string;
@@ -91,6 +92,13 @@ export class SaleTransactionService {
         requiredPermission: 'execute:sales',
         requestId: context.requestId,
       },
+    );
+
+    await dbkCapabilityManager.assertCapabilityOperational(
+      context,
+      dbkId,
+      SALE_CAPABILITY,
+      'EXECUTE_SALE',
     );
 
     if (
