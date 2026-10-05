@@ -14,6 +14,7 @@ import { auditLogger } from '../../../kernel/audit/auditLogger';
 import { KernelError } from '../../../kernel/errors/kernelErrors';
 import { connectorConnectionRepository } from '../../../persistence/firestore/repositories/connectorConnectionRepository';
 import { resolveConnectorSecret } from '../connectorSecretResolver';
+import { claimExternalOperation, completeExternalOperation } from '../externalOperationGuard';
 
 export interface EtimsInvoiceItem {
   itemCode?: string;
@@ -49,6 +50,8 @@ export interface EtimsInvoiceRequest {
   branchId?: string;
   saleDate?: string;
   traderInvoiceNumber?: string;
+  /** Stable caller-controlled identity for a mutating eTIMS operation. */
+  idempotencyKey?: string;
 }
 
 type EtimsConnection = {
@@ -213,6 +216,56 @@ export class EtimsBridge implements Bridge<EtimsInvoiceRequest, any, any> {
       throw new KernelError('VALIDATION_ERROR', `Unsupported eTIMS operation: '${operation}'`, 400, context.requestId);
     }
 
+    const mutatingOperations = new Set([
+      'SUBMIT_INVOICE',
+      'SAVE_SALES',
+      'SAVE_ITEM',
+      'SAVE_ITEM_COMPOSITION',
+      'SAVE_PURCHASE',
+      'SAVE_STOCK',
+      'SAVE_STOCK_MASTER',
+      'SAVE_BRANCH_CUSTOMERS',
+      'SAVE_BRANCH_USERS',
+      'SAVE_BRANCH_INSURANCE',
+      'UPDATE_IMPORT',
+    ]);
+
+    let externalOperationKey: string | null = null;
+    let externalClaim: Awaited<ReturnType<typeof claimExternalOperation>> | null = null;
+    if (process.env.NODE_ENV === 'production' && mutatingOperations.has(operation)) {
+      const stableIdentity = payload.idempotencyKey || (
+        (operation === 'SUBMIT_INVOICE' || operation === 'SAVE_SALES') && payload.invoiceNumber
+          ? `invoice:${payload.invoiceNumber}`
+          : undefined
+      );
+      if (!stableIdentity) {
+        throw new KernelError(
+          'VALIDATION_ERROR',
+          `eTIMS operation '${operation}' requires a stable idempotencyKey.`,
+          400,
+          context.requestId,
+        );
+      }
+      externalOperationKey = `etims:${operation}:${stableIdentity}`;
+      externalClaim = await claimExternalOperation(
+        tenantId,
+        externalOperationKey,
+        `ETIMS_${operation}`,
+        { operation, payload },
+      );
+      if (externalClaim.state === 'COMPLETED') return externalClaim.response as NormalizedBridgeResult<any>;
+      if (externalClaim.state === 'IN_PROGRESS') {
+        return {
+          status: 'REQUIRES_RECONCILIATION',
+          provider: this.provider,
+          providerReference: externalOperationKey,
+          occurredAt: new Date().toISOString(),
+          correlationId: context.correlationId || context.requestId,
+          data: { reason: 'An earlier eTIMS provider call is unresolved; blind replay is blocked.' },
+        };
+      }
+    }
+
     let providerResponse: any;
     if (operation === 'INITIALIZE') {
       providerResponse = await this.post(connection, 'INITIALIZE', {
@@ -349,7 +402,7 @@ export class EtimsBridge implements Bridge<EtimsInvoiceRequest, any, any> {
       tenantId, requestId: context.requestId, details: { operation, providerReference, resultCd: providerResponse?.resultCd },
     });
 
-    return {
+    const normalized: NormalizedBridgeResult<any> = {
       status: success ? 'SUCCESS' : 'FAILED',
       provider: this.provider,
       providerReference,
@@ -360,6 +413,11 @@ export class EtimsBridge implements Bridge<EtimsInvoiceRequest, any, any> {
       data: providerResponse,
       errorDetails: success ? undefined : providerResponse?.resultMsg,
     };
+
+    if (externalOperationKey && externalClaim?.state === 'CLAIMED') {
+      await completeExternalOperation(tenantId, externalOperationKey, normalized as unknown as Record<string, unknown>);
+    }
+    return normalized;
   }
 
   public async verifyCallback(rawCallback: any, signatureHeader?: string): Promise<CallbackVerificationResult> {
