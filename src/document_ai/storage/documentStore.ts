@@ -44,7 +44,7 @@ export class DocumentStore {
     doc: DocumentMetadata,
     rawContent?: string
   ): void {
-    await masterAuthority.assertTenantAuthority(ctx.principal, doc.tenantId, 'PERSIST_DOCUMENT', ctx.requestId);
+    tenantIsolation.assertTenantIsolation(ctx.principal, doc.tenantId, 'PERSIST_DOCUMENT', ctx.requestId);
 
     if (!this.tenantDocumentIndex.has(doc.tenantId)) {
       this.tenantDocumentIndex.set(doc.tenantId, new Map());
