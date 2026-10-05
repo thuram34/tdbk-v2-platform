@@ -15,10 +15,8 @@ import {
   ArrowLeft,
   Bot,
   CheckCircle2,
-  ChevronDown,
   GitBranch,
   Menu,
-  Plus,
   RefreshCw,
   Settings,
   X,
@@ -246,7 +244,7 @@ export const DbkShell: React.FC<DbkShellProps> = ({
           <div className="flex min-w-0 items-center gap-2.5">
             <button
               type="button"
-              onClick={() => setViewMode('PORTFOLIO')}
+              onClick={() => (onSwitchToMaster ? onSwitchToMaster() : setViewMode('PORTFOLIO'))}
               className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-neutral-200 bg-white px-2.5 py-2 text-xs font-semibold text-neutral-700 shadow-sm hover:bg-neutral-50"
             >
               <ArrowLeft className="h-3.5 w-3.5" />
@@ -389,7 +387,7 @@ export const DbkShell: React.FC<DbkShellProps> = ({
             <div className="mx-auto mt-10 max-w-lg rounded-3xl border border-amber-200 bg-amber-50 p-7 text-center">
               <AlertTriangle className="mx-auto h-7 w-7 text-amber-400" />
               <h1 className="mt-4 text-lg font-semibold">Access not available</h1>
-              <p className="mt-2 text-sm leading-6 text-neutral-400">{error || 'Your account does not currently have access to this organization or action.'}</p>
+              <p className="mt-2 text-sm leading-6 text-neutral-600">{error || 'Your account does not currently have access to this organization or action.'}</p>
               <button type="button" onClick={() => setViewMode('PORTFOLIO')} className="mt-5 inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2.5 text-sm font-semibold text-neutral-900 hover:bg-neutral-100">
                 <ArrowLeft className="h-4 w-4" />
                 Back to organizations
@@ -428,19 +426,6 @@ export const DbkShell: React.FC<DbkShellProps> = ({
                     <button type="button" onClick={goToSettings} className="inline-flex items-center gap-2 rounded-xl border border-neutral-200 bg-white px-3.5 py-2.5 text-xs font-bold text-neutral-700 hover:bg-neutral-50"><Settings className="h-4 w-4" /> Connections</button>
                     <button type="button" onClick={() => setActiveViewId('view_doc_ai')} className="inline-flex items-center gap-2 rounded-xl bg-neutral-950 px-3.5 py-2.5 text-xs font-bold text-white hover:bg-neutral-800"><Bot className="h-4 w-4" /> AI assistant</button>
                   </div>
-                </div>
-              </div>
-              <div className="mb-5 flex flex-col gap-3 border-b border-neutral-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">{experience.activeBranch.name}</p>
-                  <h1 className="mt-1 truncate text-xl font-bold sm:text-2xl">{experience.displayName}</h1>
-                  {currentNav?.label && activeViewId !== 'nav_overview' && (
-                    <p className="mt-1 text-sm text-neutral-400">{currentNav.label}</p>
-                  )}
-                </div>
-                <div className="inline-flex w-fit items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-semibold text-emerald-700">
-                  <CheckCircle2 className="h-3.5 w-3.5" />
-                  {experience.operationalState || 'Ready'}
                 </div>
               </div>
 
