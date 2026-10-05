@@ -61,21 +61,9 @@ Experience command -> EXECUTE_SALE -> SaleTransactionService -> Firestore transa
 - SaleTransactionService enforces tenant, branch and RBAC boundaries.
 - Sale + inventory mutation + outbox event are committed transactionally.
 
-## 4. Critical finding: post-provisioning routing
+## 4. Historical finding: post-provisioning routing
 
-BusinessDiscovery currently calls onProvisioned(dbkId). App.tsx handles that by hiding BusinessDiscovery and calling loadDbks().
-
-loadDbks() returns the user to OwnerCommandCenter.
-
-Therefore the current journey is:
-
-Register -> Provision -> Owner Portfolio -> Open Workspace
-
-The intended journey is:
-
-Register -> Provision -> Workspace Ready -> Enter Workspace
-
-This is a HIGH priority UX/lifecycle correction. The portfolio may remain available for owners managing multiple businesses, but it should not be a mandatory second stop after first provisioning.
+The historical trace described a post-provisioning portfolio detour. The current `main` implementation has since been corrected: `BusinessDiscovery.onProvisioned()` sets the authoritative `dbkId` and `App.tsx` renders `DbkApp` directly. OwnerCommandCenter remains the multi-business management surface. This is therefore CLOSED on the current branch.
 
 ## 5. Critical finding: DBK terminology
 
@@ -95,9 +83,9 @@ Customer vocabulary should be:
 
 DBK, tenant, provisioning, runtime and kernel should remain engineering/platform vocabulary unless an administrative screen genuinely requires them.
 
-## 6. Critical finding: app.tx
+## 6. Historical finding: app.tx
 
-Repository search did not locate a literal app.tx implementation.
+Repository search did not locate a literal `app.tx` file. This naming observation is not a runtime blocker: the authoritative transaction contract is already represented by `ExperienceCommandRequest` / `EXECUTE_SALE` and `SaleTransactionService`.
 
 The actual operational sale path is:
 
@@ -154,9 +142,9 @@ A feature is operational only when its complete client journey can be traced fro
 
 ## 11. Immediate engineering priorities
 
-1. Change post-provisioning routing to enter the newly provisioned workspace directly.
-2. Remove DBK/platform-engine terminology from normal customer onboarding.
-3. Establish one canonical app.tx/transaction contract over the existing ExperienceResolver transaction path.
+1. Maintain direct post-provisioning entry into the newly provisioned workspace (CLOSED for current main).
+2. Remove DBK/platform-engine terminology from normal customer onboarding (IN PROGRESS on finalization branch).
+3. Keep one canonical transaction contract over the existing ExperienceResolver transaction path; a literal `app.tx` filename is not required.
 4. Trace M-Pesa, eTIMS and WhatsApp operations from transaction initiation through provider result, reconciliation and final confirmation.
 5. Add an end-to-end client-journey test that fails if any authoritative transition is missing.
 6. Use this journey as the acceptance gate for future TDBK capabilities.
