@@ -14,6 +14,26 @@ export type DbkLifecycleStatus =
   | 'SUSPENDED'
   | 'ARCHIVED';
 
+export type DbkProvisioningStage =
+  | 'REGISTRATION_ACCEPTED'
+  | 'IDENTITY_READY'
+  | 'BLUEPRINT_READY'
+  | 'DNA_READY'
+  | 'ENTITLEMENT_READY'
+  | 'CAPABILITIES_READY'
+  | 'BRANCHES_READY'
+  | 'WORKSPACE_READY'
+  | 'ACTIVATION_VERIFIED'
+  | 'FAILED';
+
+export type DbkShellReadiness =
+  | 'NOT_READY'
+  | 'BUILDING'
+  | 'READY'
+  | 'BLOCKED'
+  | 'SUSPENDED'
+  | 'ARCHIVED';
+
 export interface DbkBranch {
   branchId: string;
   dbkId: string;
@@ -50,6 +70,8 @@ export interface DbkIdentity {
   blueprintVersion: string;
   subscriptionTier: SubscriptionTier;
   status: DbkLifecycleStatus;
+  /** Durable provisioning stage; lifecycle status remains the top-level state machine. */
+  provisioningStage?: DbkProvisioningStage;
   masterOwner: string;
   createdAt: string;
   updatedAt: string;
@@ -124,6 +146,8 @@ export interface DbkWorkspaceState {
   enabledCapabilities: string[];
   discoverableCapabilities: string[];
   connections: DbkWorkspaceConnection[];
+  provisioningStage?: DbkProvisioningStage;
+  shellReadiness?: DbkShellReadiness;
   terminology: BlueprintTerminology | Record<string, string>;
   lastSyncedAt: string;
 }
