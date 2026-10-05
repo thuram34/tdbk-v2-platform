@@ -112,6 +112,7 @@ export interface ProvisionDbkResult {
   subscriptionTier: SubscriptionTier;
   branches: DbkBranch[];
   workspaceVersion: number;
+  provisioningStage?: DbkProvisioningStage;
   isIdempotentReplay?: boolean;
   error?: string;
   correlationId: string;
