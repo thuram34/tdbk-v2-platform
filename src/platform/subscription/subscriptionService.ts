@@ -6,6 +6,7 @@
 import { SubscriptionTier } from '../../capability/types';
 import { DbkSubscription, SubscriptionPaymentStatus, SubscriptionStatus } from '../../persistence/types';
 import { SecurityContext } from '../../kernel/types';
+import { ValidationError } from '../../kernel/errors/kernelErrors';
 import { masterAuthority } from '../../kernel/master/masterAuthority';
 import { dbkRegistry } from '../dbkRegistry';
 import { subscriptionRepository } from '../../persistence/firestore/repositories/subscriptionRepository';
@@ -31,12 +32,20 @@ export class SubscriptionService {
     if (!dbk) throw new Error(`DBK '${input.dbkId}' not found.`);
 
     const now = new Date().toISOString();
+    const paymentStatus = input.paymentStatus || 'PENDING';
+    const status = input.status || (paymentStatus === 'PAID' ? 'ACTIVE' : 'TRIAL');
+    if (status === 'ACTIVE' && paymentStatus !== 'PAID') {
+      throw new ValidationError(
+        'An ACTIVE subscription must have PAID payment status. Pending subscriptions must remain TRIAL until payment confirmation.',
+        context.requestId,
+      );
+    }
     const subscription: DbkSubscription = {
       subscriptionId: `sub_${crypto.randomUUID()}`,
       dbkId: input.dbkId,
       tier: input.tier,
-      status: input.status || 'ACTIVE',
-      paymentStatus: input.paymentStatus || 'PENDING',
+      status,
+      paymentStatus,
       currency: input.currency || 'KES',
       amount: input.amount,
       interval: input.interval || 'MONTHLY',

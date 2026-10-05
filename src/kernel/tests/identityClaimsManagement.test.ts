@@ -171,7 +171,7 @@ describe('TDBK V2 — Production Identity & Claims Management', () => {
       dbkId: `dbk_owner_test_${Date.now()}`,
       legalName: 'Owner Enterprise Campus',
       blueprintId: 'school_v1',
-      subscriptionTier: 'PRO',
+      subscriptionTier: 'FREE',
       primaryBranchName: 'Main Campus',
     });
 
@@ -453,7 +453,7 @@ describe('TDBK V2 — Production Identity & Claims Management', () => {
       dbkId: targetDbkId,
       legalName: 'E2E Verified International School',
       blueprintId: 'school_v1',
-      subscriptionTier: 'PRO',
+      subscriptionTier: 'FREE',
       primaryBranchName: 'Main Campus',
     });
 
@@ -543,7 +543,7 @@ describe('TDBK V2 — Production Identity & Claims Management', () => {
         dbkId: tenantAId,
         legalName: 'Owner A Enterprise DBK',
         blueprintId: 'school_v1',
-        subscriptionTier: 'PRO',
+        subscriptionTier: 'FREE',
       });
 
       // Owner B provisions Tenant B
@@ -551,7 +551,7 @@ describe('TDBK V2 — Production Identity & Claims Management', () => {
         dbkId: tenantBId,
         legalName: 'Owner B Enterprise DBK',
         blueprintId: 'retail_v1',
-        subscriptionTier: 'ENTERPRISE',
+        subscriptionTier: 'FREE',
       });
     });
 

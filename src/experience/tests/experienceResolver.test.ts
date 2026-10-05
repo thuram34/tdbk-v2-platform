@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { experienceResolver } from '../experienceResolver';
 import { firestoreClient } from '../../persistence/firestore/firestoreClient';
 import type { SecurityContext } from '../../kernel/types';
+import { dbkCapabilityManager } from '../../capability/dbkCapabilityManager';
 
 const tenantId = 'tenant_resolver_sale_test';
 const branchId = 'branch_main';
@@ -68,6 +69,16 @@ async function seedInventory(
 describe('ExperienceResolver EXECUTE_SALE binding', () => {
   beforeEach(async () => {
     await firestoreClient.clearAllForTesting();
+    dbkCapabilityManager.clearStoreForTesting();
+    dbkCapabilityManager.saveDbkCapabilityRecord(makeContext(), {
+      dbkId: tenantId,
+      capabilityId: 'sales_counter',
+      capabilityVersion: '1.0.0',
+      state: 'ENABLED',
+      entitlement: 'ENTITLED',
+      configurationState: { isConfigured: true },
+      updatedAt: new Date().toISOString(),
+    });
   });
 
   it('BIND_01: dispatches EXECUTE_SALE to SaleTransactionService and completes the transaction', async () => {

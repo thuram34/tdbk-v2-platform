@@ -58,7 +58,7 @@ type WhatsappConnection = {
 export class WhatsappBridge implements Bridge<WhatsappMessageRequest, any, WhatsappWebhook> {
   public readonly bridgeId = 'bridge_whatsapp';
   public readonly provider = 'META_WHATSAPP';
-  public readonly capabilityId = 'whatsapp_bridge';
+  public readonly capabilityId = 'whatsapp_automation';
   public readonly version = 'v2.0';
   public readonly sideEffectCapabilities = { providerIdempotency: false, providerReconciliation: false };
 

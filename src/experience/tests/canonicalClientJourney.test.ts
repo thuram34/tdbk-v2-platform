@@ -5,6 +5,8 @@ import { dbkRegistry } from '../../platform/dbkRegistry';
 import { provisioningService } from '../../platform/provisioning/provisioningService';
 import { experienceResolver } from '../../experience/experienceResolver';
 import { outboxRepository } from '../../persistence/firestore/repositories/outboxRepository';
+import { subscriptionService } from '../../platform/subscription/subscriptionService';
+import { handleSubscriptionPaymentConfirmed } from '../../platform/subscription/subscriptionPaymentHandler';
 
 const dbkId = 'canonical_journey_hardware_01';
 const inventoryRecordId = 'canonical_stock_001';
@@ -22,6 +24,28 @@ function masterContext(): SecurityContext {
       branchId: null,
       roles: ['TDBK_MASTER_ADMIN'],
       permissions: ['*'],
+      authTime: Date.now(),
+      tokenSource: 'JWT',
+    },
+    tenantContext: null,
+    branchContext: null,
+  };
+}
+
+
+function ownerContext(): SecurityContext {
+  return {
+    requestId: 'canonical-owner-provision-request',
+    correlationId: 'canonical-owner-provision-correlation',
+    timestamp: new Date().toISOString(),
+    principal: {
+      id: 'canonical-owner',
+      email: 'owner@tdbk.test',
+      isMaster: false,
+      tenantId: null,
+      branchId: null,
+      roles: ['BUSINESS_OWNER'],
+      permissions: ['PORTFOLIO_READ', 'PORTFOLIO_WRITE', 'DBK_PROVISION'],
       authTime: Date.now(),
       tokenSource: 'JWT',
     },
@@ -69,12 +93,12 @@ describe('TDBK canonical client journey acceptance', () => {
   });
 
   it('CJ_01: provisions a business, resolves its workspace, then completes an authoritative sale', async () => {
-    const provisioned = await provisioningService.provisionDbk(masterContext(), {
+    const provisioned = await provisioningService.provisionDbk(ownerContext(), {
       dbkId,
       legalName: 'Canonical Hardware Test',
       displayName: 'Canonical Hardware',
       blueprintId: 'hardware_v1',
-      subscriptionTier: 'PRO',
+      subscriptionTier: 'FREE',
       primaryBranchName: 'Mombasa HQ',
       idempotencyKey: 'canonical-client-journey-v1',
     });
@@ -83,8 +107,80 @@ describe('TDBK canonical client journey acceptance', () => {
     expect(provisioned.status).toBe('ACTIVE');
     expect(provisioned.dbkId).toBe(dbkId);
     expect(provisioned.branches.length).toBeGreaterThan(0);
+    expect(provisioned.subscriptionTier).toBe('FREE');
 
     const branchId = provisioned.branches[0].branchId;
+    const preSubscriptionSale = await experienceResolver.dispatchCommand(
+      cashierContext(branchId),
+      {
+        commandType: 'EXECUTE_SALE',
+        targetDbkId: dbkId,
+        payload: {
+          saleId: 'canonical-sale-before-entitlement',
+          branchId,
+          items: [{ inventoryRecordId, quantity: 1 }],
+          paymentStatus: 'PAID',
+        },
+      },
+    );
+    expect(preSubscriptionSale.success).toBe(false);
+    expect(preSubscriptionSale.error?.code).toBe('AUTHORIZATION_ERROR');
+
+    const preSubscriptionEnable = await experienceResolver.dispatchCommand(
+      ownerContext(),
+      {
+        commandType: 'ENABLE_CAPABILITY',
+        targetDbkId: dbkId,
+        payload: { capabilityId: 'sales_counter' },
+      },
+    );
+    expect(preSubscriptionEnable.success).toBe(false);
+    expect(preSubscriptionEnable.error?.code).toBe('AUTHORIZATION_ERROR');
+
+    await subscriptionService.createSubscription(masterContext(), {
+      dbkId,
+      tier: 'FOUNDATION',
+      amount: 2500,
+      currency: 'KES',
+      interval: 'MONTHLY',
+      paymentReference: 'canonical-subscription-payment-001',
+      provider: 'SAFARICOM_MPESA',
+      status: 'TRIAL',
+      paymentStatus: 'PENDING',
+      correlationId: 'canonical-subscription-correlation',
+    });
+
+    await handleSubscriptionPaymentConfirmed({
+      eventId: 'canonical-subscription-payment-event',
+      eventType: 'payment.confirmed.v1',
+      eventVersion: 'v1',
+      occurredAt: new Date().toISOString(),
+      tenantId: dbkId,
+      branchId,
+      principalId: 'canonical-owner',
+      correlationId: 'canonical-subscription-correlation',
+      causationId: 'canonical-subscription-payment-001',
+      source: 'CanonicalJourneyTest',
+      payload: {
+        provider: 'SAFARICOM_MPESA',
+        data: { checkoutRequestId: 'canonical-subscription-payment-001' },
+      },
+      metadata: {},
+    });
+
+    const upgradedDbk = await dbkRegistry.getDbkInternal(dbkId);
+    expect(upgradedDbk?.subscriptionTier).toBe('FOUNDATION');
+
+    const enableSales = await experienceResolver.dispatchCommand(
+      ownerContext(),
+      {
+        commandType: 'ENABLE_CAPABILITY',
+        targetDbkId: dbkId,
+        payload: { capabilityId: 'sales_counter' },
+      },
+    );
+    expect(enableSales.success).toBe(true);
+
     const resolved = await experienceResolver.resolveExperience(
       cashierContext(branchId),
       dbkId,

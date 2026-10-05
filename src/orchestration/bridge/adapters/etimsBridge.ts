@@ -63,7 +63,7 @@ type EtimsConnection = {
 export class EtimsBridge implements Bridge<EtimsInvoiceRequest, any, any> {
   public readonly bridgeId = 'bridge_etims';
   public readonly provider = 'KRA_ETIMS';
-  public readonly capabilityId = 'etims_bridge';
+  public readonly capabilityId = 'etims_compliance';
   public readonly version = 'v2.0';
   public readonly sideEffectCapabilities = {
     providerIdempotency: false,

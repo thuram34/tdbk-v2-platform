@@ -20,7 +20,7 @@ import { workflowEngine } from '../../orchestration/workflow/engine';
 import { eventBus } from '../../orchestration/events/eventBus';
 import { idempotencyRepository } from '../../persistence/firestore/repositories/idempotencyRepository';
 import { auditLogger } from '../../kernel/audit/auditLogger';
-import { KernelError } from '../../kernel/errors/kernelErrors';
+import { AuthorizationError, KernelError } from '../../kernel/errors/kernelErrors';
 import { SectorType } from '../../blueprint/types';
 import { createHash } from 'node:crypto';
 
@@ -289,6 +289,23 @@ export class ProvisioningService {
     // 1. Security Assertion: Authorized Business Owner or Master Admin can provision DBKs
     masterAuthority.assertOwnerOrMasterAuthority(context.principal, 'provisionDbk', context.requestId);
 
+    // Subscription/entitlement is a separate commercial authority. A business owner
+    // may create a workspace, but cannot grant itself a paid entitlement tier.
+    // TDBK Master or the verified subscription-payment activation path must change
+    // the authoritative DBK subscriptionTier after commercial activation.
+    const requestedSubscriptionTier = request.subscriptionTier;
+    const isMasterProvisioner = masterAuthority.isMasterAdmin(context.principal);
+    if (!isMasterProvisioner && requestedSubscriptionTier && requestedSubscriptionTier !== 'FREE') {
+      throw new AuthorizationError(
+        'Business owners cannot grant themselves a paid subscription tier during workspace provisioning. Create the workspace on FREE and activate paid tiers through the subscription authority.',
+        context.requestId,
+      );
+    }
+
+    const effectiveProvisioningTier = isMasterProvisioner
+      ? (requestedSubscriptionTier || 'FOUNDATION')
+      : 'FREE';
+
     const slugify = (value: string) => value.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 48);
     const requestedDbkId = request.dbkId;
     const idempotencyKey = request.idempotencyKey || `idem_${requestedDbkId || slugify(request.legalName)}`;
@@ -378,7 +395,7 @@ export class ProvisioningService {
       sector: bp.sector,
       blueprintId: bp.id,
       blueprintVersion: bp.version,
-      subscriptionTier: request.subscriptionTier || 'FOUNDATION',
+      subscriptionTier: effectiveProvisioningTier,
       status: 'PROVISIONING',
       masterOwner: context.principal.id,
       createdAt: new Date().toISOString(),
