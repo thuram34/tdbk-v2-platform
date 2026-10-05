@@ -1099,6 +1099,32 @@ async function startServer() {
     }
   });
 
+  app.get('/api/platform/dbks/:dbkId/status', async (req: Request, res: Response) => {
+    try {
+      const { dbkId } = req.params;
+      const context = await securityContextFactory.createSecurityContext({
+        authHeader: req.headers.authorization,
+        targetTenantId: dbkId,
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+      });
+      const dbk = await dbkRegistry.getDbk(context, dbkId);
+      if (!dbk) return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'DBK not found' } });
+      const projection = await experienceProjection.getExperienceProjection(context, dbkId);
+      return res.json({
+        status: 'SUCCESS',
+        dbkId,
+        lifecycleStatus: dbk.status,
+        provisioningStage: dbk.provisioningStage || dbk.metadata?.provisioningStage || null,
+        shellReadiness: projection.status === 'ACTIVE' ? 'READY' : projection.status === 'SUSPENDED' ? 'SUSPENDED' : projection.status === 'ARCHIVED' ? 'ARCHIVED' : projection.status === 'PROVISIONING' ? 'BUILDING' : 'BLOCKED',
+        workspaceVersion: dbk.workspaceVersion,
+      });
+    } catch (err) {
+      if (err instanceof KernelError) return res.status(err.statusCode).json(err.toJSON());
+      return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Unable to read DBK status' } });
+    }
+  });
+
   app.get('/api/platform/projection/:dbkId', async (req: Request, res: Response) => {
     try {
       const authHeader = req.headers.authorization;
