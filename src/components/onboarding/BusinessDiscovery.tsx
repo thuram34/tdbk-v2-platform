@@ -171,7 +171,7 @@ export function BusinessDiscovery({ onProvisioned }: BusinessDiscoveryProps) {
       }
 
       // Verify the newly provisioned DBK is backed by the Engine's durable Business DNA
-      // before handing control to the workspace. DBK does not create or persist DNA locally.
+      // before handing control to the workspace. TDBK keeps the authoritative business profile in the platform.
       const dbkId = provisionData.result?.dbkId;
       if (!dbkId) throw new Error('TDBK completed provisioning without returning an authoritative business identity.');
 
@@ -192,7 +192,7 @@ export function BusinessDiscovery({ onProvisioned }: BusinessDiscoveryProps) {
         throw new Error('TDBK provisioned the business, but the returned Business DNA does not match the onboarding selection.');
       }
 
-      // Persist the human-authored context through the Engine authority. DBK keeps no local Business DNA copy.
+      // Persist the human-authored context through the TDBK platform authority.
       const contextResponse = await fetch('/api/dna/' + dbkId + '/business-context', {
         method: 'PATCH',
         headers: {
@@ -255,7 +255,7 @@ export function BusinessDiscovery({ onProvisioned }: BusinessDiscoveryProps) {
           <div>
             <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-emerald-700">Set up your workspace</div>
             <h1 className="mt-2 text-3xl sm:text-4xl font-serif font-bold tracking-tight">Tell us about your business.</h1>
-            <p className="mt-2 text-sm text-neutral-600 max-w-2xl">Start with the essentials. DBK will prepare a business space around how you operate. You can add more capabilities later.</p>
+            <p className="mt-2 text-sm text-neutral-600 max-w-2xl">Start with the essentials. TDBK will prepare your workspace around how you operate. You can add more capabilities later.</p>
           </div>
           <div className="hidden sm:flex items-center gap-2 text-xs font-mono text-neutral-500">
             <span className={step === 'DISCOVER' ? 'text-emerald-700 font-bold' : ''}>01 BUSINESS</span><ArrowRight className="w-3.5 h-3.5" />
@@ -266,7 +266,7 @@ export function BusinessDiscovery({ onProvisioned }: BusinessDiscoveryProps) {
 
         {existingDbkId && (
           <div className="mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div><div className="text-xs font-bold uppercase tracking-wider text-emerald-800">Existing Digital Business found</div><div className="mt-1 text-sm text-emerald-950">{existingDbkName}</div></div>
+            <div><div className="text-xs font-bold uppercase tracking-wider text-emerald-800">Existing business found</div><div className="mt-1 text-sm text-emerald-950">{existingDbkName}</div></div>
             <button onClick={() => onProvisioned(existingDbkId)} className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white">Continue to my business <ArrowRight className="w-4 h-4" /></button>
           </div>
         )}
