@@ -694,10 +694,16 @@ export class ProvisioningService {
     return result;
     } catch (err: any) {
       // Any unexpected exception after claiming the durable idempotency key must
-      // release the claim as a failed attempt. Otherwise a crash/exception can
-      // strand the request in IN_PROGRESS until expiry.
+      // release the claim and leave the DBK in an explicit failed lifecycle state.
+      const failureReason = err?.message || 'Unexpected provisioning exception';
+      await this.setProvisioningStage(context, effectiveDbkId, 'FAILED', failureReason);
+      try {
+        await dbkRegistry.updateStatus(context, effectiveDbkId, 'PROVISIONING_FAILED', failureReason);
+      } catch {
+        // Preserve the original provisioning error if the DBK itself is no longer readable.
+      }
       await idempotencyRepository.failIdempotencyRecord(effectiveDbkId, idempotencyKey, {
-        error: err?.message || 'Unexpected provisioning exception',
+        error: failureReason,
         requestId: context.requestId,
         correlationId,
       });
