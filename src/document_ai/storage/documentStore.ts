@@ -69,7 +69,7 @@ export class DocumentStore {
     doc: DocumentMetadata,
     rawContent?: string
   ): Promise<void> {
-    tenantIsolation.assertTenantIsolation(ctx.principal, doc.tenantId);
+    await masterAuthority.assertTenantAuthority(ctx.principal, doc.tenantId, 'PERSIST_DOCUMENT', ctx.requestId);
 
     if (!this.tenantDocumentIndex.has(doc.tenantId)) {
       this.tenantDocumentIndex.set(doc.tenantId, new Map());
