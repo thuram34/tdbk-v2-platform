@@ -126,7 +126,7 @@ describe('TDBK canonical client journey acceptance', () => {
     expect(preSubscriptionSale.success).toBe(false);
     expect(preSubscriptionSale.error?.code).toBe('AUTHORIZATION_ERROR');
 
-    const subscription = await subscriptionService.createSubscription(masterContext(), {
+    await subscriptionService.createSubscription(masterContext(), {
       dbkId,
       tier: 'FOUNDATION',
       amount: 2500,
@@ -169,7 +169,6 @@ describe('TDBK canonical client journey acceptance', () => {
       },
     );
     expect(enableSales.success).toBe(true);
-
 
     const resolved = await experienceResolver.resolveExperience(
       cashierContext(branchId),
