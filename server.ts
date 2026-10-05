@@ -306,7 +306,8 @@ async function startServer() {
       const authHeader = req.headers.authorization;
       const tenantId = req.params.tenantId;
       const context = await securityContextFactory.createSecurityContext({ authHeader, targetTenantId: tenantId, ipAddress: req.ip });
-      const tenantCtx = tenantIsolation.assertTenantIsolation(context.principal, tenantId, 'VERIFY_TENANT', context.requestId);
+      await masterAuthority.assertTenantAuthority(context.principal, tenantId, 'VERIFY_TENANT', context.requestId);
+      const tenantCtx = tenantIsolation.resolveTenantContext(tenantId);
       res.json({ status: 'SUCCESS', tenantContext: tenantCtx, principal: context.principal });
     } catch (err) {
       if (err instanceof KernelError) {
@@ -327,7 +328,7 @@ async function startServer() {
       const context = await securityContextFactory.createSecurityContext({
         authHeader, targetTenantId: tenantId, ipAddress: req.ip,
       });
-      tenantIsolation.assertTenantIsolation(context.principal, tenantId, 'READ_AUDIT_LOGS', context.requestId);
+      await masterAuthority.assertTenantAuthority(context.principal, tenantId, 'READ_AUDIT_LOGS', context.requestId);
       const events = await (await import('./src/persistence/firestore/repositories/auditRepository')).auditRepository.listAudits(tenantId, 50);
       return res.json({ status: 'SUCCESS', events });
     } catch (err) {
@@ -891,9 +892,9 @@ async function startServer() {
         targetTenantId: dbkId,
         ipAddress: req.ip,
       });
-      tenantIsolation.assertTenantIsolation(
+      // Subscription tier is commercial authority, not a tenant-user setting.
+      masterAuthority.assertMasterAuthority(
         context.principal,
-        dbkId,
         'CHANGE_SUBSCRIPTION_TIER',
         context.requestId,
       );
