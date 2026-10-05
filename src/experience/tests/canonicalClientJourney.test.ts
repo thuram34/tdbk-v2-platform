@@ -126,6 +126,17 @@ describe('TDBK canonical client journey acceptance', () => {
     expect(preSubscriptionSale.success).toBe(false);
     expect(preSubscriptionSale.error?.code).toBe('AUTHORIZATION_ERROR');
 
+    const preSubscriptionEnable = await experienceResolver.dispatchCommand(
+      ownerContext(),
+      {
+        commandType: 'ENABLE_CAPABILITY',
+        targetDbkId: dbkId,
+        payload: { capabilityId: 'sales_counter' },
+      },
+    );
+    expect(preSubscriptionEnable.success).toBe(false);
+    expect(preSubscriptionEnable.error?.code).toBe('AUTHORIZATION_ERROR');
+
     await subscriptionService.createSubscription(masterContext(), {
       dbkId,
       tier: 'FOUNDATION',
