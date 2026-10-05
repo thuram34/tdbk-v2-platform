@@ -253,7 +253,7 @@ export class EtimsBridge implements Bridge<EtimsInvoiceRequest, any, any> {
         `ETIMS_${operation}`,
         { operation, payload },
       );
-      if (externalClaim.state === 'COMPLETED') return externalClaim.response as NormalizedBridgeResult<any>;
+      if (externalClaim.state === 'COMPLETED') return externalClaim.response as unknown as NormalizedBridgeResult<any>;
       if (externalClaim.state === 'IN_PROGRESS') {
         return {
           status: 'REQUIRES_RECONCILIATION',
