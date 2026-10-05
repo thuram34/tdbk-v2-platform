@@ -121,6 +121,31 @@ async function seedSalesCapability(tenant = tenantId) {
 }
 
 describe('SaleTransactionService', () => {
+  it('SALE_00: rejects a sale when the sales capability is not entitled or operational', async () => {
+    await seedInventory(10, 100);
+    dbkCapabilityManager.saveDbkCapabilityRecord(makeContext(), {
+      dbkId: tenantId,
+      capabilityId: 'sales_counter',
+      capabilityVersion: '1.0.0',
+      state: 'UPGRADE_REQUIRED',
+      entitlement: 'UPGRADE_REQUIRED',
+      configurationState: { isConfigured: false },
+      updatedAt: new Date().toISOString(),
+    });
+
+    await expect(
+      saleTransactionService.executeSale(
+        makeContext(),
+        tenantId,
+        {
+          saleId: 'sale_000',
+          items: [{ inventoryRecordId, quantity: 1 }],
+          paymentStatus: 'PAID',
+        },
+      ),
+    ).rejects.toThrow(/not entitled|not operational/i);
+  });
+
   beforeEach(async () => {
     await firestoreClient.clearAllForTesting();
     dbkCapabilityManager.clearStoreForTesting();
