@@ -71,6 +71,7 @@ export function WorkspaceInstallPrompt({
   useEffect(() => {
     const manifest = document.querySelector<HTMLLinkElement>('link[rel="manifest"]');
     if (manifest) manifest.href = `/manifest.webmanifest?dbk=${encodeURIComponent(dbkId)}`;
+    window.localStorage.setItem('tdbk:last-workspace', dbkId);
     window.history.replaceState({}, '', `/?dbk=${encodeURIComponent(dbkId)}`);
   }, [dbkId]);
 
