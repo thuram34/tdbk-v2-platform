@@ -11,6 +11,7 @@ import { BlueprintValidator } from '../blueprint/validator';
 import { masterAuthority } from '../kernel/master/masterAuthority';
 import { DbkCapabilityRecord, CapabilityLifecycleState, EntitlementStatus } from './types';
 import { capabilityRegistry } from './registry';
+import { entitlementEngine } from './entitlement';
 import { capabilityStateRepository } from '../persistence/firestore/repositories/capabilityStateRepository';
 import { rbacEngine } from '../kernel/authorization/rbacEngine';
 
