@@ -179,7 +179,7 @@ export class WhatsappBridge implements Bridge<WhatsappMessageRequest, any, Whats
         'WHATSAPP_' + operation,
         { operation, payload: operation === 'SUBSCRIBE_WABA' ? { wabaId } : payload },
       );
-      if (externalClaim.state === 'COMPLETED') return externalClaim.response as NormalizedBridgeResult<any>;
+      if (externalClaim.state === 'COMPLETED') return externalClaim.response as unknown as NormalizedBridgeResult<any>;
       if (externalClaim.state === 'IN_PROGRESS') {
         return {
           status: 'REQUIRES_RECONCILIATION',
