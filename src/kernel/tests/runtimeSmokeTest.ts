@@ -11,6 +11,7 @@ import { branchAuthority } from '../branch/branchAuthority';
 import { firestoreClient } from '../../persistence/firestore/firestoreClient';
 import { outboxEngine } from '../../orchestration/outbox/outboxEngine';
 import { outboxRepository } from '../../persistence/firestore/repositories/outboxRepository';
+import '../../orchestration/bridge/productionBridgeBootstrap';
 
 export interface SmokeTestResult {
   testId: string;
