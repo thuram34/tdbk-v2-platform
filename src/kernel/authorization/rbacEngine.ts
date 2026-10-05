@@ -51,20 +51,24 @@ export class RBACEngineService {
       };
     }
 
-    // 2. Tenant authority check (if tenant-scoped).
-    // Business Owners are portfolio-scoped, so they must be evaluated through
-    // MasterAuthority rather than the strict principal.tenantId equality barrier.
+    // 2. Synchronous tenant isolation check.
+    // Portfolio ownership is a durable async decision and is handled by
+    // authorizeAsync(). The synchronous primitive remains strict.
     let validatedTenantContext: TenantContext | null = null;
     if (tenantId) {
       try {
-        await masterAuthority.assertTenantAuthority(principal, tenantId, action, requestId);
-        validatedTenantContext = tenantIsolation.resolveTenantContext(tenantId);
+        validatedTenantContext = tenantIsolation.assertTenantIsolation(
+          principal,
+          tenantId,
+          action,
+          requestId
+        );
       } catch (err) {
         if (err instanceof Error) {
           return {
             allowed: false,
             reason: err.message,
-            ruleEvaluated: 'TENANT_AUTHORITY_RULE',
+            ruleEvaluated: 'TENANT_ISOLATION_RULE',
             evaluatedAt,
           };
         }
