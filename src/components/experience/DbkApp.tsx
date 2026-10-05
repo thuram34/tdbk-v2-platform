@@ -4,10 +4,11 @@ import { DbkShell } from './DbkShell';
 
 interface DbkAppProps {
   dbkId: string;
+  autoOpenInstall?: boolean;
   onLogout: () => Promise<void> | void;
 }
 
-export const DbkApp: React.FC<DbkAppProps> = ({ dbkId, onLogout }) => {
+export const DbkApp: React.FC<DbkAppProps> = ({ dbkId, autoOpenInstall = false, onLogout }) => {
   return (
     <>
     <DbkShell
@@ -15,7 +16,7 @@ export const DbkApp: React.FC<DbkAppProps> = ({ dbkId, onLogout }) => {
       initialViewMode="WORKSPACE"
       onSwitchToMaster={() => { window.location.assign('/'); }}
     />
-    <WorkspaceInstallPrompt dbkId={dbkId} onLogout={onLogout} />
+    <WorkspaceInstallPrompt dbkId={dbkId} autoOpen={autoOpenInstall} onLogout={onLogout} />
     </>
   );
 };
