@@ -5,6 +5,10 @@
  */
 
 import { ExperienceEntitySchema, ExperienceEntityRecord } from '../types';
+import { SecurityContext } from '../../kernel/types';
+import { masterAuthority } from '../../kernel/master/masterAuthority';
+import { branchAuthority } from '../../kernel/branch/branchAuthority';
+import { dbkLifecycleManager } from '../../platform/lifecycle/lifecycleManager';
 import { DbkWorkspaceState } from '../../platform/types';
 import { capabilityViewRegistry } from '../registry/viewRegistry';
 import { BlueprintTerminology } from '../../blueprint/types';
@@ -74,11 +78,12 @@ export class EntityEngineService {
    * only for local development and isolated test execution.
    */
   public async listPersistentRecords(
-    _ctx: unknown,
+    ctx: SecurityContext,
     tenantId: string,
     entityType: string,
     branchId?: string | null,
   ): Promise<ExperienceEntityRecord[]> {
+    await this.assertPersistentAccess(ctx, tenantId, 'LIST_ENTITY_RECORDS', branchId);
     const records = await entityRecordRepository.listRecords(tenantId, entityType, branchId);
     return records;
   }
@@ -150,11 +155,13 @@ export class EntityEngineService {
 
   /** Creates an entity and waits for the authoritative Firestore commit. */
   public async createPersistentRecord(
-    _ctx: unknown,
+    ctx: SecurityContext,
     tenantId: string,
     entityType: string,
     data: Record<string, unknown>
   ): Promise<ExperienceEntityRecord & { recordId: string; data: Record<string, unknown> }> {
+    const branchId = typeof data.branchId === 'string' ? data.branchId : null;
+    await this.assertPersistentAccess(ctx, tenantId, 'CREATE_ENTITY_RECORD', branchId);
     const recordId = (data.id as string) || `rec_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const now = new Date().toISOString();
     const record: ExperienceEntityRecord = {
@@ -176,11 +183,12 @@ export class EntityEngineService {
 
   /** Persists an entity record before updating the hot cache. Production command paths use this method. */
   public async savePersistentRecord(
-    _ctx: unknown,
+    ctx: SecurityContext,
     tenantId: string,
     entityType: string,
     record: ExperienceEntityRecord,
   ): Promise<ExperienceEntityRecord> {
+    await this.assertPersistentAccess(ctx, tenantId, 'WRITE_ENTITY_RECORD', record.branchId);
     const updated = { ...record, updatedAt: new Date().toISOString() };
     await entityRecordRepository.saveRecord(tenantId, entityType, updated.id, updated);
     const key = `${tenantId}:${entityType}`;
@@ -191,13 +199,14 @@ export class EntityEngineService {
 
   /** Updates an existing entity and waits for the authoritative Firestore commit. */
   public async updatePersistentRecord(
-    _ctx: unknown,
+    ctx: SecurityContext,
     tenantId: string,
     entityType: string,
     recordId: string,
     patch: Record<string, unknown>,
   ): Promise<ExperienceEntityRecord & { recordId: string; data: Record<string, unknown> }> {
     const existing = await entityRecordRepository.getRecord(tenantId, entityType, recordId);
+    await this.assertPersistentAccess(ctx, tenantId, 'UPDATE_ENTITY_RECORD', existing?.branchId || (patch.branchId as string | undefined));
     if (!existing) throw new Error(`Entity record '${recordId}' not found`);
     const now = new Date().toISOString();
     const updated: ExperienceEntityRecord = {
@@ -217,12 +226,13 @@ export class EntityEngineService {
 
   /** Deletes an entity only after the authoritative Firestore delete succeeds. */
   public async deletePersistentRecord(
-    _ctx: unknown,
+    ctx: SecurityContext,
     tenantId: string,
     entityType: string,
     recordId: string,
   ): Promise<void> {
     const existing = await entityRecordRepository.getRecord(tenantId, entityType, recordId);
+    await this.assertPersistentAccess(ctx, tenantId, 'DELETE_ENTITY_RECORD', existing?.branchId);
     if (!existing) throw new Error(`Entity record '${recordId}' not found`);
     await entityRecordRepository.deleteRecord(tenantId, entityType, recordId);
     const key = `${tenantId}:${entityType}`;
