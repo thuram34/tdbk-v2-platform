@@ -7,6 +7,7 @@
 import { BusinessDNA, BusinessIdentity, BranchTopology } from './types';
 import { SecurityContext } from '../kernel/types';
 import { KernelError } from '../kernel/errors/kernelErrors';
+import { masterAuthority } from '../kernel/master/masterAuthority';
 import { BlueprintValidator } from './validator';
 import { blueprintRegistry } from './registry';
 import { auditLogger } from '../kernel/audit/auditLogger';
@@ -38,7 +39,7 @@ export class BusinessDnaManager {
     branchTopologyInput?: Partial<BranchTopology>
   ): BusinessDNA {
     // 1. Assert Tenant Security
-    BlueprintValidator.assertTenantAccess(securityContext, dbkId, 'bind Blueprint');
+    await masterAuthority.assertTenantAuthority(securityContext, dbkId, 'bind Blueprint', securityContext.requestId);
 
     // 2. Validate Blueprint Existence
     const blueprint = blueprintRegistry.getBlueprint(blueprintId, blueprintVersion);
@@ -290,7 +291,7 @@ export class BusinessDnaManager {
     securityContext: SecurityContext,
     targetDbkId: string
   ): Promise<BusinessDNA> {
-    BlueprintValidator.assertTenantAccess(securityContext, targetDbkId, 'read Business DNA');
+    await masterAuthority.assertTenantAuthority(securityContext, targetDbkId, 'read Business DNA', securityContext.requestId);
     const dna = await businessDnaRepository.getDna(targetDbkId);
     if (!dna) {
       throw new KernelError('NOT_FOUND', 'Business DNA not found', 404, securityContext.requestId);
@@ -336,9 +337,19 @@ export class BusinessDnaManager {
 
   /** Durable Business DNA update for production callers. */
   public async savePersistentBusinessDna(securityContext: SecurityContext, dna: BusinessDNA): Promise<BusinessDNA> {
-    this.saveBusinessDna(securityContext, dna);
-    await businessDnaRepository.saveDna(dna.dbkId, dna);
-    return JSON.parse(JSON.stringify(dna));
+    await masterAuthority.assertTenantAuthority(securityContext, dna.dbkId, 'update Business DNA', securityContext.requestId);
+    const validation = BlueprintValidator.validateBusinessDna(dna);
+    if (!validation.valid) {
+      throw new KernelError('VALIDATION_ERROR', `Business DNA Validation Failed: ${validation.errors.join('; ')}`, 400, securityContext.requestId);
+    }
+    const existing = await businessDnaRepository.getDna(dna.dbkId);
+    if (existing && existing.identity.blueprintId !== dna.identity.blueprintId) {
+      throw new KernelError('AUTHORIZATION_ERROR', `Cannot change DBK '${dna.dbkId}' blueprint through a persistent DNA update.`, 403, securityContext.requestId);
+    }
+    const updated = { ...dna, updatedAt: new Date().toISOString() };
+    await businessDnaRepository.saveDna(dna.dbkId, updated);
+    this.dnaStore.set(dna.dbkId, updated);
+    return JSON.parse(JSON.stringify(updated));
   }
 
   /** Updates the authoritative Business Context narrative through Engine-owned Business DNA. */
@@ -347,7 +358,7 @@ export class BusinessDnaManager {
     targetDbkId: string,
     narrative: string
   ): Promise<BusinessDNA> {
-    BlueprintValidator.assertTenantAccess(securityContext, targetDbkId, 'update Business Context narrative');
+    await masterAuthority.assertTenantAuthority(securityContext, targetDbkId, 'update Business Context narrative', securityContext.requestId);
     const normalized = narrative.trim();
     if (normalized.length > 2000) {
       throw new KernelError('VALIDATION_ERROR', 'Business Context narrative must be 2000 characters or fewer.', 400, securityContext.requestId);
