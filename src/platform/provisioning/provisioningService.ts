@@ -419,6 +419,15 @@ export class ProvisioningService {
     // the already-established legal identity of an existing DBK.
     const existingDbkForRecovery = await dbkRegistry.getDbkInternal(effectiveDbkId);
     const isRecovery = existingDbkForRecovery?.status === 'PROVISIONING_FAILED';
+
+    if (isRecovery) {
+      await dbkRegistry.beginProvisioningRecovery(
+        context,
+        effectiveDbkId,
+        'Authoritative provisioning retry',
+      );
+    }
+
     const initialDbk: DbkIdentity = {
       dbkId: effectiveDbkId,
       legalName: isRecovery ? existingDbkForRecovery!.legalName : request.legalName,
