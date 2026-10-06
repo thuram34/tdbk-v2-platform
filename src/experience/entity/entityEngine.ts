@@ -72,6 +72,29 @@ export class EntityEngineService {
     return this.entityStore.get(key) || this.getDefaultRecordsForCapability(capabilityId);
   }
 
+  private async assertPersistentAccess(
+    context: SecurityContext,
+    tenantId: string,
+    action: string,
+    branchId?: string | null,
+  ): Promise<void> {
+    if (!tenantId) {
+      throw new Error('Entity operation requires an authoritative DBK tenant.');
+    }
+    await masterAuthority.assertTenantAuthority(context, tenantId, action, context.requestId);
+    await dbkLifecycleManager.assertDbkOperational(context, tenantId);
+
+    if (branchId) {
+      await branchAuthority.assertPersistentBranchContext(
+        context.principal,
+        tenantId,
+        branchId,
+        action,
+        context.requestId,
+      );
+    }
+  }
+
   /**
    * Authoritative server read path.
    * Production reads come from Firestore; in-memory/demo records are retained
