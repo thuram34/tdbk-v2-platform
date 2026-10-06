@@ -492,7 +492,7 @@ export class ProvisioningService {
       {
         stepId: 'step_2_validate_blueprint',
         stepType: 'PROVISIONING_VALIDATE_BLUEPRINT',
-        input: { blueprintId: request.blueprintId, blueprintVersion: request.blueprintVersion },
+        input: { dbkId: effectiveDbkId, blueprintId: request.blueprintId, blueprintVersion: request.blueprintVersion },
       },
       {
         stepId: 'step_3_init_dna',
