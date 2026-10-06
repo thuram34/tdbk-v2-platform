@@ -45,6 +45,37 @@ export class DbkCapabilityManagerService {
     }
   }
 
+  private async assertPersistentTenant(
+    context: SecurityContext,
+    targetDbkId: string,
+    action: string,
+  ): Promise<void> {
+    await masterAuthority.assertTenantAuthority(context, targetDbkId, action, context.requestId);
+  }
+
+  private async assertPersistentCapabilityAdmin(
+    context: SecurityContext,
+    dbkId: string,
+    action: string,
+  ): Promise<void> {
+    await this.assertPersistentTenant(context, dbkId, action);
+    const principal = context.principal;
+    const ownerOverride =
+      masterAuthority.isMasterAdmin(principal) ||
+      masterAuthority.isOwnerPortfolio(principal);
+    const roleAllowed = principal.roles.some((role) =>
+      ['TENANT_ADMIN', 'SYSTEM_ADMIN', 'DBK_ADMIN'].includes(role),
+    );
+    if (!ownerOverride && !roleAllowed && !rbacEngine.hasPermission(principal, 'admin:*')) {
+      throw new KernelError(
+        'AUTHORIZATION_ERROR',
+        'Capability administration requires tenant administrator authority.',
+        403,
+        context.requestId,
+      );
+    }
+  }
+
   /**
    * Gets all capability records for a DBK.
    */
@@ -95,7 +126,7 @@ export class DbkCapabilityManagerService {
     dbkId: string,
     capabilityId: string
   ): Promise<DbkCapabilityRecord | undefined> {
-    this.assertTenant(securityContext, dbkId, 'hydratePersistentCapability');
+    await this.assertPersistentTenant(securityContext, dbkId, 'hydratePersistentCapability');
     const record = await capabilityStateRepository.getCapabilityState(dbkId, capabilityId);
     if (record) {
       let tenantMap = this.dbkCapabilityStore.get(dbkId);
@@ -113,7 +144,7 @@ export class DbkCapabilityManagerService {
     securityContext: SecurityContext,
     dbkId: string
   ): Promise<DbkCapabilityRecord[]> {
-    this.assertTenant(securityContext, dbkId, 'hydratePersistentCapabilities');
+    await this.assertPersistentTenant(securityContext, dbkId, 'hydratePersistentCapabilities');
     const isTestRuntime = process.env.NODE_ENV === 'test' || process.env.VITEST === 'true' || process.env.TDBK_PERSISTENCE_DRIVER === 'test_memory';
 
     // Legacy synchronous capability tests intentionally operate on the hot
@@ -136,7 +167,7 @@ export class DbkCapabilityManagerService {
     securityContext: SecurityContext,
     record: DbkCapabilityRecord
   ): Promise<DbkCapabilityRecord> {
-    this.assertTenant(securityContext, record.dbkId, 'persistCapabilityRecord');
+    await this.assertPersistentTenant(securityContext, record.dbkId, 'persistCapabilityRecord');
     const persisted = { ...record, updatedAt: new Date().toISOString() };
     let tenantMap = this.dbkCapabilityStore.get(record.dbkId);
     if (!tenantMap) {
@@ -226,7 +257,8 @@ export class DbkCapabilityManagerService {
     if (!isTestRuntime) await this.hydratePersistentCapability(securityContext, dbkId, capabilityId);
     const cap = capabilityRegistry.getCapability(capabilityId);
     if (!cap) throw new KernelError('NOT_FOUND', "Capability '" + capabilityId + "' is not registered", 404, securityContext.requestId);
-    const record = this.getDbkCapabilityRecord(securityContext, dbkId, capabilityId);
+    const tenantMap = this.dbkCapabilityStore.get(dbkId);
+    const record = tenantMap?.get(capabilityId);
     if (!record) throw new KernelError('AUTHORIZATION_ERROR', "Capability '" + capabilityId + "' is not enabled for this DBK", 403, securityContext.requestId);
     const ownerOverride = masterAuthority.isMasterAdmin(securityContext.principal) || masterAuthority.isOwnerPortfolio(securityContext.principal);
     if (!ownerOverride) {
@@ -253,6 +285,7 @@ export class DbkCapabilityManagerService {
     entitlement: EntitlementStatus,
     requiresConfig: boolean
   ): Promise<DbkCapabilityRecord> {
+    await this.assertPersistentCapabilityAdmin(securityContext, dbkId, 'enableCapabilityPersistent');
     await this.hydratePersistentCapability(securityContext, dbkId, capabilityId);
 
     const authoritativeEntitlement = await entitlementEngine.evaluatePersistentEntitlement(
@@ -270,13 +303,26 @@ export class DbkCapabilityManagerService {
       );
     }
 
-    const updated = this.enableCapability(
-      securityContext,
+    const cap = capabilityRegistry.getCapability(capabilityId);
+    if (!cap) throw new KernelError('NOT_FOUND', `Capability '${capabilityId}' not found in platform registry`, 404, securityContext.requestId);
+    const existing = this.dbkCapabilityStore.get(dbkId)?.get(capabilityId);
+    const updated: DbkCapabilityRecord = {
       dbkId,
       capabilityId,
-      authoritativeEntitlement,
-      requiresConfig,
-    );
+      capabilityVersion: cap.version,
+      state: requiresConfig ? 'ENABLED' : 'CONFIGURED',
+      entitlement: authoritativeEntitlement,
+      configurationState: {
+        isConfigured: !requiresConfig,
+        configData: existing?.configurationState?.configData || {},
+      },
+      enabledAt: new Date().toISOString(),
+      enabledBy: securityContext.principal.id,
+      updatedAt: new Date().toISOString(),
+    };
+    auditLogger.logEvent('SECURITY_CONFIGURATION_CHANGE', securityContext.principal.id, 'CAPABILITY_ENABLED', `capability:${capabilityId}`, 'ALLOWED', {
+      tenantId: dbkId, requestId: securityContext.requestId, details: { capabilityId, version: cap.version, state: updated.state },
+    });
     return await this.persistCapabilityRecord(securityContext, updated);
   }
 
@@ -287,8 +333,19 @@ export class DbkCapabilityManagerService {
     capabilityId: string,
     configData: Record<string, unknown>
   ): Promise<DbkCapabilityRecord> {
+    await this.assertPersistentCapabilityAdmin(securityContext, dbkId, 'configureCapabilityPersistent');
     await this.hydratePersistentCapability(securityContext, dbkId, capabilityId);
-    const updated = this.configureCapability(securityContext, dbkId, capabilityId, configData);
+    const existing = this.dbkCapabilityStore.get(dbkId)?.get(capabilityId);
+    if (!existing) throw new KernelError('NOT_FOUND', `Capability record '${capabilityId}' not found for DBK '${dbkId}'`, 404, securityContext.requestId);
+    if (existing.state === 'DISABLED' || existing.state === 'SUSPENDED') {
+      throw new KernelError('AUTHORIZATION_ERROR', `Cannot configure capability '${capabilityId}' while in state '${existing.state}'`, 400, securityContext.requestId);
+    }
+    const updated: DbkCapabilityRecord = {
+      ...existing,
+      state: 'CONFIGURED',
+      configurationState: { isConfigured: true, configData: { ...(existing.configurationState.configData || {}), ...configData } },
+      updatedAt: new Date().toISOString(),
+    };
     return await this.persistCapabilityRecord(securityContext, updated);
   }
 
@@ -298,8 +355,20 @@ export class DbkCapabilityManagerService {
     dbkId: string,
     capabilityId: string
   ): Promise<DbkCapabilityRecord> {
+    await this.assertPersistentCapabilityAdmin(securityContext, dbkId, 'disableCapabilityPersistent');
     await this.hydratePersistentCapability(securityContext, dbkId, capabilityId);
-    const updated = this.disableCapability(securityContext, dbkId, capabilityId);
+    const existing = this.dbkCapabilityStore.get(dbkId)?.get(capabilityId);
+    const cap = capabilityRegistry.getCapability(capabilityId);
+    const updated: DbkCapabilityRecord = {
+      dbkId,
+      capabilityId,
+      capabilityVersion: cap?.version || existing?.capabilityVersion || '1.0.0',
+      state: 'DISABLED',
+      entitlement: existing?.entitlement || 'ENTITLED',
+      configurationState: existing?.configurationState || { isConfigured: false },
+      disabledAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
     return await this.persistCapabilityRecord(securityContext, updated);
   }
 
