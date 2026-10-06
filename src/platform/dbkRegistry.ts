@@ -84,6 +84,26 @@ export class DbkRegistryService {
       }
     } else {
       masterAuthority.assertOwnerOrMasterAuthority(context.principal, 'saveDbk', context.requestId);
+
+      // Generic DBK persistence cannot bypass the provisioning state machine.
+      if (dbk.status !== 'PROVISIONING') {
+        throw new KernelError(
+          'VALIDATION_ERROR',
+          'New DBKs must enter through the PROVISIONING lifecycle state.',
+          400,
+          context.requestId,
+        );
+      }
+      if (dbk.masterOwner !== context.principal.id || dbk.createdBy !== context.principal.id) {
+        if (!masterAuthority.isMasterAdmin(context.principal)) {
+          throw new KernelError(
+            'AUTHORIZATION_ERROR',
+            'A Business Owner may only create a DBK owned by the authenticated owner identity.',
+            403,
+            context.requestId,
+          );
+        }
+      }
     }
 
     const record: DbkIdentity = {
@@ -140,6 +160,19 @@ export class DbkRegistryService {
     }
 
     const previousStatus = dbk.status;
+
+    if (
+      newStatus !== 'PROVISIONING_FAILED' &&
+      !masterAuthority.isMasterAdmin(context.principal)
+    ) {
+      throw new KernelError(
+        'AUTHORIZATION_ERROR',
+        'Only TDBK MASTER may perform lifecycle transitions outside provisioning failure handling.',
+        403,
+        context.requestId,
+      );
+    }
+
     const validTransitions: Record<DbkLifecycleStatus, DbkLifecycleStatus[]> = {
       PROVISIONING: ['ACTIVE', 'PROVISIONING_FAILED'],
       PROVISIONING_FAILED: ['PROVISIONING'],
@@ -147,6 +180,15 @@ export class DbkRegistryService {
       SUSPENDED: ['ACTIVE', 'ARCHIVED'],
       ARCHIVED: ['ACTIVE'],
     };
+    if (previousStatus === 'PROVISIONING_FAILED' && newStatus === 'PROVISIONING' && !masterAuthority.isMasterAdmin(context.principal)) {
+      throw new KernelError(
+        'AUTHORIZATION_ERROR',
+        'Provisioning recovery must be performed through the authoritative provisioning flow.',
+        403,
+        context.requestId,
+      );
+    }
+
     if (!validTransitions[previousStatus]?.includes(newStatus)) {
       throw new KernelError(
         'VALIDATION_ERROR',
