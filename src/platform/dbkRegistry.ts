@@ -237,6 +237,65 @@ export class DbkRegistryService {
   }
 
   /**
+   * Authoritatively re-enters a failed DBK into provisioning for recovery.
+   * This is the only non-Master lifecycle recovery transition.
+   */
+  public async beginProvisioningRecovery(
+    context: SecurityContext,
+    dbkId: string,
+    reason: string = 'Provisioning recovery initiated',
+  ): Promise<DbkIdentity> {
+    await masterAuthority.assertTenantAuthority(context, dbkId, 'beginProvisioningRecovery', context.requestId);
+    const dbk = await dbkRegistryRepository.getDbk(dbkId);
+    if (!dbk) {
+      throw new KernelError('NOT_FOUND', `DBK with ID '${dbkId}' not found`, 404, context.requestId);
+    }
+    if (dbk.status !== 'PROVISIONING_FAILED') {
+      throw new KernelError(
+        'VALIDATION_ERROR',
+        `Cannot recover DBK that is currently '${dbk.status}' (must be PROVISIONING_FAILED)`,
+        400,
+        context.requestId,
+      );
+    }
+
+    const now = new Date().toISOString();
+    dbk.status = 'PROVISIONING';
+    dbk.provisioningStage = 'REGISTRATION_ACCEPTED';
+    dbk.metadata = {
+      ...(dbk.metadata || {}),
+      provisioningStage: 'REGISTRATION_ACCEPTED',
+      provisioningRecoveryAt: now,
+    };
+    dbk.updatedAt = now;
+    dbk.lifecycleHistory.push({
+      transitionId: `trans_recovery_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      fromStatus: 'PROVISIONING_FAILED',
+      toStatus: 'PROVISIONING',
+      actorId: context.principal.id,
+      actorRole: context.principal.roles[0] || 'BUSINESS_OWNER',
+      timestamp: now,
+      reason,
+      correlationId: context.correlationId || `corr_${dbkId}`,
+    });
+
+    await dbkRegistryRepository.saveDbk(dbkId, dbk);
+    auditLogger.logEvent(
+      'SECURITY_CONFIGURATION_CHANGE',
+      context.principal.id,
+      'DBK_PROVISIONING_RECOVERY_STARTED',
+      `dbk:${dbkId}`,
+      'ALLOWED',
+      {
+        tenantId: dbkId,
+        requestId: context.requestId,
+        details: { reason, correlationId: context.correlationId },
+      },
+    );
+    return dbk;
+  }
+
+  /**
    * Authoritatively changes a DBK subscription tier.
    * Commercial authority is TDBK Master; the new tier is persisted on the canonical DBK identity.
    */
