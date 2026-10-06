@@ -215,7 +215,12 @@ async function startServer() {
           error: { code: 'TENANT_REQUIRED', message: 'tenantId is required for execution history.' },
         });
       }
-      tenantIsolation.assertTenantIsolation(context.principal, effectiveTenantId, 'READ_AGENT_EXECUTIONS', context.requestId);
+      await masterAuthority.assertTenantAuthority(
+        context.principal,
+        effectiveTenantId,
+        'READ_AGENT_EXECUTIONS',
+        context.requestId,
+      );
       const executions = await agentExecutionRepository.list(effectiveTenantId);
       return res.json({ status: 'SUCCESS', executions });
     } catch (err) {
@@ -1221,7 +1226,7 @@ async function startServer() {
         targetBranchId: req.query.branchId as string | undefined,
         ipAddress: req.ip,
       });
-      tenantIsolation.assertTenantIsolation(
+      await masterAuthority.assertTenantAuthority(
         context.principal,
         dbkId,
         'READ_ENTITY_RECORDS',
