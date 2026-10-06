@@ -909,10 +909,14 @@ async function startServer() {
         return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'DBK not found' } });
       }
 
-      dbk.subscriptionTier = tier;
-      await dbkRegistry.saveDbk(context, dbk);
+      const updatedDbk = await dbkRegistry.changeSubscriptionTier(
+        context,
+        dbkId,
+        tier,
+        'Subscription tier changed through Master commercial authority',
+      );
       entitlementEngine.setDbkSubscriptionTier(dbkId, tier);
-      res.json({ status: 'SUCCESS', dbkId, currentTier: tier });
+      res.json({ status: 'SUCCESS', dbkId, currentTier: updatedDbk.subscriptionTier });
     } catch (err) {
       if (err instanceof KernelError) return res.status(err.statusCode).json(err.toJSON());
       res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Unable to change subscription tier' } });
