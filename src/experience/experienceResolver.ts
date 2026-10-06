@@ -16,6 +16,7 @@ import { discoveryEngine } from '../capability/discovery';
 import { KernelError } from '../kernel/errors/kernelErrors';
 import { saleTransactionService } from '../business/sales/saleTransactionService';
 import { connectionHub } from '../orchestration/bridge/connectionHub';
+import { dbkLifecycleManager } from '../platform/lifecycle/lifecycleManager';
 
 export class ExperienceResolver {
   private static instance: ExperienceResolver;
@@ -30,8 +31,9 @@ export class ExperienceResolver {
   }
 
   public async resolveExperience(context: SecurityContext, dbkId: string, requestedBranchId?: string): Promise<DbkExperienceResolved> {
-    // 1. Assert tenant access
+    // 1. Assert tenant access and operational lifecycle state.
     await masterAuthority.assertTenantAuthority(context, dbkId, 'resolveExperience');
+    await dbkLifecycleManager.assertDbkOperational(context, dbkId);
 
     // 2. Compile workspace state
     const workspace = await workspaceManager.compileWorkspaceState(context, dbkId);
@@ -139,6 +141,7 @@ export class ExperienceResolver {
     const timestamp = new Date().toISOString();
     try {
       await masterAuthority.assertTenantAuthority(context, req.targetDbkId, 'dispatchCommand');
+      await dbkLifecycleManager.assertDbkOperational(context, req.targetDbkId);
 
       let updatedExperience: DbkExperienceResolved | undefined;
 
