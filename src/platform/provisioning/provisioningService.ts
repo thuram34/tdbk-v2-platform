@@ -414,24 +414,28 @@ export class ProvisioningService {
       }
     }
 
-    // 5. Create DBK in PROVISIONING state
+    // 5. Create/recover the DBK in PROVISIONING state.
+    // A recovery attempt may rebuild provisioning resources but cannot rewrite
+    // the already-established legal identity of an existing DBK.
+    const existingDbkForRecovery = await dbkRegistry.getDbkInternal(effectiveDbkId);
+    const isRecovery = existingDbkForRecovery?.status === 'PROVISIONING_FAILED';
     const initialDbk: DbkIdentity = {
       dbkId: effectiveDbkId,
-      legalName: request.legalName,
-      displayName: request.displayName || request.legalName,
-      sector: bp.sector,
-      blueprintId: bp.id,
-      blueprintVersion: bp.version,
-      subscriptionTier: effectiveProvisioningTier,
+      legalName: isRecovery ? existingDbkForRecovery!.legalName : request.legalName,
+      displayName: isRecovery ? existingDbkForRecovery!.displayName : (request.displayName || request.legalName),
+      sector: isRecovery ? existingDbkForRecovery!.sector : bp.sector,
+      blueprintId: isRecovery ? existingDbkForRecovery!.blueprintId : bp.id,
+      blueprintVersion: isRecovery ? existingDbkForRecovery!.blueprintVersion : bp.version,
+      subscriptionTier: isRecovery ? existingDbkForRecovery!.subscriptionTier : effectiveProvisioningTier,
       status: 'PROVISIONING',
-      masterOwner: context.principal.id,
-      createdAt: new Date().toISOString(),
+      masterOwner: isRecovery ? existingDbkForRecovery!.masterOwner : context.principal.id,
+      createdAt: isRecovery ? existingDbkForRecovery!.createdAt : new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      createdBy: context.principal.id,
-      configurationVersion: 1,
-      workspaceVersion: 1,
-      branchTopology: [],
-      lifecycleHistory: [
+      createdBy: isRecovery ? existingDbkForRecovery!.createdBy : context.principal.id,
+      configurationVersion: isRecovery ? existingDbkForRecovery!.configurationVersion : 1,
+      workspaceVersion: isRecovery ? existingDbkForRecovery!.workspaceVersion : 1,
+      branchTopology: isRecovery ? existingDbkForRecovery!.branchTopology : [],
+      lifecycleHistory: isRecovery ? existingDbkForRecovery!.lifecycleHistory : [
         {
           transitionId: `trans_init_${Date.now()}`,
           fromStatus: 'PROVISIONING',
@@ -444,7 +448,7 @@ export class ProvisioningService {
         },
       ],
       provisioningStage: 'REGISTRATION_ACCEPTED',
-      metadata: { ...(request.customPreferences || {}), provisioningStage: 'REGISTRATION_ACCEPTED' as DbkProvisioningStage },
+      metadata: { ...(isRecovery ? existingDbkForRecovery!.metadata : {}), ...(request.customPreferences || {}), provisioningStage: 'REGISTRATION_ACCEPTED' as DbkProvisioningStage },
     };
 
     await dbkRegistry.saveDbk(context, initialDbk);
