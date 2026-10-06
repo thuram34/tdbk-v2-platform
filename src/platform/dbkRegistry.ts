@@ -39,6 +39,53 @@ export class DbkRegistryService {
    * Registers or saves an authoritative DBK identity in Firestore.
    */
   public async saveDbk(context: SecurityContext, dbk: DbkIdentity): Promise<void> {
+    if (!dbk.dbkId) {
+      throw new KernelError('VALIDATION_ERROR', 'DBK identity requires dbkId', 400, context.requestId);
+    }
+
+    const existing = await dbkRegistryRepository.getDbk(dbk.dbkId);
+
+    if (existing) {
+      // Every existing-DBK write must prove durable ownership/authority.
+      await masterAuthority.assertTenantAuthority(context, dbk.dbkId, 'saveDbk', context.requestId);
+
+      // Immutable DBK identity cannot be rewritten through the generic persistence primitive.
+      const immutableFields: Array<keyof DbkIdentity> = [
+        'dbkId',
+        'legalName',
+        'sector',
+        'blueprintId',
+        'blueprintVersion',
+        'subscriptionTier',
+        'status',
+        'masterOwner',
+        'createdAt',
+        'createdBy',
+      ];
+      for (const field of immutableFields) {
+        if (dbk[field] !== existing[field]) {
+          throw new KernelError(
+            'AUTHORIZATION_ERROR',
+            `Immutable DBK field '${String(field)}' cannot be changed through saveDbk. Use the authoritative DBK lifecycle/commercial API.`,
+            403,
+            context.requestId,
+          );
+        }
+      }
+
+      // Lifecycle history is append-only and is owned by the lifecycle transition primitive.
+      if (JSON.stringify(dbk.lifecycleHistory) !== JSON.stringify(existing.lifecycleHistory)) {
+        throw new KernelError(
+          'AUTHORIZATION_ERROR',
+          'DBK lifecycle history can only be changed through the lifecycle transition authority.',
+          403,
+          context.requestId,
+        );
+      }
+    } else {
+      masterAuthority.assertOwnerOrMasterAuthority(context.principal, 'saveDbk', context.requestId);
+    }
+
     const record: DbkIdentity = {
       ...dbk,
       updatedAt: new Date().toISOString(),
@@ -85,12 +132,30 @@ export class DbkRegistryService {
     newStatus: DbkLifecycleStatus,
     reason?: string
   ): Promise<DbkIdentity> {
+    await masterAuthority.assertTenantAuthority(context, dbkId, 'updateDbkStatus', context.requestId);
+
     const dbk = await dbkRegistryRepository.getDbk(dbkId);
     if (!dbk) {
       throw new KernelError('NOT_FOUND', `DBK with ID '${dbkId}' not found`, 404, context.requestId);
     }
 
     const previousStatus = dbk.status;
+    const validTransitions: Record<DbkLifecycleStatus, DbkLifecycleStatus[]> = {
+      PROVISIONING: ['ACTIVE', 'PROVISIONING_FAILED'],
+      PROVISIONING_FAILED: ['PROVISIONING'],
+      ACTIVE: ['SUSPENDED', 'ARCHIVED'],
+      SUSPENDED: ['ACTIVE', 'ARCHIVED'],
+      ARCHIVED: ['ACTIVE'],
+    };
+    if (!validTransitions[previousStatus]?.includes(newStatus)) {
+      throw new KernelError(
+        'VALIDATION_ERROR',
+        `Invalid DBK lifecycle transition from '${previousStatus}' to '${newStatus}'.`,
+        400,
+        context.requestId,
+      );
+    }
+
     dbk.status = newStatus;
     dbk.updatedAt = new Date().toISOString();
 
