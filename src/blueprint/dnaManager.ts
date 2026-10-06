@@ -39,7 +39,7 @@ export class BusinessDnaManager {
     branchTopologyInput?: Partial<BranchTopology>
   ): BusinessDNA {
     // 1. Assert Tenant Security
-    await masterAuthority.assertTenantAuthority(securityContext, dbkId, 'bind Blueprint', securityContext.requestId);
+    BlueprintValidator.assertTenantAccess(securityContext, dbkId, 'bind Blueprint');
 
     // 2. Validate Blueprint Existence
     const blueprint = blueprintRegistry.getBlueprint(blueprintId, blueprintVersion);
@@ -169,7 +169,7 @@ export class BusinessDnaManager {
     blueprintVersion?: string,
     branchTopologyInput?: Partial<BranchTopology>
   ): Promise<BusinessDNA> {
-    BlueprintValidator.assertTenantAccess(securityContext, dbkId, 'bind Blueprint');
+    await masterAuthority.assertTenantAuthority(securityContext, dbkId, 'bind Blueprint', securityContext.requestId);
 
     const blueprint = blueprintRegistry.getBlueprint(blueprintId, blueprintVersion);
     if (!blueprint) {
