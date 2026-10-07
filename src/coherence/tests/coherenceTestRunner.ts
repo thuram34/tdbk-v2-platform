@@ -20,6 +20,7 @@ import { multiSurfaceRenderer } from '../multiSurfaceRenderer';
 import { FORMAL_CAPABILITY_DEFINITIONS } from '../capabilityLayer';
 import { PLATFORM_MODULE_CATALOG, PLATFORM_WORKFLOW_CATALOG } from '../moduleRegistry';
 import { SecurityContext } from '../../kernel/types';
+import { outboxRepository } from '../../persistence/firestore/repositories/outboxRepository';
 import { seedDemoDbks } from '../../platform/seeder';
 
 export interface CoherenceTestResult {
@@ -271,13 +272,20 @@ export async function runCoherenceTestSuite(): Promise<{
       'Class Teacher'
     );
 
+    const durableEvents = await outboxRepository.listOutbox('tenant_school_01');
+    const contributionEvent = durableEvents.find((event) =>
+      event.eventType === 'attendance.recorded.v1' &&
+      event.source === 'RoleBasedCoherenceEngine:ContributionDispatcher'
+    );
+
     const passed =
       outcome.stateUpdated === true &&
       outcome.domainEventEmitted === 'attendance.recorded.v1' &&
       outcome.notifiedRoles.includes('SCHOOL_PRINCIPAL') &&
       outcome.workflowsTriggered.includes('wf_record_attendance') &&
       outcome.dnaSignalRecorded === true &&
-      outcome.auditRecorded === true;
+      outcome.auditRecorded === true &&
+      contributionEvent?.status === 'PENDING';
 
     results.push({
       testName: 'Shared Contribution Model & Coherent Outcomes',
@@ -291,6 +299,8 @@ export async function runCoherenceTestSuite(): Promise<{
         notifiedRoles: outcome.notifiedRoles,
         workflowsTriggered: outcome.workflowsTriggered,
         summary: outcome.summaryMessage,
+        durableOutboxEventId: contributionEvent?.eventId,
+        durableOutboxStatus: contributionEvent?.status,
       },
     });
   } catch (err) {
