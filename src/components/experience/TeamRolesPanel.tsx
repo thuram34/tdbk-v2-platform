@@ -13,8 +13,15 @@ type Identity = {
 };
 
 const ROLE_OPTIONS = [
-  { value: 'OWNER_OPERATOR', label: 'Owner Operator' },
-  { value: 'TENANT_ADMIN', label: 'Business Administrator' },
+  { value: 'SCHOOL_PRINCIPAL', label: 'School Principal' },
+  { value: 'TEACHER', label: 'Teacher' },
+  { value: 'BURSAR', label: 'Bursar' },
+  { value: 'FINANCE_VIEWER', label: 'Finance Viewer' },
+  { value: 'CASHIER', label: 'Cashier' },
+  { value: 'STORE_OWNER', label: 'Store Owner' },
+  { value: 'SHOP_MANAGER', label: 'Shop Manager' },
+  { value: 'CLINICIAN', label: 'Clinician' },
+  { value: 'MEDICAL_DIRECTOR', label: 'Medical Director' },
   { value: 'BRANCH_MANAGER', label: 'Branch Manager' },
   { value: 'STAFF', label: 'Staff' },
   { value: 'AUDITOR', label: 'Auditor' },
