@@ -1,8 +1,8 @@
 import { SecurityContext } from '../kernel/types';
-import { eventBus } from '../orchestration/events/eventBus';
+import type { EventEnvelope } from '../orchestration/events/types';
+import type { EventHandler } from '../orchestration/events/types';
 import { workflowEngine } from '../orchestration/workflow/engine';
 import { PLATFORM_WORKFLOW_CATALOG } from './moduleRegistry';
-import { EventEnvelope } from '../orchestration/events/types';
 
 /**
  * Authoritative coherence boundary:
@@ -122,11 +122,11 @@ export async function triggerCatalogWorkflowFromEvent(event: EventEnvelope): Pro
   await workflowEngine.executeWorkflow(context, workflow.workflowId);
 }
 
-export function registerCoherenceWorkflowTriggerSubscriptions(): void {
+export function registerCoherenceWorkflowTriggerSubscriptions(eventBusLike: { subscribe: (eventType: string, handler: EventHandler) => void }): void {
   registerTriggerStepHandler();
 
   const triggerEvents = [...new Set(PLATFORM_WORKFLOW_CATALOG.map((workflow) => workflow.triggerEvent))];
   for (const eventType of triggerEvents) {
-    eventBus.subscribe(eventType, triggerCatalogWorkflowFromEvent);
+    eventBusLike.subscribe(eventType, triggerCatalogWorkflowFromEvent);
   }
 }
