@@ -245,7 +245,7 @@ export class ExperienceResolver {
           success: true,
           commandType: req.commandType,
           targetDbkId: req.targetDbkId,
-          result,
+          result: result as unknown as Record<string, unknown>,
           updatedResolvedExperience: updatedExperience,
           serverTimestamp: timestamp,
         };
