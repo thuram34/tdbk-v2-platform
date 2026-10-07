@@ -14,6 +14,7 @@ import { auditLogger } from '../../../kernel/audit/auditLogger';
 import { KernelError } from '../../../kernel/errors/kernelErrors';
 import { publishBridgeEvent } from '../bridgeEventPublisher';
 import { connectorConnectionRepository } from '../../../persistence/firestore/repositories/connectorConnectionRepository';
+import { resolveConnectorSecret } from '../connectorSecretResolver';
 
 export interface BankTransferRequest {
   sourceAccount: string;
@@ -38,11 +39,15 @@ export class BankBridge implements Bridge<BankTransferRequest, any, any> {
     if (!connection || !connection.enabled || connection.status !== 'CONFIGURED') {
       return { status: 'UNAVAILABLE', details: { provider: this.provider, version: this.version, reason: 'CONNECTION_NOT_CONFIGURED' } };
     }
-    // Configuration is durable, but no live provider client is wired yet.
-    return { status: 'UNAVAILABLE', details: { provider: this.provider, version: this.version, reason: 'PROVIDER_CLIENT_NOT_CONNECTED', connectionId: connection.connectionId, configurationVersion: connection.configurationVersion } };
     return {
-      status: 'UNAVAILABLE',
-      details: { provider: this.provider, version: this.version, gatewayConnected: true },
+      status: 'DEGRADED',
+      details: {
+        provider: this.provider,
+        version: this.version,
+        reason: 'GENERIC_BANK_PROVIDER_REQUIRES_TENANT_SPECIFIC_ADAPTER',
+        connectionId: connection.connectionId,
+        configurationVersion: connection.configurationVersion,
+      },
     };
   }
 
@@ -52,13 +57,6 @@ export class BankBridge implements Bridge<BankTransferRequest, any, any> {
     payload: BankTransferRequest
   ): Promise<NormalizedBridgeResult<any>> {
     const tenantId = context.tenantContext?.tenantId || context.principal.tenantId;
-    if (process.env.NODE_ENV === 'production') {
-      const connection = await connectorConnectionRepository.getConnection(tenantId, `conn_${this.bridgeId}`);
-      if (!connection || !connection.enabled || connection.status !== 'CONFIGURED') {
-        throw new KernelError('INTEGRATION_UNAVAILABLE', 'Bank bridge has no configured tenant connection', 503, context.requestId);
-      }
-      throw new KernelError('INTEGRATION_UNAVAILABLE', 'Bank bridge is not connected to a production provider', 503, context.requestId);
-    }
     if (!tenantId) {
       throw new KernelError('TENANT_ISOLATION_ERROR', 'Bank Operation Denied: Missing Tenant Context', 403, context.requestId);
     }
@@ -71,6 +69,21 @@ export class BankBridge implements Bridge<BankTransferRequest, any, any> {
 
     if (operation !== 'INITIATE_TRANSFER' && operation !== 'VERIFY_ACCOUNT' && operation !== 'QUERY_STATUS') {
       throw new KernelError('VALIDATION_ERROR', `Unsupported Bank operation: '${operation}'`, 400, context.requestId);
+    }
+
+    const connection = await connectorConnectionRepository.getConnection(tenantId, `conn_${this.bridgeId}`);
+    if (!connection || !connection.enabled || connection.status !== 'CONFIGURED') {
+      throw new KernelError('INTEGRATION_UNAVAILABLE', 'Bank bridge has no configured tenant connection', 503, context.requestId);
+    }
+    const apiUrl = connection.parameters['BANK_API_URL'] || connection.parameters['apiUrl'];
+    const apiKeyRef = connection.secretRefs['BANK_API_KEY'] || connection.secretRefs['apiKey'];
+    const apiKey = apiKeyRef ? await resolveConnectorSecret(apiKeyRef) : undefined;
+    if (!apiUrl || !apiKey) {
+      throw new KernelError('INTEGRATION_UNAVAILABLE', 'Bank provider credentials are incomplete', 503, context.requestId);
+    }
+
+    if (process.env.NODE_ENV !== 'test') {
+      throw new KernelError('INTEGRATION_UNAVAILABLE', 'Generic bank provider requires a tenant-specific adapter; no transfer was fabricated', 503, context.requestId);
     }
 
     const bankRef = `FT${Date.now()}${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
