@@ -21,7 +21,9 @@ export interface EmailSendRequest {
   subject: string;
   htmlBody?: string;
   textBody?: string;
-  attachments?: Array<{ filename: string; contentBase64: string }>;
+  attachments?: Array<{ filename: string; contentBase64: string; mimeType?: string }>;
+  templateId?: string;
+  dynamicTemplateData?: Record<string, unknown>;
 }
 
 export class EmailBridge implements Bridge<EmailSendRequest, any, any> {
@@ -87,8 +89,8 @@ export class EmailBridge implements Bridge<EmailSendRequest, any, any> {
     const fromEmail = this.parameter(connection, 'SENDGRID_FROM_EMAIL', 'fromEmail');
     const apiUrl = this.parameter(connection, 'SENDGRID_API_URL', 'apiUrl') || 'https://api.sendgrid.com/v3/mail/send';
     if (!apiKey || !fromEmail) throw new KernelError('INTEGRATION_UNAVAILABLE', 'SendGrid credentials are incomplete', 503, context.requestId);
-    if (!payload.toEmail || !payload.subject || (!payload.htmlBody && !payload.textBody)) {
-      throw new KernelError('VALIDATION_ERROR', 'Email requires toEmail, subject and a text or HTML body', 400, context.requestId);
+    if (!payload.toEmail || !payload.subject || (operation !== 'SEND_TEMPLATE_EMAIL' && !payload.htmlBody && !payload.textBody) || (operation === 'SEND_TEMPLATE_EMAIL' && !payload.templateId)) {
+      throw new KernelError('VALIDATION_ERROR', operation === 'SEND_TEMPLATE_EMAIL' ? 'Template email requires toEmail, subject and templateId' : 'Email requires toEmail, subject and a text or HTML body', 400, context.requestId);
     }
 
     auditLogger.logEvent('BRIDGE_EXECUTION', context.principal.id, 'BRIDGE_REQUESTED', `bridge:${this.bridgeId}`, 'ALLOWED', {
@@ -116,12 +118,14 @@ export class EmailBridge implements Bridge<EmailSendRequest, any, any> {
     const body = {
       personalizations: [{ to: [{ email: payload.toEmail }], subject: payload.subject }],
       from: { email: fromEmail },
-      content,
+      content: operation === 'SEND_TEMPLATE_EMAIL' ? [] : content,
+      ...(payload.templateId ? { template_id: payload.templateId, dynamic_template_data: payload.dynamicTemplateData || {} } : {}),
       ...(payload.attachments?.length ? {
         attachments: payload.attachments.map((attachment) => ({
           content: attachment.contentBase64,
           filename: attachment.filename,
           disposition: 'attachment',
+          type: attachment.mimeType || 'application/octet-stream',
         })),
       } : {}),
     };
