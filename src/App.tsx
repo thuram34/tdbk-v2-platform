@@ -3,6 +3,7 @@ import { CircleAlert } from 'lucide-react';
 import { DbkApp } from './components/experience/DbkApp';
 import { OwnerCommandCenter } from './components/master/OwnerCommandCenter';
 import { BusinessDiscovery } from './components/onboarding/BusinessDiscovery';
+import { ProvisionedWorkspace, type ProvisionedBusiness } from './components/onboarding/ProvisionedWorkspace';
 import { LoginScreen } from './components/auth/LoginScreen';
 import { PublicGateway } from './public/PublicGateway';
 import { SokoniExperience } from './sokoni/SokoniExperience';
@@ -19,6 +20,7 @@ export default function App() {
   const [showBusinessDiscovery, setShowBusinessDiscovery] = useState(false);
   const [dbkId, setDbkId] = useState<string | null>(null);
   const [justProvisioned, setJustProvisioned] = useState(false);
+  const [provisionedBusiness, setProvisionedBusiness] = useState<ProvisionedBusiness | null>(null);
   const [idToken, setIdToken] = useState('');
   const [dbksLoading, setDbksLoading] = useState(true);
   const [dbks, setDbks] = useState<DbkIdentity[]>([]);
@@ -165,11 +167,25 @@ export default function App() {
   if (showBusinessDiscovery) {
     return (
       <BusinessDiscovery
-        onProvisioned={async (provisionedDbkId: string) => {
+        onProvisioned={async (business: ProvisionedBusiness) => {
           setShowBusinessDiscovery(false);
           setJustProvisioned(true);
-          setDbkId(provisionedDbkId);
+          setProvisionedBusiness(business);
+          setDbkId(business.dbkId);
           await loadDbks();
+        }}
+      />
+    );
+  }
+
+  if (provisionedBusiness) {
+    return (
+      <ProvisionedWorkspace
+        business={provisionedBusiness}
+        onEnterWorkspace={() => {
+          setProvisionedBusiness(null);
+          setJustProvisioned(true);
+          setDbkId(provisionedBusiness.dbkId);
         }}
       />
     );
