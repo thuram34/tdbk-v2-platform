@@ -8,6 +8,10 @@ import { outboxRepository } from '../../persistence/firestore/repositories/outbo
 import { subscriptionService } from '../../platform/subscription/subscriptionService';
 import { handleSubscriptionPaymentConfirmed } from '../../platform/subscription/subscriptionPaymentHandler';
 import { spaceMembershipRepository } from '../../persistence/firestore/repositories/spaceMembershipRepository';
+import { connectorConnectionRepository } from '../../persistence/firestore/repositories/connectorConnectionRepository';
+import { connectorReadinessService } from '../../platform/connectors/connectorReadinessService';
+import { connectionHub } from '../../orchestration/bridge/connectionHub';
+import { rbacEngine } from '../../kernel/authorization/rbacEngine';
 
 const dbkId = 'canonical_journey_hardware_01';
 const inventoryRecordId = 'canonical_stock_001';
@@ -110,6 +114,17 @@ describe('TDBK canonical client journey acceptance', () => {
     expect(provisioned.branches.length).toBeGreaterThan(0);
     expect(provisioned.subscriptionTier).toBe('FREE');
 
+    const ownerMemberships = await spaceMembershipRepository.listMemberships(dbkId, 'canonical-owner');
+    expect(ownerMemberships.some((membership) => membership.role === 'OWNER_OPERATOR' && membership.status === 'ACTIVE')).toBe(true);
+
+    const ownerAuthorized = await rbacEngine.authorizeAsync(
+      ownerContext().principal,
+      'READ_WORKSPACE',
+      'dbk:' + dbkId,
+      { tenantId: dbkId, requiredPermission: 'DBK_MANAGE' },
+    );
+    expect(ownerAuthorized.allowed).toBe(true);
+
     const branchId = provisioned.branches[0].branchId;
     await spaceMembershipRepository.saveMembership({ membershipId: `mem_${dbkId}_cashier`, userId: 'canonical-cashier', spaceId: branchId, tenantId: dbkId, role: 'CASHIER', roleTitle: 'Cashier', status: 'ACTIVE', joinedAt: new Date().toISOString(), permissions: ['execute:sales', 'read:pos'] });
     const preSubscriptionSale = await experienceResolver.dispatchCommand(
@@ -172,6 +187,41 @@ describe('TDBK canonical client journey acceptance', () => {
 
     const upgradedDbk = await dbkRegistry.getDbkInternal(dbkId);
     expect(upgradedDbk?.subscriptionTier).toBe('FOUNDATION');
+
+    await connectorConnectionRepository.saveConnection(dbkId, 'conn_mpesa', {
+      connectionId: 'conn_mpesa',
+      tenantId: dbkId,
+      bridgeId: 'bridge_mpesa',
+      provider: 'SAFARICOM_MPESA',
+      status: 'CONFIGURED',
+      enabled: true,
+      configurationVersion: 1,
+      parameters: {
+        MPESA_SHORTCODE: '174379',
+        MPESA_CALLBACK_URL: 'https://example.test/mpesa/callback',
+      },
+      secretRefs: {
+        MPESA_CONSUMER_KEY: { provider: 'GCP_SECRET_MANAGER', name: 'tdbk/test/mpesa/consumer-key' },
+        MPESA_CONSUMER_SECRET: { provider: 'GCP_SECRET_MANAGER', name: 'tdbk/test/mpesa/consumer-secret' },
+        MPESA_PASSKEY: { provider: 'GCP_SECRET_MANAGER', name: 'tdbk/test/mpesa/passkey' },
+      },
+      configuredAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      lastHealthCheckAt: null,
+      lastHealthStatus: 'UNKNOWN',
+      lastErrorCode: null,
+    });
+
+    const connectorHealth = await connectionHub.health(ownerContext(), 'bridge_mpesa');
+    expect(connectorHealth.status).toBe('HEALTHY');
+
+    const connectorReport = await connectorReadinessService.inspect(ownerContext(), dbkId);
+    const mpesa = connectorReport.items.find((item) => item.bridgeId === 'bridge_mpesa');
+    expect(mpesa?.connectionStatus).toBe('CONFIGURED');
+    expect(mpesa?.enabled).toBe(true);
+    expect(mpesa?.healthStatus).toBe('HEALTHY');
+    expect(mpesa?.ready).toBe(true);
+    expect(mpesa?.blockers).toEqual([]);
 
     const enableSales = await experienceResolver.dispatchCommand(
       ownerContext(),
