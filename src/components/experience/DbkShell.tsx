@@ -21,6 +21,13 @@ import {
   RefreshCw,
   Settings,
   X,
+  ShoppingCart,
+  Package,
+  Users,
+  BarChart3,
+  WalletCards,
+  Cloud,
+  Sparkles,
 } from 'lucide-react';
 
 interface DbkShellProps {
@@ -324,8 +331,32 @@ export const DbkShell: React.FC<DbkShellProps> = ({
         </div>
       </header>
 
+      <div className="mx-auto w-full max-w-7xl px-4 pt-3 sm:px-6">
+        <div className="flex gap-2 overflow-x-auto rounded-2xl border border-neutral-200 bg-white p-2 shadow-sm">
+          {[
+            ['POS', ShoppingCart, 'nav_overview'],
+            ['Inventory', Package, experience?.navigation.find((item) => /inventory|stock/i.test(item.label))?.capabilityId],
+            ['Customers', Users, experience?.navigation.find((item) => /customer|client/i.test(item.label))?.capabilityId],
+            ['Reports', BarChart3, experience?.navigation.find((item) => /report|analytics/i.test(item.label))?.capabilityId],
+            ['M-Pesa', WalletCards, experience?.navigation.find((item) => /m-?pesa|payment/i.test(item.label))?.capabilityId],
+            ['Cloud Sync', Cloud, 'settings'],
+            ['AI Insights', Sparkles, 'view_doc_ai'],
+          ].map(([label, Icon, target]) => target ? (
+            <button
+              key={String(label)}
+              type="button"
+              onClick={() => setActiveViewId(String(target))}
+              className="flex min-w-[92px] flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-[11px] font-black text-neutral-600 transition hover:bg-neutral-950 hover:text-white"
+            >
+              {React.createElement(Icon as React.ElementType, { className: 'h-4 w-4' })}
+              <span className="whitespace-nowrap">{label}</span>
+            </button>
+          ) : null)}
+        </div>
+      </div>
+
       <div className="mx-auto flex w-full max-w-7xl flex-1">
-        <div className="pointer-events-none fixed inset-x-0 top-[65px] z-20 mx-auto hidden max-w-7xl px-4 sm:px-6 md:block">
+        <div className="pointer-events-none fixed inset-x-0 top-[125px] z-20 mx-auto hidden max-w-7xl px-4 sm:px-6 md:block">
           <div className="flex justify-end pt-3">
             <div className="pointer-events-auto inline-flex items-center gap-2 rounded-full border border-neutral-200 bg-white/95 px-3 py-2 text-[11px] font-semibold text-neutral-600 shadow-sm backdrop-blur">
               <span className="h-2 w-2 rounded-full bg-emerald-500" />
