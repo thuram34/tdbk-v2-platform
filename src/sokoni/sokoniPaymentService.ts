@@ -1,7 +1,8 @@
 import { firestoreClient } from '../persistence/firestore/firestoreClient';
 import { KernelError } from '../kernel/errors/kernelErrors';
 import { mpesaBridge } from '../orchestration/bridge/adapters/mpesaBridge';
-import { SecurityContext } from '../kernel/types';
+import { Principal, SecurityContext } from '../kernel/types';
+import { auditLogger } from '../kernel/audit/auditLogger';
 import { getSokoniCommercialOffering } from './sokoniCommercialConfig';
 
 export type SokoniPaymentIntentState = 'PENDING' | 'CONFIRMED' | 'FAILED';
@@ -21,12 +22,23 @@ export interface SokoniPaymentIntent {
   confirmedAt: string | null;
 }
 
-const participantPath = (id: string) => `/system/sokoniParticipants/${id}`;
-const intentPath = (id: string) => `/system/sokoniPaymentIntents/${id}`;
+const participantPath = (id: string) => `/system/sokoni/participants/${id}`;
+const intentPath = (id: string) => `/system/sokoni/paymentIntents/${id}`;
+
+const SOKONI_PAYMENT_SERVICE_ROLE = 'TDBK_SYSTEM_SOKONI_PAYMENT';
 
 function systemPaymentContext(context: SecurityContext, tenantId: string): SecurityContext {
+  const principal: Principal = {
+    ...context.principal,
+    id: 'tdbk-system-sokoni-payment',
+    tenantId,
+    branchId: null,
+    roles: [SOKONI_PAYMENT_SERVICE_ROLE],
+    isMaster: false,
+  };
   return {
     ...context,
+    principal,
     tenantContext: { tenantId },
     branchContext: null,
   };
@@ -48,7 +60,7 @@ export class SokoniPaymentService {
     if (!systemTenantId) throw new KernelError('INTEGRATION_UNAVAILABLE', 'Sokoni payment merchant tenant is not configured.', 503, context.requestId);
 
     const intentId = `sokpay_${crypto.randomUUID()}`;
-    const payment = await mpesaBridge.execute(systemPaymentContext(context, systemTenantId), 'STK_PUSH', {
+    const payment = await mpesaBridge.executeSystemPayment(systemPaymentContext(context, systemTenantId), 'STK_PUSH', {
       phoneNumber,
       amount: offering.amount,
       accountReference: `SOKONI-${participantId}-${intentId}`,
@@ -82,7 +94,7 @@ export class SokoniPaymentService {
     const systemTenantId = process.env.SOKONI_PAYMENT_TENANT_ID;
     if (!systemTenantId) throw new KernelError('INTEGRATION_UNAVAILABLE', 'Sokoni payment merchant tenant is not configured.', 503, context.requestId);
 
-    const result = await mpesaBridge.execute(systemPaymentContext(context, systemTenantId), 'STK_QUERY', {
+    const result = await mpesaBridge.executeSystemPayment(systemPaymentContext(context, systemTenantId), 'STK_QUERY', {
       phoneNumber: '',
       amount: intent.amount,
       accountReference: `SOKONI-${intent.participantId}-${intent.intentId}`,
@@ -93,6 +105,11 @@ export class SokoniPaymentService {
 
     const now = new Date().toISOString();
     if (result.status === 'SUCCESS') {
+      auditLogger.logEvent('PAYMENT_CONFIRMED', context.principal.id, 'SOKONI_PAYMENT_CONFIRM', `sokoni:payment:${intentId}`, 'ALLOWED', {
+        requestId: context.requestId,
+        tenantId: systemTenantId,
+        details: { participantId: intent.participantId, provider: intent.provider, providerReference: intent.providerReference },
+      });
       const confirmed = { ...intent, state: 'CONFIRMED' as const, updatedAt: now, confirmedAt: now };
       await firestoreClient.set(intentPath(intentId), confirmed);
       await firestoreClient.update(participantPath(intent.participantId), {
