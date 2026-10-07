@@ -23,6 +23,8 @@ import { auditLogger } from '../../kernel/audit/auditLogger';
 import { AuthorizationError, KernelError } from '../../kernel/errors/kernelErrors';
 import { SectorType } from '../../blueprint/types';
 import { createHash } from 'node:crypto';
+import { spaceMembershipRepository } from '../../persistence/firestore/repositories/spaceMembershipRepository';
+import { SpaceMembership } from '../../coherence/types';
 
 export class ProvisioningService {
   private static instance: ProvisioningService;
@@ -244,9 +246,42 @@ export class ProvisioningService {
 
       const mockCtx = createStepContext(workflow, dbkId);
 
+      // The registering owner becomes the first DBK membership. This is not
+      // merely a UI default: the membership is the runtime RBAC authority.
+      const ownerUserId = await dbkRegistry.getDbkInternal(dbkId).then((dbk) => dbk?.masterOwner || '');
+      if (!ownerUserId) {
+        return {
+          success: false,
+          error: 'DBK master owner is missing; cannot establish initial RBAC authority',
+          failureClassification: 'PERMANENT',
+        };
+      }
+
       // Create HQ branch
       const hq = await branchManager.createHeadquartersBranch(mockCtx, dbkId, primaryBranchName);
       const branches = [hq];
+
+      const ownerMembership: SpaceMembership = {
+        membershipId: `mem_${dbkId}_owner`,
+        userId: ownerUserId,
+        spaceId: hq.branchId,
+        tenantId: dbkId,
+        role: 'OWNER_OPERATOR',
+        roleTitle: 'Business Owner / Operator',
+        status: 'ACTIVE',
+        joinedAt: new Date().toISOString(),
+        permissions: [
+          'TENANT_ADMIN',
+          'BRANCH_MANAGE',
+          'STAFF_MANAGE',
+          'FINANCE_OPERATE',
+          'REPORTS_VIEW',
+          'CAPABILITY_MANAGE',
+          'WORKFLOW_OPERATE',
+        ],
+        department: 'Executive Management',
+      };
+      await spaceMembershipRepository.saveMembership(ownerMembership);
 
       // Create secondary branches
       for (const sb of secondaryBranches) {
