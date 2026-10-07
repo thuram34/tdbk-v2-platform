@@ -56,6 +56,7 @@ import { subscriptionRouter } from './src/platform/subscription/subscriptionRout
 import { tdbkAgentRuntime } from './src/platform/agent/agentRuntime';
 import { agentExecutionRepository } from './src/persistence/firestore/repositories/agentExecutionRepository';
 import { flowOrchestrator } from './src/platform/flow/flowOrchestrator';
+import { publicPublicationService } from './src/platform/public/publicPublicationService';
 
 async function startServer() {
   // Explicit bootstrap boundary: Seed demo DBKs only in development, preview, or explicit flag
@@ -87,6 +88,36 @@ async function startServer() {
   app.get('/api/health/ready', async (_req: Request, res: Response) => {
     const status = await healthMonitoring.getReadyStatus();
     res.status(status.status === 'HEALTHY' ? 200 : 503).json(status);
+  });
+
+  // -------------------------------------------------------------
+  // PUBLIC ORGANIZATION DISCOVERY
+  // Public reads expose only explicitly published, lifecycle-eligible projections.
+  // -------------------------------------------------------------
+  app.get('/api/public/organizations', async (req: Request, res: Response) => {
+    try {
+      const organizations = await publicPublicationService.listPublishedOrganizations({
+        area: typeof req.query.area === 'string' ? req.query.area : undefined,
+        sector: typeof req.query.sector === 'string' ? req.query.sector : undefined,
+      });
+      return res.json({ status: 'SUCCESS', organizations });
+    } catch (err) {
+      return res.status(500).json({
+        error: { code: 'PUBLIC_DISCOVERY_UNAVAILABLE', message: 'Public organization discovery is temporarily unavailable.' },
+      });
+    }
+  });
+
+  app.get('/api/public/organizations/:dbkId', async (req: Request, res: Response) => {
+    try {
+      const organization = await publicPublicationService.getPublishedOrganization(req.params.dbkId);
+      if (!organization) {
+        return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Public organization not found.' } });
+      }
+      return res.json({ status: 'SUCCESS', organization });
+    } catch {
+      return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Public organization not found.' } });
+    }
   });
 
   // -------------------------------------------------------------
@@ -976,6 +1007,44 @@ async function startServer() {
   // -------------------------------------------------------------
   // DBK LIFECYCLE CONTROL — TDBK MASTER AUTHORITY
   // -------------------------------------------------------------
+
+  app.get('/api/platform/dbks/:dbkId/publication', async (req: Request, res: Response) => {
+    try {
+      const context = await securityContextFactory.createSecurityContext({
+        authHeader: req.headers.authorization,
+        targetTenantId: req.params.dbkId,
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+      });
+      const publication = await publicPublicationService.getPublication(req.params.dbkId);
+      await masterAuthority.assertTenantAuthority(context, req.params.dbkId, 'READ_PUBLIC_PUBLICATION', context.requestId);
+      return res.json({ status: 'SUCCESS', publication });
+    } catch (err) {
+      if (err instanceof KernelError) return res.status(err.statusCode).json(err.toJSON());
+      return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Unable to read publication state' } });
+    }
+  });
+
+  app.post('/api/platform/dbks/:dbkId/publication', async (req: Request, res: Response) => {
+    try {
+      const context = await securityContextFactory.createSecurityContext({
+        authHeader: req.headers.authorization,
+        targetTenantId: req.params.dbkId,
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+      });
+      const publication = await publicPublicationService.setPublication(
+        context,
+        req.params.dbkId,
+        req.body?.status,
+        req.body?.reason,
+      );
+      return res.json({ status: 'SUCCESS', publication });
+    } catch (err) {
+      if (err instanceof KernelError) return res.status(err.statusCode).json(err.toJSON());
+      return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Unable to update publication state' } });
+    }
+  });
 
   app.post('/api/platform/dbks/:dbkId/suspend', async (req: Request, res: Response) => {
     try {
