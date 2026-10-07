@@ -17,6 +17,7 @@ import { KernelError } from '../kernel/errors/kernelErrors';
 import { saleTransactionService } from '../business/sales/saleTransactionService';
 import { connectionHub } from '../orchestration/bridge/connectionHub';
 import { dbkLifecycleManager } from '../platform/lifecycle/lifecycleManager';
+import { verticalCapabilityRuntime } from './vertical/verticalCapabilityRuntime';
 
 export class ExperienceResolver {
   private static instance: ExperienceResolver;
@@ -212,6 +213,21 @@ export class ExperienceResolver {
         );
         await workspaceManager.incrementWorkspaceVersion(context, req.targetDbkId);
         updatedExperience = await this.resolveExperience(context, req.targetDbkId);
+      } else if (req.commandType === 'EXECUTE_VERTICAL_OPERATION') {
+        const result = await verticalCapabilityRuntime.execute(
+          context,
+          req.targetDbkId,
+          req.payload as any,
+        );
+        updatedExperience = await this.resolveExperience(context, req.targetDbkId);
+        return {
+          success: true,
+          commandType: req.commandType,
+          targetDbkId: req.targetDbkId,
+          result,
+          updatedResolvedExperience: updatedExperience,
+          serverTimestamp: timestamp,
+        };
       } else if (req.commandType === 'EXECUTE_SALE') {
         const saleResult = await saleTransactionService.executeSale(
           context,
