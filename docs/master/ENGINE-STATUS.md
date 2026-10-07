@@ -137,3 +137,10 @@ Complete provider-specific reconciliation coverage and external audit evidence f
 - Registry normalization commit: `ed9d1023876ddbc69794008eb8bc054c728ec71a`
 - Regression test commit: `3c5d12e6aed1ecdd3aee01d74dcee20f394fdf70`
 - This provider-contract verification/status update: pending this write
+
+
+## Grand Operation Superseding Status — 2026-10-07
+
+The current Engine state is governed by `docs/GRAND_OPERATION_AUDIT_2026-10-07.md`. Gate 04 reconciliation, six-bridge registration, production SMS/Email adapter execution, durable public publication, and readiness-marker enforcement have progressed beyond the historical status recorded above.
+
+Provider-specific idempotency remains intentionally unclaimed unless authoritative provider evidence exists.
