@@ -44,18 +44,11 @@ export class NavigationEngine {
         const roleAllowed = capability.requiredRoles.length === 0 || capability.requiredRoles.some((role) => roles.includes(role));
         const permissionAllowed = capability.requiredPermissions.length === 0 || capability.requiredPermissions.every((permission) => rbacEngine.hasPermission(context.principal, permission));
         const ownerOverride = masterAuthority.isMasterAdmin(context.principal) || masterAuthority.isOwnerPortfolio(context.principal);
-        if (!ownerOverride && !roleAllowed && !permissionAllowed) continue;
+        // Navigation must mirror the authoritative runtime guard: when a capability
+        // declares both roles and permissions, the principal must satisfy both.
+        if (!ownerOverride && (!roleAllowed || !permissionAllowed)) continue;
       }
 
-      // Role filtering for capabilities
-      if (context && !isTenantAdmin) {
-        if (roles.includes('TEACHER')) {
-          // Teacher only sees academic, student, overview navigation
-          if (capId === 'fee_management' || capId === 'school_fee_structure' || capId === 'mpesa_reconciliation' || capId === 'system_config') {
-            continue;
-          }
-        }
-      }
 
       const viewDef = capabilityViewRegistry.getViewDefinition(capId);
       if (viewDef) {
