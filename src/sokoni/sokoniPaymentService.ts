@@ -226,6 +226,7 @@ export class SokoniPaymentService {
     });
 
     return { intent: finalized, state: finalized.state };
-  }}
+  }
+}
 
 export const sokoniPaymentService = new SokoniPaymentService();
