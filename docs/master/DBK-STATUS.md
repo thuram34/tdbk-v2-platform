@@ -83,3 +83,10 @@ The onboarding flow now treats Engine provisioning as the Business DNA authority
 **COMPLETE — DBK public publication is now an explicit owner-controlled boundary and Sokoni can consume only published public-safe projections. The next DBK acceptance task is full vertical transaction execution after provisioning.**
 
 The implementation is complete at the DBK presentation boundary. Before further feature work, verify the Engine endpoint and onboarding path together in a real authenticated environment; no local tests or CI results are claimed from this change.
+
+
+## Grand Operation Superseding Status — 2026-10-07
+
+The current DBK state is governed by `docs/GRAND_OPERATION_AUDIT_2026-10-07.md`. Public publication is now an explicit owner-controlled authority, the public organization projection is indexed durably, and Sokoni consumes published TDBK organizations through that contract.
+
+The remaining DBK acceptance boundary is end-to-end execution across the full vertical matrix and final release evidence.
