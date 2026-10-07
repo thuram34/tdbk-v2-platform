@@ -117,3 +117,10 @@ This gate is intentionally blocked pending the architectural decision above.
 STOP.
 
 After Master decides the external side-effect idempotency/reconciliation contract, assign one implementation task for that contract. Do not begin it automatically.
+
+
+## Grand Operation Superseding Status — 2026-10-07
+
+The historical Gate 04 rule remains valid: the Engine must not invent provider idempotency.
+
+The current branch now adds an authoritative reconciliation action for providers that expose a supported reconciliation contract. Ambiguous M-Pesa operations can be reconciled through the registered query operation and the waiting workflow is resumed from the durable reconciled state. Providers without an authoritative reconciliation contract remain unresolved rather than being guessed or replayed.
