@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { DbkExperienceResolved } from '../../experience/types';
+import { dispatchExperienceCommand } from '../../experience/experienceCommandClient';
 import { useAuth } from '../../client/AuthContext';
 import { DynamicIcon } from './IconHelper';
 import { DashboardView } from './DashboardView';
@@ -149,40 +150,31 @@ export const DbkShell: React.FC<DbkShellProps> = ({
   }, [selectedDbkId, selectedBranchId, viewMode]);
 
   const handleDispatchCommand = async (commandType: string, payload: Record<string, unknown>) => {
-    if (!selectedDbkId) return null;
+    if (!selectedDbkId) {
+      throw new Error('No DBK workspace is currently selected.');
+    }
 
-    const idToken = await getIdToken();
-    if (!idToken) throw new Error('Your session has expired. Please sign in again.');
-
-    const response = await fetch('/api/experience/command', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${idToken}`,
-      },
-      body: JSON.stringify({
+    try {
+      const data = await dispatchExperienceCommand({
+        getIdToken,
+        dbkId: selectedDbkId,
+        branchId: selectedBranchId,
         commandType,
-        targetDbkId: selectedDbkId,
-        payload: { ...payload, branchId: selectedBranchId },
-      }),
-    });
+        payload,
+      });
 
-    const data = await response.json().catch(() => ({}));
-    if (response.status === 401 || response.status === 403) {
-      setErrorKind('UNAUTHORIZED');
-      setError('You are not authorized to perform that action.');
-      throw new Error('You are not authorized to perform that action.');
+      if (data.commandResponse.updatedResolvedExperience) {
+        setExperience(data.commandResponse.updatedResolvedExperience);
+      }
+
+      return data;
+    } catch (error: any) {
+      if (error?.message === 'You are not authorized to perform that action.') {
+        setErrorKind('UNAUTHORIZED');
+        setError(error.message);
+      }
+      throw error;
     }
-
-    if (!response.ok) {
-      throw new Error(data.error?.message || 'The action could not be completed.');
-    }
-
-    if (data.commandResponse?.updatedResolvedExperience) {
-      setExperience(data.commandResponse.updatedResolvedExperience);
-    }
-
-    return data;
   };
 
   const handleBranchSwitch = async (newBranchId: string) => {
