@@ -206,6 +206,61 @@ describe('Gate 04 — external side-effect identity and mapping', () => {
     expect(execution?.providerReference).toBe('FT_UNKNOWN_01');
   });
 
+  it('parks an ambiguous provider exception as UNKNOWN instead of retrying a non-idempotent side effect', async () => {
+    const context = {
+      principal: { id: 'usr_gate04_ambiguous', tenantId, branchId: null, isMaster: false },
+      tenantContext: { tenantId },
+      branchContext: { branchId: null },
+      requestId: 'req_gate04_ambiguous',
+      correlationId: 'corr_gate04_ambiguous',
+    } as any;
+
+    workflowEngine.clearStoreForTesting();
+    let handlerCalls = 0;
+
+    workflowEngine.registerStepHandler('GATE04_AMBIGUOUS_THROW', async (ctx) => {
+      handlerCalls += 1;
+      await ctx.prepareExternalSideEffect({
+        operation: 'INITIATE_TRANSFER',
+        providerName: 'GENERIC_BANK',
+        providerIdempotencySupported: false,
+        providerReconciliationSupported: false,
+      });
+
+      throw new Error('network timeout after provider accepted request');
+    });
+
+    const workflow = workflowEngine.createWorkflow(
+      context,
+      'GATE04_AMBIGUOUS_THROW_TEST',
+      'v1.0',
+      [{
+        stepId: 'step_ambiguous',
+        stepType: 'GATE04_AMBIGUOUS_THROW',
+        retryPolicy: {
+          maxAttempts: 3,
+          backoffMs: 0,
+          timeoutMs: 5000,
+          retryableErrors: ['TIMEOUT'],
+        },
+      }]
+    );
+
+    const result = await workflowEngine.executeWorkflow(context, workflow.workflowId);
+    const execution = await workflowStepExecutionRepository.getExecution(
+      tenantId,
+      result.steps[0].executionKey!
+    );
+
+    expect(handlerCalls).toBe(1);
+    expect(result.status).toBe('WAITING');
+    expect(result.steps[0].status).toBe('WAITING');
+    expect(result.steps[0].failureClassification).toBe('WAITING_FOR_EXTERNAL_RESULT');
+    expect(execution?.outcomeState).toBe('UNKNOWN_OUTCOME');
+    expect(execution?.providerIdempotencySupported).toBe(false);
+    expect(execution?.providerReconciliationSupported).toBe(false);
+  });
+
   it('rejects terminal outcome regression and provider identity mutation', async () => {
     const executionKey = 'exec_provider_state_machine_01';
     await workflowStepExecutionRepository.claimExecution(tenantId, 'wf_gate04', 'step_payment', executionKey, 'worker_a', 300000);
