@@ -29,5 +29,8 @@ describe('runtime readiness gate', () => {
     expect(bridgeRegistry.getBridgeInstance('bridge_mpesa')).toBeDefined();
     expect(bridgeRegistry.getBridgeInstance('bridge_etims')).toBeDefined();
     expect(bridgeRegistry.getBridgeInstance('bridge_whatsapp')).toBeDefined();
+    expect(bridgeRegistry.getBridgeInstance('bridge_sms')).toBeDefined();
+    expect(bridgeRegistry.getBridgeInstance('bridge_email')).toBeDefined();
+    expect(bridgeRegistry.getBridgeInstance('bridge_bank')).toBeDefined();
   });
 });
