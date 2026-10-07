@@ -11,6 +11,7 @@ import {
   WalletCards,
 } from 'lucide-react';
 import { useAuth } from '../../client/AuthContext';
+import type { ProvisionedBusiness } from './ProvisionedWorkspace';
 
 type Blueprint = {
   id: string;
@@ -28,7 +29,7 @@ type Blueprint = {
 };
 
 type BusinessDiscoveryProps = {
-  onProvisioned: (dbkId: string) => void;
+  onProvisioned: (business: ProvisionedBusiness) => void;
 };
 
 export function BusinessDiscovery({ onProvisioned }: BusinessDiscoveryProps) {
@@ -213,7 +214,13 @@ export function BusinessDiscovery({ onProvisioned }: BusinessDiscoveryProps) {
       // Provisioning initializes entitlement-aware capability records; activation
       // happens later through the subscription authority and the capability gate.
       window.sessionStorage.removeItem('tdbk:onboarding:request-id');
-      onProvisioned(dbkId);
+      onProvisioned({
+        dbkId,
+        businessName: authoritativeDna.identity?.businessName || businessName.trim(),
+        businessType: selectedBlueprint.name,
+        branchName: branchName.trim() || 'Head Office',
+        capabilities: selectedCapabilities.map((id) => selectedBlueprint.supportedCapabilities?.find((capability) => capability.id === id)?.name || id),
+      });
     } catch (err: any) {
       setError(err?.message || 'Business provisioning failed.');
     } finally {
@@ -248,7 +255,7 @@ export function BusinessDiscovery({ onProvisioned }: BusinessDiscoveryProps) {
         {existingDbkId && (
           <div className="mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div><div className="text-xs font-bold uppercase tracking-wider text-emerald-800">Existing business found</div><div className="mt-1 text-sm text-emerald-950">{existingDbkName}</div></div>
-            <button onClick={() => onProvisioned(existingDbkId)} className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white">Continue to my business <ArrowRight className="w-4 h-4" /></button>
+            <button onClick={() => onProvisioned({ dbkId: existingDbkId, businessName: existingDbkName || 'Your business', businessType: 'Business workspace', branchName: branchName || 'Head Office', capabilities: [] })} className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white">Continue to my business <ArrowRight className="w-4 h-4" /></button>
           </div>
         )}
 
