@@ -5,6 +5,7 @@ import { dbkCapabilityManager } from '../../capability/dbkCapabilityManager';
 import { securityContextFactory } from '../../kernel/context/contextFactory';
 import { TokenVerifier } from '../../kernel/identity/tokenVerifier';
 import { verticalCapabilityRuntime } from '../vertical/verticalCapabilityRuntime';
+import { branchRepository } from '../../persistence/firestore/repositories/branchRepository';
 
 const cases = [
   ['school_v1', 'EDUCATION', 'student_records', { admissionNo: 'ADM-001', fullName: 'Student One', classStream: 'Grade 4A' }],
@@ -59,6 +60,8 @@ describe('vertical operation acceptance matrix', () => {
       lifecycleHistory: [],
       metadata: {},
     });
+
+    await branchRepository.saveBranch(dbkId, `${dbkId}_hq`, { branchId: `${dbkId}_hq`, dbkId, name: 'Headquarters', type: 'HEADQUARTERS', status: 'ACTIVE', isHeadquarters: true, createdAt: now, updatedAt: now });
 
     const token = TokenVerifier.mintTestToken({
       uid: 'usr_vertical_matrix_master',
