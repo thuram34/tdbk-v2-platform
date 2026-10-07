@@ -38,7 +38,7 @@ describe('vertical operation acceptance matrix', () => {
       sector,
       blueprintId,
       blueprintVersion: '1.0.0',
-      subscriptionTier: 'FOUNDATION',
+      subscriptionTier: 'ENTERPRISE',
       status: 'ACTIVE',
       masterOwner: 'usr_vertical_matrix_master',
       createdAt: now,
