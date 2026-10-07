@@ -222,4 +222,6 @@ Evidence commit sequence:
 - `9ac763cc223e02f5b37983f2f014b7a340527a20` — event-bus subscriptions
 - `9d5a2a5c06175a8abf5d2771093e542a5d394860` — trigger proof test
 
+Initialization-cycle hardening was added after the first implementation: the adapter no longer statically imports the Event Bus or Workflow Engine in a circular path; the Workflow Engine is lazy-loaded only when a trigger is actually consumed. The Event Bus also re-registers the trigger subscriptions after its test-store reset.
+
 CI evidence is still pending; GitHub currently reports no pull-request workflow run for the latest commit. Therefore this gate is **implemented but not CI-closed**.
