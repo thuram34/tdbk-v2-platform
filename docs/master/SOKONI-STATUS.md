@@ -156,7 +156,8 @@ Payment confirmation is generated only from the M-Pesa provider result; Sokoni d
 - Firebase Anonymous Authentication must be enabled for the current no-friction participant registration write path.
 - `firestore.rules`, `storage.rules` and `firebase.json` must be deployed to the Firebase project before production persistence is considered operational.
 - Owner management is now persisted and owner-scoped; anonymous Firebase identity remains a temporary onboarding identity and should be linked to a permanent account for cross-device ownership.
-- Sokoni payment initiation and authoritative confirmation are implemented; production merchant configuration, callback/reconciliation hardening and live provider certification remain release gates.
+- Sokoni payment initiation and authoritative confirmation are implemented through the dedicated system payment identity; production merchant configuration and live provider certification remain release gates.
+- M-Pesa durable `payment.confirmed.v1` / `payment.failed.v1` events now reconcile pending Sokoni payment intents by checkout reference through a transactional Sokoni event handler. Live callback delivery and outbox/Pub/Sub worker execution remain release gates.
 - Natural-language discovery relevance/matching remains a future contract boundary; the current persisted discovery foundation is area-based.
 
 ## MASTER REVIEW REQUIRED
@@ -199,6 +200,10 @@ Payment confirmation is generated only from the M-Pesa provider result; Sokoni d
 ## Files / Areas Changed
 - `src/client/firebase.ts` — added Firestore and Storage client initialization alongside existing Firebase Auth.
 - `src/sokoni/sokoniCommercialConfig.ts` — configurable Sokoni commercial offerings.
+- `src/sokoni/sokoniPaymentService.ts` — guarded system-payment initiation/confirmation with transactional state and durable events.
+- `src/sokoni/sokoniPaymentEventHandler.ts` — event-driven callback/reconciliation boundary for pending Sokoni payment intents.
+- `src/sokoni/sokoniPaymentService.test.ts` — payment and callback-reconciliation proof tests.
+- `src/orchestration/events/eventBus.ts` — existing payment event contracts now include Sokoni reconciliation subscribers.
 - `src/sokoni/persistence/sokoniParticipantPersistence.ts` — Sokoni participant/media/catalogue persistence and public discovery reads.
 - `src/sokoni/SokoniBusinessRegistration.tsx` — changed registration from business-first to orientation-first participation with conditional follow-up context.
 - `src/sokoni/sokoniParticipationConfig.ts` — extensible orientation and contextual option vocabulary.
@@ -265,7 +270,7 @@ Payment confirmation is generated only from the M-Pesa provider result; Sokoni d
 - Define future Sokoni → TDBK adoption input contract.
 
 ## Next Recommended Single Sokoni Task
-Complete production certification of the Sokoni payment authority, then wire provider callback/reconciliation into the Sokoni payment intent boundary. Paid offerings remain non-public until live merchant configuration and provider verification pass.
+Prove the callback path against the live merchant configuration: M-Pesa callback → durable financial transaction/outbox → event delivery → Sokoni payment intent → ACTIVE publication. Paid offerings remain non-public until live provider verification passes.
 
 ## Evidence
 - Participation orientation configuration commit: `bd5453a0c5e7201f37322fd43076edce8ae980d6`.
@@ -298,6 +303,7 @@ Complete production certification of the Sokoni payment authority, then wire pro
 - The bridge rejects system-payment execution unless that explicit service role is present.
 - Paid participants transition `PAYMENT_REQUIRED → PAYMENT_PENDING → PAYMENT_CONFIRMED`, with public publication remaining DRAFT until confirmation.
 - Confirmation is idempotent: a terminal CONFIRMED intent is returned without issuing another provider query.
-- Provider confirmation is audited.
-- Tests cover pending activation, foreign-owner rejection, provider confirmation, and repeated confirmation.
-- Live M-Pesa merchant configuration, provider callback/reconciliation linkage, Firebase rule deployment, and CI/runtime execution remain release gates.
+- Provider confirmation and event-driven reconciliation are audited.
+- Payment intent + participant publication transitions are committed transactionally with durable outbox events.
+- Tests cover pending activation, foreign-owner rejection, provider confirmation, repeated confirmation, and M-Pesa confirmation-event reconciliation.
+- Live M-Pesa merchant configuration, callback delivery, outbox/Pub/Sub worker execution, Firebase rule deployment, and CI/runtime execution remain release gates.
