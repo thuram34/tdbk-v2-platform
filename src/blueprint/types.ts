@@ -12,7 +12,10 @@ export type SectorType =
   | 'HEALTHCARE'
   | 'HOSPITALITY'
   | 'BEAUTY'
-  | 'PROFESSIONAL_SERVICES';
+  | 'PROFESSIONAL_SERVICES'
+  | 'MANUFACTURING'
+  | 'CONSTRUCTION'
+  | 'COMMUNITY';
 
 export interface TerminologyMapping {
   singular: string;
