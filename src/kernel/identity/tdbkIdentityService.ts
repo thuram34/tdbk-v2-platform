@@ -549,6 +549,17 @@ export class TdbkIdentityService {
       STAFF: ['POS_OPERATE', 'ORDERS_CREATE', 'INVENTORY_VIEW'],
       AUDITOR: ['REPORTS_VIEW', 'AUDIT_VIEW', 'TRANSACTIONS_VIEW'],
       INTEGRATION_AGENT: ['API_INGRESS', 'WEBHOOK_PROCESS'],
+      TENANT_ADMIN: ['TENANT_ADMIN', 'STAFF_MANAGE', 'BRANCH_MANAGE', 'REPORTS_VIEW'],
+      OWNER_OPERATOR: ['TENANT_ADMIN', 'STAFF_MANAGE', 'BRANCH_MANAGE', 'FINANCE_OPERATE', 'REPORTS_VIEW'],
+      SCHOOL_PRINCIPAL: ['attendance:write', 'finance:receive', 'display:manage', 'REPORTS_VIEW'],
+      TEACHER: ['attendance:write'],
+      BURSAR: ['finance:receive', 'REPORTS_VIEW'],
+      FINANCE_VIEWER: ['REPORTS_VIEW', 'TRANSACTIONS_VIEW'],
+      CASHIER: ['pos:checkout'],
+      STORE_OWNER: ['pos:checkout', 'INVENTORY_MANAGE', 'REPORTS_VIEW'],
+      SHOP_MANAGER: ['pos:checkout', 'INVENTORY_MANAGE', 'REPORTS_VIEW'],
+      CLINICIAN: ['clinical:triage'],
+      MEDICAL_DIRECTOR: ['clinical:triage', 'display:manage', 'REPORTS_VIEW'],
     };
 
     const addedPerms = request.permissions || defaultPerms[request.role] || [];
