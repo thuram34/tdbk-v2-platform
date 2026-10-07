@@ -1,12 +1,12 @@
 # DBK STATUS
 
 ## Last Updated
-2026-09-25
+2026-10-07
 
 ## Current Phase
 DBK-07 Engine Recommendation Consumption — COMPLETE
 
-## DBK-07 Engine Recommendation Boundary
+## DBK-08 Public Publication + Sokoni Discovery Boundary
 The Engine exposes `/api/dna/:dbkId/recommendations` and returns ranked capability recommendations with reasons and scores. This is an Engine decision surface; DBK must display it and must not recompute recommendation scores.
 
 ## Current Objective
@@ -80,6 +80,6 @@ This task introduced no:
 The onboarding flow now treats Engine provisioning as the Business DNA authority, verifies the durable `/api/dna/:dbkId` projection, persists Business Context through the Engine, and then consumes `/api/dna/:dbkId/recommendations` before handing the user into the DBK workspace. Recommendations are presentation-only and are never auto-enabled or recomputed locally.
 
 ## Next SINGLE Task
-**MASTER REVIEW REQUIRED — Validate the DBK recommendation boundary end-to-end.**
+**COMPLETE — DBK public publication is now an explicit owner-controlled boundary and Sokoni can consume only published public-safe projections. The next DBK acceptance task is full vertical transaction execution after provisioning.**
 
 The implementation is complete at the DBK presentation boundary. Before further feature work, verify the Engine endpoint and onboarding path together in a real authenticated environment; no local tests or CI results are claimed from this change.
