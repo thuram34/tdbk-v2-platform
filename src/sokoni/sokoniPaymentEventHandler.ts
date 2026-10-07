@@ -4,6 +4,7 @@ import { auditLogger } from '../kernel/audit/auditLogger';
 
 const PARTICIPANTS = (id: string) => `/system/sokoni/participants/${id}`;
 const INTENTS = '/system/sokoni/paymentIntents';
+const SOKONI_PAYMENT_SOURCES = new Set(['MpesaBridge', 'SokoniPaymentService']);
 
 type SokoniPaymentEvent = {
   intentId?: string;
@@ -17,6 +18,12 @@ type SokoniPaymentEvent = {
 };
 
 async function handleSokoniPaymentEvent(event: EventEnvelope<SokoniPaymentEvent>): Promise<void> {
+  // payment.confirmed.v1 is a shared platform contract. Only payment events
+  // emitted by the Sokoni payment boundary or the authoritative M-Pesa bridge
+  // may mutate Sokoni commercial state.
+  if (!SOKONI_PAYMENT_SOURCES.has(event.source)) return;
+  if (event.payload?.provider && event.payload.provider !== 'SAFARICOM_MPESA') return;
+
   let intentId = event.payload?.intentId || event.causationId || null;
   if (!intentId) return;
 
