@@ -5,6 +5,7 @@ import { outboxRepository } from '../../persistence/firestore/repositories/outbo
 import type { SecurityContext } from '../../kernel/types';
 import { dbkCapabilityManager } from '../../capability/dbkCapabilityManager';
 import { branchRepository } from '../../persistence/firestore/repositories/branchRepository';
+import { spaceMembershipRepository } from '../../persistence/firestore/repositories/spaceMembershipRepository';
 
 const tenantId = 'tenant_sale_test';
 const branchId = 'branch_main';
@@ -160,6 +161,7 @@ describe('SaleTransactionService', () => {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     });
+    await spaceMembershipRepository.saveMembership({ membershipId: `mem_${tenantId}_cashier`, userId: 'cashier_001', spaceId: branchId, tenantId, role: 'CASHIER', roleTitle: 'Cashier', status: 'ACTIVE', joinedAt: new Date().toISOString(), permissions: ['execute:sales'] });
     await seedSalesCapability();
   });
 
