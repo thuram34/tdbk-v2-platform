@@ -227,10 +227,19 @@ export class RBACEngineService {
       return { roles: ['TDBK_MASTER_ADMIN'], permissions: ['*'], membershipIds: [] };
     }
 
-    const memberships = await spaceMembershipRepository.listMemberships(tenantId, principal.id, branchId || undefined);
-    const active = memberships.filter((membership) => membership.status === 'ACTIVE');
+    const memberships = await spaceMembershipRepository.listMemberships(tenantId, principal.id);
+    const activeTenant = memberships.filter((membership) => membership.status === 'ACTIVE');
+    const activeBranch = branchId
+      ? activeTenant.filter((membership) => membership.spaceId === branchId)
+      : activeTenant;
 
-    // A branch-scoped request must have an explicit membership for that branch.
+    // Owner/operator and tenant-admin authority is tenant-wide. Other roles remain
+    // branch-scoped unless they have an explicit membership in the requested branch.
+    const tenantWide = activeTenant.filter((membership) =>
+      ['OWNER_OPERATOR', 'TENANT_ADMIN', 'BUSINESS_OWNER'].includes(membership.role),
+    );
+    const active = branchId && activeBranch.length === 0 ? tenantWide : activeBranch;
+
     if (branchId && active.length === 0) {
       return { roles: [], permissions: [], membershipIds: [] };
     }
