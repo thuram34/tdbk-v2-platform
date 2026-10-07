@@ -292,7 +292,7 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
   // SECTION 3: ROLE-GATED DYNAMIC NAVIGATION
   // -------------------------------------------------------------
   await runTest('P5_TEST_10', 'Teacher role in School DBK only sees academic and student navigation', async () => {
-    const teacherCtx = createTenantContext('usr_teacher_01', schoolDbkId, ['TEACHER'], ['read:students', 'write:grades']);
+    const teacherCtx = createTenantContext('usr_teacher_01', schoolDbkId, ['TEACHER'], ['read:students', 'write:students', 'manage:grades']);
 
     const resolved = await experienceResolver.resolveExperience(teacherCtx, schoolDbkId);
     const feeNav = resolved.navigation.find((n) => n.capabilityId === 'fee_management');
@@ -322,7 +322,7 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
   });
 
   await runTest('P5_TEST_12', 'Cashier in Hardware DBK sees POS navigation but not Settings', async () => {
-    const cashierCtx = createTenantContext('usr_cashier_01', hardwareDbkId, ['CASHIER'], ['read:pos', 'write:receipt']);
+    const cashierCtx = createTenantContext('usr_cashier_01', hardwareDbkId, ['CASHIER'], ['execute:pos', 'execute:sales', 'pos:checkout']);
 
     const resolved = await experienceResolver.resolveExperience(cashierCtx, hardwareDbkId);
     const posNav = resolved.navigation.find((n) => n.capabilityId === 'counter_pos');
@@ -362,7 +362,7 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
     }
   });
 
-  await runTest('P5_TEST_15', 'Overview & Dashboard is always present as first navigation item', async () => {
+  await runTest('P5_TEST_14', 'Overview & Dashboard is always present as first navigation item', async () => {
     const resolved = await experienceResolver.resolveExperience(masterCtx, schoolDbkId);
     if (resolved.navigation[0].id !== 'nav_overview') {
       throw new Error(`Expected first item to be nav_overview, got ${resolved.navigation[0].id}`);
