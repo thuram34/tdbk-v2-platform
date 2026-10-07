@@ -60,7 +60,11 @@ export type CapabilityCategory =
   | 'BEAUTY'
   | 'PROFESSIONAL_SERVICES'
   | 'AI'
-  | 'ANALYTICS';
+  | 'ANALYTICS'
+  | 'MANUFACTURING'
+  | 'PROJECTS'
+  | 'WORKFORCE'
+  | 'COMMUNITY';
 
 export interface ConfigurationFieldSchema {
   name: string;
