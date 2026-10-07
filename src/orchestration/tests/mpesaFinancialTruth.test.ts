@@ -2,6 +2,8 @@ import { describe, expect, it, beforeEach } from 'vitest';
 import { MpesaBridge } from '../bridge/adapters/mpesaBridge';
 import { firestoreClient } from '../../persistence/firestore/firestoreClient';
 import { financialLedgerRepository } from '../../persistence/firestore/repositories/financialLedgerRepository';
+import { outboxEngine } from '../outbox/outboxEngine';
+import { eventBus } from '../events/eventBus';
 
 const tenantId = 'tenant_mpesa_atomic';
 const checkoutRequestId = 'ws_CO_ATOMIC_001';
@@ -182,6 +184,68 @@ describe('M-Pesa callback financial atomicity', () => {
     expect(tx?.status).toBe('POSTED');
     expect(tx?.providerReceiptReference).toBe('QAB123XYZ');
     expect(ledger).toHaveLength(2);
+  });
+
+  it('delivers M-Pesa callback truth through outbox to Sokoni publication activation', async () => {
+    await firestoreClient.set('/system/sokoni/participants/participant_mpesa_001', {
+      id: 'participant_mpesa_001',
+      ownerUid: 'usr_test',
+      publicationStatus: 'DRAFT',
+      commercial: { offeringCode: 'SOKONI_100', state: 'PAYMENT_PENDING' },
+      tdbkRelationship: 'NOT_ENROLLED',
+    });
+    await firestoreClient.set('/system/sokoni/paymentIntents/intent_mpesa_001', {
+      intentId: 'intent_mpesa_001',
+      participantId: 'participant_mpesa_001',
+      ownerUid: 'usr_test',
+      offeringCode: 'SOKONI_100',
+      amount: 1000,
+      currency: 'KES',
+      provider: 'SAFARICOM_MPESA',
+      providerReference: checkoutRequestId,
+      state: 'PENDING',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      confirmedAt: null,
+      providerReceiptReference: null,
+    });
+
+    const bridge = new MpesaBridge();
+    await bridge.handleCallback(context(), callback());
+
+    const beforeDelivery = await firestoreClient.get<any>(
+      '/system/sokoni/paymentIntents/intent_mpesa_001'
+    );
+    expect(beforeDelivery?.state).toBe('PENDING');
+
+    const delivery = await outboxEngine.processTenantOutbox(
+      tenantId,
+      'worker_sokoni_integration',
+      30000,
+      async (event) => eventBus.publish(event)
+    );
+
+    expect(delivery.succeeded).toBeGreaterThanOrEqual(1);
+
+    const intent = await firestoreClient.get<any>(
+      '/system/sokoni/paymentIntents/intent_mpesa_001'
+    );
+    const participant = await firestoreClient.get<any>(
+      '/system/sokoni/participants/participant_mpesa_001'
+    );
+    const transaction = await firestoreClient.get<any>(
+      `/tenants/${tenantId}/financialTransactions/mpesa_${checkoutRequestId}`
+    );
+    const outbox = await firestoreClient.get<any>(
+      `/tenants/${tenantId}/outbox/evt_callback_${checkoutRequestId}`
+    );
+
+    expect(transaction?.status).toBe('POSTED');
+    expect(outbox?.status).toBe('DELIVERED');
+    expect(intent?.state).toBe('CONFIRMED');
+    expect(intent?.providerReceiptReference).toBe('QAB123XYZ');
+    expect(participant?.commercial.state).toBe('PAYMENT_CONFIRMED');
+    expect(participant?.publicationStatus).toBe('ACTIVE');
   });
 
   it('reconstructs the payment after a simulated server restart', async () => {
