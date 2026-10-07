@@ -237,4 +237,44 @@ describe('Gate 04 — external side-effect identity and mapping', () => {
       outcomeState: 'RECONCILED_SUCCESS',
     })).rejects.toThrow('reconciled state without provider reconciliation support');
   });
+
+  it('reconciles an ambiguous provider outcome into authoritative terminal state', async () => {
+    const executionKey = 'exec_provider_reconciliation_01';
+    await workflowStepExecutionRepository.claimExecution(
+      tenantId, 'wf_gate04', 'step_payment', executionKey, 'worker_a', 300000
+    );
+
+    const identity = deriveProviderOperationIdentity(executionKey, 'STK_PUSH');
+    await workflowStepExecutionRepository.bindProviderOperation(
+      tenantId,
+      executionKey,
+      'worker_a',
+      {
+        operation: 'STK_PUSH',
+        providerOperationIdentity: identity,
+        providerName: 'SAFARICOM_MPESA',
+        providerReference: 'CO_RECONCILE_01',
+        providerIdempotencySupported: false,
+        providerReconciliationSupported: true,
+        outcomeState: 'UNKNOWN_OUTCOME',
+      }
+    );
+
+    const reconciled = await workflowStepExecutionRepository.recordReconciliation(
+      tenantId,
+      executionKey,
+      'RECONCILED_SUCCESS',
+      {
+        providerReference: 'CO_RECONCILE_01',
+        result: 'CONFIRMED',
+      },
+    );
+
+    expect(reconciled.status).toBe('COMPLETED');
+    expect(reconciled.outcomeState).toBe('RECONCILED_SUCCESS');
+    expect(reconciled.providerReference).toBe('CO_RECONCILE_01');
+    expect(reconciled.workerId).toBeNull();
+    expect(reconciled.leaseUntil).toBeNull();
+  });
+
 });
