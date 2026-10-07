@@ -26,7 +26,7 @@ export interface EmailSendRequest {
 
 export class EmailBridge implements Bridge<EmailSendRequest, any, any> {
   public readonly bridgeId = 'bridge_email';
-  public readonly provider = 'SYSTEM_SMTP';
+  public readonly provider = 'SENDGRID';
   public readonly capabilityId = 'email_bridge';
   public readonly version = 'v1.0';
   public readonly sideEffectCapabilities = { providerIdempotency: false, providerReconciliation: false };
