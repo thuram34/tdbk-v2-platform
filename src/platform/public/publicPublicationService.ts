@@ -53,6 +53,9 @@ export class PublicPublicationService {
     reason?: string,
   ): Promise<DbkPublicPublication> {
     await this.assertPublicationAuthority(context, dbkId);
+    if (!['DRAFT', 'PUBLISHED', 'UNPUBLISHED', 'SUSPENDED'].includes(requestedStatus)) {
+      throw new KernelError('VALIDATION_ERROR', `Unsupported publication status '${String(requestedStatus)}'.`, 400, context.requestId);
+    }
     const dbk = await dbkRegistry.getDbkInternal(dbkId);
     if (!dbk) throw new KernelError('NOT_FOUND', `DBK '${dbkId}' not found`, 404, context.requestId);
 
