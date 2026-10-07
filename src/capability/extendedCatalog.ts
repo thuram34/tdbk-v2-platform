@@ -1,7 +1,7 @@
 import { CapabilityDefinition } from './types';
 const now='2026-10-07T00:00:00Z';
 function cap(id:string,name:string,category:string,blueprints:string[],description:string,deps:string[]=[]):CapabilityDefinition{
-  return {capabilityId:id,name,description,category,version:'1.0.0',supportedBlueprints:blueprints,dependencies:deps,requiredPermissions:['admin:*'],requiredRoles:['TENANT_ADMIN','DBK_ADMIN'],entitlementRequirements:{minimumTier:'FOUNDATION'},configurationSchema:{requiresConfiguration:false},implementationStatus:'IMPLEMENTED',lifecycleStatus:'AVAILABLE',createdAt:now,updatedAt:now};
+  return {capabilityId:id,name,description,category,version:'1.0.0',supportedBlueprints:blueprints,dependencies:deps,requiredPermissions:[],requiredRoles:['TENANT_ADMIN','DBK_ADMIN','STAFF'],entitlementRequirements:{minimumTier:'FOUNDATION'},configurationSchema:{requiresConfiguration:false},implementationStatus:'IMPLEMENTED',lifecycleStatus:'AVAILABLE',createdAt:now,updatedAt:now};
 }
 export const EXTENDED_CAPABILITY_CATALOG:CapabilityDefinition[]=[
   cap('bom_management','Bill of Materials','MANUFACTURING',['MANUFACTURING'],'Authoritative BOM definitions.'),
