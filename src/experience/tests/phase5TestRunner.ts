@@ -336,7 +336,33 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
     }
   });
 
-  await runTest('P5_TEST_13', 'Overview & Dashboard is always present as first navigation item', async () => {
+  await runTest('P5_TEST_13', 'Navigation enforces capability role AND permission requirements', async () => {
+    const teacherWithFeePermission = createTenantContext(
+      'usr_teacher_fee_attempt',
+      schoolDbkId,
+      ['TEACHER'],
+      ['read:students', 'write:students', 'manage:grades', 'manage:school_fees']
+    );
+
+    const teacherExp = await experienceResolver.resolveExperience(teacherWithFeePermission, schoolDbkId);
+    if (teacherExp.navigation.some((n) => n.capabilityId === 'fee_management')) {
+      throw new Error('Teacher must not receive fee navigation merely because the fee permission is present; the required role must also match.');
+    }
+
+    const cashierWithoutPosPermission = createTenantContext(
+      'usr_cashier_missing_permission',
+      hardwareDbkId,
+      ['CASHIER'],
+      ['read:pos']
+    );
+
+    const cashierExp = await experienceResolver.resolveExperience(cashierWithoutPosPermission, hardwareDbkId);
+    if (cashierExp.navigation.some((n) => n.capabilityId === 'counter_pos')) {
+      throw new Error('Cashier must not receive POS navigation when the authoritative execute:pos permission is absent.');
+    }
+  });
+
+  await runTest('P5_TEST_15', 'Overview & Dashboard is always present as first navigation item', async () => {
     const resolved = await experienceResolver.resolveExperience(masterCtx, schoolDbkId);
     if (resolved.navigation[0].id !== 'nav_overview') {
       throw new Error(`Expected first item to be nav_overview, got ${resolved.navigation[0].id}`);
@@ -346,7 +372,7 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
   // -------------------------------------------------------------
   // SECTION 4: DYNAMIC DASHBOARD COMPOSITION
   // -------------------------------------------------------------
-  await runTest('P5_TEST_14', 'School DBK dashboard composes student enrollment and fee metrics', async () => {
+  await runTest('P5_TEST_15', 'School DBK dashboard composes student enrollment and fee metrics', async () => {
     const resolved = await experienceResolver.resolveExperience(masterCtx, schoolDbkId);
     const enrollmentWidget = resolved.dashboardWidgets.find((w) => w.id === 'widget_school_enrollment');
     const feeWidget = resolved.dashboardWidgets.find((w) => w.id === 'widget_school_fees');
@@ -359,7 +385,7 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
     }
   });
 
-  await runTest('P5_TEST_15', 'Hardware DBK dashboard composes yard turnover and low stock alerts', async () => {
+  await runTest('P5_TEST_16', 'Hardware DBK dashboard composes yard turnover and low stock alerts', async () => {
     const resolved = await experienceResolver.resolveExperience(masterCtx, hardwareDbkId);
     const salesWidget = resolved.dashboardWidgets.find((w) => w.id === 'widget_hardware_sales');
     const alertWidget = resolved.dashboardWidgets.find((w) => w.id === 'widget_hardware_low_stock');
@@ -372,7 +398,7 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
     }
   });
 
-  await runTest('P5_TEST_16', 'Clinic DBK dashboard composes triage queue and pharmacy metrics', async () => {
+  await runTest('P5_TEST_17', 'Clinic DBK dashboard composes triage queue and pharmacy metrics', async () => {
     const resolved = await experienceResolver.resolveExperience(masterCtx, clinicDbkId);
     const queueWidget = resolved.dashboardWidgets.find((w) => w.id === 'widget_clinic_queue');
     const rxWidget = resolved.dashboardWidgets.find((w) => w.id === 'widget_pharmacy_metrics');
@@ -388,7 +414,7 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
   // -------------------------------------------------------------
   // SECTION 5: CAPABILITY DISCOVERY SURFACE
   // -------------------------------------------------------------
-  await runTest('P5_TEST_17', 'Discovery items include all catalog capabilities with accurate entitlement state', async () => {
+  await runTest('P5_TEST_18', 'Discovery items include all catalog capabilities with accurate entitlement state', async () => {
     const resolved = await experienceResolver.resolveExperience(masterCtx, schoolDbkId);
     if (!resolved.discoveryItems || resolved.discoveryItems.length === 0) {
       throw new Error('Discovery items empty');
@@ -403,7 +429,7 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
     }
   });
 
-  await runTest('P5_TEST_18', 'Discovery flags higher tier capabilities as UPGRADE_REQUIRED for lower tier DBKs', async () => {
+  await runTest('P5_TEST_19', 'Discovery flags higher tier capabilities as UPGRADE_REQUIRED for lower tier DBKs', async () => {
     const resolved = await experienceResolver.resolveExperience(masterCtx, hardwareDbkId); // FOUNDATION tier
     const multiBranchCap = resolved.discoveryItems.find((d) => d.minimumTier === 'ENTERPRISE' || d.minimumTier === 'PRO');
 
@@ -417,7 +443,7 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
   // -------------------------------------------------------------
   // SECTION 6: BRANCH TOPOLOGY & SWITCHING
   // -------------------------------------------------------------
-  await runTest('P5_TEST_19', 'Multi-branch Hardware DBK reports all available branches in resolved experience', async () => {
+  await runTest('P5_TEST_20', 'Multi-branch Hardware DBK reports all available branches in resolved experience', async () => {
     // Add a second branch to hardware DBK
     await branchManager.createSecondaryBranch(masterCtx, hardwareDbkId, {
       branchId: 'br_apex_mombasa',
@@ -431,7 +457,7 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
     }
   });
 
-  await runTest('P5_TEST_20', 'Client command SWITCH_BRANCH validates target branch exists', async () => {
+  await runTest('P5_TEST_21', 'Client command SWITCH_BRANCH validates target branch exists', async () => {
     const cmdRes = await experienceResolver.dispatchCommand(masterCtx, {
       commandType: 'SWITCH_BRANCH',
       targetDbkId: hardwareDbkId,
@@ -443,7 +469,7 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
     }
   });
 
-  await runTest('P5_TEST_21', 'Client command SWITCH_BRANCH rejects non-existent branch ID', async () => {
+  await runTest('P5_TEST_22', 'Client command SWITCH_BRANCH rejects non-existent branch ID', async () => {
     const cmdRes = await experienceResolver.dispatchCommand(masterCtx, {
       commandType: 'SWITCH_BRANCH',
       targetDbkId: hardwareDbkId,
@@ -458,7 +484,7 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
   // -------------------------------------------------------------
   // SECTION 7: ENTITY INTERACTION & COMMAND MODEL
   // -------------------------------------------------------------
-  await runTest('P5_TEST_22', 'Entity Engine resolves dynamic entity schema for student_records', async () => {
+  await runTest('P5_TEST_23', 'Entity Engine resolves dynamic entity schema for student_records', async () => {
     const projection = await experienceResolver.resolveExperience(masterCtx, schoolDbkId);
     const workspace = (experienceResolver as any).experienceProjection?.getExperienceProjection(masterCtx, schoolDbkId)?.workspace || {
       sector: 'EDUCATION',
@@ -475,7 +501,7 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
     }
   });
 
-  await runTest('P5_TEST_23', 'Entity Engine saves and returns interactive records', async () => {
+  await runTest('P5_TEST_24', 'Entity Engine saves and returns interactive records', async () => {
     const saved = entityEngine.saveRecord(schoolDbkId, 'student_records', {
       id: 'std_test_99',
       entityType: 'student_records',
@@ -498,7 +524,7 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
     }
   });
 
-  await runTest('P5_TEST_24', 'Command SUBMIT_ENTITY dispatches, saves entity, and returns updated experience', async () => {
+  await runTest('P5_TEST_25', 'Command SUBMIT_ENTITY dispatches, saves entity, and returns updated experience', async () => {
     const cmdRes = await experienceResolver.dispatchCommand(masterCtx, {
       commandType: 'SUBMIT_ENTITY',
       targetDbkId: schoolDbkId,
@@ -526,7 +552,7 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
   // -------------------------------------------------------------
   // SECTION 8: CAPABILITY ENABLEMENT VIA COMMAND
   // -------------------------------------------------------------
-  await runTest('P5_TEST_25', 'Command ENABLE_CAPABILITY enables entitled capability and re-renders experience', async () => {
+  await runTest('P5_TEST_26', 'Command ENABLE_CAPABILITY enables entitled capability and re-renders experience', async () => {
     const cmdRes = await experienceResolver.dispatchCommand(masterCtx, {
       commandType: 'ENABLE_CAPABILITY',
       targetDbkId: schoolDbkId,
@@ -544,7 +570,7 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
     }
   });
 
-  await runTest('P5_TEST_26', 'Command ENABLE_CAPABILITY rejects unentitled capability', async () => {
+  await runTest('P5_TEST_27', 'Command ENABLE_CAPABILITY rejects unentitled capability', async () => {
     // Hardware is FOUNDATION tier. Trying to enable an ENTERPRISE capability should fail.
     const cmdRes = await experienceResolver.dispatchCommand(masterCtx, {
       commandType: 'ENABLE_CAPABILITY',
@@ -560,7 +586,7 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
   // -------------------------------------------------------------
   // SECTION 9: LIFECYCLE STATE BOUNDARIES
   // -------------------------------------------------------------
-  await runTest('P5_TEST_27', 'Suspended DBK reports operationalState = SUSPENDED in Experience Projection', async () => {
+  await runTest('P5_TEST_28', 'Suspended DBK reports operationalState = SUSPENDED in Experience Projection', async () => {
     await dbkLifecycleManager.suspendDbk(masterCtx, schoolDbkId, 'Billing overdue verification');
     const resolved = await experienceResolver.resolveExperience(masterCtx, schoolDbkId);
 
@@ -576,7 +602,7 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
     }
   });
 
-  await runTest('P5_TEST_28', 'Archived DBK reports operationalState = ARCHIVED', async () => {
+  await runTest('P5_TEST_29', 'Archived DBK reports operationalState = ARCHIVED', async () => {
     // Provision temporary DBK to archive
     const temp = await provisioningService.provisionDbk(masterCtx, {
       dbkId: 'dbk_temp_archive_test',
@@ -600,7 +626,7 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
   // -------------------------------------------------------------
   // SECTION 10: AUDIT LOGGING & OBSERVABILITY
   // -------------------------------------------------------------
-  await runTest('P5_TEST_29', 'Experience resolution generates traceable EXPERIENCE_RESOLVED audit event', async () => {
+  await runTest('P5_TEST_30', 'Experience resolution generates traceable EXPERIENCE_RESOLVED audit event', async () => {
     await experienceResolver.resolveExperience(masterCtx, schoolDbkId);
     const events = auditLogger.getEvents({ tenantId: schoolDbkId });
     const resolvedEvent = events.find((e) => e.action === 'EXPERIENCE_RESOLVED');
@@ -609,7 +635,7 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
     }
   });
 
-  await runTest('P5_TEST_30', 'Failed command dispatches log COMMAND_FAILED audit events with denial status', async () => {
+  await runTest('P5_TEST_31', 'Failed command dispatches log COMMAND_FAILED audit events with denial status', async () => {
     await experienceResolver.dispatchCommand(masterCtx, {
       commandType: 'ENABLE_CAPABILITY',
       targetDbkId: hardwareDbkId,
@@ -626,7 +652,7 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
   // -------------------------------------------------------------
   // SECTION 11: FULL SECTOR PARITY TESTS (All 9 SME Blueprints)
   // -------------------------------------------------------------
-  await runTest('P5_TEST_31', 'Sector Parity: Retail & FMCG Resolves Barcode POS and SKU Inventory', async () => {
+  await runTest('P5_TEST_32', 'Sector Parity: Retail & FMCG Resolves Barcode POS and SKU Inventory', async () => {
     const res = await provisioningService.provisionDbk(masterCtx, {
       dbkId: 'dbk_p5_retail',
       legalName: 'Chandarana Supermarket Ltd',
@@ -647,7 +673,7 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
     }
   });
 
-  await runTest('P5_TEST_32', 'Sector Parity: Logistics & Fleet Resolves Waybill & Dispatch', async () => {
+  await runTest('P5_TEST_33', 'Sector Parity: Logistics & Fleet Resolves Waybill & Dispatch', async () => {
     const res = await provisioningService.provisionDbk(masterCtx, {
       dbkId: 'dbk_p5_logistics',
       legalName: 'TransEast Cargo Hauliers Ltd',
@@ -668,7 +694,7 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
     }
   });
 
-  await runTest('P5_TEST_33', 'Sector Parity: Hotel & Resort Resolves Room Reservations & Occupancy', async () => {
+  await runTest('P5_TEST_34', 'Sector Parity: Hotel & Resort Resolves Room Reservations & Occupancy', async () => {
     const res = await provisioningService.provisionDbk(masterCtx, {
       dbkId: 'dbk_p5_hotel',
       legalName: 'Mara Serena Safari Lodge Ltd',
@@ -689,7 +715,7 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
     }
   });
 
-  await runTest('P5_TEST_34', 'Sector Parity: Salon & Spa Resolves Beauty Checkout & Stylist Commissions', async () => {
+  await runTest('P5_TEST_35', 'Sector Parity: Salon & Spa Resolves Beauty Checkout & Stylist Commissions', async () => {
     const res = await provisioningService.provisionDbk(masterCtx, {
       dbkId: 'dbk_p5_salon',
       legalName: 'Glamour Hair & Beauty Lounge Ltd',
@@ -710,7 +736,7 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
     }
   });
 
-  await runTest('P5_TEST_35', 'Sector Parity: Professional Services Resolves Cases & Fee Notes', async () => {
+  await runTest('P5_TEST_36', 'Sector Parity: Professional Services Resolves Cases & Fee Notes', async () => {
     const res = await provisioningService.provisionDbk(masterCtx, {
       dbkId: 'dbk_p5_prof_services',
       legalName: 'Hamilton Advocates LLP',
@@ -730,14 +756,14 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
   // -------------------------------------------------------------
   // SECTION 12: STATELESS UI & INTEGRITY CHECKS
   // -------------------------------------------------------------
-  await runTest('P5_TEST_36', 'Resolved Experience contains server timestamp for cache invalidation', async () => {
+  await runTest('P5_TEST_37', 'Resolved Experience contains server timestamp for cache invalidation', async () => {
     const exp = await experienceResolver.resolveExperience(masterCtx, schoolDbkId);
     if (!exp.serverTimestamp) {
       throw new Error('Missing serverTimestamp in resolved experience');
     }
   });
 
-  await runTest('P5_TEST_37', 'Workspace configurationVersion increments when capabilities are enabled', async () => {
+  await runTest('P5_TEST_38', 'Workspace configurationVersion increments when capabilities are enabled', async () => {
     const expBefore = await experienceResolver.resolveExperience(masterCtx, schoolDbkId);
     const vBefore = expBefore.configurationVersion;
 
@@ -753,7 +779,7 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
     }
   });
 
-  await runTest('P5_TEST_38', 'Command dispatch with unknown commandType returns error object gracefully', async () => {
+  await runTest('P5_TEST_39', 'Command dispatch with unknown commandType returns error object gracefully', async () => {
     const res = await experienceResolver.dispatchCommand(masterCtx, {
       commandType: 'UNKNOWN_COMMAND_FOO' as any,
       targetDbkId: schoolDbkId,
@@ -765,7 +791,7 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
     }
   });
 
-  await runTest('P5_TEST_39', 'Active branch indicator matches security context branchId when specified', async () => {
+  await runTest('P5_TEST_40', 'Active branch indicator matches security context branchId when specified', async () => {
     const customBranchCtx: SecurityContext = {
       ...masterCtx,
       branchContext: {
@@ -782,7 +808,7 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
     }
   });
 
-  await runTest('P5_TEST_40', 'Master Authority is reflected in currentPrincipal.isMaster in Resolved Experience', async () => {
+  await runTest('P5_TEST_41', 'Master Authority is reflected in currentPrincipal.isMaster in Resolved Experience', async () => {
     const masterExp = await experienceResolver.resolveExperience(masterCtx, schoolDbkId);
     if (!masterExp.currentPrincipal.isMaster) {
       throw new Error('Expected currentPrincipal.isMaster to be true for masterCtx');
@@ -795,7 +821,7 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
     }
   });
 
-  await runTest('P5_TEST_41', 'Capability View Registry allows registration of custom extension view definitions', async () => {
+  await runTest('P5_TEST_42', 'Capability View Registry allows registration of custom extension view definitions', async () => {
     capabilityViewRegistry.registerViewDefinition({
       capabilityId: 'custom_extension_cap',
       defaultNavLabel: 'Custom Extension',
