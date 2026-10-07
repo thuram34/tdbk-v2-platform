@@ -217,7 +217,7 @@ describe('SaleTransactionService', () => {
 
     expect(outbox).not.toBeNull();
     expect(outbox?.status).toBe('PENDING');
-    expect(outbox?.eventType).toBe('pos.sale.completed');
+    expect(outbox?.eventType).toBe('pos.sale.completed.v1');
     expect(outbox?.eventVersion).toBe('v1');
     expect(outbox?.tenantId).toBe(tenantId);
     expect(outbox?.branchId).toBe(branchId);
