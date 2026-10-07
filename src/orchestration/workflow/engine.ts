@@ -723,6 +723,50 @@ class WorkflowEngineService {
           }
         } catch (err: any) {
           if (leaseLost || stepLeaseLost) throw err;
+
+          // Gate 04: once a side-effect operation has been durably prepared, an
+          // unclassified provider exception is an ambiguous external outcome.
+          // For non-idempotent providers, never turn that ambiguity into a blind
+          // retry. Persist UNKNOWN_OUTCOME and park the workflow for reconciliation.
+          if (preparedSideEffectOperation) {
+            const current = await workflowStepExecutionRepository.getExecution(
+              workflow.tenantId,
+              step.executionKey!
+            );
+
+            if (current?.providerOperationIdentity && current.providerName && !current.providerIdempotencySupported) {
+              const unknown = await workflowStepExecutionRepository.bindProviderOperation(
+                workflow.tenantId,
+                step.executionKey!,
+                workerId,
+                {
+                  operation: current.providerOperation || preparedSideEffectOperation,
+                  providerOperationIdentity: current.providerOperationIdentity,
+                  providerName: current.providerName,
+                  providerReference: current.providerReference || null,
+                  providerIdempotencySupported: false,
+                  providerReconciliationSupported: current.providerReconciliationSupported === true,
+                  outcomeState: 'UNKNOWN_OUTCOME',
+                }
+              );
+
+              step.status = 'WAITING';
+              step.failureClassification = 'WAITING_FOR_EXTERNAL_RESULT';
+              step.error = err?.message
+                ? `External provider '${unknown.providerName}' returned an ambiguous outcome: ${err.message}`
+                : `External provider '${unknown.providerName}' returned an ambiguous outcome; reconciliation is required.`;
+              workflow.status = 'WAITING';
+
+              await workflowInstanceRepository.saveWorkflow(
+                workflow.tenantId,
+                workflow.workflowId,
+                workflow,
+                durableWorkflow ? workerId : undefined
+              );
+              return workflow;
+            }
+          }
+
           step.error = err.message || 'Exception during step execution';
           step.failureClassification = 'TRANSIENT';
           if (step.attemptCount >= maxAttempts) {
