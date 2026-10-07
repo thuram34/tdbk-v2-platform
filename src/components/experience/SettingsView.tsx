@@ -366,9 +366,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ experience, onRefres
                 disabled={saving || healthTesting}
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-neutral-950 px-5 py-3 text-sm font-bold text-white hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-60"
               >
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-              {saving ? 'Saving…' : 'Save connection'}
-            </button>
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                {saving ? 'Saving…' : 'Save connection'}
+              </button>
+            </div>
           </div>
 
           <div className="mt-4 text-[11px] text-neutral-400">
