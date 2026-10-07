@@ -234,3 +234,27 @@ The GitHub connector does not expose local npm/shell execution in this session. 
 
 ### Remaining multi-user proof
 The code path is now internally aligned, but production acceptance still requires authenticated environment-level proof with distinct accounts entering the same DBK and performing both authorized and unauthorized operations (for example Principal, Teacher, and Bursar). That proof cannot be claimed from static repository inspection alone.
+
+## Gate 04 UNKNOWN Outcome Enforcement — 2026-10-07
+
+### Scope completed
+The workflow execution boundary now conservatively converts an unclassified provider exception into durable `UNKNOWN_OUTCOME` when a non-idempotent external side effect has already been prepared and bound to the canonical execution.
+
+- The Engine does not infer provider success or failure from the thrown exception.
+- The existing `WorkflowStepExecution.executionKey` remains the execution authority.
+- The existing durable provider-operation mapping is reused; no second idempotency store was introduced.
+- The workflow is moved to `WAITING` with `WAITING_FOR_EXTERNAL_RESULT` and is not blindly retried.
+- Reconciliation remains the only path to authoritative resolution for the ambiguous non-idempotent outcome.
+- Known outcomes recorded through `recordExternalSideEffectOutcome` remain authoritative and cannot be overwritten by a later local success result.
+
+### Regression added
+`gate04ExternalSideEffect.test.ts` now proves that a handler which prepares a non-idempotent provider operation and then throws an ambiguous exception is invoked exactly once, leaves the workflow `WAITING`, and persists `UNKNOWN_OUTCOME`.
+
+### Verification limitation
+Local npm/typecheck/lint/build execution remains unavailable through the connected GitHub tooling. The new regression is therefore **ADDED BUT NOT EXECUTED HERE**. No CI pass is claimed; the latest GitHub commit has no reported workflow run/status through the available Actions endpoints.
+
+### Gate 04 remaining
+- Provider-side idempotency remains unclaimed until authoritative provider documentation establishes compatible semantics.
+- Provider-specific propagation remains blocked by that evidence requirement.
+- Reconciliation execution and financial-ledger safety still require dedicated production-hardening work.
+- Environment-level multi-user acceptance remains required for Principal/Teacher/Bursar role-specific operation proof.
