@@ -12,6 +12,8 @@ import { connectorConnectionRepository } from '../../persistence/firestore/repos
 import { connectorReadinessService } from '../../platform/connectors/connectorReadinessService';
 import { connectionHub } from '../../orchestration/bridge/connectionHub';
 import { rbacEngine } from '../../kernel/authorization/rbacEngine';
+import { outboxEngine } from '../../orchestration/outbox/outboxEngine';
+import { eventBus } from '../../orchestration/events/eventBus';
 
 const dbkId = 'canonical_journey_hardware_01';
 const inventoryRecordId = 'canonical_stock_001';
@@ -330,5 +332,22 @@ describe('TDBK canonical client journey acceptance', () => {
     expect(persistedSale).toBeTruthy();
     expect((persistedStock as any)?.attributes?.quantityOnHand).toBe(3);
     expect(persistedOutbox).toBeTruthy();
+    expect(persistedOutbox?.status).toBe('PENDING');
+    expect(persistedOutbox?.eventType).toBe('pos.sale.completed.v1');
+
+    const delivery = await outboxEngine.processTenantOutbox(
+      dbkId,
+      'canonical-journey-worker',
+      30000,
+      async (event) => eventBus.publish(event),
+    );
+
+    expect(delivery.succeeded).toBeGreaterThanOrEqual(1);
+
+    const deliveredOutbox = await outboxRepository.getOutbox(
+      dbkId,
+      'sale-canonical-sale-001',
+    );
+    expect(deliveredOutbox?.status).toBe('DELIVERED');
   });
 });
