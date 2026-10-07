@@ -192,7 +192,7 @@ export class RBACEngineService {
       ? await this.getEffectiveMembershipAuthority(principal, tenantId, branchId)
       : { roles: principal.roles, permissions: principal.permissions, membershipIds: [] };
 
-    if (tenantId && !masterAuthority.isMasterAdmin(principal) && !principal.isMaster && effectiveAuthority.membershipIds.length === 0) {
+    if (tenantId && !masterAuthority.isMasterAdmin(principal) && !masterAuthority.isOwnerPortfolio(principal) && !principal.isMaster && effectiveAuthority.membershipIds.length === 0) {
       return { allowed: false, reason: 'No active DBK membership exists for this principal in the requested context', ruleEvaluated: 'MEMBERSHIP_AUTHORITY_RULE', evaluatedAt };
     }
 
