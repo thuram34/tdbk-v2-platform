@@ -510,7 +510,10 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
           primaryIdentifier: 'ADM-2026-777',
           secondaryIdentifier: 'Alice Wambui',
           status: 'ACTIVE',
-          attributes: { admissionNo: 'ADM-2026-777', fullName: 'Alice Wambui', classStream: 'Grade 6', feeBalance: 1500 },
+          admissionNo: 'ADM-2026-777',
+          fullName: 'Alice Wambui',
+          classStream: 'Grade 6',
+          feeBalance: 1500,
         },
       },
     });
