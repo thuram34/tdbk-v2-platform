@@ -50,7 +50,8 @@ export type SecurityEventType =
   | 'PERMISSION_CHANGE'
   | 'SECURITY_CONFIGURATION_CHANGE'
   | 'WORKFLOW_EXECUTION'
-  | 'BRIDGE_EXECUTION';
+  | 'BRIDGE_EXECUTION'
+  | 'SYSTEM_ERROR';
 
 export interface AuditEvent {
   id: string;
