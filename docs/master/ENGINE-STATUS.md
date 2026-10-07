@@ -189,3 +189,48 @@ The repository connector in this session does not provide local npm/shell execut
 
 ### DBK / Sokoni
 **NONE.** DBK and Sokoni authority were not modified by this slice.
+
+## Frontend Authorization Parity Hardening — 2026-10-07
+
+### Scope completed
+The multi-role workspace journey was hardened so the Experience navigation contract cannot drift from the authoritative runtime capability guard.
+
+- `NavigationEngine` now enforces capability `requiredRoles` **AND** `requiredPermissions`, matching `DbkCapabilityManager.assertCapabilityOperational`.
+- The previous hard-coded Teacher-only navigation exceptions were removed; role filtering is now derived from the authoritative capability catalogue.
+- Kernel tenant-role defaults were aligned with the canonical capability permission vocabulary for the existing catalog roles used by the People & Roles surface.
+- Regression coverage now proves that a matching permission without the required role does not expose a capability, and that a matching role without the required permission does not expose a capability.
+
+### Canonical role-profile alignment
+The authoritative `assignTenantRole` defaults now include the permission vocabulary required by existing catalog capabilities/workflows for:
+- SCHOOL_PRINCIPAL
+- TEACHER
+- BURSAR
+- FINANCE_VIEWER
+- CASHIER
+- STORE_OWNER
+- SHOP_MANAGER
+- CLINICIAN
+- MEDICAL_DIRECTOR
+
+This does not create a second RBAC authority. Firebase claims continue to be populated by `TdbkIdentityService`, while capability requirements remain authoritative in the capability registry.
+
+### Files changed
+- `src/experience/navigation/navigationEngine.ts`
+- `src/kernel/identity/tdbkIdentityService.ts`
+- `src/kernel/tests/identityClaimsManagement.test.ts`
+- `src/experience/tests/phase5TestRunner.ts`
+- `docs/master/ENGINE-STATUS.md`
+
+### Verification limitation
+The GitHub connector does not expose local npm/shell execution in this session. `npm test`, `npm run typecheck`, `npm run lint`, and `npm run build` therefore remain **NOT EXECUTED** here. No local test or build pass is claimed.
+
+### Architectural boundaries preserved
+- No DBK changes.
+- No Sokoni changes.
+- No provisioning identity changes.
+- No new user directory or local RBAC store.
+- No workflow identity/lease changes.
+- No provider idempotency claims.
+
+### Remaining multi-user proof
+The code path is now internally aligned, but production acceptance still requires authenticated environment-level proof with distinct accounts entering the same DBK and performing both authorized and unauthorized operations (for example Principal, Teacher, and Bursar). That proof cannot be claimed from static repository inspection alone.
