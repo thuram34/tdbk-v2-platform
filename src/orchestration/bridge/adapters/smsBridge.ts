@@ -104,7 +104,7 @@ export class SmsBridge implements Bridge<SmsSendRequest, any, any> {
         providerReference: smsMessageId,
         occurredAt: new Date().toISOString(),
         correlationId: context.correlationId,
-        data: { smsMessageId, status: 'SENT', recipientCount: 1, testRuntime: true },
+        data: { smsMessageId, status: 'SENT', recipientCount: recipients.length, testRuntime: true },
       };
       return normalized;
     }
@@ -134,7 +134,7 @@ export class SmsBridge implements Bridge<SmsSendRequest, any, any> {
       providerReference: smsMessageId,
       occurredAt: new Date().toISOString(),
       correlationId: context.correlationId,
-      data: { smsMessageId, status: recipient?.status || 'Success', recipientCount: 1, providerResponse: data },
+      data: { smsMessageId, status: recipient?.status || 'Success', recipientCount: recipients.length, providerResponse: data },
     };
 
     auditLogger.logEvent('BRIDGE_EXECUTION', context.principal.id, 'BRIDGE_RESPONSE_RECEIVED', `bridge:${this.bridgeId}`, 'ALLOWED', {
