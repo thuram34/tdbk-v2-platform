@@ -101,7 +101,7 @@ class BridgeRegistryService {
           automaticUnknownReplay: false,
           providerOperationIdentityRequired: true,
         },
-        frontDoor: frontDoor('FOUNDATION', ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASSWORD']),
+        frontDoor: frontDoor('FOUNDATION', ['SENDGRID_API_KEY', 'SENDGRID_FROM_EMAIL']),
       },
       {
         bridgeId: 'bridge_sms',
