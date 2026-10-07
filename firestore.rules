@@ -39,8 +39,9 @@ service cloud.firestore {
         || (isSignedIn() && resource.data.ownerUid == request.auth.uid);
       allow create: if isSignedIn()
         && request.resource.data.ownerUid == request.auth.uid
-        && request.resource.data.publicationStatus == 'DRAFT'
-        && request.resource.data.tdbkRelationship == 'NOT_ENROLLED';
+        && request.resource.data.publicationStatus in ['DRAFT', 'ACTIVE']
+        && request.resource.data.tdbkRelationship == 'NOT_ENROLLED'
+        && (request.resource.data.publicationStatus == 'DRAFT' || request.resource.data.commercial.state == 'NONE');
       allow update: if isSignedIn()
         && resource.data.ownerUid == request.auth.uid
         && request.resource.data.ownerUid == request.auth.uid
