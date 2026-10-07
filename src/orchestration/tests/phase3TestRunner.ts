@@ -20,6 +20,7 @@ import { phase0TestRunner } from '../../kernel/tests/phase0TestRunner';
 import { Phase1TestRunner } from '../../blueprint/tests/phase1TestRunner';
 import { Phase2TestRunner } from '../../capability/tests/phase2TestRunner';
 import { financialLedgerRepository } from '../../persistence/firestore/repositories/financialLedgerRepository';
+import { connectorConnectionRepository } from '../../persistence/firestore/repositories/connectorConnectionRepository';
 
 export interface Phase3TestResult {
   id: string;
@@ -109,6 +110,34 @@ export class Phase3TestRunner {
       authHeader: `Bearer ${tenantBAdminToken}`,
       targetTenantId: 'tenant_hardware_b',
       requestId: 'req_tenantB_p3',
+    });
+
+    // Test-runtime connector fixtures: adapters still require an authoritative
+    // tenant connection; test mode only replaces the external provider call.
+    process.env.TDBK_TEST_SENDGRID_KEY = 'test-sendgrid-key';
+    process.env.TDBK_TEST_SMS_KEY = 'test-sms-key';
+    process.env.TDBK_TEST_BANK_KEY = 'test-bank-key';
+    const configuredAt = new Date().toISOString();
+    await connectorConnectionRepository.saveConnection('tenant_school_a', 'conn_bridge_email', {
+      connectionId: 'conn_bridge_email', tenantId: 'tenant_school_a', bridgeId: 'bridge_email', provider: 'SENDGRID',
+      status: 'CONFIGURED', enabled: true, configurationVersion: 1,
+      parameters: { SENDGRID_FROM_EMAIL: 'test@tdbk.co.ke' },
+      secretRefs: { SENDGRID_API_KEY: { name: 'TDBK_TEST_SENDGRID_KEY', provider: 'CLOUD_RUN_ENV' } },
+      configuredAt, updatedAt: configuredAt, lastHealthCheckAt: null, lastHealthStatus: 'UNKNOWN', lastErrorCode: null,
+    });
+    await connectorConnectionRepository.saveConnection('tenant_school_a', 'conn_bridge_sms', {
+      connectionId: 'conn_bridge_sms', tenantId: 'tenant_school_a', bridgeId: 'bridge_sms', provider: 'AFRICAS_TALKING',
+      status: 'CONFIGURED', enabled: true, configurationVersion: 1,
+      parameters: { SMS_USERNAME: 'test-user', SMS_SENDER_ID: 'TDBK' },
+      secretRefs: { SMS_API_KEY: { name: 'TDBK_TEST_SMS_KEY', provider: 'CLOUD_RUN_ENV' } },
+      configuredAt, updatedAt: configuredAt, lastHealthCheckAt: null, lastHealthStatus: 'UNKNOWN', lastErrorCode: null,
+    });
+    await connectorConnectionRepository.saveConnection('tenant_school_a', 'conn_bridge_bank', {
+      connectionId: 'conn_bridge_bank', tenantId: 'tenant_school_a', bridgeId: 'bridge_bank', provider: 'GENERIC_BANK',
+      status: 'CONFIGURED', enabled: true, configurationVersion: 1,
+      parameters: { BANK_API_URL: 'https://test.invalid/bank' },
+      secretRefs: { BANK_API_KEY: { name: 'TDBK_TEST_BANK_KEY', provider: 'CLOUD_RUN_ENV' } },
+      configuredAt, updatedAt: configuredAt, lastHealthCheckAt: null, lastHealthStatus: 'UNKNOWN', lastErrorCode: null,
     });
 
     // Register test step handlers
