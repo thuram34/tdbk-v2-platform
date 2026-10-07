@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { firestoreClient } from '../persistence/firestore/firestoreClient';
 import { sokoniPaymentService } from './sokoniPaymentService';
 import { mpesaBridge } from '../orchestration/bridge/adapters/mpesaBridge';
+import { handleSokoniPaymentConfirmed } from './sokoniPaymentEventHandler';
 
 describe('Sokoni payment authority', () => {
   beforeEach(() => {
@@ -88,4 +89,74 @@ describe('Sokoni payment authority', () => {
     expect(mpesaBridge.executeSystemPayment).toHaveBeenCalledTimes(1);
   });
 
+  it('reconciles a real M-Pesa confirmation event by checkout reference', async () => {
+    await firestoreClient.set('/system/sokoni/participants/participant_004', {
+      id: 'participant_004',
+      ownerUid: 'owner_sokoni_001',
+      publicationStatus: 'DRAFT',
+      commercial: { offeringCode: 'SOKONI_100', state: 'PAYMENT_PENDING' },
+      tdbkRelationship: 'NOT_ENROLLED',
+    });
+    await firestoreClient.set('/system/sokoni/paymentIntents/intent_004', {
+      intentId: 'intent_004',
+      participantId: 'participant_004',
+      ownerUid: 'owner_sokoni_001',
+      offeringCode: 'SOKONI_100',
+      amount: 100,
+      currency: 'KES',
+      provider: 'SAFARICOM_MPESA',
+      providerReference: 'ws_CO_004',
+      state: 'PENDING',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      confirmedAt: null,
+      providerReceiptReference: null,
+    });
+
+    await handleSokoniPaymentConfirmed({
+      eventId: 'evt_mpesa_004',
+      eventType: 'payment.confirmed.v1',
+      eventVersion: 'v1',
+      occurredAt: new Date().toISOString(),
+      tenantId: 'tenant_sokoni_merchant_test',
+      branchId: null,
+      principalId: 'worker_test',
+      correlationId: 'corr_mpesa_004',
+      causationId: 'ws_CO_004',
+      source: 'MpesaBridge',
+      payload: {
+        providerReference: 'QAB004XYZ',
+        providerReceiptReference: 'QAB004XYZ',
+        amount: 100,
+        currency: 'KES',
+        status: 'CONFIRMED',
+      },
+      metadata: {},
+    } as any);
+
+    const intent = await firestoreClient.get<any>('/system/sokoni/paymentIntents/intent_004');
+    const participant = await firestoreClient.get<any>('/system/sokoni/participants/participant_004');
+    expect(intent.state).toBe('CONFIRMED');
+    expect(intent.providerReceiptReference).toBe('QAB004XYZ');
+    expect(participant.commercial.state).toBe('PAYMENT_CONFIRMED');
+    expect(participant.publicationStatus).toBe('ACTIVE');
+
+    await handleSokoniPaymentConfirmed({
+      eventId: 'evt_mpesa_004_duplicate',
+      eventType: 'payment.confirmed.v1',
+      eventVersion: 'v1',
+      occurredAt: new Date().toISOString(),
+      tenantId: 'tenant_sokoni_merchant_test',
+      branchId: null,
+      principalId: 'worker_test',
+      correlationId: 'corr_mpesa_004',
+      causationId: 'ws_CO_004',
+      source: 'MpesaBridge',
+      payload: { providerReference: 'QAB004XYZ', amount: 100, currency: 'KES' },
+      metadata: {},
+    } as any);
+
+    const stableIntent = await firestoreClient.get<any>('/system/sokoni/paymentIntents/intent_004');
+    expect(stableIntent.providerReceiptReference).toBe('QAB004XYZ');
+  });
 });
