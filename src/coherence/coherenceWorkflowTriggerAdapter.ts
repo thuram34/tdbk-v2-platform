@@ -1,7 +1,6 @@
 import { SecurityContext } from '../kernel/types';
 import type { EventEnvelope } from '../orchestration/events/types';
 import type { EventHandler } from '../orchestration/events/types';
-import { workflowEngine } from '../orchestration/workflow/engine';
 import { PLATFORM_WORKFLOW_CATALOG } from './moduleRegistry';
 
 /**
@@ -17,10 +16,10 @@ const TRIGGER_STEP_TYPE = 'COHERENCE_WORKFLOW_TRIGGER';
 
 let stepHandlerRegistered = false;
 
-function registerTriggerStepHandler(): void {
+function registerTriggerStepHandler(workflowEngineLike: { registerStepHandler: (stepType: string, handler: any) => void }): void {
   if (stepHandlerRegistered) return;
 
-  workflowEngine.registerStepHandler(TRIGGER_STEP_TYPE, async ({ input, workflow }) => {
+  workflowEngineLike.registerStepHandler(TRIGGER_STEP_TYPE, async ({ input, workflow }) => {
     const triggerEventType = input.triggerEventType as string | undefined;
     const catalogWorkflowId = input.catalogWorkflowId as string | undefined;
 
@@ -78,8 +77,8 @@ function contextFromEvent(event: EventEnvelope): SecurityContext {
   };
 }
 
-export async function triggerCatalogWorkflowFromEvent(event: EventEnvelope): Promise<void> {
-  registerTriggerStepHandler();
+export async function triggerCatalogWorkflowFromEvent(event: EventEnvelope, workflowEngineLike: any): Promise<void> {
+  registerTriggerStepHandler(workflowEngineLike);
 
   const definition = PLATFORM_WORKFLOW_CATALOG.find((workflow) => workflow.triggerEvent === event.eventType);
   if (!definition) return;
@@ -91,7 +90,7 @@ export async function triggerCatalogWorkflowFromEvent(event: EventEnvelope): Pro
 
   const context = contextFromEvent(event);
 
-  const workflow = await workflowEngine.createPersistentWorkflow(
+  const workflow = await workflowEngineLike.createPersistentWorkflow(
     context,
     definition.workflowId,
     'v1',
@@ -119,14 +118,17 @@ export async function triggerCatalogWorkflowFromEvent(event: EventEnvelope): Pro
     },
   );
 
-  await workflowEngine.executeWorkflow(context, workflow.workflowId);
+  await workflowEngineLike.executeWorkflow(context, workflow.workflowId);
 }
 
-export function registerCoherenceWorkflowTriggerSubscriptions(eventBusLike: { subscribe: (eventType: string, handler: EventHandler) => void }): void {
-  registerTriggerStepHandler();
+export function registerCoherenceWorkflowTriggerSubscriptions(
+  eventBusLike: { subscribe: (eventType: string, handler: EventHandler) => void },
+  workflowEngineLike: { registerStepHandler: (stepType: string, handler: any) => void; createPersistentWorkflow: (...args: any[]) => Promise<any>; executeWorkflow: (...args: any[]) => Promise<any> },
+): void {
+  registerTriggerStepHandler(workflowEngineLike);
 
   const triggerEvents = [...new Set(PLATFORM_WORKFLOW_CATALOG.map((workflow) => workflow.triggerEvent))];
   for (const eventType of triggerEvents) {
-    eventBusLike.subscribe(eventType, triggerCatalogWorkflowFromEvent);
+    eventBusLike.subscribe(eventType, (event) => triggerCatalogWorkflowFromEvent(event, workflowEngineLike));
   }
 }
