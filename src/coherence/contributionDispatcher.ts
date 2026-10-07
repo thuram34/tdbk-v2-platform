@@ -12,6 +12,7 @@
 import { SecurityContext } from '../kernel/types';
 import { auditLogger } from '../kernel/audit/auditLogger';
 import { eventBus } from '../orchestration/events/eventBus';
+import { outboxEngine } from '../orchestration/outbox/outboxEngine';
 import { entityEngine } from '../experience/entity/entityEngine';
 import { businessDnaManager } from '../blueprint/dnaManager';
 import { ContributionPayload, ContributionOutcome } from './types';
@@ -106,34 +107,48 @@ export class ContributionDispatcher {
       });
     }
 
-    // 2. Publish Domain Event to Event Bus (with causal metadata)
+    // 2. Commit the domain event to the durable outbox before attempting
+    // immediate in-process delivery. The outbox is the recovery authority;
+    // a process crash after state mutation must not lose the contribution event.
+    const occurredAt = new Date().toISOString();
+    const eventEnvelope = {
+      eventId: `contribution-${contributionId}`,
+      eventType: domainEventType,
+      eventVersion: 'v1',
+      source: 'RoleBasedCoherenceEngine:ContributionDispatcher',
+      tenantId,
+      branchId: context.branchContext?.branchId || null,
+      principalId: principal.id,
+      correlationId: context.correlationId || requestId,
+      causationId: contributionId,
+      occurredAt,
+      payload: {
+        contributionId,
+        contributionType,
+        spaceId,
+        contributorId: principal.id,
+        contributorRole: roleTitle,
+        data,
+      },
+      metadata: {
+        spaceId,
+        role: roleTitle,
+      },
+    };
+
+    await outboxEngine.enqueueEvent(
+      tenantId,
+      eventEnvelope,
+      undefined,
+      principal.id,
+    );
+
+    // Preserve low-latency behavior when the in-process bus is available.
+    // Failure here is recoverable: the durable outbox remains PENDING.
     try {
-      await eventBus.publish({
-        eventId: `evt_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-        eventType: domainEventType,
-        eventVersion: 'v1',
-        source: 'RoleBasedCoherenceEngine:ContributionDispatcher',
-        tenantId,
-        branchId: null,
-        principalId: principal.id,
-        correlationId: context.correlationId || requestId,
-        causationId: contributionId,
-        occurredAt: new Date().toISOString(),
-        payload: {
-          contributionId,
-          contributionType,
-          spaceId,
-          contributorId: principal.id,
-          contributorRole: roleTitle,
-          data,
-        },
-        metadata: {
-          spaceId,
-          role: roleTitle,
-        },
-      });
+      await eventBus.publish(eventEnvelope);
     } catch {
-      // Event bus logging
+      // Durable outbox recovery owns eventual delivery.
     }
 
     // 3. Feed Signal to Business DNA (Adaptive Learning)
