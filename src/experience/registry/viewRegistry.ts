@@ -1,3 +1,5 @@
+import { capabilityRegistry } from '../../capability/registry';
+
 export interface CapabilityViewDefinition {
   capabilityId: string;
   defaultNavLabel: string;
