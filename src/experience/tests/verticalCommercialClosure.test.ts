@@ -33,16 +33,16 @@ describe('vertical commercial closure acceptance', () => {
   });
 
   it.each(cases)('%s reaches operation -> payment -> reconciliation -> ledger -> receipt', async (blueprintId, sector, capabilityId) => {
-    const dbkId = \`dbk_commercial_\${capabilityId}\`;
-    const branchId = \`\${dbkId}_hq\`;
-    const recordId = \`record_\${capabilityId}\`;
-    const transactionId = \`txn_\${capabilityId}\`;
+    const dbkId = `dbk_commercial_${capabilityId}`;
+    const branchId = `${dbkId}_hq`;
+    const recordId = `record_${capabilityId}`;
+    const transactionId = `txn_${capabilityId}`;
     const now = new Date().toISOString();
 
     await dbkRegistryRepository.saveDbk(dbkId, {
       dbkId,
-      legalName: \`Commercial Closure \${capabilityId}\`,
-      displayName: \`Commercial Closure \${capabilityId}\`,
+      legalName: `Commercial Closure ${capabilityId}`,
+      displayName: `Commercial Closure ${capabilityId}`,
       sector,
       blueprintId,
       blueprintVersion: '1.0.0',
@@ -89,7 +89,7 @@ describe('vertical commercial closure acceptance', () => {
     });
 
     const context = await securityContextFactory.createSecurityContext({
-      authHeader: \`Bearer \${token}\`,
+      authHeader: `Bearer ${token}`,
       targetTenantId: dbkId,
       targetBranchId: branchId,
     });
@@ -107,8 +107,9 @@ describe('vertical commercial closure acceptance', () => {
       operation: 'CREATE_RECORD',
       payload: {
         branchId,
-        reference: \`REF-\${capabilityId}\`,
-        name: \`Commercial \${capabilityId}\`,
+        recordId,
+        reference: `REF-${capabilityId}`,
+        name: `Commercial ${capabilityId}`,
       },
     });
 
@@ -127,10 +128,10 @@ describe('vertical commercial closure acceptance', () => {
       tenantId: dbkId,
       branchId,
       source: 'MPESA',
-      providerReference: \`SIM-\${transactionId}\`,
+      providerReference: `SIM-${transactionId}`,
       amount: 1000,
       currency: 'KES',
-      description: \`Payment for \${capabilityId}\`,
+      description: `Payment for ${capabilityId}`,
       correlationId: context.correlationId,
     });
     expect(pending.status).toBe('PENDING');
@@ -148,7 +149,7 @@ describe('vertical commercial closure acceptance', () => {
 
     await reconciliationService.resolveConfirmed(confirmed, [
       {
-        entryId: \`\${transactionId}_debit\`,
+        entryId: `${transactionId}_debit`,
         transactionId,
         tenantId: dbkId,
         account: 'RECEIVABLES:PAYMENTS',
@@ -159,7 +160,7 @@ describe('vertical commercial closure acceptance', () => {
         immutable: true,
       },
       {
-        entryId: \`\${transactionId}_credit\`,
+        entryId: `${transactionId}_credit`,
         transactionId,
         tenantId: dbkId,
         account: 'CASH:MPESA',
