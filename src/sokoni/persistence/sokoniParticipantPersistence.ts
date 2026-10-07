@@ -1,4 +1,4 @@
-import { collection, doc, getDoc, getDocs, limit, query, setDoc, where } from 'firebase/firestore';
+import { collection, deleteDoc, doc, getDoc, getDocs, limit, query, setDoc, updateDoc, where } from 'firebase/firestore';
 import { deleteObject, getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import { signInAnonymously } from 'firebase/auth';
 import { auth, db, storage } from '../../client/firebase';
@@ -168,4 +168,44 @@ export async function getSokoniParticipant(participantId: string): Promise<Sokon
   if (!snapshot.exists()) return null;
   const participant = snapshot.data() as SokoniParticipant;
   return participant.publicationStatus === 'ACTIVE' ? participant : null;
+}
+
+
+export async function listOwnedSokoniParticipants(): Promise<SokoniParticipant[]> {
+  if (!db) return [];
+  await ensureSokoniWriteIdentity();
+  const snapshot = await getDocs(
+    query(collection(db, COLLECTION), where('ownerUid', '==', auth.currentUser!.uid), limit(100)),
+  );
+  return snapshot.docs.map((item) => item.data() as SokoniParticipant);
+}
+
+export async function updateSokoniParticipant(
+  participantId: string,
+  changes: Partial<Pick<SokoniParticipant, 'publicName' | 'category' | 'description' | 'publicContacts' | 'location' | 'orientations' | 'orientationContext' | 'listings'>>,
+): Promise<SokoniParticipant> {
+  if (!db) throw new Error('Sokoni persistence is not configured.');
+  await ensureSokoniWriteIdentity();
+  const participantRef = doc(db, COLLECTION, participantId);
+  const existing = await getDoc(participantRef);
+  if (!existing.exists()) throw new Error('Sokoni participant not found.');
+  const participant = existing.data() as SokoniParticipant;
+  if (participant.ownerUid !== auth.currentUser!.uid) throw new Error('You are not authorized to manage this Sokoni participant.');
+  const next = { ...changes, updatedAt: new Date().toISOString() };
+  await updateDoc(participantRef, next);
+  return { ...participant, ...next };
+}
+
+export async function deleteSokoniParticipant(participantId: string): Promise<void> {
+  if (!db) throw new Error('Sokoni persistence is not configured.');
+  await ensureSokoniWriteIdentity();
+  const participantRef = doc(db, COLLECTION, participantId);
+  const existing = await getDoc(participantRef);
+  if (!existing.exists()) return;
+  const participant = existing.data() as SokoniParticipant;
+  if (participant.ownerUid !== auth.currentUser!.uid) throw new Error('You are not authorized to delete this Sokoni participant.');
+  if (storage && participant.media?.length) {
+    await Promise.allSettled(participant.media.map((item) => deleteObject(ref(storage, item.storagePath))));
+  }
+  await deleteDoc(participantRef);
 }
