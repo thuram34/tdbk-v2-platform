@@ -580,6 +580,16 @@ describe('TDBK V2 — Production Identity & Claims Management', () => {
       // Get identity in Tenant A -> SUCCESS
       const fetched = await tdbkIdentityService.getIdentity(ownerAContext, 'usr_staff_tenantA');
       expect(fetched?.uid).toBe('usr_staff_tenantA');
+
+      const roleAssignment = await tdbkIdentityService.assignTenantRole(ownerAContext, {
+        targetUid: 'usr_staff_tenantA',
+        tenantId: tenantAId,
+        role: 'TEACHER',
+      });
+      expect(roleAssignment.roles).toContain('TEACHER');
+      expect(roleAssignment.permissions).toContain('attendance:write');
+      expect(mockFirebaseStore.get('usr_staff_tenantA')?.customClaims?.tdbk?.roles).toContain('TEACHER');
+      expect(mockFirebaseStore.get('usr_staff_tenantA')?.customClaims?.tdbk?.permissions).toContain('attendance:write');
     });
 
     it('2. Business Owner A CANNOT provision identities in Tenant B (Cross-Tenant Denial)', async () => {
