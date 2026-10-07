@@ -179,7 +179,7 @@ No item is marked COMPLETE from source inspection alone when runtime/provider/de
 2. Fix every failing CI gate until the complete pipeline executes.
 3. ~~Close Gate 04 UNKNOWN/reconciliation enforcement~~ — completed for the currently supported reconciliation contract.
 4. Harden production readiness.
-5. ~~Finish Sokoni ownership + payment authority~~ — implemented; production merchant configuration/certification remains a release gate.
+5. ~~Finish Sokoni ownership + payment authority~~ — implemented; production merchant configuration/certification and callback/reconciliation linkage remain release gates.
 6. Build remaining Sokoni authoritative discovery/request domains where justified.
 7. Replace/contain provider-unconnected bridge mocks.
 8. Run vertical end-to-end transaction matrix.
