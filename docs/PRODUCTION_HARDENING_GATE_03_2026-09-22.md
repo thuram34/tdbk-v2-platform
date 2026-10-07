@@ -73,3 +73,10 @@ No DBK or Sokoni files changed.
 
 ## Classification
 **PASS after focused correction**, subject to repository CI execution because local verification is unavailable.
+
+
+## Grand Operation Superseding Status — 2026-10-07
+
+The historical provisioning identity boundary is addressed by preserving the authenticated initiating actor in the provisioning workflow. Owner membership is also established durably as part of DBK provisioning.
+
+This document remains the historical Gate 03 evidence record; current release state is tracked by the grand-operation audit and PR CI.
