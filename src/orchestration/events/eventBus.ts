@@ -9,6 +9,7 @@ import { handleSubscriptionPaymentConfirmed } from '../../platform/subscription/
 import { idempotencyRepository } from '../../persistence/firestore/repositories/idempotencyRepository';
 import { createHash } from 'node:crypto';
 import { handleSokoniPaymentConfirmed, handleSokoniPaymentFailed } from '../../sokoni/sokoniPaymentEventHandler';
+import { registerCoherenceWorkflowTriggerSubscriptions } from '../../coherence/coherenceWorkflowTriggerAdapter';
 
 class EventBusService {
   private eventRegistry: Map<string, EventRegistration> = new Map();
@@ -22,6 +23,7 @@ class EventBusService {
     this.subscribe('payment.confirmed.v1', handleSubscriptionPaymentConfirmed);
     this.subscribe('payment.confirmed.v1', handleSokoniPaymentConfirmed);
     this.subscribe('payment.failed.v1', handleSokoniPaymentFailed);
+    registerCoherenceWorkflowTriggerSubscriptions();
   }
 
   /**
@@ -341,6 +343,7 @@ class EventBusService {
     this.subscribe('payment.confirmed.v1', handleSubscriptionPaymentConfirmed);
     this.subscribe('payment.confirmed.v1', handleSokoniPaymentConfirmed);
     this.subscribe('payment.failed.v1', handleSokoniPaymentFailed);
+    registerCoherenceWorkflowTriggerSubscriptions();
   }
 }
 
