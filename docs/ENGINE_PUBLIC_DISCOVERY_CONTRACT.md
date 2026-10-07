@@ -348,3 +348,18 @@ Before implementing an anonymous public L7 endpoint or publication persistence, 
 After that decision, the next Engine implementation should be the **smallest approved publication authority**, followed by the L7 public organization read contract.
 
 Do not implement search infrastructure, provider/product/service masters, or marketplace workflows as part of this phase.
+
+
+## 11. Grand Operation Update — 2026-10-07
+
+The previously unresolved publication boundary is now implemented in the Engine:
+
+- Durable publication state is stored at `/tenants/{dbkId}/publicPublication/organization`.
+- Publication is owner/tenant-administrator controlled and audited.
+- Only lifecycle-eligible ACTIVE DBKs can be published.
+- Public discovery exposes only the existing public-safe organization projection.
+- Public discovery has server routes for single organization and filtered organization lists.
+- Sokoni consumes this contract through its TDBK public discovery adapter.
+- Publication remains separate from DBK lifecycle; suspension/archival automatically makes the organization ineligible for public projection.
+
+The remaining marketplace-specific Sokoni contracts remain separate from this Engine publication boundary.
