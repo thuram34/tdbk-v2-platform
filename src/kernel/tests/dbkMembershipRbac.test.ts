@@ -69,6 +69,34 @@ describe('DBK membership runtime RBAC', () => {
     expect(result.ruleEvaluated).toBe('MEMBERSHIP_AUTHORITY_RULE');
   });
 
+  it('allows tenant-wide owner authority to operate an unlisted secondary branch', async () => {
+    await spaceMembershipRepository.saveMembership({
+      membershipId: 'mem_owner_branch_001',
+      userId: 'usr_rbac_staff_001',
+      spaceId: 'dbk_rbac_membership_001_hq',
+      tenantId,
+      role: 'OWNER_OPERATOR',
+      roleTitle: 'Business Owner / Operator',
+      status: 'ACTIVE',
+      joinedAt: new Date().toISOString(),
+      permissions: ['POS_OPERATE'],
+    });
+
+    const result = await rbacEngine.authorizeAsync(
+      principal({ roles: ['OWNER_OPERATOR'], permissions: ['POS_OPERATE'] }),
+      'operate',
+      'pos:sale',
+      {
+        tenantId,
+        branchId: 'secondary_branch_001',
+        requiredRole: 'OWNER_OPERATOR',
+        requiredPermission: 'POS_OPERATE',
+      },
+    );
+
+    expect(result.allowed).toBe(true);
+  });
+
   it('denies a revoked membership even if old identity claims still contain the permission', async () => {
     await spaceMembershipRepository.saveMembership({
       membershipId: 'mem_rbac_002',
