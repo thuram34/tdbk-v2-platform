@@ -17,6 +17,18 @@ export class HealthMonitoringService {
     };
   }
 
+  /** Establishes the durable system readiness marker during process bootstrap. */
+  public async initializeReadinessMarker(): Promise<void> {
+    const existing = await firestoreClient.get<Record<string, unknown>>('/system/readiness');
+    if (!existing || existing.schemaVersion !== 'v1') {
+      await firestoreClient.set('/system/readiness', {
+        schemaVersion: 'v1',
+        service: 'tdbk-v2',
+        initializedAt: new Date().toISOString(),
+      });
+    }
+  }
+
   /** Readiness checks the core runtime dependencies required to serve production traffic. */
   public async getReadyStatus(): Promise<HealthStatus> {
     const components = {
@@ -30,11 +42,8 @@ export class HealthMonitoringService {
     };
 
     try {
-      // A successful read proves the authoritative Firestore driver is reachable.
-      // The readiness document may legitimately be absent; the read itself is the
-      // dependency probe and does not mutate business state.
-      await firestoreClient.get('/system/readiness');
-      components.firestore = true;
+      const readinessMarker = await firestoreClient.get<Record<string, unknown>>('/system/readiness');
+      components.firestore = Boolean(readinessMarker && readinessMarker.schemaVersion === 'v1' && readinessMarker.service === 'tdbk-v2');
     } catch {
       return {
         status: 'DEGRADED',
