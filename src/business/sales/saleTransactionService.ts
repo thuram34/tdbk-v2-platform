@@ -316,7 +316,7 @@ export class SaleTransactionService {
         tenantId,
         {
           eventId,
-          eventType: 'pos.sale.completed',
+          eventType: 'pos.sale.completed.v1',
           eventVersion: 'v1',
           occurredAt: now,
           tenantId,
