@@ -1,6 +1,5 @@
 import { EventEnvelope } from '../orchestration/events/types';
 import { firestoreClient } from '../persistence/firestore/firestoreClient';
-import { outboxEngine } from '../orchestration/outbox/outboxEngine';
 import { auditLogger } from '../kernel/audit/auditLogger';
 
 const PARTICIPANTS = (id: string) => `/system/sokoni/participants/${id}`;
@@ -18,7 +17,19 @@ type SokoniPaymentEvent = {
 };
 
 async function handleSokoniPaymentEvent(event: EventEnvelope<SokoniPaymentEvent>): Promise<void> {
-  const intentId = event.causationId || event.payload?.intentId;
+  let intentId = event.payload?.intentId || event.causationId || null;
+  if (!intentId) return;
+
+  const directIntent = await firestoreClient.get<any>(`${INTENTS}/${intentId}`);
+  if (!directIntent && event.causationId) {
+    const intents = await firestoreClient.listCollection<any>(INTENTS);
+    const matched = intents.find((item) =>
+      item?.provider === 'SAFARICOM_MPESA' &&
+      item?.providerReference === event.causationId &&
+      item?.state === 'PENDING'
+    );
+    intentId = matched?.intentId || null;
+  }
   if (!intentId) return;
 
   await firestoreClient.runTransaction(async (tx) => {
