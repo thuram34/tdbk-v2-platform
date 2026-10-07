@@ -319,6 +319,26 @@ async function startServer() {
     }
   });
 
+  app.post('/api/connectors/:tenantId/:bridgeId/health', async (req: Request, res: Response) => {
+    try {
+      const { tenantId, bridgeId } = req.params;
+      const context = await securityContextFactory.createSecurityContext({
+        authHeader: req.headers.authorization,
+        targetTenantId: tenantId,
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+      });
+      const result = await connectionHub.health(context, bridgeId);
+      return res.status(result.status === 'HEALTHY' ? 200 : 503).json({
+        status: result.status === 'HEALTHY' ? 'SUCCESS' : 'ERROR',
+        health: result,
+      });
+    } catch (err) {
+      if (err instanceof KernelError) return res.status(err.statusCode).json(err.toJSON());
+      return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: (err as Error).message } });
+    }
+  });
+
   app.get('/api/connectors/:tenantId/:bridgeId', async (req: Request, res: Response) => {
     try {
       const { tenantId, bridgeId } = req.params;
