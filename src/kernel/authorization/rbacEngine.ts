@@ -14,6 +14,7 @@ import { auditLogger } from '../audit/auditLogger';
 import { masterAuthority } from '../master/masterAuthority';
 import { tenantIsolation } from '../tenancy/tenantIsolation';
 import { branchAuthority } from '../branch/branchAuthority';
+import { spaceMembershipRepository } from '../../persistence/firestore/repositories/spaceMembershipRepository';
 
 export class RBACEngineService {
   /**
@@ -187,11 +188,19 @@ export class RBACEngineService {
       };
     }
 
-    if (requiredRole && !principal.roles.includes(requiredRole)) {
-      return { allowed: false, reason: `Role requirement missing: required role '${requiredRole}' not found in principal roles [${principal.roles.join(', ')}]`, ruleEvaluated: 'ROLE_REQUIREMENT_RULE', evaluatedAt };
+    const effectiveAuthority = tenantId
+      ? await this.getEffectiveMembershipAuthority(principal, tenantId, branchId)
+      : { roles: principal.roles, permissions: principal.permissions, membershipIds: [] };
+
+    if (tenantId && !masterAuthority.isMasterAdmin(principal) && !principal.isMaster && effectiveAuthority.membershipIds.length === 0) {
+      return { allowed: false, reason: 'No active DBK membership exists for this principal in the requested context', ruleEvaluated: 'MEMBERSHIP_AUTHORITY_RULE', evaluatedAt };
     }
-    if (requiredPermission && !principal.permissions.includes(requiredPermission) && !principal.permissions.includes('*')) {
-      return { allowed: false, reason: `Permission requirement missing: required permission '${requiredPermission}' not granted to principal`, ruleEvaluated: 'PERMISSION_REQUIREMENT_RULE', evaluatedAt };
+
+    if (requiredRole && !effectiveAuthority.roles.includes(requiredRole)) {
+      return { allowed: false, reason: `Role requirement missing: required role '${requiredRole}' not granted in the active DBK membership context`, ruleEvaluated: 'ROLE_REQUIREMENT_RULE', evaluatedAt };
+    }
+    if (requiredPermission && !effectiveAuthority.permissions.includes(requiredPermission) && !effectiveAuthority.permissions.includes('*')) {
+      return { allowed: false, reason: `Permission requirement missing: required permission '${requiredPermission}' not granted in the active DBK membership context`, ruleEvaluated: 'PERMISSION_REQUIREMENT_RULE', evaluatedAt };
     }
 
     return { allowed: true, reason: 'Authorization policy evaluation succeeded', ruleEvaluated: 'POLICY_EVALUATION_SUCCESS', evaluatedAt };
@@ -202,6 +211,63 @@ export class RBACEngineService {
     if (masterAuthority.isMasterAdmin(principal) || principal.isMaster) return true;
     if (principal.permissions?.includes('*')) return true;
     return permission ? (principal.permissions?.includes(permission) || false) : false;
+  }
+
+  /**
+   * Resolves the effective DBK/branch membership authority for an actor.
+   * Membership is the authoritative runtime role boundary; Firebase claims
+   * remain the identity/bootstrap layer and may be broader than the active DBK role.
+   */
+  public async getEffectiveMembershipAuthority(
+    principal: Principal,
+    tenantId: string,
+    branchId?: string | null,
+  ): Promise<{ roles: string[]; permissions: string[]; membershipIds: string[] }> {
+    if (masterAuthority.isMasterAdmin(principal) || principal.isMaster) {
+      return { roles: ['TDBK_MASTER_ADMIN'], permissions: ['*'], membershipIds: [] };
+    }
+
+    const memberships = await spaceMembershipRepository.listMemberships(tenantId, principal.id, branchId || undefined);
+    const active = memberships.filter((membership) => membership.status === 'ACTIVE');
+
+    // A branch-scoped request must have an explicit membership for that branch.
+    if (branchId && active.length === 0) {
+      return { roles: [], permissions: [], membershipIds: [] };
+    }
+
+    const roles = Array.from(new Set(active.map((membership) => membership.role)));
+    const permissions = Array.from(
+      new Set(active.flatMap((membership) => membership.permissions || [])),
+    );
+
+    return {
+      roles,
+      permissions,
+      membershipIds: active.map((membership) => membership.membershipId),
+    };
+  }
+
+  public async hasPermissionForContext(
+    principal: Principal,
+    permission: string,
+    tenantId: string,
+    branchId?: string | null,
+  ): Promise<boolean> {
+    if (masterAuthority.isMasterAdmin(principal) || principal.isMaster || principal.permissions?.includes('*')) return true;
+    const authority = await this.getEffectiveMembershipAuthority(principal, tenantId, branchId);
+    return authority.permissions.includes('*') || authority.permissions.includes(permission);
+  }
+
+  public async hasAnyRoleForContext(
+    principal: Principal,
+    roles: string[],
+    tenantId: string,
+    branchId?: string | null,
+  ): Promise<boolean> {
+    if (masterAuthority.isMasterAdmin(principal) || principal.isMaster) return true;
+    if (roles.length === 0) return true;
+    const authority = await this.getEffectiveMembershipAuthority(principal, tenantId, branchId);
+    return roles.some((role) => authority.roles.includes(role));
   }
 
   /**
