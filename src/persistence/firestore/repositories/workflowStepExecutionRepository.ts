@@ -208,6 +208,39 @@ export class WorkflowStepExecutionRepository implements IWorkflowStepExecutionRe
     });
   }
 
+  public async recordReconciliation(
+    tenantId: string,
+    executionKey: string,
+    outcome: 'RECONCILED_SUCCESS' | 'RECONCILED_FAILURE',
+    output: Record<string, unknown>,
+  ): Promise<WorkflowStepExecution> {
+    const path = this.getPath(tenantId, executionKey);
+    return await firestoreClient.runTransaction(async (tx) => {
+      const current = await tx.get<WorkflowStepExecution>(path);
+      if (!current) throw new KernelError('NOT_FOUND', `Workflow step execution '${executionKey}' not found`, 404);
+      if (!current.providerReconciliationSupported) {
+        throw new KernelError('CONFLICT', 'Provider reconciliation is not supported for this execution.', 409);
+      }
+      if (current.outcomeState !== 'UNKNOWN_OUTCOME' && current.outcomeState !== 'RECONCILIATION_REQUIRED') {
+        throw new KernelError('CONFLICT', `Execution '${executionKey}' is not awaiting reconciliation.`, 409);
+      }
+      const now = new Date().toISOString();
+      const reconciled: WorkflowStepExecution = {
+        ...current,
+        status: outcome === 'RECONCILED_SUCCESS' ? 'COMPLETED' : 'FAILED',
+        outcomeState: outcome,
+        output,
+        error: outcome === 'RECONCILED_FAILURE' ? String(output.error || 'External operation reconciled as failed') : null,
+        workerId: null,
+        leaseUntil: null,
+        updatedAt: now,
+        completedAt: now,
+      };
+      await tx.set(path, reconciled as unknown as Record<string, unknown>);
+      return reconciled;
+    });
+  }
+
   public async getExecution(tenantId: string, executionKey: string): Promise<WorkflowStepExecution | null> {
     return await firestoreClient.get<WorkflowStepExecution>(this.getPath(tenantId, executionKey));
   }
