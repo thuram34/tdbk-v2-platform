@@ -1,5 +1,7 @@
 import { capabilityRegistry } from '../../capability/registry';
 
+import { SPECIALIZED_VIEW_CATALOG } from './specializedViewCatalog';
+
 export interface CapabilityViewDefinition {
   capabilityId: string;
   defaultNavLabel: string;
@@ -23,6 +25,7 @@ export class CapabilityViewRegistry {
 
   private constructor() {
     this.registerDefaultViews();
+    this.registerSpecializedViews();
   }
 
   public static getInstance(): CapabilityViewRegistry {
@@ -30,6 +33,10 @@ export class CapabilityViewRegistry {
       CapabilityViewRegistry.instance = new CapabilityViewRegistry();
     }
     return CapabilityViewRegistry.instance;
+  }
+
+  private registerSpecializedViews() {
+    for (const definition of SPECIALIZED_VIEW_CATALOG) this.definitions.set(definition.capabilityId, definition);
   }
 
   private registerDefaultViews() {
@@ -378,14 +385,7 @@ export class CapabilityViewRegistry {
   }
 
   public getViewDefinition(capabilityId: string): CapabilityViewDefinition | undefined {
-    return this.definitions.get(capabilityId) || {
-      capabilityId,
-      defaultNavLabel: capabilityId.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
-      category: 'GENERAL',
-      iconName: 'FileText',
-      viewType: 'ENTITY_LIST',
-      displayOrder: 10,
-    };
+    return this.definitions.get(capabilityId);
   }
 
   public getAllDefinitions(): CapabilityViewDefinition[] {
