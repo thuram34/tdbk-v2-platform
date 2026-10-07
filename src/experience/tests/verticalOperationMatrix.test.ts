@@ -41,6 +41,7 @@ describe('vertical operation acceptance matrix', () => {
       subscriptionTier: 'ENTERPRISE',
       status: 'ACTIVE',
       masterOwner: 'usr_vertical_matrix_master',
+      createdBy: 'usr_vertical_matrix_master',
       createdAt: now,
       updatedAt: now,
       configurationVersion: 1,
