@@ -92,7 +92,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ experience, onRefres
     bridge_mpesa: ['MPESA_CONSUMER_KEY', 'MPESA_CONSUMER_SECRET', 'MPESA_PASSKEY', 'MPESA_SHORTCODE', 'MPESA_CALLBACK_URL'],
     bridge_etims: ['ETIMS_PIN', 'ETIMS_DEVICE_SERIAL', 'ETIMS_BRANCH_CODE', 'ETIMS_VSCU_BASE_URL'],
     bridge_whatsapp: ['WHATSAPP_PHONE_NUMBER_ID', 'WHATSAPP_WABA_ID', 'WHATSAPP_ACCESS_TOKEN', 'WHATSAPP_APP_SECRET', 'WHATSAPP_VERIFY_TOKEN'],
-    bridge_email: ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASSWORD'],
+    bridge_email: ['SENDGRID_API_KEY', 'SENDGRID_FROM_EMAIL'],
     bridge_sms: ['SMS_API_KEY', 'SMS_USERNAME', 'SMS_SENDER_ID'],
     bridge_bank: ['BANK_API_KEY', 'BANK_CLIENT_ID', 'BANK_ACCOUNT_NO'],
   };
