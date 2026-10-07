@@ -48,7 +48,7 @@ export class NavigationEngine {
       // A DBK may only render capabilities belonging to its selected blueprint.
       // Core capabilities are intentionally blueprint-agnostic.
       const capability = capabilityRegistry.getCapability(capId);
-      const isCoreCapability = capability?.supportedBlueprints.includes('ALL') ?? false;
+      const isCoreCapability = capability?.supportedBlueprints.some((blueprintId) => blueprintId === 'ALL') ?? false;
       if (!isCoreCapability && blueprint && !blueprintCapabilityIds.has(capId)) continue;
       if (context && capability) {
         const roleAllowed = capability.requiredRoles.length === 0 || capability.requiredRoles.some((role) => roles.includes(role));
