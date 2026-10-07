@@ -4,6 +4,7 @@ import { dbkRegistryRepository } from '../../persistence/firestore/repositories/
 import { publicPublicationService } from '../public/publicPublicationService';
 import { TokenVerifier } from '../../kernel/identity/tokenVerifier';
 import { securityContextFactory } from '../../kernel/context/contextFactory';
+import { branchRepository } from '../../persistence/firestore/repositories/branchRepository';
 
 describe('DBK public publication authority', () => {
   beforeEach(() => {
@@ -59,6 +60,8 @@ describe('DBK public publication authority', () => {
       provisioningStage: 'ACTIVATION_VERIFIED',
     });
 
+    await branchRepository.saveBranch(dbkId, `${dbkId}_hq`, { branchId: `${dbkId}_hq`, dbkId, name: 'Mombasa Campus', type: 'HEADQUARTERS', status: 'ACTIVE', isHeadquarters: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+
     const ctx = await contextFor(dbkId);
     const publication = await publicPublicationService.setPublication(ctx, dbkId, 'PUBLISHED');
     expect(publication.status).toBe('PUBLISHED');
@@ -91,6 +94,8 @@ describe('DBK public publication authority', () => {
       lifecycleHistory: [],
       metadata: {},
     });
+
+    await branchRepository.saveBranch(dbkId, `${dbkId}_hq`, { branchId: `${dbkId}_hq`, dbkId, name: 'Mombasa Campus', type: 'HEADQUARTERS', status: 'ACTIVE', isHeadquarters: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
 
     const ctx = await contextFor(dbkId);
     await expect(publicPublicationService.setPublication(ctx, dbkId, 'PUBLISHED')).rejects.toThrow();
