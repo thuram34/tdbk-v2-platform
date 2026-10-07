@@ -189,3 +189,17 @@ No item is marked COMPLETE from source inspection alone when runtime/provider/de
 
 ## Release rule
 PR #390 must not be merged merely because it is mergeable. It is mergeable only after the grand-operation acceptance criteria above are satisfied for the scope actually claimed.
+
+
+### H. Coherence event durability — sprint hardening
+The shared-contribution path previously mutated persistent entity state and then attempted direct in-process Event Bus publication. That meant a process crash after the state mutation could lose the domain event even though the business state existed.
+
+Implemented on this sprint:
+- ContributionDispatcher now commits every domain contribution event to the tenant-scoped durable outbox before attempting immediate Event Bus delivery.
+- Event identity is stable (`contribution-{contributionId}`), so immediate delivery and later recovery share one idempotency identity.
+- Immediate Event Bus failure is no longer fatal to the persisted contribution; the durable outbox remains the recovery authority.
+- The coherence acceptance test now proves the `attendance.recorded.v1` event exists in the durable outbox with `PENDING` status after the contribution.
+- This closes the event-loss-on-process-restart gap for the shared-contribution path.
+
+Important remaining gap:
+- `workflowsTriggered` in the coherence model is currently a catalog declaration/result field. The contribution dispatcher does not yet instantiate and execute the corresponding durable Workflow Engine instances from `PLATFORM_WORKFLOW_CATALOG`. Therefore workflow names shown in the coherence result must not be treated as proof of workflow execution. A dedicated event-to-workflow trigger adapter remains release-gated.
