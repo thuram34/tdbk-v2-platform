@@ -343,7 +343,7 @@ class EventBusService {
     this.subscribe('payment.confirmed.v1', handleSubscriptionPaymentConfirmed);
     this.subscribe('payment.confirmed.v1', handleSokoniPaymentConfirmed);
     this.subscribe('payment.failed.v1', handleSokoniPaymentFailed);
-    registerCoherenceWorkflowTriggerSubscriptions();
+    registerCoherenceWorkflowTriggerSubscriptions(this);
   }
 }
 
