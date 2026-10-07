@@ -11,6 +11,7 @@ import { dbkRegistry } from '../dbkRegistry';
 import { KernelError } from '../../kernel/errors/kernelErrors';
 import { eventBus } from '../../orchestration/events/eventBus';
 import { publicPublicationService } from '../public/publicPublicationService';
+import { auditLogger } from '../../kernel/audit/auditLogger';
 
 export class DbkLifecycleManagerService {
   private static instance: DbkLifecycleManagerService;
@@ -63,8 +64,16 @@ export class DbkLifecycleManagerService {
     }
 
     const updated = await dbkRegistry.updateStatus(context, dbkId, 'SUSPENDED', reason);
-    const publication = await publicPublicationService.getPublication(dbkId);
-    if (publication.status === 'PUBLISHED') await publicPublicationService.setPublication(context, dbkId, 'SUSPENDED', reason);
+    try {
+      const publication = await publicPublicationService.getPublication(dbkId);
+      if (publication.status === 'PUBLISHED') await publicPublicationService.setPublication(context, dbkId, 'SUSPENDED', reason);
+    } catch (projectionError) {
+      auditLogger.logEvent('SYSTEM_ERROR', context.principal.id, 'PUBLIC_PUBLICATION_SYNC_REQUIRED', `dbk:${dbkId}`, 'ALLOWED', {
+        tenantId: dbkId,
+        requestId: context.requestId,
+        details: { lifecycleStatus: 'SUSPENDED', error: projectionError instanceof Error ? projectionError.message : String(projectionError) },
+      });
+    }
 
     // Emit event
     eventBus.publishEvent(
