@@ -332,6 +332,7 @@ export interface IWorkflowStepExecutionRepository {
   ): Promise<WorkflowStepExecution>;
   getExecution(tenantId: string, executionKey: string): Promise<WorkflowStepExecution | null>;
   bindProviderOperation(tenantId: string, executionKey: string, workerId: string, mapping: WorkflowProviderOperationMapping): Promise<WorkflowStepExecution>;
+  recordReconciliation(tenantId: string, executionKey: string, outcome: 'RECONCILED_SUCCESS' | 'RECONCILED_FAILURE', output: Record<string, unknown>): Promise<WorkflowStepExecution>;
 }
 
 export interface IWorkflowInstanceRepository {
