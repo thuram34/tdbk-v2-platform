@@ -4,6 +4,7 @@ import { firestoreClient } from '../../persistence/firestore/firestoreClient';
 import type { SecurityContext } from '../../kernel/types';
 import { dbkCapabilityManager } from '../../capability/dbkCapabilityManager';
 import { provisioningService } from '../../platform/provisioning/provisioningService';
+import { spaceMembershipRepository } from '../../persistence/firestore/repositories/spaceMembershipRepository';
 
 const tenantId = 'tenant_resolver_sale_test';
 const branchId = `${tenantId}_hq`;
@@ -97,6 +98,8 @@ describe('ExperienceResolver EXECUTE_SALE binding', () => {
       subscriptionTier: 'FOUNDATION',
       primaryBranchName: 'Main Branch',
     });
+
+    await spaceMembershipRepository.saveMembership({ membershipId: `mem_${tenantId}_cashier`, userId: 'cashier_resolver_001', spaceId: branchId, tenantId, role: 'CASHIER', roleTitle: 'Cashier', status: 'ACTIVE', joinedAt: new Date().toISOString(), permissions: ['execute:sales'] });
 
     dbkCapabilityManager.saveDbkCapabilityRecord(makeContext(), {
       dbkId: tenantId,
