@@ -61,11 +61,27 @@ Experience command -> EXECUTE_SALE -> SaleTransactionService -> Firestore transa
 - SaleTransactionService enforces tenant, branch and RBAC boundaries.
 - Sale + inventory mutation + outbox event are committed transactionally.
 
-## 4. Historical finding: post-provisioning routing
+## 4. Current post-provisioning route
+
+After authoritative provisioning and Business DNA verification, the frontend must render a provisioned-business handoff before entering the operating workspace. The handoff receives the authoritative business identity/capabilities returned by provisioning; it is not a local success state. `Enter my workspace` then routes to the resolved DBK workspace while OwnerCommandCenter remains the multi-business portfolio surface.
+
+Workspace setup sequence:
+
+1. Provisioned business handoff
+2. Workspace resolution
+3. Connector Hub configuration: M-Pesa, eTIMS, WhatsApp, SMS, Email and Bank
+4. Connector health/readiness verification
+5. RBAC / People & Roles configuration
+6. Workspace readiness confirmation
+7. Real business operation through Engine -> runtime -> persistence -> events
+
+Connector configuration is tenant-scoped and authoritative. Secrets are represented only as provider references. Connector readiness requires entitlement, configuration, registered adapter, enabled connection and healthy provider state. RBAC is tenant/branch-scoped and must be enforced server-side; UI visibility is not authorization.
+
+5. Historical finding: post-provisioning routing
 
 The historical trace described a post-provisioning portfolio detour. The current `main` implementation has since been corrected: `BusinessDiscovery.onProvisioned()` sets the authoritative `dbkId` and `App.tsx` renders `DbkApp` directly. OwnerCommandCenter remains the multi-business management surface. This is therefore CLOSED on the current branch.
 
-## 5. Critical finding: DBK terminology
+## 6. Critical finding: DBK terminology
 
 Customer-facing onboarding currently exposes language such as:
 
@@ -83,7 +99,7 @@ Customer vocabulary should be:
 
 DBK, tenant, provisioning, runtime and kernel should remain engineering/platform vocabulary unless an administrative screen genuinely requires them.
 
-## 6. Historical finding: app.tx
+## 7. Historical finding: app.tx
 
 Repository search did not locate a literal `app.tx` file. This naming observation is not a runtime blocker: the authoritative transaction contract is already represented by `ExperienceCommandRequest` / `EXECUTE_SALE` and `SaleTransactionService`.
 
@@ -95,7 +111,7 @@ This means transaction execution exists, but the canonical app.tx customer trans
 
 The engineering team must define the canonical transaction lifecycle rather than allowing separate UI paths to invent their own transaction behavior.
 
-## 7. Transaction completion contract
+## 8. Transaction completion contract
 
 A customer operation is not complete merely because a button was clicked or an HTTP request returned.
 
@@ -105,7 +121,7 @@ REQUESTED -> ACCEPTED -> PROCESSING -> PROVIDER RESULT (when applicable) -> CONF
 
 For provider-backed operations, provider authority and reconciliation must be explicit.
 
-## 8. Nine-layer trace
+## 9. Nine-layer trace
 
 Client intent
   -> User Interface
@@ -123,7 +139,7 @@ Client intent
 
 Every transition must have an actual repository file/function, input, output, state transition, security boundary and failure path.
 
-## 9. Canonical acceptance test
+## 10. Canonical acceptance test
 
 Scenario: a new Mombasa hardware customer registers once, creates the business, receives a provisioned workspace, enters it directly, performs a sale, receives the authoritative result, and sees the confirmed transaction in the workspace.
 
@@ -134,17 +150,19 @@ UI -> Auth -> Kernel -> Provisioning -> Business DNA -> Capabilities -> Workspac
 No layer may be skipped.
 No layer may claim completion without authoritative evidence.
 
-## 10. Engineering rule
+## 11. Engineering rule
 
 Do not add major features merely because individual modules work.
 
 A feature is operational only when its complete client journey can be traced from customer intent through authoritative state change and, where applicable, external provider result and reconciliation, back to a confirmed customer-visible state.
 
-## 11. Immediate engineering priorities
+## 12. Immediate engineering priorities
 
-1. Maintain direct post-provisioning entry into the newly provisioned workspace (CLOSED for current main).
-2. Remove DBK/platform-engine terminology from normal customer onboarding (IN PROGRESS on finalization branch).
-3. Keep one canonical transaction contract over the existing ExperienceResolver transaction path; a literal `app.tx` filename is not required.
-4. Trace M-Pesa, eTIMS and WhatsApp operations from transaction initiation through provider result, reconciliation and final confirmation.
-5. Add an end-to-end client-journey test that fails if any authoritative transition is missing.
-6. Use this journey as the acceptance gate for future TDBK capabilities.
+1. Maintain direct post-provisioning entry into the newly provisioned workspace (implemented on the active completion branch; CI/runtime proof still required).
+2. Keep customer-facing vocabulary as Account / Business / Workspace / Action; DBK/tenant/runtime remain platform vocabulary.
+3. Configure and verify the unified Connector Hub after workspace provisioning: M-Pesa, eTIMS, WhatsApp, SMS, Email and Bank.
+4. Complete RBAC / People & Roles verification, including tenant isolation, branch scope, role assignment/revocation and server-side permission enforcement.
+5. Keep one canonical transaction contract over the existing ExperienceResolver transaction path; a literal `app.tx` filename is not required.
+6. Trace M-Pesa, eTIMS and WhatsApp operations from transaction initiation through provider result, reconciliation and final confirmation.
+7. Add an end-to-end client-journey test that fails if any authoritative transition is missing.
+8. Use this journey as the acceptance gate for future TDBK capabilities.
