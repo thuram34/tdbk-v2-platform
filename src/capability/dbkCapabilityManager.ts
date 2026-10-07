@@ -354,7 +354,7 @@ export class DbkCapabilityManagerService {
     if (!cap) throw new KernelError('NOT_FOUND', `Capability '${capabilityId}' not found in platform registry`, 404, securityContext.requestId);
     const dbk = await dbkRegistry.getDbk(securityContext, dbkId);
     const blueprint = dbk ? INITIAL_BLUEPRINT_CATALOG.find((item) => item.id === dbk.blueprintId) : undefined;
-    const isBlueprintCapability = blueprint?.supportedCapabilities.some((item) => item.id === capabilityId) || cap.supportedBlueprints.includes('ALL');
+    const isBlueprintCapability = blueprint?.supportedCapabilities.some((item) => item.id === capabilityId) || cap.supportedBlueprints.some((blueprintId) => blueprintId === 'ALL');
     if (!isBlueprintCapability) {
       throw new KernelError('VALIDATION_ERROR', `Capability '${capabilityId}' does not belong to DBK blueprint '${dbk?.blueprintId || 'unknown'}'`, 409, securityContext.requestId);
     }
