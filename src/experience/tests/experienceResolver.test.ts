@@ -6,7 +6,7 @@ import { dbkCapabilityManager } from '../../capability/dbkCapabilityManager';
 import { provisioningService } from '../../platform/provisioning/provisioningService';
 
 const tenantId = 'tenant_resolver_sale_test';
-const branchId = 'branch_main';
+const branchId = `${tenantId}_hq`;
 const inventoryRecordId = 'stock_item_001';
 
 function makeContext(
@@ -71,7 +71,7 @@ describe('ExperienceResolver EXECUTE_SALE binding', () => {
   beforeEach(async () => {
     await firestoreClient.clearAllForTesting();
     dbkCapabilityManager.clearStoreForTesting();
-    await provisioningService.clearStoreForTesting?.();
+    provisioningService.clearStoreForTesting();
 
     await provisioningService.provisionDbk({
       requestId: `resolver-provision-${Date.now()}`,
