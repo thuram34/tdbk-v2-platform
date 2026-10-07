@@ -197,6 +197,22 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
     throw new Error('Invalid Kenyan M-Pesa phone number');
   }
 
+  /**
+   * Server-only commercial payment boundary used by approved TDBK system services.
+   * The service role is deliberately distinct from tenant-user roles so a caller
+   * cannot manufacture a tenant-bound principal to reach the merchant connection.
+   */
+  public async executeSystemPayment(
+    context: SecurityContext,
+    operation: string,
+    payload: MpesaSTKPushRequest,
+  ): Promise<NormalizedBridgeResult<any>> {
+    if (!context.principal.roles?.includes('TDBK_SYSTEM_SOKONI_PAYMENT')) {
+      throw new KernelError('AUTHORIZATION_ERROR', 'System payment execution requires the TDBK Sokoni payment service identity.', 403, context.requestId);
+    }
+    return this.execute(context, operation, payload);
+  }
+
   public async execute(
     context: SecurityContext,
     operation: string,
