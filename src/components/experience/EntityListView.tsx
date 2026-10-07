@@ -22,6 +22,8 @@ export const EntityListView: React.FC<EntityListViewProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const { getIdToken } = useAuth();
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [completingRecordId, setCompletingRecordId] = useState<string | null>(null);
+  const [operationError, setOperationError] = useState<string | null>(null);
 
   const viewDef = capabilityViewRegistry.getViewDefinition(capabilityId);
   const termKey = viewDef?.terminologyKey;
@@ -89,6 +91,30 @@ export const EntityListView: React.FC<EntityListViewProps> = ({
     setIsCreateModalOpen(false);
     setFormData({});
     await loadRecords();
+  };
+
+  const handleComplete = async (record: ExperienceEntityRecord) => {
+    if (completingRecordId) return;
+    setCompletingRecordId(record.id);
+    setOperationError(null);
+
+    try {
+      const response = await onDispatchCommand('EXECUTE_VERTICAL_OPERATION', {
+        capabilityId,
+        operation: 'COMPLETE_RECORD',
+        recordId: record.id,
+        payload: { branchId: experience.activeBranch.branchId },
+      });
+      const commandResponse = response?.commandResponse;
+      if (commandResponse?.success !== true) {
+        throw new Error(commandResponse?.error?.message || 'The record could not be completed.');
+      }
+      await loadRecords();
+    } catch (error: any) {
+      setOperationError(error?.message || 'The record could not be completed.');
+    } finally {
+      setCompletingRecordId(null);
+    }
   };
 
   const filteredRecords = records.filter((r) => {
@@ -159,6 +185,12 @@ export const EntityListView: React.FC<EntityListViewProps> = ({
         </div>
       )}
 
+      {operationError && (
+        <div className="rounded-lg border border-amber-800/60 bg-amber-950/20 p-3 text-xs text-amber-200" role="alert">
+          {operationError}
+        </div>
+      )}
+
       {/* Entity Table */}
       <div className="bg-neutral-900 border border-neutral-800 rounded-lg overflow-hidden">
         <div className="overflow-x-auto">
@@ -211,9 +243,22 @@ export const EntityListView: React.FC<EntityListViewProps> = ({
                     </td>
 
                     <td className="px-4 py-3 text-right">
-                      <button className="text-[11px] text-indigo-400 hover:text-indigo-300 font-medium cursor-pointer">
-                        View Details
-                      </button>
+                      <div className="inline-flex items-center gap-3">
+                        <button className="text-[11px] text-indigo-400 hover:text-indigo-300 font-medium cursor-pointer">
+                          View Details
+                        </button>
+                        {r.status !== 'COMPLETED' && r.status !== 'CANCELLED' && (
+                          <button
+                            type="button"
+                            onClick={() => void handleComplete(r)}
+                            disabled={completingRecordId !== null}
+                            className="inline-flex items-center gap-1 rounded border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-[10px] font-bold text-emerald-400 hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            <CheckCircle2 className="h-3 w-3" />
+                            {completingRecordId === r.id ? 'Completing…' : 'Complete'}
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))
