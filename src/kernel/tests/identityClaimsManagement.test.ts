@@ -588,8 +588,13 @@ describe('TDBK V2 — Production Identity & Claims Management', () => {
       });
       expect(roleAssignment.roles).toContain('TEACHER');
       expect(roleAssignment.permissions).toContain('attendance:write');
+      expect(roleAssignment.permissions).toContain('read:students');
+      expect(roleAssignment.permissions).toContain('write:students');
+      expect(roleAssignment.permissions).toContain('manage:grades');
       expect(mockFirebaseStore.get('usr_staff_tenantA')?.customClaims?.tdbk?.roles).toContain('TEACHER');
       expect(mockFirebaseStore.get('usr_staff_tenantA')?.customClaims?.tdbk?.permissions).toContain('attendance:write');
+      expect(mockFirebaseStore.get('usr_staff_tenantA')?.customClaims?.tdbk?.permissions).toContain('read:students');
+      expect(mockFirebaseStore.get('usr_staff_tenantA')?.customClaims?.tdbk?.permissions).toContain('manage:grades');
     });
 
     it('2. Business Owner A CANNOT provision identities in Tenant B (Cross-Tenant Denial)', async () => {
