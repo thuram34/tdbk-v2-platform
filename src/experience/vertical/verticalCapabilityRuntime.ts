@@ -50,7 +50,7 @@ export class VerticalCapabilityRuntime {
     const dbk = await dbkRegistry.getDbk(context, dbkId);
     if (!dbk) throw new KernelError('NOT_FOUND', `DBK '${dbkId}' not found`, 404, context.requestId);
 
-    const capability = capabilityRegistry.getCapability(request.capabilityId);
+    const capability = capabilityRegistry.getCapability(request.capabilityId, `VERTICAL_${request.operation}`);
     if (!capability) {
       throw new KernelError('NOT_FOUND', `Capability '${request.capabilityId}' not found`, 404, context.requestId);
     }
