@@ -20,6 +20,7 @@ import { KernelError } from '../../../kernel/errors/kernelErrors';
 import { publishBridgeEvent } from '../bridgeEventPublisher';
 import { connectorConnectionRepository } from '../../../persistence/firestore/repositories/connectorConnectionRepository';
 import { resolveConnectorSecret } from '../connectorSecretResolver';
+import { claimExternalOperation, completeExternalOperation, failExternalOperation } from '../externalOperationGuard';
 
 export interface WhatsappMessageRequest {
   recipientPhone: string;
@@ -28,6 +29,8 @@ export interface WhatsappMessageRequest {
   templateParams?: Record<string, string>;
   messageText?: string;
   previewUrl?: boolean;
+  /** Stable caller-controlled identity for a mutating outbound operation. */
+  idempotencyKey?: string;
 }
 
 export interface WhatsappWebhook {
@@ -147,7 +150,7 @@ export class WhatsappBridge implements Bridge<WhatsappMessageRequest, any, Whats
   public async execute(context: SecurityContext, operation: string, payload: WhatsappMessageRequest): Promise<NormalizedBridgeResult<any>> {
     const tenantId = context.tenantContext?.tenantId || context.principal.tenantId;
     if (!tenantId) throw new KernelError('TENANT_ISOLATION_ERROR', 'WhatsApp operation denied: missing tenant context', 403, context.requestId);
-    const isTestRuntime = process.env.NODE_ENV === 'test' || process.env.VITEST === 'true' || process.env.TDBK_PERSISTENCE_DRIVER === 'test_memory';
+    const isTestRuntime = process.env.NODE_ENV !== 'production' && (process.env.NODE_ENV === 'test' || process.env.VITEST === 'true' || process.env.TDBK_PERSISTENCE_DRIVER === 'test_memory');
     if (isTestRuntime) {
       return { status: 'SUCCESS', provider: this.provider, providerReference: `wamid.test_${context.requestId}`, occurredAt: new Date().toISOString(), correlationId: context.correlationId || context.requestId, data: { testRuntime: true, operation } };
     }
@@ -159,10 +162,40 @@ export class WhatsappBridge implements Bridge<WhatsappMessageRequest, any, Whats
     const phoneNumberId = this.parameter(connection, 'WHATSAPP_PHONE_NUMBER_ID', 'phoneNumberId');
     const wabaId = this.parameter(connection, 'WHATSAPP_WABA_ID', 'wabaId');
     if (!phoneNumberId && operation !== 'SUBSCRIBE_WABA') throw new KernelError('INTEGRATION_UNAVAILABLE', 'WhatsApp phone number ID is not configured', 503, context.requestId);
+
+    let externalOperationKey: string | null = null;
+    let externalClaim: Awaited<ReturnType<typeof claimExternalOperation>> | null = null;
+    if (process.env.NODE_ENV === 'production' && operation !== 'VERIFY_DELIVERY') {
+      const stableIdentity = operation === 'SUBSCRIBE_WABA'
+        ? (wabaId ? 'waba:' + wabaId : undefined)
+        : payload.idempotencyKey;
+      if (!stableIdentity) {
+        throw new KernelError('VALIDATION_ERROR', "WhatsApp operation '" + operation + "' requires a stable idempotencyKey.", 400, context.requestId);
+      }
+      externalOperationKey = 'whatsapp:' + operation + ':' + stableIdentity;
+      externalClaim = await claimExternalOperation(
+        tenantId,
+        externalOperationKey,
+        'WHATSAPP_' + operation,
+        { operation, payload: operation === 'SUBSCRIBE_WABA' ? { wabaId } : payload },
+      );
+      if (externalClaim.state === 'COMPLETED') return externalClaim.response as unknown as NormalizedBridgeResult<any>;
+      if (externalClaim.state === 'IN_PROGRESS') {
+        return {
+          status: 'REQUIRES_RECONCILIATION',
+          provider: this.provider,
+          providerReference: externalOperationKey,
+          occurredAt: new Date().toISOString(),
+          correlationId: context.correlationId || context.requestId,
+          data: { reason: 'An earlier WhatsApp provider call is unresolved; blind replay is blocked.' },
+        };
+      }
+    }
+
     if (operation === 'SUBSCRIBE_WABA') {
       if (!wabaId) throw new KernelError('INTEGRATION_UNAVAILABLE', 'WhatsApp WABA ID is not configured', 503, context.requestId);
-      const providerResponse = await this.graphRequest(connection, `${wabaId}/subscribed_apps`, 'POST');
-      return {
+      const providerResponse = await this.graphRequest(connection, wabaId + '/subscribed_apps', 'POST');
+      const result: NormalizedBridgeResult<any> = {
         status: providerResponse?.success === true || providerResponse?.success === 'true' ? 'SUCCESS' : 'FAILED',
         provider: this.provider,
         providerReference: wabaId,
@@ -170,6 +203,10 @@ export class WhatsappBridge implements Bridge<WhatsappMessageRequest, any, Whats
         correlationId: context.correlationId || context.requestId,
         data: providerResponse,
       };
+      if (externalOperationKey && externalClaim?.state === 'CLAIMED') {
+        await completeExternalOperation(tenantId, externalOperationKey, result as unknown as Record<string, unknown>);
+      }
+      return result;
     }
     const recipient = this.normalizePhone(payload.recipientPhone);
 
@@ -217,13 +254,13 @@ export class WhatsappBridge implements Bridge<WhatsappMessageRequest, any, Whats
       };
     }
 
-    const providerResponse = await this.graphRequest(connection, `${phoneNumberId}/messages`, 'POST', body);
+    const providerResponse = await this.graphRequest(connection, phoneNumberId + '/messages', 'POST', body);
     const wamid = String(providerResponse?.messages?.[0]?.id || '');
     if (!wamid) throw new KernelError('INTEGRATION_UNAVAILABLE', 'Meta accepted no message ID; response is not actionable', 502, context.requestId);
 
     const occurredAt = new Date().toISOString();
     await publishBridgeEvent({
-      eventId: `evt_wa_${wamid}`,
+      eventId: 'evt_wa_' + wamid,
       eventType: 'notification.sent.v1',
       eventVersion: 'v1',
       occurredAt,
@@ -237,7 +274,7 @@ export class WhatsappBridge implements Bridge<WhatsappMessageRequest, any, Whats
       metadata: {},
     });
 
-    return {
+    const result: NormalizedBridgeResult<any> = {
       status: 'SUCCESS',
       provider: this.provider,
       providerReference: wamid,
@@ -245,6 +282,10 @@ export class WhatsappBridge implements Bridge<WhatsappMessageRequest, any, Whats
       correlationId: context.correlationId || context.requestId,
       data: { ...providerResponse, messagingProduct: 'whatsapp' },
     };
+    if (externalOperationKey && externalClaim?.state === 'CLAIMED') {
+      await completeExternalOperation(tenantId, externalOperationKey, result as unknown as Record<string, unknown>);
+    }
+    return result;
   }
 
   /**
@@ -338,28 +379,57 @@ export class WhatsappBridge implements Bridge<WhatsappMessageRequest, any, Whats
     const providerReference = String(message.id || '');
     if (!providerReference) throw new KernelError('VALIDATION_ERROR', 'WhatsApp message event has no message ID', 400, context.requestId);
 
-    await publishBridgeEvent({
-      eventId: `evt_wa_in_${providerReference}`,
-      eventType: 'notification.received.v1',
-      eventVersion: 'v1',
-      occurredAt,
+    const inboundKey = 'whatsapp:webhook:' + providerReference;
+    const inboundClaim = await claimExternalOperation(
       tenantId,
-      branchId: context.branchContext?.branchId || null,
-      principalId: context.principal.id,
-      correlationId: context.correlationId || context.requestId,
-      causationId: providerReference,
-      source: 'WhatsappBridge',
-      payload: {
-        wamid: providerReference,
-        from: message.from,
-        type: message.type,
-        text: message.text?.body || null,
-        message,
-        contacts: value.contacts || [],
-      },
-      metadata: { phoneNumberId: value.metadata?.phone_number_id, displayPhoneNumber: value.metadata?.display_phone_number },
-    });
+      inboundKey,
+      'WHATSAPP_INBOUND_WEBHOOK',
+      rawCallback.rawBody,
+    );
+    if (inboundClaim.state === 'COMPLETED' || inboundClaim.state === 'IN_PROGRESS') {
+      return {
+        status: 'SUCCESS',
+        provider: this.provider,
+        providerReference,
+        occurredAt,
+        correlationId: context.correlationId || context.requestId,
+        data: { eventType: 'MESSAGE_RECEIVED_DUPLICATE_SUPPRESSED' },
+      };
+    }
 
+    try {
+      await publishBridgeEvent({
+        eventId: 'evt_wa_in_' + providerReference,
+        eventType: 'notification.received.v1',
+        eventVersion: 'v1',
+        occurredAt,
+        tenantId,
+        branchId: context.branchContext?.branchId || null,
+        principalId: context.principal.id,
+        correlationId: context.correlationId || context.requestId,
+        causationId: providerReference,
+        source: 'WhatsappBridge',
+        payload: {
+          wamid: providerReference,
+          from: message.from,
+          type: message.type,
+          text: message.text?.body || null,
+          message,
+          contacts: value.contacts || [],
+        },
+        metadata: { phoneNumberId: value.metadata?.phone_number_id, displayPhoneNumber: value.metadata?.display_phone_number },
+      });
+      await completeExternalOperation(tenantId, inboundKey, {
+        status: 'SUCCESS',
+        provider: this.provider,
+        providerReference,
+        occurredAt,
+        correlationId: context.correlationId || context.requestId,
+      });
+    } catch (error) {
+      await failExternalOperation(tenantId, inboundKey, error instanceof Error ? error.message : 'Inbound webhook publication failed').catch(() => undefined);
+      throw error;
+    }
     return {
       status: 'SUCCESS',
       provider: this.provider,

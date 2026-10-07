@@ -6,7 +6,7 @@
 
 import { SectorType, BlueprintTerminology } from '../blueprint/types';
 import { SubscriptionTier } from '../capability/types';
-import { DbkLifecycleStatus, DbkBranch } from '../platform/types';
+import { DbkLifecycleStatus, DbkBranch, DbkProvisioningStage, DbkShellReadiness } from '../platform/types';
 import { Principal, SecurityContext } from '../kernel/types';
 
 export type ExperienceViewType =
@@ -170,6 +170,8 @@ export interface DbkExperienceResolved {
   displayName: string;
   sector: SectorType;
   status: DbkLifecycleStatus;
+  provisioningStage?: DbkProvisioningStage;
+  shellReadiness?: DbkShellReadiness;
   subscriptionTier: SubscriptionTier;
   workspaceVersion: number;
   configurationVersion: number;

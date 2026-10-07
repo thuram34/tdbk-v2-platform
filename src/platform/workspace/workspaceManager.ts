@@ -4,7 +4,7 @@
  * Compiles server-authoritative workspace state projections for DBK instances.
  */
 
-import { DbkWorkspaceState, DbkIdentity } from '../types';
+import { DbkWorkspaceState, DbkIdentity, DbkShellReadiness, DbkProvisioningStage } from '../types';
 import { SecurityContext } from '../../kernel/types';
 import { masterAuthority } from '../../kernel/master/masterAuthority';
 import { dbkRegistry } from '../dbkRegistry';
@@ -66,6 +66,22 @@ export class WorkspaceManagerService {
     // DBK experience does not maintain a separate integrations surface/state.
     const connectorReport = await connectorReadinessService.inspect(context, dbkId);
 
+    const provisioningStage = (dbk.provisioningStage || dbk.metadata?.provisioningStage) as DbkProvisioningStage | undefined;
+    const shellReadiness: DbkShellReadiness =
+      dbk.status === 'ARCHIVED'
+        ? 'ARCHIVED'
+        : dbk.status === 'SUSPENDED'
+          ? 'SUSPENDED'
+          : dbk.status === 'PROVISIONING_FAILED'
+            ? 'BLOCKED'
+            : dbk.status === 'PROVISIONING'
+              ? 'BUILDING'
+              : provisioningStage === 'ACTIVATION_VERIFIED'
+                ? 'READY'
+                : provisioningStage
+                  ? 'BUILDING'
+                  : 'NOT_READY';
+
     return {
       dbkId: dbk.dbkId,
       displayName: dbk.displayName,
@@ -93,6 +109,8 @@ export class WorkspaceManagerService {
         minimumTier: item.minimumTier,
         entitlementStatus: item.entitlementStatus,
       })),
+      provisioningStage,
+      shellReadiness,
       terminology,
       lastSyncedAt: new Date().toISOString(),
     };

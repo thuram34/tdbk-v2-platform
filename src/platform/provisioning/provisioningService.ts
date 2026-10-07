@@ -4,7 +4,7 @@
  * Orchestrates server-authoritative DBK provisioning workflows with idempotency and state machine validation.
  */
 
-import { ProvisionDbkRequest, ProvisionDbkResult, DbkIdentity } from '../types';
+import { ProvisionDbkRequest, ProvisionDbkResult, DbkIdentity, DbkProvisioningStage } from '../types';
 import { SecurityContext } from '../../kernel/types';
 import { masterAuthority } from '../../kernel/master/masterAuthority';
 import { dbkRegistry } from '../dbkRegistry';
@@ -51,7 +51,7 @@ export class ProvisioningService {
     if (this.handlersRegistered) return;
 
     // 1. VALIDATE_IDENTITY
-    workflowEngine.registerStepHandler('PROVISIONING_VALIDATE_IDENTITY', async ({ input }) => {
+    workflowEngine.registerStepHandler('PROVISIONING_VALIDATE_IDENTITY', async ({ input, workflow }) => {
       const dbkId = input.dbkId as string;
       const legalName = input.legalName as string;
 
@@ -71,11 +71,12 @@ export class ProvisioningService {
         };
       }
 
+      await this.setProvisioningStage(createStepContext(workflow, dbkId), dbkId, 'IDENTITY_READY');
       return { success: true, output: { validated: true } };
     });
 
     // 2. VALIDATE_BLUEPRINT
-    workflowEngine.registerStepHandler('PROVISIONING_VALIDATE_BLUEPRINT', async ({ input }) => {
+    workflowEngine.registerStepHandler('PROVISIONING_VALIDATE_BLUEPRINT', async ({ input, workflow }) => {
       const blueprintId = input.blueprintId as string;
       const blueprintVersion = input.blueprintVersion as string | undefined;
 
@@ -88,6 +89,8 @@ export class ProvisioningService {
         };
       }
 
+      const dbkId = input.dbkId as string;
+      await this.setProvisioningStage(createStepContext(workflow, dbkId), dbkId, 'BLUEPRINT_READY');
       return {
         success: true,
         output: {
@@ -139,6 +142,7 @@ export class ProvisioningService {
           blueprintId,
           blueprintVersion
         );
+        await this.setProvisioningStage(mockCtx, dbkId, 'DNA_READY');
         return { success: true, output: { dbkId: dna.dbkId, sector: dna.identity.businessType } };
       } catch (err: any) {
         return {
@@ -150,7 +154,7 @@ export class ProvisioningService {
     });
 
     // 4. ASSIGN_ENTITLEMENT
-    workflowEngine.registerStepHandler('PROVISIONING_ASSIGN_ENTITLEMENT', async ({ input }) => {
+    workflowEngine.registerStepHandler('PROVISIONING_ASSIGN_ENTITLEMENT', async ({ input, workflow }) => {
       const dbkId = input.dbkId as string;
       const tier = (input.subscriptionTier as any) || 'FOUNDATION';
 
@@ -160,6 +164,7 @@ export class ProvisioningService {
       if (!durableDbk || durableDbk.subscriptionTier !== tier) {
         return { success: false, error: 'Durable DBK subscription tier does not match provisioning request', failureClassification: 'PERMANENT' };
       }
+      await this.setProvisioningStage(createStepContext(workflow, dbkId), dbkId, 'ENTITLEMENT_READY');
       return { success: true, output: { subscriptionTier: tier } };
     });
 
@@ -220,6 +225,7 @@ export class ProvisioningService {
         initializedCount++;
       }
 
+      await this.setProvisioningStage(mockCtx, dbkId, 'CAPABILITIES_READY');
       return { success: true, output: { initializedCapabilities: initializedCount } };
     });
 
@@ -248,6 +254,7 @@ export class ProvisioningService {
         branches.push(branch);
       }
 
+      await this.setProvisioningStage(mockCtx, dbkId, 'BRANCHES_READY');
       return { success: true, output: { branchCount: branches.length, branches } };
     });
 
@@ -258,6 +265,7 @@ export class ProvisioningService {
 
       try {
         const workspace = await workspaceManager.compileWorkspaceState(mockCtx, dbkId);
+        await this.setProvisioningStage(mockCtx, dbkId, 'WORKSPACE_READY');
         return { success: true, output: { workspaceVersion: workspace.workspaceVersion } };
       } catch (err: any) {
         return {
@@ -284,6 +292,25 @@ export class ProvisioningService {
    * Authoritative DBK Provisioning Flow.
    * AUTHORIZED: TDBK MASTER ADMIN or Business Owner portfolio authority.
    */
+  private async setProvisioningStage(
+    context: SecurityContext,
+    dbkId: string,
+    stage: DbkProvisioningStage,
+    reason?: string,
+  ): Promise<void> {
+    const dbk = await dbkRegistry.getDbkInternal(dbkId);
+    if (!dbk) return;
+    dbk.provisioningStage = stage;
+    dbk.metadata = {
+      ...(dbk.metadata || {}),
+      provisioningStage: stage,
+      provisioningStageUpdatedAt: new Date().toISOString(),
+      ...(reason ? { provisioningStageReason: reason } : {}),
+    };
+    dbk.updatedAt = new Date().toISOString();
+    await dbkRegistry.saveDbk(context, dbk);
+  }
+
   public async provisionDbk(context: SecurityContext, request: ProvisionDbkRequest): Promise<ProvisionDbkResult> {
     this.registerProvisioningStepHandlers();
     // 1. Security Assertion: Authorized Business Owner or Master Admin can provision DBKs
@@ -387,24 +414,38 @@ export class ProvisioningService {
       }
     }
 
-    // 5. Create DBK in PROVISIONING state
+    // 5. Create/recover the DBK in PROVISIONING state.
+    // A recovery attempt may rebuild provisioning resources but cannot rewrite
+    // the already-established legal identity of an existing DBK.
+    const existingDbkForRecovery = await dbkRegistry.getDbkInternal(effectiveDbkId);
+    const isRecovery = existingDbkForRecovery?.status === 'PROVISIONING_FAILED';
+
+    let recoveryDbk = existingDbkForRecovery;
+    if (isRecovery) {
+      recoveryDbk = await dbkRegistry.beginProvisioningRecovery(
+        context,
+        effectiveDbkId,
+        'Authoritative provisioning retry',
+      );
+    }
+
     const initialDbk: DbkIdentity = {
       dbkId: effectiveDbkId,
-      legalName: request.legalName,
-      displayName: request.displayName || request.legalName,
-      sector: bp.sector,
-      blueprintId: bp.id,
-      blueprintVersion: bp.version,
-      subscriptionTier: effectiveProvisioningTier,
+      legalName: isRecovery ? recoveryDbk!.legalName : request.legalName,
+      displayName: isRecovery ? recoveryDbk!.displayName : (request.displayName || request.legalName),
+      sector: isRecovery ? recoveryDbk!.sector : bp.sector,
+      blueprintId: isRecovery ? recoveryDbk!.blueprintId : bp.id,
+      blueprintVersion: isRecovery ? recoveryDbk!.blueprintVersion : bp.version,
+      subscriptionTier: isRecovery ? recoveryDbk!.subscriptionTier : effectiveProvisioningTier,
       status: 'PROVISIONING',
-      masterOwner: context.principal.id,
-      createdAt: new Date().toISOString(),
+      masterOwner: isRecovery ? recoveryDbk!.masterOwner : context.principal.id,
+      createdAt: isRecovery ? recoveryDbk!.createdAt : new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      createdBy: context.principal.id,
-      configurationVersion: 1,
-      workspaceVersion: 1,
-      branchTopology: [],
-      lifecycleHistory: [
+      createdBy: isRecovery ? recoveryDbk!.createdBy : context.principal.id,
+      configurationVersion: isRecovery ? recoveryDbk!.configurationVersion : 1,
+      workspaceVersion: isRecovery ? recoveryDbk!.workspaceVersion : 1,
+      branchTopology: isRecovery ? recoveryDbk!.branchTopology : [],
+      lifecycleHistory: isRecovery ? recoveryDbk!.lifecycleHistory : [
         {
           transitionId: `trans_init_${Date.now()}`,
           fromStatus: 'PROVISIONING',
@@ -416,10 +457,13 @@ export class ProvisioningService {
           correlationId,
         },
       ],
-      metadata: request.customPreferences || {},
+      provisioningStage: 'REGISTRATION_ACCEPTED',
+      metadata: { ...(isRecovery ? (recoveryDbk!.metadata || {}) : {}), ...(request.customPreferences || {}), provisioningStage: 'REGISTRATION_ACCEPTED' as DbkProvisioningStage },
     };
 
     await dbkRegistry.saveDbk(context, initialDbk);
+
+    await this.setProvisioningStage(context, effectiveDbkId, 'IDENTITY_READY');
 
     // 6. Emit DBK_PROVISIONING_REQUESTED & STARTED
     eventBus.publishEvent(
@@ -462,7 +506,7 @@ export class ProvisioningService {
       {
         stepId: 'step_2_validate_blueprint',
         stepType: 'PROVISIONING_VALIDATE_BLUEPRINT',
-        input: { blueprintId: request.blueprintId, blueprintVersion: request.blueprintVersion },
+        input: { dbkId: effectiveDbkId, blueprintId: request.blueprintId, blueprintVersion: request.blueprintVersion },
       },
       {
         stepId: 'step_3_init_dna',
@@ -522,6 +566,8 @@ export class ProvisioningService {
       correlationId,
     };
 
+    await this.setProvisioningStage(context, effectiveDbkId, 'BLUEPRINT_READY');
+
     const workflowInstance = await workflowEngine.createPersistentWorkflow(
       workflowCtx,
       'DBK_PROVISIONING',
@@ -533,6 +579,8 @@ export class ProvisioningService {
     const executedWorkflow = await workflowEngine.executeWorkflow(workflowCtx, workflowInstance.workflowId);
 
     if (executedWorkflow.status !== 'COMPLETED') {
+      await this.setProvisioningStage(context, effectiveDbkId, 'FAILED', executedWorkflow.failureReason || 'Provisioning workflow failed');
+
       // Provisioning Failed
       await dbkRegistry.updateStatus(
         context,
@@ -583,10 +631,13 @@ export class ProvisioningService {
         subscriptionTier: initialDbk.subscriptionTier,
         branches: [],
         workspaceVersion: 1,
+        provisioningStage: 'FAILED',
         error: executedWorkflow.failureReason || 'Workflow execution failed',
         correlationId,
       };
     }
+
+    await this.setProvisioningStage(context, effectiveDbkId, 'ACTIVATION_VERIFIED');
 
     // 8. Provisioning Succeeded
     const finalDbk = (await dbkRegistry.getDbk(context, effectiveDbkId))!;
@@ -638,6 +689,7 @@ export class ProvisioningService {
       subscriptionTier: finalDbk.subscriptionTier,
       branches,
       workspaceVersion: finalDbk.workspaceVersion,
+      provisioningStage: finalDbk.provisioningStage || 'ACTIVATION_VERIFIED',
       correlationId,
     };
 
@@ -656,10 +708,16 @@ export class ProvisioningService {
     return result;
     } catch (err: any) {
       // Any unexpected exception after claiming the durable idempotency key must
-      // release the claim as a failed attempt. Otherwise a crash/exception can
-      // strand the request in IN_PROGRESS until expiry.
+      // release the claim and leave the DBK in an explicit failed lifecycle state.
+      const failureReason = err?.message || 'Unexpected provisioning exception';
+      await this.setProvisioningStage(context, effectiveDbkId, 'FAILED', failureReason);
+      try {
+        await dbkRegistry.updateStatus(context, effectiveDbkId, 'PROVISIONING_FAILED', failureReason);
+      } catch {
+        // Preserve the original provisioning error if the DBK itself is no longer readable.
+      }
       await idempotencyRepository.failIdempotencyRecord(effectiveDbkId, idempotencyKey, {
-        error: err?.message || 'Unexpected provisioning exception',
+        error: failureReason,
         requestId: context.requestId,
         correlationId,
       });

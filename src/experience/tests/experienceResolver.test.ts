@@ -3,9 +3,10 @@ import { experienceResolver } from '../experienceResolver';
 import { firestoreClient } from '../../persistence/firestore/firestoreClient';
 import type { SecurityContext } from '../../kernel/types';
 import { dbkCapabilityManager } from '../../capability/dbkCapabilityManager';
+import { provisioningService } from '../../platform/provisioning/provisioningService';
 
 const tenantId = 'tenant_resolver_sale_test';
-const branchId = 'branch_main';
+const branchId = `${tenantId}_hq`;
 const inventoryRecordId = 'stock_item_001';
 
 function makeContext(
@@ -70,6 +71,33 @@ describe('ExperienceResolver EXECUTE_SALE binding', () => {
   beforeEach(async () => {
     await firestoreClient.clearAllForTesting();
     dbkCapabilityManager.clearStoreForTesting();
+    provisioningService.clearStoreForTesting();
+
+    await provisioningService.provisionDbk({
+      requestId: `resolver-provision-${Date.now()}`,
+      correlationId: `resolver-provision-${Date.now()}`,
+      timestamp: new Date().toISOString(),
+      principal: {
+        id: 'resolver_test_master',
+        tenantId: 'master',
+        branchId: null,
+        roles: ['TDBK_MASTER_ADMIN'],
+        permissions: ['*'],
+        authTime: Date.now(),
+        tokenSource: 'JWT',
+        isMaster: true,
+      },
+      tenantContext: null,
+      branchContext: null,
+    }, {
+      dbkId: tenantId,
+      legalName: 'Resolver Sale Test Tenant',
+      displayName: 'Resolver Sale Test Tenant',
+      blueprintId: 'hardware_v1',
+      subscriptionTier: 'FOUNDATION',
+      primaryBranchName: 'Main Branch',
+    });
+
     dbkCapabilityManager.saveDbkCapabilityRecord(makeContext(), {
       dbkId: tenantId,
       capabilityId: 'sales_counter',

@@ -281,6 +281,26 @@ export async function runDbkProvisioningTestSuite(): Promise<DbkProvisioningTest
     results.push({ id: 'DBK_PROVISION_12', name: 'Owner correctly assigned to DBK', invariant: 'Master principal ID recorded', passed: false, details: err.message });
   }
 
+  // DBK_PROVISION_13: Completed provisioning exposes the universal DBK lifecycle stage
+  try {
+    const id = `status_hierarchy_${runId}`;
+    const res = await provisionDbk(id, 'Status Hierarchy Academy', 'school_fee_structure');
+    const dbk = await dbkRegistry.getDbk(masterContext, id);
+    const passed = res.status === 'ACTIVE' &&
+      res.provisioningStage === 'ACTIVATION_VERIFIED' &&
+      dbk?.status === 'ACTIVE' &&
+      dbk?.provisioningStage === 'ACTIVATION_VERIFIED';
+    results.push({
+      id: 'DBK_PROVISION_26',
+      name: 'Completed DBK exposes authoritative provisioning stage',
+      invariant: 'ACTIVE DBKs reach ACTIVATION_VERIFIED and persist the same stage on the DBK identity',
+      passed,
+      details: passed ? 'DBK lifecycle and provisioning stage agree at activation' : `status=${res.status}, resultStage=${res.provisioningStage}, dbkStage=${dbk?.provisioningStage}`,
+    });
+  } catch (err: any) {
+    results.push({ id: 'DBK_PROVISION_26', name: 'Completed DBK exposes authoritative provisioning stage', invariant: 'ACTIVE DBKs reach ACTIVATION_VERIFIED', passed: false, details: err.message });
+  }
+
   // DBK_PROVISION_13: Unauthorized user cannot provision a DBK on behalf of another principal
   try {
     const regularToken = TokenVerifier.mintTestToken({

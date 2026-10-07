@@ -4,6 +4,7 @@ import { firestoreClient } from '../../persistence/firestore/firestoreClient';
 import { outboxRepository } from '../../persistence/firestore/repositories/outboxRepository';
 import type { SecurityContext } from '../../kernel/types';
 import { dbkCapabilityManager } from '../../capability/dbkCapabilityManager';
+import { branchRepository } from '../../persistence/firestore/repositories/branchRepository';
 
 const tenantId = 'tenant_sale_test';
 const branchId = 'branch_main';
@@ -149,6 +150,16 @@ describe('SaleTransactionService', () => {
   beforeEach(async () => {
     await firestoreClient.clearAllForTesting();
     dbkCapabilityManager.clearStoreForTesting();
+    await branchRepository.saveBranch(tenantId, branchId, {
+      branchId,
+      dbkId: tenantId,
+      name: 'Main Branch',
+      type: 'RETAIL_OUTLET',
+      status: 'ACTIVE',
+      isHeadquarters: true,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
     await seedSalesCapability();
   });
 

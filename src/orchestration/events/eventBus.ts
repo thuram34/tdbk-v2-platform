@@ -43,6 +43,7 @@ class EventBusService {
       { eventType: 'document.issued.v1', version: 'v1', description: 'Business document officially issued' },
       { eventType: 'notification.requested.v1', version: 'v1', description: 'Notification request created' },
       { eventType: 'notification.sent.v1', version: 'v1', description: 'Notification delivered' },
+      { eventType: 'notification.received.v1', version: 'v1', description: 'Notification received from external provider' },
       { eventType: 'notification.failed.v1', version: 'v1', description: 'Notification delivery failed' },
       { eventType: 'external.request.created.v1', version: 'v1', description: 'Bridge external request generated' },
       { eventType: 'external.request.succeeded.v1', version: 'v1', description: 'Bridge external request succeeded' },
@@ -292,6 +293,18 @@ class EventBusService {
   }
 
   /**
+   * Returns whether the in-process event bus has its core event contracts and
+   * subscription wiring initialized. Durable delivery still relies on the
+   * Firestore-backed idempotency/outbox path.
+   */
+  public isReady(): boolean {
+    return (
+      this.eventRegistry.has('payment.confirmed.v1:v1') &&
+      this.subscribers.has('payment.confirmed.v1')
+    );
+  }
+
+  /**
    * Returns recorded event history, optionally filtered by tenant ID.
    */
   public getEventHistory(tenantId?: string): EventEnvelope[] {
@@ -318,6 +331,7 @@ class EventBusService {
     this.eventRegistry.clear();
     this.eventHistory = [];
     this.seedDefaultEventRegistry();
+    this.subscribe('payment.confirmed.v1', handleSubscriptionPaymentConfirmed);
   }
 }
 

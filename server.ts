@@ -215,7 +215,12 @@ async function startServer() {
           error: { code: 'TENANT_REQUIRED', message: 'tenantId is required for execution history.' },
         });
       }
-      tenantIsolation.assertTenantIsolation(context.principal, effectiveTenantId, 'READ_AGENT_EXECUTIONS', context.requestId);
+      await masterAuthority.assertTenantAuthority(
+        context.principal,
+        effectiveTenantId,
+        'READ_AGENT_EXECUTIONS',
+        context.requestId,
+      );
       const executions = await agentExecutionRepository.list(effectiveTenantId);
       return res.json({ status: 'SUCCESS', executions });
     } catch (err) {
@@ -306,7 +311,8 @@ async function startServer() {
       const authHeader = req.headers.authorization;
       const tenantId = req.params.tenantId;
       const context = await securityContextFactory.createSecurityContext({ authHeader, targetTenantId: tenantId, ipAddress: req.ip });
-      const tenantCtx = tenantIsolation.assertTenantIsolation(context.principal, tenantId, 'VERIFY_TENANT', context.requestId);
+      await masterAuthority.assertTenantAuthority(context.principal, tenantId, 'VERIFY_TENANT', context.requestId);
+      const tenantCtx = tenantIsolation.resolveTenantContext(tenantId);
       res.json({ status: 'SUCCESS', tenantContext: tenantCtx, principal: context.principal });
     } catch (err) {
       if (err instanceof KernelError) {
@@ -327,7 +333,7 @@ async function startServer() {
       const context = await securityContextFactory.createSecurityContext({
         authHeader, targetTenantId: tenantId, ipAddress: req.ip,
       });
-      tenantIsolation.assertTenantIsolation(context.principal, tenantId, 'READ_AUDIT_LOGS', context.requestId);
+      await masterAuthority.assertTenantAuthority(context.principal, tenantId, 'READ_AUDIT_LOGS', context.requestId);
       const events = await (await import('./src/persistence/firestore/repositories/auditRepository')).auditRepository.listAudits(tenantId, 50);
       return res.json({ status: 'SUCCESS', events });
     } catch (err) {
@@ -891,9 +897,9 @@ async function startServer() {
         targetTenantId: dbkId,
         ipAddress: req.ip,
       });
-      tenantIsolation.assertTenantIsolation(
+      // Subscription tier is commercial authority, not a tenant-user setting.
+      masterAuthority.assertMasterAuthority(
         context.principal,
-        dbkId,
         'CHANGE_SUBSCRIPTION_TIER',
         context.requestId,
       );
@@ -908,10 +914,14 @@ async function startServer() {
         return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'DBK not found' } });
       }
 
-      dbk.subscriptionTier = tier;
-      await dbkRegistry.saveDbk(context, dbk);
+      const updatedDbk = await dbkRegistry.changeSubscriptionTier(
+        context,
+        dbkId,
+        tier,
+        'Subscription tier changed through Master commercial authority',
+      );
       entitlementEngine.setDbkSubscriptionTier(dbkId, tier);
-      res.json({ status: 'SUCCESS', dbkId, currentTier: tier });
+      res.json({ status: 'SUCCESS', dbkId, currentTier: updatedDbk.subscriptionTier });
     } catch (err) {
       if (err instanceof KernelError) return res.status(err.statusCode).json(err.toJSON());
       res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Unable to change subscription tier' } });
@@ -1098,6 +1108,32 @@ async function startServer() {
     }
   });
 
+  app.get('/api/platform/dbks/:dbkId/status', async (req: Request, res: Response) => {
+    try {
+      const { dbkId } = req.params;
+      const context = await securityContextFactory.createSecurityContext({
+        authHeader: req.headers.authorization,
+        targetTenantId: dbkId,
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+      });
+      const dbk = await dbkRegistry.getDbk(context, dbkId);
+      if (!dbk) return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'DBK not found' } });
+      const projection = await experienceProjection.getExperienceProjection(context, dbkId);
+      return res.json({
+        status: 'SUCCESS',
+        dbkId,
+        lifecycleStatus: dbk.status,
+        provisioningStage: dbk.provisioningStage || dbk.metadata?.provisioningStage || null,
+        shellReadiness: projection.status === 'ACTIVE' ? 'READY' : projection.status === 'SUSPENDED' ? 'SUSPENDED' : projection.status === 'ARCHIVED' ? 'ARCHIVED' : projection.status === 'PROVISIONING' ? 'BUILDING' : 'BLOCKED',
+        workspaceVersion: dbk.workspaceVersion,
+      });
+    } catch (err) {
+      if (err instanceof KernelError) return res.status(err.statusCode).json(err.toJSON());
+      return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Unable to read DBK status' } });
+    }
+  });
+
   app.get('/api/platform/projection/:dbkId', async (req: Request, res: Response) => {
     try {
       const authHeader = req.headers.authorization;
@@ -1190,7 +1226,7 @@ async function startServer() {
         targetBranchId: req.query.branchId as string | undefined,
         ipAddress: req.ip,
       });
-      tenantIsolation.assertTenantIsolation(
+      await masterAuthority.assertTenantAuthority(
         context.principal,
         dbkId,
         'READ_ENTITY_RECORDS',

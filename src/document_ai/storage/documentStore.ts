@@ -11,6 +11,7 @@
 import { DocumentMetadata, DocumentStatus, DocumentRetentionPolicy } from '../types';
 import { SecurityContext } from '../../kernel/types';
 import { tenantIsolation } from '../../kernel/tenancy/tenantIsolation';
+import { masterAuthority } from '../../kernel/master/masterAuthority';
 import { KernelError } from '../../kernel/errors/kernelErrors';
 import { auditLogger } from '../../kernel/audit/auditLogger';
 import { documentMetadataRepository } from '../../persistence/firestore/repositories/documentMetadataRepository';
@@ -43,7 +44,7 @@ export class DocumentStore {
     doc: DocumentMetadata,
     rawContent?: string
   ): void {
-    tenantIsolation.assertTenantIsolation(ctx.principal, doc.tenantId);
+    tenantIsolation.assertTenantIsolation(ctx.principal, doc.tenantId, 'PERSIST_DOCUMENT', ctx.requestId);
 
     if (!this.tenantDocumentIndex.has(doc.tenantId)) {
       this.tenantDocumentIndex.set(doc.tenantId, new Map());
@@ -68,7 +69,7 @@ export class DocumentStore {
     doc: DocumentMetadata,
     rawContent?: string
   ): Promise<void> {
-    tenantIsolation.assertTenantIsolation(ctx.principal, doc.tenantId);
+    await masterAuthority.assertTenantAuthority(ctx.principal, doc.tenantId, 'PERSIST_DOCUMENT', ctx.requestId);
 
     if (!this.tenantDocumentIndex.has(doc.tenantId)) {
       this.tenantDocumentIndex.set(doc.tenantId, new Map());
@@ -91,7 +92,7 @@ export class DocumentStore {
     doc: DocumentMetadata,
     rawContent: string
   ): Promise<void> {
-    tenantIsolation.assertTenantIsolation(ctx.principal, doc.tenantId);
+    await masterAuthority.assertTenantAuthority(ctx.principal, doc.tenantId, 'PERSIST_DOCUMENT_CONTENT', ctx.requestId);
 
     if (process.env.NODE_ENV === 'test') {
       this.binaryStore.set(doc.storagePath, rawContent);
@@ -145,7 +146,7 @@ export class DocumentStore {
     tenantId: string,
     documentId: string
   ): Promise<DocumentMetadata | null> {
-    tenantIsolation.assertTenantIsolation(ctx.principal, tenantId);
+    await masterAuthority.assertTenantAuthority(ctx.principal, tenantId, 'READ_DOCUMENT', ctx.requestId);
     const doc = await documentMetadataRepository.getDocument(tenantId, documentId);
     if (!doc) return null;
     if (ctx.principal.branchId && doc.branchId && ctx.principal.branchId !== doc.branchId && !ctx.principal.isMaster) {
@@ -160,7 +161,7 @@ export class DocumentStore {
     tenantId: string,
     branchId?: string
   ): Promise<DocumentMetadata[]> {
-    tenantIsolation.assertTenantIsolation(ctx.principal, tenantId);
+    await masterAuthority.assertTenantAuthority(ctx.principal, tenantId, 'LIST_DOCUMENTS', ctx.requestId);
     const effectiveBranch = branchId || (ctx.principal.isMaster ? undefined : ctx.principal.branchId);
     return documentMetadataRepository.listDocuments(tenantId, effectiveBranch);
   }
@@ -171,7 +172,7 @@ export class DocumentStore {
     tenantId: string,
     checksum: string
   ): Promise<DocumentMetadata | null> {
-    tenantIsolation.assertTenantIsolation(ctx.principal, tenantId);
+    await masterAuthority.assertTenantAuthority(ctx.principal, tenantId, 'FIND_DOCUMENT', ctx.requestId);
     const docs = await documentMetadataRepository.listDocuments(tenantId);
     return docs.find(d => d.checksum === checksum && d.status !== 'ARCHIVED' && d.status !== 'REJECTED') || null;
   }
@@ -182,7 +183,7 @@ export class DocumentStore {
     documentId: string,
     reason: string
   ): Promise<boolean> {
-    tenantIsolation.assertTenantIsolation(ctx.principal, tenantId);
+    await masterAuthority.assertTenantAuthority(ctx.principal, tenantId, 'DELETE_DOCUMENT', ctx.requestId);
     const doc = await this.getPersistentDocument(ctx, tenantId, documentId);
     if (!doc) throw new KernelError('NOT_FOUND', 'Document not found', 404, ctx.requestId);
     if (doc.retentionPolicy.legalHold) {
@@ -273,7 +274,7 @@ export class DocumentStore {
   }
 
   public async getRawContent(ctx: SecurityContext, doc: DocumentMetadata): Promise<string | null> {
-    tenantIsolation.assertTenantIsolation(ctx.principal, doc.tenantId);
+    await masterAuthority.assertTenantAuthority(ctx.principal, doc.tenantId, 'READ_DOCUMENT_CONTENT', ctx.requestId);
 
     if (process.env.NODE_ENV === 'test') {
       return this.binaryStore.get(doc.storagePath) || null;

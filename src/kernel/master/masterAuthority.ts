@@ -251,6 +251,9 @@ export class MasterAuthorityService {
    * Asserts Owner Portfolio or TDBK MASTER authority for DBK provisioning and management.
    */
   public assertOwnerOrMasterAuthority(principal: Principal, action: string, requestId?: string): void {
+    // Portfolio authority is deliberately restricted to TDBK MASTER and
+    // BUSINESS_OWNER. OWNER_OPERATOR is tenant-bound and must never gain
+    // cross-DBK provisioning/portfolio authority from this helper.
     const authorized = !!principal && (
       this.isMasterAdmin(principal) ||
       this.isBusinessOwner(principal)

@@ -16,6 +16,7 @@ import {
 } from '../types';
 import { SecurityContext } from '../../kernel/types';
 import { tenantIsolation } from '../../kernel/tenancy/tenantIsolation';
+import { masterAuthority } from '../../kernel/master/masterAuthority';
 import { KernelError } from '../../kernel/errors/kernelErrors';
 import { auditLogger } from '../../kernel/audit/auditLogger';
 import { documentStore } from '../storage/documentStore';
@@ -159,7 +160,7 @@ export class DocumentLifecycleManager {
     targetStatus: DocumentStatus,
     reason?: string
   ): Promise<DocumentMetadata> {
-    tenantIsolation.assertTenantIsolation(ctx.principal, tenantId);
+    await masterAuthority.assertTenantAuthority(ctx.principal, tenantId, 'TRANSITION_DOCUMENT', ctx.requestId);
     const doc = await documentStore.getPersistentDocument(ctx, tenantId, documentId);
     if (!doc) throw new KernelError('NOT_FOUND', 'Document not found', 404, ctx.requestId);
     const currentStatus = doc.status;
@@ -191,7 +192,7 @@ export class DocumentLifecycleManager {
     documentId: string,
     snapshot: Omit<DocumentProcessingHistory, 'processingVersion' | 'processedAt'>
   ): Promise<DocumentMetadata> {
-    tenantIsolation.assertTenantIsolation(ctx.principal, tenantId);
+    await masterAuthority.assertTenantAuthority(ctx.principal, tenantId, 'RECORD_DOCUMENT_PROCESSING', ctx.requestId);
     const doc = await documentStore.getPersistentDocument(ctx, tenantId, documentId);
     if (!doc) throw new KernelError('NOT_FOUND', 'Document not found', 404, ctx.requestId);
     const versionParts = doc.processingVersion.split('.');

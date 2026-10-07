@@ -14,11 +14,11 @@ import {
   AlertTriangle,
   ArrowLeft,
   Bot,
-  Building2,
   CheckCircle2,
   GitBranch,
   Menu,
   RefreshCw,
+  Settings,
   X,
 } from 'lucide-react';
 
@@ -33,6 +33,7 @@ type ShellError = 'UNAUTHORIZED' | 'ERROR' | null;
 export const DbkShell: React.FC<DbkShellProps> = ({
   initialDbkId,
   initialViewMode = 'PORTFOLIO',
+  onSwitchToMaster,
 }) => {
   const { getIdToken, user } = useAuth();
   const [dbkList, setDbkList] = useState<Array<any>>([]);
@@ -229,31 +230,62 @@ export const DbkShell: React.FC<DbkShellProps> = ({
   }
 
   const currentNav = experience?.navigation.find((item) => item.id === activeViewId || item.capabilityId === activeViewId);
+  const readyConnections = experience?.connections.filter((connection) => connection.ready).length ?? 0;
+  const needsConnectionSetup = experience?.connections.filter((connection) => !connection.ready).length ?? 0;
+  const goToSettings = () => {
+    setActiveViewId('settings');
+    setIsMobileMenuOpen(false);
+  };
+
+  const provisioningStageLabel: Record<string, string> = {
+    REGISTRATION_ACCEPTED: 'Registration accepted',
+    IDENTITY_READY: 'Identity ready',
+    BLUEPRINT_READY: 'Blueprint ready',
+    DNA_READY: 'Business DNA ready',
+    ENTITLEMENT_READY: 'Entitlement ready',
+    CAPABILITIES_READY: 'Capabilities ready',
+    BRANCHES_READY: 'Branches ready',
+    WORKSPACE_READY: 'Workspace ready',
+    ACTIVATION_VERIFIED: 'Activation verified',
+    FAILED: 'Provisioning failed',
+  };
+
+  const shellStatusLabel = experience?.shellReadiness === 'READY'
+    ? 'Shell ready'
+    : experience?.shellReadiness === 'BUILDING'
+      ? 'Building workspace'
+      : experience?.shellReadiness === 'BLOCKED'
+        ? 'Provisioning blocked'
+        : experience?.shellReadiness === 'SUSPENDED'
+          ? 'Workspace suspended'
+          : experience?.shellReadiness === 'ARCHIVED'
+            ? 'Workspace archived'
+            : 'Preparing workspace';
 
   return (
-    <div className="flex min-h-screen flex-col bg-neutral-950 font-sans text-neutral-100">
-      <header className="sticky top-0 z-40 border-b border-neutral-800 bg-neutral-950/95 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
+    <div className="flex min-h-screen flex-col bg-[#F7F7F4] font-sans text-neutral-950">
+      <header className="sticky top-0 z-40 border-b border-neutral-200 bg-white/95 backdrop-blur">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3.5 sm:px-6">
           <div className="flex min-w-0 items-center gap-2.5">
             <button
               type="button"
-              onClick={() => setViewMode('PORTFOLIO')}
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-neutral-800 bg-neutral-900 px-2.5 py-2 text-xs font-semibold text-neutral-300 hover:bg-neutral-800"
+              onClick={() => (onSwitchToMaster ? onSwitchToMaster() : setViewMode('PORTFOLIO'))}
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-neutral-200 bg-white px-2.5 py-2 text-xs font-semibold text-neutral-700 shadow-sm hover:bg-neutral-50"
             >
               <ArrowLeft className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">My organizations</span>
             </button>
 
-            <div className="hidden h-6 w-px bg-neutral-800 sm:block" />
+            <div className="hidden h-6 w-px bg-neutral-200 sm:block" />
 
             <select
               aria-label="Switch organization"
               value={selectedDbkId}
               onChange={(event) => handleSelectDbk(event.target.value)}
-              className="max-w-[180px] rounded-lg border border-neutral-800 bg-neutral-900 px-2.5 py-2 text-xs font-semibold text-white outline-none focus:border-indigo-500 sm:max-w-[260px]"
+              className="max-w-[180px] rounded-xl border border-neutral-200 bg-white px-3 py-2 text-xs font-bold text-neutral-900 outline-none focus:border-neutral-500 sm:max-w-[280px]"
             >
               {dbkList.map((dbk) => (
-                <option key={dbk.dbkId} value={dbk.dbkId} className="bg-neutral-900 text-white">
+                <option key={dbk.dbkId} value={dbk.dbkId} className="bg-white text-neutral-900">
                   {dbk.displayName || dbk.legalName}
                 </option>
               ))}
@@ -262,13 +294,13 @@ export const DbkShell: React.FC<DbkShellProps> = ({
 
           <div className="flex items-center gap-2">
             {experience?.availableBranches?.length > 0 && (
-              <div className="hidden items-center gap-1.5 rounded-lg border border-neutral-800 bg-neutral-900 px-2.5 py-2 sm:flex">
+              <div className="hidden items-center gap-1.5 rounded-xl border border-neutral-200 bg-white px-2.5 py-2 sm:flex shadow-sm">
                 <GitBranch className="h-3.5 w-3.5 text-emerald-400" />
                 <select
                   aria-label="Switch location"
                   value={experience.activeBranch.branchId}
                   onChange={(event) => handleBranchSwitch(event.target.value)}
-                  className="max-w-[150px] bg-transparent text-xs font-medium text-neutral-200 outline-none"
+                  className="max-w-[150px] bg-transparent text-xs font-semibold text-neutral-700 outline-none"
                 >
                   {experience.availableBranches.map((branch) => (
                     <option key={branch.branchId} value={branch.branchId} className="bg-neutral-900 text-white">
@@ -282,7 +314,7 @@ export const DbkShell: React.FC<DbkShellProps> = ({
             <button
               type="button"
               onClick={() => setActiveViewId('view_doc_ai')}
-              className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-2 text-xs font-semibold transition ${activeViewId === 'view_doc_ai' ? 'border-emerald-500 bg-emerald-600 text-white' : 'border-neutral-800 bg-neutral-900 text-neutral-300 hover:bg-neutral-800'}`}
+              className={`inline-flex items-center gap-1.5 rounded-xl border px-2.5 py-2 text-xs font-semibold transition ${activeViewId === 'view_doc_ai' ? 'border-neutral-950 bg-neutral-950 text-white' : 'border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50'}`}
             >
               <Bot className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">AI & documents</span>
@@ -291,7 +323,7 @@ export const DbkShell: React.FC<DbkShellProps> = ({
             <button
               type="button"
               onClick={() => setIsMobileMenuOpen((open) => !open)}
-              className="rounded-lg border border-neutral-800 bg-neutral-900 p-2 text-neutral-300 hover:bg-neutral-800 md:hidden"
+              className="rounded-xl border border-neutral-200 bg-white p-2 text-neutral-700 hover:bg-neutral-50 md:hidden"
               aria-label="Open navigation"
             >
               {isMobileMenuOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
@@ -301,27 +333,36 @@ export const DbkShell: React.FC<DbkShellProps> = ({
       </header>
 
       <div className="mx-auto flex w-full max-w-7xl flex-1">
+        <div className="pointer-events-none fixed inset-x-0 top-[65px] z-20 mx-auto hidden max-w-7xl px-4 sm:px-6 md:block">
+          <div className="flex justify-end pt-3">
+            <div className="pointer-events-auto inline-flex items-center gap-2 rounded-full border border-neutral-200 bg-white/95 px-3 py-2 text-[11px] font-semibold text-neutral-600 shadow-sm backdrop-blur">
+              <span className="h-2 w-2 rounded-full bg-emerald-500" />
+              {readyConnections} connection{readyConnections === 1 ? '' : 's'} ready
+              {needsConnectionSetup > 0 && <><span className="text-neutral-300">·</span><button type="button" onClick={goToSettings} className="text-amber-700 hover:text-amber-900">{needsConnectionSetup} need setup</button></>}
+            </div>
+          </div>
+        </div>
         <aside
-          className={`w-64 shrink-0 border-r border-neutral-800 bg-neutral-950 p-4 md:block ${isMobileMenuOpen ? 'fixed inset-y-0 left-0 z-50 block w-72' : 'hidden'}`}
+          className={`w-64 shrink-0 border-r border-neutral-200 bg-white p-4 md:block ${isMobileMenuOpen ? 'fixed inset-y-0 left-0 z-50 block w-72' : 'hidden'}`}
         >
           {isMobileMenuOpen && (
-            <div className="mb-4 flex items-center justify-between border-b border-neutral-800 pb-3 md:hidden">
+            <div className="mb-4 flex items-center justify-between border-b border-neutral-200 pb-3 md:hidden">
               <span className="text-sm font-semibold">Organization menu</span>
-              <button type="button" onClick={() => setIsMobileMenuOpen(false)} className="rounded-lg p-1.5 text-neutral-400 hover:bg-neutral-800">
+              <button type="button" onClick={() => setIsMobileMenuOpen(false)} className="rounded-lg p-1.5 text-neutral-500 hover:bg-neutral-100">
                 <X className="h-4 w-4" />
               </button>
             </div>
           )}
 
           {experience && (
-            <nav aria-label="Organization navigation" className="space-y-5">
+            <nav aria-label="Organization navigation" className="space-y-6">
               {categories.map((category) => {
                 const items = experience.navigation.filter((item) => item.category === category.key);
                 if (items.length === 0) return null;
 
                 return (
                   <div key={category.key}>
-                    <p className="mb-1.5 px-2.5 text-[10px] font-bold uppercase tracking-wider text-neutral-500">{category.label}</p>
+                    <p className="mb-2 px-2.5 text-[10px] font-black uppercase tracking-[0.16em] text-neutral-400">{category.label}</p>
                     <div className="space-y-1">
                       {items.map((item) => {
                         const isActive = activeViewId === item.id ||
@@ -338,14 +379,14 @@ export const DbkShell: React.FC<DbkShellProps> = ({
                               setActiveViewId(item.capabilityId || item.id);
                               setIsMobileMenuOpen(false);
                             }}
-                            className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2.5 text-left text-xs font-medium transition ${isActive ? 'border border-indigo-500/40 bg-indigo-500/15 text-indigo-200' : 'text-neutral-400 hover:bg-neutral-900 hover:text-neutral-200'}`}
+                            className={`flex w-full items-center justify-between rounded-xl px-2.5 py-2.5 text-left text-xs font-semibold transition ${isActive ? 'bg-neutral-950 text-white shadow-sm' : 'text-neutral-500 hover:bg-neutral-50 hover:text-neutral-900'}`}
                           >
                             <span className="flex min-w-0 items-center gap-2.5">
                               <DynamicIcon name={item.iconName} className="h-4 w-4 shrink-0" />
                               <span className="truncate">{item.label}</span>
                             </span>
                             {item.badge !== undefined && (
-                              <span className="ml-2 rounded bg-indigo-500/20 px-1.5 py-0.5 text-[9px] font-bold text-indigo-300">{item.badge}</span>
+                              <span className="ml-2 rounded-full bg-neutral-100 px-1.5 py-0.5 text-[9px] font-bold text-neutral-500">{item.badge}</span>
                             )}
                           </button>
                         );
@@ -358,33 +399,33 @@ export const DbkShell: React.FC<DbkShellProps> = ({
           )}
         </aside>
 
-        <main className="min-w-0 flex-1 overflow-y-auto p-4 sm:p-6">
+        <main className="min-w-0 flex-1 overflow-y-auto p-4 pt-8 sm:p-6 sm:pt-10">
           {isLoading && !experience ? (
             <div className="flex min-h-[50vh] items-center justify-center">
               <div className="max-w-sm text-center">
-                <RefreshCw className="mx-auto h-7 w-7 animate-spin text-indigo-400" />
+                <RefreshCw className="mx-auto h-7 w-7 animate-spin text-neutral-400" />
                 <h1 className="mt-4 text-lg font-semibold">Opening your organization</h1>
                 <p className="mt-1 text-sm text-neutral-500">Loading the workspace available to your account.</p>
               </div>
             </div>
           ) : errorKind === 'UNAUTHORIZED' ? (
-            <div className="mx-auto mt-10 max-w-lg rounded-2xl border border-amber-800/50 bg-amber-950/20 p-7 text-center">
+            <div className="mx-auto mt-10 max-w-lg rounded-3xl border border-amber-200 bg-amber-50 p-7 text-center">
               <AlertTriangle className="mx-auto h-7 w-7 text-amber-400" />
               <h1 className="mt-4 text-lg font-semibold">Access not available</h1>
-              <p className="mt-2 text-sm leading-6 text-neutral-400">{error || 'Your account does not currently have access to this organization or action.'}</p>
+              <p className="mt-2 text-sm leading-6 text-neutral-600">{error || 'Your account does not currently have access to this organization or action.'}</p>
               <button type="button" onClick={() => setViewMode('PORTFOLIO')} className="mt-5 inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2.5 text-sm font-semibold text-neutral-900 hover:bg-neutral-100">
                 <ArrowLeft className="h-4 w-4" />
                 Back to organizations
               </button>
             </div>
           ) : error ? (
-            <div className="mx-auto mt-10 max-w-lg rounded-2xl border border-rose-900/60 bg-rose-950/20 p-7">
+            <div className="mx-auto mt-10 max-w-lg rounded-3xl border border-rose-200 bg-rose-50 p-7">
               <div className="flex items-start gap-3">
                 <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-rose-400" />
                 <div>
                   <h1 className="font-semibold">Something went wrong</h1>
                   <p className="mt-1 text-sm leading-6 text-neutral-400">{error}</p>
-                  <button type="button" onClick={() => resolveExperience(selectedDbkId, selectedBranchId)} className="mt-4 inline-flex items-center gap-2 rounded-lg bg-white px-3.5 py-2 text-sm font-semibold text-neutral-900 hover:bg-neutral-100">
+                  <button type="button" onClick={() => resolveExperience(selectedDbkId, selectedBranchId)} className="mt-4 inline-flex items-center gap-2 rounded-xl bg-neutral-950 px-3.5 py-2 text-sm font-semibold text-white hover:bg-neutral-800">
                     <RefreshCw className="h-4 w-4" />
                     Try again
                   </button>
@@ -393,17 +434,34 @@ export const DbkShell: React.FC<DbkShellProps> = ({
             </div>
           ) : experience ? (
             <div>
-              <div className="mb-5 flex flex-col gap-3 border-b border-neutral-900 pb-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">{experience.activeBranch.name}</p>
-                  <h1 className="mt-1 truncate text-xl font-bold sm:text-2xl">{experience.displayName}</h1>
-                  {currentNav?.label && activeViewId !== 'nav_overview' && (
-                    <p className="mt-1 text-sm text-neutral-400">{currentNav.label}</p>
-                  )}
-                </div>
-                <div className="inline-flex w-fit items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-[10px] font-semibold text-emerald-300">
-                  <CheckCircle2 className="h-3.5 w-3.5" />
-                  {experience.operationalState || 'Ready'}
+              <div className="mb-6 rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm sm:p-6">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="rounded-full bg-neutral-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-neutral-500">{experience.sector}</span>
+                      <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-emerald-700">{experience.subscriptionTier}</span>
+                      <span className="rounded-full bg-neutral-100 px-2.5 py-1 text-[10px] font-semibold text-neutral-600">{experience.activeBranch.name}</span>
+                    </div>
+                    <p className="mt-3 text-[11px] font-black uppercase tracking-[0.18em] text-emerald-700">Your TDBK workspace</p>
+                    <h1 className="mt-1 truncate text-2xl font-bold tracking-tight sm:text-3xl">{experience.displayName}</h1>
+                    <p className="mt-1 text-sm text-neutral-500">{currentNav?.label || 'Today at a glance'} · {experience.operationalState === 'ACTIVE' ? 'Operational' : experience.operationalState.toLowerCase()}</p>
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <span className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 bg-neutral-50 px-2.5 py-1 text-[10px] font-bold text-neutral-600">
+                        <span className={experience.shellReadiness === 'READY' ? 'h-1.5 w-1.5 rounded-full bg-emerald-500' : 'h-1.5 w-1.5 rounded-full bg-amber-500'} />
+                        {shellStatusLabel}
+                      </span>
+                      {experience.provisioningStage && (
+                        <span className="rounded-full border border-neutral-200 bg-white px-2.5 py-1 text-[10px] font-semibold text-neutral-500">
+                          {provisioningStageLabel[experience.provisioningStage] || experience.provisioningStage}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button type="button" onClick={() => setActiveViewId('nav_overview')} className="inline-flex items-center gap-2 rounded-xl border border-neutral-200 bg-white px-3.5 py-2.5 text-xs font-bold text-neutral-700 hover:bg-neutral-50"><CheckCircle2 className="h-4 w-4 text-emerald-600" /> Today</button>
+                    <button type="button" onClick={goToSettings} className="inline-flex items-center gap-2 rounded-xl border border-neutral-200 bg-white px-3.5 py-2.5 text-xs font-bold text-neutral-700 hover:bg-neutral-50"><Settings className="h-4 w-4" /> Connections</button>
+                    <button type="button" onClick={() => setActiveViewId('view_doc_ai')} className="inline-flex items-center gap-2 rounded-xl bg-neutral-950 px-3.5 py-2.5 text-xs font-bold text-white hover:bg-neutral-800"><Bot className="h-4 w-4" /> AI assistant</button>
+                  </div>
                 </div>
               </div>
 
@@ -418,7 +476,7 @@ export const DbkShell: React.FC<DbkShellProps> = ({
                   onRefreshExperience={() => resolveExperience(selectedDbkId, selectedBranchId)}
                 />
               ) : activeViewId === 'nav_settings' || activeViewId === 'settings' ? (
-                <SettingsView experience={experience} onDispatchCommand={handleDispatchCommand} />
+                <SettingsView experience={experience} onDispatchCommand={handleDispatchCommand} onRefreshExperience={() => resolveExperience(selectedDbkId, selectedBranchId)} />
               ) : currentNav?.viewType === 'CUSTOM_CLASSROOM' || activeViewId === 'smart_classroom' ? (
                 <SmartClassroomView
                   tenantId={selectedDbkId}

@@ -16,6 +16,7 @@ import { discoveryEngine } from '../capability/discovery';
 import { KernelError } from '../kernel/errors/kernelErrors';
 import { saleTransactionService } from '../business/sales/saleTransactionService';
 import { connectionHub } from '../orchestration/bridge/connectionHub';
+import { dbkLifecycleManager } from '../platform/lifecycle/lifecycleManager';
 
 export class ExperienceResolver {
   private static instance: ExperienceResolver;
@@ -30,7 +31,9 @@ export class ExperienceResolver {
   }
 
   public async resolveExperience(context: SecurityContext, dbkId: string, requestedBranchId?: string): Promise<DbkExperienceResolved> {
-    // 1. Assert tenant access
+    // Experience resolution is a read/projection operation. Keep it available
+    // for suspended/archived DBKs so the shell can truthfully render lifecycle
+    // state and explain why operational actions are unavailable.
     await masterAuthority.assertTenantAuthority(context, dbkId, 'resolveExperience');
 
     // 2. Compile workspace state
@@ -88,6 +91,8 @@ export class ExperienceResolver {
       displayName: workspace.displayName,
       sector: workspace.sector,
       status: workspace.status,
+      provisioningStage: workspace.provisioningStage,
+      shellReadiness: workspace.shellReadiness,
       subscriptionTier: workspace.subscriptionTier,
       workspaceVersion: workspace.workspaceVersion,
       configurationVersion: workspace.configurationVersion,
@@ -137,6 +142,7 @@ export class ExperienceResolver {
     const timestamp = new Date().toISOString();
     try {
       await masterAuthority.assertTenantAuthority(context, req.targetDbkId, 'dispatchCommand');
+      await dbkLifecycleManager.assertDbkOperational(context, req.targetDbkId);
 
       let updatedExperience: DbkExperienceResolved | undefined;
 

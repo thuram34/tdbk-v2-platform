@@ -51,7 +51,9 @@ export class RBACEngineService {
       };
     }
 
-    // 2. Tenant isolation check (if tenant-scoped)
+    // 2. Synchronous tenant isolation check.
+    // Portfolio ownership is a durable async decision and is handled by
+    // authorizeAsync(). The synchronous primitive remains strict.
     let validatedTenantContext: TenantContext | null = null;
     if (tenantId) {
       try {
@@ -166,7 +168,7 @@ export class RBACEngineService {
     }
 
     try {
-      if (tenantId) tenantIsolation.assertTenantIsolation(principal, tenantId, action, requestId);
+      if (tenantId) await masterAuthority.assertTenantAuthority(principal, tenantId, action, requestId);
       if (branchId) {
         await branchAuthority.assertPersistentBranchContext(
           principal,

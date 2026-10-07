@@ -18,6 +18,7 @@ export default function App() {
   const [publicView, setPublicView] = useState<PublicView>('FLOW');
   const [showBusinessDiscovery, setShowBusinessDiscovery] = useState(false);
   const [dbkId, setDbkId] = useState<string | null>(null);
+  const [justProvisioned, setJustProvisioned] = useState(false);
   const [idToken, setIdToken] = useState('');
   const [dbksLoading, setDbksLoading] = useState(true);
   const [dbks, setDbks] = useState<DbkIdentity[]>([]);
@@ -45,8 +46,12 @@ export default function App() {
       const requestedDbk = typeof window !== 'undefined'
         ? new URLSearchParams(window.location.search).get('dbk')
         : null;
-      if (requestedDbk && result.some((dbk) => dbk.dbkId === requestedDbk)) {
-        setDbkId(requestedDbk);
+      const rememberedDbk = typeof window !== 'undefined'
+        ? window.localStorage.getItem('tdbk:last-workspace')
+        : null;
+      const preferredDbk = requestedDbk || rememberedDbk;
+      if (preferredDbk && result.some((dbk) => dbk.dbkId === preferredDbk && dbk.status === 'ACTIVE')) {
+        setDbkId(preferredDbk);
       }
     } catch (error) {
       console.error('Failed to load organizations:', error);
@@ -162,6 +167,7 @@ export default function App() {
       <BusinessDiscovery
         onProvisioned={async (provisionedDbkId: string) => {
           setShowBusinessDiscovery(false);
+          setJustProvisioned(true);
           setDbkId(provisionedDbkId);
           await loadDbks();
         }}
@@ -190,6 +196,7 @@ export default function App() {
     return (
       <DbkApp
         dbkId={dbkId}
+        autoOpenInstall={justProvisioned}
         onLogout={async () => {
           await signOutUser();
           window.history.replaceState({}, '', window.location.pathname);
