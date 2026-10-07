@@ -39,6 +39,7 @@ export async function runDbkProvisioningTestSuite(): Promise<DbkProvisioningTest
     tenantId: 'tdbk_master',
     roles: ['TDBK_MASTER_ADMIN'],
     permissions: ['*'],
+    isMaster: true,
   });
   const masterContext = await securityContextFactory.createSecurityContext({
     authHeader: `Bearer ${masterToken}`,
