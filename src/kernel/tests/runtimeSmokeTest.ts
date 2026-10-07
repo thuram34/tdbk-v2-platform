@@ -50,6 +50,9 @@ export class RuntimeSmokeTestRunner {
     });
 
     // RUNTIME_04
+    // Readiness is an operational check, so establish the durable marker as
+    // bootstrap would before evaluating it.
+    await healthMonitoring.initializeReadinessMarker();
     const ready = await healthMonitoring.getReadyStatus();
     results.push({
       testId: 'RUNTIME_04',
