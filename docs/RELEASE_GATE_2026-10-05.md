@@ -1,8 +1,9 @@
-# TDBK V2 — Release Gate — 2026-10-05
+# TDBK V2 — Release Gate — 2026-10-07
 
 ## Code gate
 
-- Main head: d64ed359ad4776bcd20ef2e04cb68cf8876533a5
+- Main release baseline: d64ed359ad4776bcd20ef2e04cb68cf8876533a5
+- Grand-operation work: PR #390 (`codex/vertical-completion`)
 - Finalization PR #304: merged
 - CI run #809: PASS
 - Typecheck: PASS
@@ -44,4 +45,4 @@ The UI's new-business flow is designed to land directly in the newly provisioned
 
 ## Current release posture
 
-The platform codebase is green on the automated release gate. External provider onboarding remains a tenant/environment gate, not a reason to fabricate a global GREEN bridge status.
+**NOT RELEASE-READY YET.** The merged baseline is green, but PR #390 is still undergoing the grand-operation audit. Current work includes vertical runtime completion, durable membership RBAC, public publication, Sokoni integration, reconciliation enforcement, readiness hardening and connector completion. No global GREEN claim is made until the final PR head passes CI and the grand acceptance matrix.
