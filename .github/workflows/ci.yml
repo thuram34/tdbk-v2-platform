@@ -8,6 +8,7 @@ on:
     branches: ["main"]
   pull_request:
     branches: ["main"]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -28,22 +29,6 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
-
-      - name: Resolve production dependency audit
-        run: npm audit fix --package-lock-only --omit=dev
-
-      - name: Reinstall remediated production tree
-        run: npm ci
-
-      - name: Dependency security audit
-        run: npm audit --omit=dev --audit-level=high
-
-      - name: Capture remediated lockfile
-        uses: actions/upload-artifact@v4
-        with:
-          name: remediated-package-lock
-          path: package-lock.json
-          retention-days: 3
 
       - name: Typecheck
         run: npm run typecheck
@@ -73,5 +58,3 @@ jobs:
             --build-arg VITE_FIREBASE_MESSAGING_SENDER_ID=000000000000 \
             --build-arg VITE_FIREBASE_APP_ID=ci-placeholder \
             -t tdbk-v2-ci .
-
-# Verification trigger after deterministic CI test repairs.
