@@ -106,3 +106,10 @@ No production source files were changed.
 
 ## Conclusion
 The current readiness boundary is materially better than the historical process-uptime-only implementation, but it is not a complete production dependency gate. It is therefore **PARTIAL**, with the broader readiness contract at **MASTER REVIEW REQUIRED** rather than being invented in this task.
+
+
+## Grand Operation Superseding Status — 2026-10-07
+
+The historical readiness defect is addressed on the current grand-operation branch. Server bootstrap now establishes a durable `/system/readiness` marker and readiness requires that marker to exist with the expected schema/service identity.
+
+The current readiness contract also distinguishes bridge adapter registration from tenant/provider configuration; global readiness does not falsely claim that every external provider is connected.
