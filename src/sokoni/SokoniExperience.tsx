@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ArrowLeft, ArrowRight, ChevronDown, Clock3, Compass, MapPin, Phone, Search, Sparkles, UserRound, Wrench, X } from 'lucide-react';
 import { tdbkPublicDiscoveryAdapter, SokoniDiscoveryResult, SokoniLocationContext } from './SokoniDiscoveryAdapter';
 import { ProviderCard } from './SokoniPresentationCards';
-import { listSokoniParticipants, SokoniParticipant } from './persistence/sokoniParticipantPersistence';
+import { deleteSokoniParticipant, listOwnedSokoniParticipants, listSokoniParticipants, SokoniParticipant } from './persistence/sokoniParticipantPersistence';
 
 type View = 'HOME' | 'SEARCH' | 'RESULTS' | 'PROVIDER' | 'PARTICIPANT' | 'ACTIVITY' | 'ACCOUNT';
 type DiscoveryMode = 'PUBLIC' | 'TDBK_ENROLLED_PREVIEW';
@@ -29,6 +29,19 @@ export function SokoniExperience({ onBack }: { onBack?: () => void }) {
   const [participantLoading, setParticipantLoading] = useState(false);
   const [participantError, setParticipantError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [ownedParticipants, setOwnedParticipants] = useState<SokoniParticipant[]>([]);
+  const [ownedLoading, setOwnedLoading] = useState(false);
+
+  useEffect(() => {
+    if (view !== 'ACCOUNT') return;
+    let cancelled = false;
+    setOwnedLoading(true);
+    listOwnedSokoniParticipants()
+      .then((items) => { if (!cancelled) setOwnedParticipants(items); })
+      .catch(() => { if (!cancelled) setOwnedParticipants([]); })
+      .finally(() => { if (!cancelled) setOwnedLoading(false); });
+    return () => { cancelled = true; };
+  }, [view]);
 
   const discover = async () => {
     if (!need.trim() || loading) return;
@@ -80,7 +93,7 @@ export function SokoniExperience({ onBack }: { onBack?: () => void }) {
       {view === 'PARTICIPANT' && selectedParticipant && <ParticipantDetail participant={selectedParticipant} onBack={back} />}
       {view === 'PROVIDER' && result?.providers[0] && <section className="mx-auto max-w-3xl pt-8 sm:pt-12"><div className="rounded-[30px] border border-neutral-200 bg-white p-5 shadow-sm sm:p-8"><div className="flex items-center gap-4"><div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-neutral-950 text-white"><Wrench className="h-7 w-7" /></div><div><span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-800">TDBK PUBLISHED</span><h1 className="mt-2 text-2xl font-black">{result.providers[0].displayName}</h1><p className="mt-1 text-sm text-neutral-500">{result.providers[0].summary}</p></div></div><div className="mt-7 rounded-2xl border border-neutral-200 bg-neutral-50 p-4"><p className="text-xs font-black uppercase tracking-wide text-neutral-400">Published directory boundary</p><p className="mt-2 text-sm leading-6 text-neutral-700">Identity and publication are authoritative. Availability, pricing, trust and commercial transactions remain separate contracts and are not fabricated here.</p></div><div className="mt-6 grid gap-3 sm:grid-cols-2">{result.providers[0].services.map((service) => <div key={service} className="rounded-2xl border border-neutral-200 p-4 text-sm font-semibold">{service}</div>)}</div><div className="mt-7 rounded-2xl border border-neutral-200 bg-neutral-50 px-5 py-4 text-center text-sm font-bold text-neutral-600">Service requests are not activated for this published directory yet.</div></div></section>}
       {view === 'ACTIVITY' && <section className="mx-auto max-w-3xl pt-10"><h1 className="text-3xl font-black">Activity</h1><div className="mt-5 rounded-3xl border border-dashed border-neutral-300 bg-white p-8 text-center"><Clock3 className="mx-auto h-7 w-7 text-neutral-400" /><p className="mt-3 font-bold">No authoritative activity connected</p><p className="mt-1 text-sm text-neutral-500">Requests, purchases, applications and service status appear here only when backed by approved contracts.</p></div></section>}
-      {view === 'ACCOUNT' && <section className="mx-auto max-w-3xl pt-10"><h1 className="text-3xl font-black">Account</h1><div className="mt-5 rounded-3xl border border-neutral-200 bg-white p-6"><p className="text-sm font-bold">Discovery preferences</p><p className="mt-2 text-sm text-neutral-500">Your selected discovery area is a local preference. Identity and TDBK account authority remain outside Sokoni.</p><div className="mt-5 rounded-2xl bg-neutral-50 p-4 text-sm font-semibold">{location.label}</div></div></section>}
+      {view === 'ACCOUNT' && <section className="mx-auto max-w-3xl pt-10"><h1 className="text-3xl font-black">Account</h1><div className="mt-5 rounded-3xl border border-neutral-200 bg-white p-6"><p className="text-sm font-bold">Discovery preferences</p><p className="mt-2 text-sm text-neutral-500">Your selected discovery area is a local preference. Identity and TDBK account authority remain outside Sokoni.</p><div className="mt-5 rounded-2xl bg-neutral-50 p-4 text-sm font-semibold">{location.label}</div></div><div className="mt-5 rounded-3xl border border-neutral-200 bg-white p-6"><div className="flex items-center justify-between gap-3"><div><p className="text-sm font-bold">My Sokoni participants</p><p className="mt-1 text-xs text-neutral-500">Owner-managed participant records for this authenticated identity.</p></div><span className="rounded-full bg-neutral-100 px-2.5 py-1 text-[10px] font-black">{ownedParticipants.length}</span></div>{ownedLoading ? <p className="mt-5 text-sm text-neutral-500">Loading your participant records…</p> : ownedParticipants.length === 0 ? <p className="mt-5 text-sm text-neutral-500">No owner-managed participant records found.</p> : <div className="mt-5 space-y-3">{ownedParticipants.map((participant) => <div key={participant.id} className="flex items-center justify-between gap-3 rounded-2xl border border-neutral-200 p-4"><div><p className="text-sm font-bold">{participant.publicName}</p><p className="mt-1 text-xs text-neutral-500">{participant.category} · {participant.publicationStatus}</p></div><button type="button" onClick={async () => { await deleteSokoniParticipant(participant.id); setOwnedParticipants((current) => current.filter((item) => item.id !== participant.id)); }} className="rounded-xl border border-red-200 px-3 py-2 text-[11px] font-bold text-red-700">Delete</button></div>)}</div>}</div></section>}
     </div>
 
     <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-neutral-200 bg-white/95 backdrop-blur-xl sm:hidden"><div className="mx-auto grid max-w-lg grid-cols-4 px-2 py-2"><NavButton active={view === 'HOME'} label="Home" icon={<Compass className="h-4 w-4" />} onClick={() => setView('HOME')} /><NavButton active={view === 'SEARCH' || view === 'RESULTS' || view === 'PARTICIPANT' || view === 'PROVIDER'} label="Search" icon={<Search className="h-4 w-4" />} onClick={() => setView('SEARCH')} /><NavButton active={view === 'ACTIVITY'} label="Activity" icon={<Clock3 className="h-4 w-4" />} onClick={() => setView('ACTIVITY')} /><NavButton active={view === 'ACCOUNT'} label="Account" icon={<UserRound className="h-4 w-4" />} onClick={() => setView('ACCOUNT')} /></div></nav>
