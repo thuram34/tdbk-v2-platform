@@ -5,6 +5,7 @@ import { rbacEngine } from '../../kernel/authorization/rbacEngine';
 import { auditLogger } from '../../kernel/audit/auditLogger';
 import { workflowStepExecutionRepository } from '../../persistence/firestore/repositories/workflowStepExecutionRepository';
 import { bridgeRegistry } from './registry';
+import { workflowEngine } from '../workflow/engine';
 
 export class ExternalReconciliationService {
   private static instance: ExternalReconciliationService;
@@ -66,7 +67,8 @@ export class ExternalReconciliationService {
         requestId: context.requestId,
         details: { provider: execution.providerName, outcome: 'RECONCILED_SUCCESS', providerReference: execution.providerReference },
       });
-      return { status: 'RECONCILED_SUCCESS', execution: reconciled, providerResult };
+      const resumedWorkflow = await workflowEngine.executeWorkflow(context, execution.workflowId);
+      return { status: 'RECONCILED_SUCCESS', execution: reconciled, providerResult, workflow: resumedWorkflow };
     }
 
     if (providerResult.status === 'FAILED') {
@@ -81,7 +83,8 @@ export class ExternalReconciliationService {
         requestId: context.requestId,
         details: { provider: execution.providerName, outcome: 'RECONCILED_FAILURE', providerReference: execution.providerReference },
       });
-      return { status: 'RECONCILED_FAILURE', execution: reconciled, providerResult };
+      const resumedWorkflow = await workflowEngine.executeWorkflow(context, execution.workflowId);
+      return { status: 'RECONCILED_FAILURE', execution: reconciled, providerResult, workflow: resumedWorkflow };
     }
 
     return { status: 'STILL_PENDING', execution, providerResult };
