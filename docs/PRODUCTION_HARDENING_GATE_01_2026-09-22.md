@@ -141,3 +141,10 @@ No changes were made to:
 ## Conclusion
 
 The inspected production authorization and persistence paths satisfy the requested Gate 01 controls at the API/service boundary, with the explicit exceptions above. No unrelated work was performed.
+
+
+## Grand Operation Superseding Status — 2026-10-07
+
+The historical findings above remain the evidence record for the September audit. The synthetic provisioning identity finding has since been addressed on the current grand-operation branch: provisioning workflow metadata carries the authenticated initiating actor snapshot and step contexts no longer invent a TDBK_MASTER_ADMIN principal.
+
+The remaining production requirement is final CI/runtime evidence on the current branch, not reinterpretation of this historical finding.
