@@ -32,21 +32,21 @@ service cloud.firestore {
     }
 
     // Sokoni owns this public participant projection independently of TDBK.
-    // Public discovery can read only explicitly ACTIVE participant records.
-    match /sokoniParticipants/{participantId} {
-      allow read: if resource.data.publicationStatus == 'ACTIVE' || (isSignedIn() && resource.data.ownerUid == request.auth.uid);
+    // Commercial activation is server-authoritative: clients may create/update
+    // their own non-paid draft state but cannot mark paid records ACTIVE.
+    match /system/sokoniParticipants/{participantId} {
+      allow read: if resource.data.publicationStatus == 'ACTIVE'
+        || (isSignedIn() && resource.data.ownerUid == request.auth.uid);
       allow create: if isSignedIn()
         && request.resource.data.ownerUid == request.auth.uid
-        && request.resource.data.publicationStatus in ['DRAFT', 'ACTIVE']
-        && request.resource.data.tdbkRelationship == 'NOT_ENROLLED'
-        && (request.resource.data.publicationStatus == 'DRAFT' || request.resource.data.commercial.state == 'NONE');
+        && request.resource.data.publicationStatus == 'DRAFT'
+        && request.resource.data.tdbkRelationship == 'NOT_ENROLLED';
       allow update: if isSignedIn()
         && resource.data.ownerUid == request.auth.uid
         && request.resource.data.ownerUid == request.auth.uid
         && request.resource.data.commercial.state == resource.data.commercial.state
         && (request.resource.data.publicationStatus != 'ACTIVE' || request.resource.data.commercial.state == 'NONE');
-      allow delete: if isSignedIn()
-        && resource.data.ownerUid == request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
     }
 
     // Default Deny Catch-All Rule
