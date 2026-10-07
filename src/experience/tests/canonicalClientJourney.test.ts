@@ -7,6 +7,7 @@ import { experienceResolver } from '../../experience/experienceResolver';
 import { outboxRepository } from '../../persistence/firestore/repositories/outboxRepository';
 import { subscriptionService } from '../../platform/subscription/subscriptionService';
 import { handleSubscriptionPaymentConfirmed } from '../../platform/subscription/subscriptionPaymentHandler';
+import { spaceMembershipRepository } from '../../persistence/firestore/repositories/spaceMembershipRepository';
 
 const dbkId = 'canonical_journey_hardware_01';
 const inventoryRecordId = 'canonical_stock_001';
@@ -110,6 +111,7 @@ describe('TDBK canonical client journey acceptance', () => {
     expect(provisioned.subscriptionTier).toBe('FREE');
 
     const branchId = provisioned.branches[0].branchId;
+    await spaceMembershipRepository.saveMembership({ membershipId: `mem_${dbkId}_cashier`, userId: 'canonical-cashier', spaceId: branchId, tenantId: dbkId, role: 'CASHIER', roleTitle: 'Cashier', status: 'ACTIVE', joinedAt: new Date().toISOString(), permissions: ['execute:sales', 'read:pos'] });
     const preSubscriptionSale = await experienceResolver.dispatchCommand(
       cashierContext(branchId),
       {
