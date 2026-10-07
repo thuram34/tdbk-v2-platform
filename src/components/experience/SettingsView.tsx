@@ -17,6 +17,7 @@ import {
   Sliders,
 } from 'lucide-react';
 import { DbkExperienceResolved } from '../../experience/types';
+import { TeamRolesPanel } from './TeamRolesPanel';
 
 interface SettingsViewProps {
   experience: DbkExperienceResolved;
@@ -337,6 +338,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ experience, onRefres
           </div>
         </section>
       )}
+
+      <TeamRolesPanel tenantId={dbkId} onChanged={onRefreshExperience} />
 
       <div className="grid gap-6 md:grid-cols-2">
         <section className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm sm:p-7">
