@@ -1294,7 +1294,23 @@ async function startServer() {
         payload,
       });
 
-      res.json({ status: 'SUCCESS', commandResponse });
+      if (commandResponse.success !== true) {
+        const code = commandResponse.error?.code;
+        const httpStatus =
+          code === 'AUTHORIZATION_ERROR' || code === 'FORBIDDEN' ? 403 :
+          code === 'NOT_FOUND' ? 404 :
+          code === 'CONFLICT' ? 409 :
+          code === 'VALIDATION_ERROR' ? 400 :
+          500;
+
+        return res.status(httpStatus).json({
+          status: 'ERROR',
+          commandResponse,
+          error: commandResponse.error,
+        });
+      }
+
+      return res.json({ status: 'SUCCESS', commandResponse });
     } catch (err) {
       if (err instanceof KernelError) {
         res.status(err.statusCode).json(err.toJSON());
