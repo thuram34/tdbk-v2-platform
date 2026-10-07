@@ -5,6 +5,7 @@
  */
 
 import { CapabilityDefinition } from './types';
+import { EXTENDED_CAPABILITY_CATALOG } from './extendedCatalog';
 
 export const INITIAL_CAPABILITY_CATALOG: CapabilityDefinition[] = [
   // -------------------------------------------------------------
@@ -1504,4 +1505,5 @@ export const INITIAL_CAPABILITY_CATALOG: CapabilityDefinition[] = [
     createdAt: '2026-01-01T00:00:00Z',
     updatedAt: '2026-01-01T00:00:00Z',
   },
+  ...EXTENDED_CAPABILITY_CATALOG,
 ];
