@@ -1,7 +1,7 @@
 import { describe, expect, it, beforeEach } from 'vitest';
 import { firestoreClient } from '../../persistence/firestore/firestoreClient';
 import { dbkRegistryRepository } from '../../persistence/firestore/repositories/dbkRegistryRepository';
-import { publicPublicationService } from './publicPublicationService';
+import { publicPublicationService } from '../public/publicPublicationService';
 import { TokenVerifier } from '../../kernel/identity/tokenVerifier';
 import { securityContextFactory } from '../../kernel/context/contextFactory';
 
