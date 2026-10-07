@@ -105,7 +105,7 @@ export class SokoniPaymentService {
 
     const now = new Date().toISOString();
     if (result.status === 'SUCCESS') {
-      auditLogger.logEvent('PAYMENT_CONFIRMED', context.principal.id, 'SOKONI_PAYMENT_CONFIRM', `sokoni:payment:${intentId}`, 'ALLOWED', {
+      auditLogger.logEvent('BRIDGE_EXECUTION', context.principal.id, 'SOKONI_PAYMENT_CONFIRM', `sokoni:payment:${intentId}`, 'ALLOWED', {
         requestId: context.requestId,
         tenantId: systemTenantId,
         details: { participantId: intent.participantId, provider: intent.provider, providerReference: intent.providerReference },
