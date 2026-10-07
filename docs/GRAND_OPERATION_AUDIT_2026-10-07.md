@@ -6,7 +6,7 @@
 ## Scope
 This audit treats TDBK as one product system rather than a collection of feature slices.
 
-Repository snapshot audited: `bd928f06a318a37a6a62b987fb6394fc3cc61bfc`
+Repository snapshot audited: `cc47ffa4976b9a478308ebe5ec91ebc73ac68f85`
 
 Inventory:
 - 359 tracked files
@@ -57,6 +57,22 @@ A UI is not considered complete unless its authoritative server path exists. A b
 13. Sokoni participant media writes are owner-scoped.
 14. Paid Sokoni participant offerings no longer imply immediate paid publication; paid listings remain draft until payment confirmation exists.
 15. Stale demo-only Sokoni presentation dependencies were removed from the main discovery path.
+16. Canonical post-provisioning workspace flow now includes connector configuration/health and durable People & Roles authority.
+
+## CI evidence
+
+The prior GitHub Actions run #922 tested PR #390's merge ref, not the current head. It failed during TypeScript typecheck before lint/tests/build.
+
+Current PR head: `cc47ffa4976b9a478308ebe5ec91ebc73ac68f85`.
+
+At audit time, no workflow run or status check had yet been reported for the current head. Therefore no green CI claim is made for the current head.
+
+The known #922 typecheck failures were:
+- `src/platform/public/publicPublicationRepository.ts`
+- `src/platform/tests/publicPublication.test.ts` import path
+- `src/platform/tests/publicPublication.test.ts` DBK fixture shape
+
+The current branch contains the corresponding publication-service/test-path and fixture corrections; this must be proven by a fresh CI run against the current head.
 
 ## Material gaps still being worked
 
@@ -88,6 +104,7 @@ TDBK publication is now a real discovery source, but the complete Sokoni marketp
 - offers
 - trust projections
 - authenticated activity
+
 These require authoritative contracts and persistence, not presentation-only cards.
 
 ### E. Production readiness
@@ -99,6 +116,7 @@ Readiness must distinguish:
 - tenant provider health
 - secrets readiness
 - external certification
+
 A single synthetic boolean must not represent all of these.
 
 ### F. Legacy/demo cleanup
@@ -107,6 +125,7 @@ The repository still contains legacy/backup-labelled UI files and historical doc
 - test fixture,
 - deprecated code,
 - or removed.
+
 No obsolete surface should remain accidentally routable or authoritative.
 
 ### G. Vertical depth
@@ -143,16 +162,17 @@ Completion requires:
 No item is marked COMPLETE from source inspection alone when runtime/provider/deployment evidence is required.
 
 ## Next execution order
-1. Finish current CI regression and keep the head green.
-2. Close Gate 04 UNKNOWN/reconciliation enforcement.
-3. Harden production readiness.
-4. Finish Sokoni ownership + payment authority.
-5. Build the remaining Sokoni authoritative discovery/request domains where justified.
-6. Replace/contain provider-unconnected bridge mocks.
-7. Run vertical end-to-end transaction matrix.
-8. Remove/classify legacy artifacts.
-9. Reconcile all status documents against implementation.
-10. Run final CI and release-gate review.
+1. Obtain fresh CI evidence for current PR head.
+2. Fix every failing CI gate until the complete pipeline executes.
+3. Close Gate 04 UNKNOWN/reconciliation enforcement.
+4. Harden production readiness.
+5. Finish Sokoni ownership + payment authority.
+6. Build remaining Sokoni authoritative discovery/request domains where justified.
+7. Replace/contain provider-unconnected bridge mocks.
+8. Run vertical end-to-end transaction matrix.
+9. Remove/classify legacy artifacts.
+10. Reconcile all status documents against implementation.
+11. Run final CI and release-gate review.
 
 ## Release rule
 PR #390 must not be merged merely because it is mergeable. It is mergeable only after the grand-operation acceptance criteria above are satisfied for the scope actually claimed.
