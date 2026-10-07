@@ -29,7 +29,7 @@ export class PublicPublicationRepository {
   }
 
   public async save(publication: DbkPublicPublication): Promise<void> {
-    await firestoreClient.set(this.path(publication.dbkId), publication);
+    await firestoreClient.set(this.path(publication.dbkId), publication as unknown as Record<string, unknown>);
   }
 }
 
