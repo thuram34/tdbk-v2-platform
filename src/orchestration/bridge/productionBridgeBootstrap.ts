@@ -9,6 +9,7 @@ import { EtimsBridge } from './adapters/etimsBridge';
 import { WhatsappBridge } from './adapters/whatsappBridge';
 import { SmsBridge } from './adapters/smsBridge';
 import { EmailBridge } from './adapters/emailBridge';
+import { BankBridge } from './adapters/bankBridge';
 
 let bootstrapped = false;
 
@@ -20,6 +21,7 @@ export function bootstrapProductionBridges(): void {
   bridgeRegistry.registerBridgeInstance(new WhatsappBridge());
   bridgeRegistry.registerBridgeInstance(new SmsBridge());
   bridgeRegistry.registerBridgeInstance(new EmailBridge());
+  bridgeRegistry.registerBridgeInstance(new BankBridge());
 
   bootstrapped = true;
 }
