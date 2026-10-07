@@ -63,7 +63,7 @@ A UI is not considered complete unless its authoritative server path exists. A b
 
 The prior GitHub Actions run #922 tested PR #390's merge ref, not the current head. It failed during TypeScript typecheck before lint/tests/build.
 
-Current PR head at this audit update: `e4fa6d53cf6f4bb03fb8474f032a77b003c3a4a0`.
+Current PR head at this audit update: `e92f3bbf47228a2fc58111c31387097de9c308b9`.
 
 At audit time, no workflow run or status check had yet been reported for the current head. Therefore no green CI claim is made for the current head.
 
@@ -92,10 +92,16 @@ Gate 04 UNKNOWN/reconciliation enforcement is now wired end-to-end for providers
 M-Pesa is currently the only provider with a registered authoritative reconciliation adapter. Providers without reconciliation support remain blocked from automatic replay after UNKNOWN.
 
 ### C. Sokoni commercial authority
-Sokoni payment initiation and authoritative payment confirmation are not yet implemented. Until this is complete:
-- paid offerings must remain non-active/draft;
-- no payment success may be fabricated;
-- publication and payment remain separate state machines.
+Sokoni now has an authoritative payment state machine and server boundary:
+- paid participants start in DRAFT/PAYMENT_REQUIRED;
+- authorized owners can initiate an M-Pesa STK payment through `POST /api/sokoni/participants/:participantId/pay`;
+- the resulting provider reference is durably stored as a Sokoni payment intent;
+- `POST /api/sokoni/payments/:intentId/confirm` queries the configured M-Pesa provider;
+- only an authoritative provider SUCCESS changes the payment intent to CONFIRMED and activates the participant;
+- FAILED keeps the participant non-active;
+- clients cannot directly activate a paid participant through Firestore rules.
+
+Remaining production gate: `SOKONI_PAYMENT_TENANT_ID` and its production M-Pesa connector must be configured and certified. No payment success is fabricated when that merchant boundary is unavailable.
 
 ### D. Sokoni discovery depth
 TDBK publication is now a real discovery source, but the complete Sokoni marketplace contract is broader:
@@ -173,7 +179,7 @@ No item is marked COMPLETE from source inspection alone when runtime/provider/de
 2. Fix every failing CI gate until the complete pipeline executes.
 3. ~~Close Gate 04 UNKNOWN/reconciliation enforcement~~ — completed for the currently supported reconciliation contract.
 4. Harden production readiness.
-5. Finish Sokoni ownership + payment authority.
+5. ~~Finish Sokoni ownership + payment authority~~ — implemented; production merchant configuration/certification remains a release gate.
 6. Build remaining Sokoni authoritative discovery/request domains where justified.
 7. Replace/contain provider-unconnected bridge mocks.
 8. Run vertical end-to-end transaction matrix.
