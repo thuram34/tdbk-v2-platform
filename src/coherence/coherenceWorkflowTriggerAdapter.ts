@@ -78,7 +78,7 @@ function contextFromEvent(event: EventEnvelope): SecurityContext {
 }
 
 export async function triggerCatalogWorkflowFromEvent(event: EventEnvelope, workflowEngineLike: any): Promise<void> {
-  registerTriggerStepHandler(workflowEngineLike);
+
 
   const definition = PLATFORM_WORKFLOW_CATALOG.find((workflow) => workflow.triggerEvent === event.eventType);
   if (!definition) return;
@@ -123,12 +123,11 @@ export async function triggerCatalogWorkflowFromEvent(event: EventEnvelope, work
 
 export function registerCoherenceWorkflowTriggerSubscriptions(
   eventBusLike: { subscribe: (eventType: string, handler: EventHandler) => void },
-  workflowEngineLike: { registerStepHandler: (stepType: string, handler: any) => void; createPersistentWorkflow: (...args: any[]) => Promise<any>; executeWorkflow: (...args: any[]) => Promise<any> },
 ): void {
   registerTriggerStepHandler(workflowEngineLike);
 
   const triggerEvents = [...new Set(PLATFORM_WORKFLOW_CATALOG.map((workflow) => workflow.triggerEvent))];
   for (const eventType of triggerEvents) {
-    eventBusLike.subscribe(eventType, (event) => triggerCatalogWorkflowFromEvent(event, workflowEngineLike));
+    eventBusLike.subscribe(eventType, triggerCatalogWorkflowFromEvent);
   }
 }
