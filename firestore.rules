@@ -36,10 +36,12 @@ service cloud.firestore {
     match /sokoniParticipants/{participantId} {
       allow read: if resource.data.publicationStatus == 'ACTIVE';
       allow create: if isSignedIn()
+        && request.resource.data.ownerUid == request.auth.uid
         && request.resource.data.publicationStatus == 'ACTIVE'
         && request.resource.data.tdbkRelationship == 'NOT_ENROLLED';
-      // Owner-management is intentionally not invented in this task.
-      allow update, delete: if false;
+      allow update, delete: if isSignedIn()
+        && resource.data.ownerUid == request.auth.uid
+        && request.resource.data.ownerUid == request.auth.uid;
     }
 
     // Default Deny Catch-All Rule
