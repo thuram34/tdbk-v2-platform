@@ -13,6 +13,7 @@ import { dependencyEngine } from './dependencyEngine';
 import { dbkCapabilityManager } from './dbkCapabilityManager';
 import { dbkRegistry } from '../platform/dbkRegistry';
 import { DiscoverySurface, DiscoveryResultItem, CapabilityLifecycleState, EntitlementStatus } from './types';
+import { INITIAL_BLUEPRINT_CATALOG } from '../blueprint/catalog';
 
 export class DiscoveryEngineService {
   /**
@@ -31,13 +32,16 @@ export class DiscoveryEngineService {
     const subscriptionTier = await entitlementEngine.getPersistentDbkSubscriptionTier(dbkId);
 
     const allCaps = capabilityRegistry.getAllCapabilities();
+    const blueprint = INITIAL_BLUEPRINT_CATALOG.find((item) => item.id === dna.identity.blueprintId);
+    const blueprintCapabilityIds = new Set(blueprint?.supportedCapabilities.map((item) => item.id) || []);
 
-    // 1. Filter Blueprint-compatible capabilities
+    // Blueprint is the authoritative business vocabulary. ALL capabilities are
+    // platform primitives; every other capability must belong to the selected DBK blueprint.
     const compatibleCaps = allCaps.filter(
       (c) =>
         (c.supportedBlueprints as string[]).includes('ALL') ||
-        (c.supportedBlueprints as string[]).includes(sector as string) ||
-        (c.supportedBlueprints as string[]).includes(rawSector)
+        blueprintCapabilityIds.has(c.capabilityId) ||
+        (c.supportedBlueprints as string[]).includes(sector as string) && !blueprint
     );
 
     // Get current DBK capability records
@@ -148,10 +152,12 @@ export class DiscoveryEngineService {
     const dbk = await dbkRegistry.getDbk(securityContext, dbkId);
     const subscriptionTier = dbk?.subscriptionTier || 'FOUNDATION';
     const allCaps = capabilityRegistry.getAllCapabilities();
+    const blueprint = INITIAL_BLUEPRINT_CATALOG.find((item) => item.id === dna.identity.blueprintId);
+    const blueprintCapabilityIds = new Set(blueprint?.supportedCapabilities.map((item) => item.id) || []);
     const compatibleCaps = allCaps.filter((cap) =>
       (cap.supportedBlueprints as string[]).includes('ALL') ||
-      (cap.supportedBlueprints as string[]).includes(sector as string) ||
-      (cap.supportedBlueprints as string[]).includes(rawSector)
+      blueprintCapabilityIds.has(cap.capabilityId) ||
+      ((cap.supportedBlueprints as string[]).includes(sector as string) && !blueprint)
     );
     const records = await dbkCapabilityManager.hydratePersistentCapabilities(securityContext, dbkId);
     const recordMap = new Map(records.map((record) => [record.capabilityId, record]));
