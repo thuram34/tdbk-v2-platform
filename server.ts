@@ -58,6 +58,7 @@ import { agentExecutionRepository } from './src/persistence/firestore/repositori
 import { flowOrchestrator } from './src/platform/flow/flowOrchestrator';
 import { publicPublicationService } from './src/platform/public/publicPublicationService';
 import { externalReconciliationService } from './src/orchestration/bridge/externalReconciliationService';
+import { sokoniPaymentService } from './src/sokoni/sokoniPaymentService';
 
 async function startServer() {
   // Explicit bootstrap boundary: Seed demo DBKs only in development, preview, or explicit flag
@@ -276,6 +277,46 @@ async function startServer() {
     } catch (err) {
       if (err instanceof KernelError) return res.status(err.statusCode).json(err.toJSON());
       return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Unable to read agent execution history' } });
+    }
+  });
+
+  // -------------------------------------------------------------
+  // SOKONI COMMERCIAL AUTHORITY
+  // Payment initiation and confirmation are server-authoritative. A paid
+  // participant cannot become ACTIVE from a client-side write.
+  // -------------------------------------------------------------
+  app.post('/api/sokoni/participants/:participantId/pay', async (req: Request, res: Response) => {
+    try {
+      const context = await securityContextFactory.createSecurityContext({
+        authHeader: req.headers.authorization,
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+      });
+      const result = await sokoniPaymentService.initiate(
+        context,
+        req.params.participantId,
+        String(req.body?.offeringCode || ''),
+        String(req.body?.phoneNumber || ''),
+      );
+      return res.status(202).json({ status: 'SUCCESS', payment: result });
+    } catch (err) {
+      if (err instanceof KernelError) return res.status(err.statusCode).json(err.toJSON());
+      return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Unable to initiate Sokoni payment.' } });
+    }
+  });
+
+  app.post('/api/sokoni/payments/:intentId/confirm', async (req: Request, res: Response) => {
+    try {
+      const context = await securityContextFactory.createSecurityContext({
+        authHeader: req.headers.authorization,
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+      });
+      const result = await sokoniPaymentService.confirm(context, req.params.intentId);
+      return res.json({ status: 'SUCCESS', payment: result });
+    } catch (err) {
+      if (err instanceof KernelError) return res.status(err.statusCode).json(err.toJSON());
+      return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Unable to confirm Sokoni payment.' } });
     }
   });
 
