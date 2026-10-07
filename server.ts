@@ -57,6 +57,7 @@ import { tdbkAgentRuntime } from './src/platform/agent/agentRuntime';
 import { agentExecutionRepository } from './src/persistence/firestore/repositories/agentExecutionRepository';
 import { flowOrchestrator } from './src/platform/flow/flowOrchestrator';
 import { publicPublicationService } from './src/platform/public/publicPublicationService';
+import { externalReconciliationService } from './src/orchestration/bridge/externalReconciliationService';
 
 async function startServer() {
   // Explicit bootstrap boundary: Seed demo DBKs only in development, preview, or explicit flag
@@ -227,6 +228,24 @@ async function startServer() {
       return res.status(500).json({
         error: { code: 'INTERNAL_ERROR', message: (err as Error).message },
       });
+    }
+  });
+
+  app.post('/api/workflows/reconcile/:executionKey', async (req: Request, res: Response) => {
+    try {
+      const tenantId = req.body?.tenantId || req.query.tenantId as string;
+      const context = await securityContextFactory.createSecurityContext({
+        authHeader: req.headers.authorization,
+        targetTenantId: tenantId,
+        targetBranchId: req.body?.branchId || req.query.branchId as string,
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+      });
+      const result = await externalReconciliationService.reconcile(context, req.params.executionKey);
+      return res.json({ status: 'SUCCESS', result });
+    } catch (err) {
+      if (err instanceof KernelError) return res.status(err.statusCode).json(err.toJSON());
+      return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'External reconciliation failed' } });
     }
   });
 
