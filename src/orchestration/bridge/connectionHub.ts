@@ -61,7 +61,9 @@ class ConnectionHubService {
   }
 
   public async health(context: SecurityContext, bridgeId: string): Promise<ConnectionHealthResult> {
-    const connection = await connectorConnectionRepository.getConnection(this.tenantId(context), this.connectionId(bridgeId));
+    const tenantId = this.tenantId(context);
+    await masterAuthority.assertTenantAuthority(context, tenantId, 'CHECK_CONNECTOR_HEALTH');
+    const connection = await connectorConnectionRepository.getConnection(tenantId, this.connectionId(bridgeId));
     if (!connection) throw new KernelError('INTEGRATION_UNAVAILABLE', `Bridge '${bridgeId}' connection not found`, 404, context.requestId);
     const adapter = bridgeRegistry.getBridgeInstance(bridgeId);
     if (!adapter) throw new KernelError('INTEGRATION_UNAVAILABLE', `Bridge adapter '${bridgeId}' is not registered`, 503, context.requestId);
