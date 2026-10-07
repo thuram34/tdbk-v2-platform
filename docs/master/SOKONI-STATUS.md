@@ -1,13 +1,13 @@
 # SOKONI STATUS
 
 ## Last Updated
-2026-09-23
+2026-10-07
 
 ## Current Phase
-Participation-First, Orientation-Driven Sokoni Foundation
+Authoritative Discovery Integration — TDBK Publication + Sokoni Ownership Hardening
 
 ## Current Objective
-Make Sokoni participation broader than business registration by letting one participant join with multiple orientations, capture only relevant contextual options, and persist those orientations inside the existing Sokoni participant authority while preserving public discovery independence from TDBK.
+Keep Sokoni independently authoritative while consuming explicitly published TDBK organizations through the governed public discovery contract, enforce participant ownership, and close the remaining commercial/payment boundary without fabricating payment or trust state.
 
 ## Completed
 - Discovery Experience Shell remains complete and closed.
@@ -18,11 +18,13 @@ Make Sokoni participation broader than business registration by letting one part
 - A participant can hold multiple orientations simultaneously; participantKind remains a compatibility/presentation classification while orientations is the extensible participation declaration.
 - Participant persistence is now explicitly Sokoni-owned through the `sokoniParticipants` Firestore collection.
 - Participant public projection now also carries extensible participation orientations and contextual orientation selections alongside identity, category, description, area-level location, public contacts, reusable media references, product/service listings, publication state, Sokoni commercial state and the non-authoritative TDBK relationship boundary.
-- Public discovery now reads persisted ACTIVE Sokoni participants and filters them by the selected discovery area.
+- Public discovery reads persisted ACTIVE Sokoni participants and filters them by the selected discovery area.
+- TDBK published organizations are now a governed second discovery source through the public organization projection; Sokoni does not become a second DBK master.
 - Participant detail presentation now distinguishes authoritative Sokoni state from demo/reference Engine state.
-- Participant media is persisted in Firebase Storage under the Sokoni namespace and referenced from participant/listing records so the same uploaded asset can be reused without duplicate uploads.
+- Participant media is persisted in Firebase Storage under the owner-scoped Sokoni namespace and referenced from participant/listing records so the same uploaded asset can be reused without duplicate uploads.
+- Authenticated participant owner read/update/delete operations now exist with owner-bound Firestore/Storage rules.
 - Product/service catalogue entries persist with reusable participant media references.
-- Publication state is independent from commercial payment state: a participant can be publicly ACTIVE while a selected paid Sokoni offering remains PAYMENT_REQUIRED.
+- Publication state is independent from commercial payment state: paid listings remain DRAFT until an authoritative payment confirmation exists.
 - Sokoni commercial options are configuration data, not permanent subscription/domain logic.
 - Initial configured commercial offerings remain KSh 100 and KSh 500 only; no additional pricing tiers were invented.
 - Firestore and Storage security boundaries were explicitly added for Sokoni participant/public media access.
@@ -30,10 +32,9 @@ Make Sokoni participation broader than business registration by letting one part
 - Failed media persistence is now cleaned up on upload or participant-document failure on a best-effort basis.
 
 ## In Progress
-- Authenticated owner management/editing of an existing participant is not implemented in this task.
 - Real Sokoni payment initiation/confirmation remains unimplemented.
 - Paid offering activation remains separate from participant publication until a Sokoni payment authority exists.
-- Natural-language relevance/matching remains on the existing demo/Engine boundary; persisted discovery currently uses the selected area as its authoritative Sokoni filter.
+- Natural-language relevance/matching remains deterministic sector inference + area filtering; a full relevance/matching contract remains future work.
 
 ## Verified
 - Sokoni registration writes a persistent participant record instead of a UI-only draft when Firebase is configured and the configured security rules are deployed.
@@ -51,7 +52,7 @@ Make Sokoni participation broader than business registration by letting one part
 
 ## Engine Contracts Consumed
 - None new.
-- Existing Sokoni presentation adapter remains a demo/future Engine boundary.
+- The old demo provider adapter is no longer the primary TDBK discovery source; TDBK discovery now uses the governed public organization API.
 - No TDBK public business, provider, product, service, payment, publication, matching or enrollment contract was assumed.
 
 ## Engine Contracts Intentionally NOT Assumed
@@ -152,14 +153,14 @@ No payment confirmation is generated by Sokoni.
 ## Blocking Issues
 - Firebase Anonymous Authentication must be enabled for the current no-friction participant registration write path.
 - `firestore.rules`, `storage.rules` and `firebase.json` must be deployed to the Firebase project before production persistence is considered operational.
-- Owner management/editing and participant ownership transfer require a dedicated Sokoni contract; they are not invented here.
+- Owner management is now persisted and owner-scoped; anonymous Firebase identity remains a temporary onboarding identity and should be linked to a permanent account for cross-device ownership.
 - Sokoni-specific payment initiation and authoritative confirmation remain missing.
 - Paid commercial offering activation remains blocked on the payment contract.
 - Natural-language discovery relevance/matching remains a future contract boundary; the current persisted discovery foundation is area-based.
 
 ## MASTER REVIEW REQUIRED
 - Confirm long-term ownership of the Sokoni participant namespace and future migration/adoption contract into TDBK.
-- Confirm owner-management/authentication model for persistent Sokoni participants.
+- Confirm permanent-account upgrade/linking model for persistent Sokoni participants.
 - Confirm Sokoni payment authority and commercial offering lifecycle.
 - Confirm future public discovery/relevance/matching contract and whether bounded Firestore reads remain sufficient as scale grows.
 - Confirm media retention/deletion lifecycle and future cross-surface asset reuse policy.
@@ -241,7 +242,6 @@ No payment confirmation is generated by Sokoni.
 - Full-text relevance/matching engine.
 - Geospatial proximity/routing/coverage.
 - Availability authority.
-- Participant owner-management/editing contract.
 - Payment initiation or successful-payment simulation.
 - Ratings/reviews/trust fabrication.
 
@@ -258,13 +258,13 @@ No payment confirmation is generated by Sokoni.
 ## Remaining Work
 - Deploy Firebase rules/configuration and verify the real project environment.
 - Verify Anonymous Authentication is enabled for the registration path.
-- Add the approved Sokoni owner-management contract in a separate task.
+- Verify the owner-management path against deployed Firebase rules.
 - Add the approved Sokoni payment contract in a separate task.
 - Expand discovery relevance only after the relevant Sokoni/Engine contract is approved.
 - Define future Sokoni → TDBK adoption input contract.
 
 ## Next Recommended Single Sokoni Task
-Production verification of the persisted participant registration and public discovery path against the configured Firebase project, including rules deployment and real mobile/browser verification. Do not begin owner management, payment integration or a second registration redesign in that verification task.
+Implement the approved Sokoni payment authority using a real platform service identity and the existing M-Pesa bridge; until then paid offerings remain non-public.
 
 ## Evidence
 - Participation orientation configuration commit: `bd5453a0c5e7201f37322fd43076edce8ae980d6`.
