@@ -14,6 +14,7 @@ import { capabilityRegistry } from './registry';
 import { entitlementEngine } from './entitlement';
 import { capabilityStateRepository } from '../persistence/firestore/repositories/capabilityStateRepository';
 import { rbacEngine } from '../kernel/authorization/rbacEngine';
+import { INITIAL_BLUEPRINT_CATALOG } from '../blueprint/catalog';
 
 export class DbkCapabilityManagerService {
   // Map of `dbkId` -> Map of `capabilityId` -> `DbkCapabilityRecord`
@@ -305,6 +306,12 @@ export class DbkCapabilityManagerService {
 
     const cap = capabilityRegistry.getCapability(capabilityId);
     if (!cap) throw new KernelError('NOT_FOUND', `Capability '${capabilityId}' not found in platform registry`, 404, securityContext.requestId);
+    const dbk = await dbkRegistry.getDbk(securityContext, dbkId);
+    const blueprint = dbk ? INITIAL_BLUEPRINT_CATALOG.find((item) => item.id === dbk.blueprintId) : undefined;
+    const isBlueprintCapability = blueprint?.supportedCapabilities.some((item) => item.id === capabilityId) || cap.supportedBlueprints.includes('ALL');
+    if (!isBlueprintCapability) {
+      throw new KernelError('VALIDATION_ERROR', `Capability '${capabilityId}' does not belong to DBK blueprint '${dbk?.blueprintId || 'unknown'}'`, 409, securityContext.requestId);
+    }
     const existing = this.dbkCapabilityStore.get(dbkId)?.get(capabilityId);
     const updated: DbkCapabilityRecord = {
       dbkId,
