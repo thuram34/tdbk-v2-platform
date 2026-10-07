@@ -3,6 +3,7 @@ import { KernelError } from '../kernel/errors/kernelErrors';
 import { mpesaBridge } from '../orchestration/bridge/adapters/mpesaBridge';
 import { Principal, SecurityContext } from '../kernel/types';
 import { auditLogger } from '../kernel/audit/auditLogger';
+import { outboxEngine } from '../orchestration/outbox/outboxEngine';
 import { getSokoniCommercialOffering } from './sokoniCommercialConfig';
 
 export type SokoniPaymentIntentState = 'PENDING' | 'CONFIRMED' | 'FAILED';
@@ -20,6 +21,7 @@ export interface SokoniPaymentIntent {
   createdAt: string;
   updatedAt: string;
   confirmedAt: string | null;
+  providerReceiptReference?: string | null;
 }
 
 const participantPath = (id: string) => `/system/sokoni/participants/${id}`;
@@ -74,13 +76,57 @@ export class SokoniPaymentService {
       intentId, participantId, ownerUid: context.principal.id, offeringCode,
       amount: offering.amount, currency: 'KES', provider: 'SAFARICOM_MPESA',
       providerReference: payment.providerReference, state: 'PENDING',
-      createdAt: now, updatedAt: now, confirmedAt: null,
+      createdAt: now, updatedAt: now, confirmedAt: null, providerReceiptReference: null,
     };
-    await firestoreClient.set(intentPath(intentId), intent);
-    await firestoreClient.update(participantPath(participantId), {
-      commercial: { offeringCode, state: 'PAYMENT_PENDING' },
-      publicationStatus: 'DRAFT',
-      updatedAt: now,
+
+    await firestoreClient.runTransaction(async (tx) => {
+      const currentParticipant = await tx.get<any>(participantPath(participantId));
+      if (!currentParticipant || currentParticipant.ownerUid !== context.principal.id) {
+        throw new KernelError('AUTHORIZATION_ERROR', 'Participant ownership changed during payment initiation.', 403, context.requestId);
+      }
+      if (
+        currentParticipant.commercial?.offeringCode !== offeringCode ||
+        currentParticipant.commercial?.state !== 'PAYMENT_REQUIRED' ||
+        currentParticipant.publicationStatus !== 'DRAFT'
+      ) {
+        throw new KernelError('CONFLICT', 'Participant is no longer awaiting payment.', 409, context.requestId);
+      }
+
+      await tx.set(intentPath(intentId), intent);
+      await tx.update<any>(participantPath(participantId), {
+        commercial: { offeringCode, state: 'PAYMENT_PENDING' },
+        publicationStatus: 'DRAFT',
+        updatedAt: now,
+      });
+      await outboxEngine.enqueueEvent(systemTenantId, {
+        eventId: `evt_sokoni_payment_initiated_${intentId}`,
+        eventType: 'payment.initiated.v1',
+        eventVersion: 'v1',
+        occurredAt: now,
+        tenantId: systemTenantId,
+        branchId: null,
+        principalId: context.principal.id,
+        correlationId: context.correlationId || context.requestId,
+        causationId: intentId,
+        source: 'SokoniPaymentService',
+        payload: {
+          intentId,
+          participantId,
+          offeringCode,
+          amount: offering.amount,
+          currency: 'KES',
+          provider: 'SAFARICOM_MPESA',
+          providerReference: payment.providerReference,
+          status: 'PENDING',
+        },
+        metadata: {},
+      }, tx, context.principal.id);
+    });
+
+    auditLogger.logEvent('BRIDGE_EXECUTION', context.principal.id, 'SOKONI_PAYMENT_INITIATED', `sokoni:payment:${intentId}`, 'ALLOWED', {
+      tenantId: systemTenantId,
+      requestId: context.requestId,
+      details: { participantId, offeringCode, amount: offering.amount, providerReference: payment.providerReference },
     });
     return intent;
   }
@@ -104,33 +150,82 @@ export class SokoniPaymentService {
     });
 
     const now = new Date().toISOString();
-    if (result.status === 'SUCCESS') {
-      auditLogger.logEvent('BRIDGE_EXECUTION', context.principal.id, 'SOKONI_PAYMENT_CONFIRM', `sokoni:payment:${intentId}`, 'ALLOWED', {
-        requestId: context.requestId,
+    if (result.status === 'PENDING') return { intent, state: 'PENDING' };
+
+    const nextState = result.status === 'SUCCESS' ? 'CONFIRMED' as const : 'FAILED' as const;
+    const participantState = result.status === 'SUCCESS' ? 'PAYMENT_CONFIRMED' : 'PAYMENT_FAILED';
+    const publicationStatus = result.status === 'SUCCESS' ? 'ACTIVE' : 'DRAFT';
+
+    const finalized = await firestoreClient.runTransaction(async (tx) => {
+      const latestIntent = await tx.get<SokoniPaymentIntent>(intentPath(intentId));
+      if (!latestIntent) throw new KernelError('NOT_FOUND', 'Sokoni payment intent disappeared during confirmation.', 404, context.requestId);
+      if (latestIntent.ownerUid !== context.principal.id) throw new KernelError('AUTHORIZATION_ERROR', 'Payment ownership changed during confirmation.', 403, context.requestId);
+      if (latestIntent.state !== 'PENDING') return latestIntent;
+
+      const participant = await tx.get<any>(participantPath(latestIntent.participantId));
+      if (!participant || participant.ownerUid !== context.principal.id) {
+        throw new KernelError('AUTHORIZATION_ERROR', 'Sokoni participant ownership changed during confirmation.', 403, context.requestId);
+      }
+      if (participant.commercial?.offeringCode !== latestIntent.offeringCode) {
+        throw new KernelError('CONFLICT', 'Sokoni participant offering no longer matches payment intent.', 409, context.requestId);
+      }
+
+      const confirmedIntent: SokoniPaymentIntent = {
+        ...latestIntent,
+        state: nextState,
+        updatedAt: now,
+        confirmedAt: result.status === 'SUCCESS' ? now : null,
+        providerReceiptReference: result.status === 'SUCCESS'
+          ? String((result.data as any)?.MpesaReceiptNumber || (result.data as any)?.mpesaReceiptNumber || result.providerReference || latestIntent.providerReference)
+          : latestIntent.providerReceiptReference || null,
+      };
+
+      await tx.set(intentPath(intentId), confirmedIntent);
+      await tx.update<any>(participantPath(latestIntent.participantId), {
+        commercial: { offeringCode: latestIntent.offeringCode, state: participantState },
+        publicationStatus,
+        updatedAt: now,
+      });
+
+      await outboxEngine.enqueueEvent(systemTenantId, {
+        eventId: `evt_sokoni_payment_${nextState.toLowerCase()}_${intentId}`,
+        eventType: result.status === 'SUCCESS' ? 'payment.confirmed.v1' : 'payment.failed.v1',
+        eventVersion: 'v1',
+        occurredAt: now,
         tenantId: systemTenantId,
-        details: { participantId: intent.participantId, provider: intent.provider, providerReference: intent.providerReference },
-      });
-      const confirmed = { ...intent, state: 'CONFIRMED' as const, updatedAt: now, confirmedAt: now };
-      await firestoreClient.set(intentPath(intentId), confirmed);
-      await firestoreClient.update(participantPath(intent.participantId), {
-        commercial: { offeringCode: intent.offeringCode, state: 'PAYMENT_CONFIRMED' },
-        publicationStatus: 'ACTIVE',
-        updatedAt: now,
-      });
-      return { intent: confirmed, state: 'CONFIRMED' };
-    }
-    if (result.status === 'FAILED') {
-      const failed = { ...intent, state: 'FAILED' as const, updatedAt: now };
-      await firestoreClient.set(intentPath(intentId), failed);
-      await firestoreClient.update(participantPath(intent.participantId), {
-        commercial: { offeringCode: intent.offeringCode, state: 'PAYMENT_FAILED' },
-        publicationStatus: 'DRAFT',
-        updatedAt: now,
-      });
-      return { intent: failed, state: 'FAILED' };
-    }
-    return { intent, state: 'PENDING' };
-  }
-}
+        branchId: null,
+        principalId: context.principal.id,
+        correlationId: context.correlationId || context.requestId,
+        causationId: intentId,
+        source: 'SokoniPaymentService',
+        payload: {
+          intentId,
+          participantId: latestIntent.participantId,
+          offeringCode: latestIntent.offeringCode,
+          amount: latestIntent.amount,
+          currency: latestIntent.currency,
+          provider: latestIntent.provider,
+          providerReference: latestIntent.providerReference,
+          providerReceiptReference: confirmedIntent.providerReceiptReference || null,
+          status: nextState,
+        },
+        metadata: {},
+      }, tx, context.principal.id);
+
+      return confirmedIntent;
+    });
+
+    auditLogger.logEvent('BRIDGE_EXECUTION', context.principal.id, `SOKONI_PAYMENT_${nextState}`, `sokoni:payment:${intentId}`, 'ALLOWED', {
+      tenantId: systemTenantId,
+      requestId: context.requestId,
+      details: {
+        participantId: finalized.participantId,
+        providerReference: finalized.providerReference,
+        providerReceiptReference: finalized.providerReceiptReference || null,
+      },
+    });
+
+    return { intent: finalized, state: finalized.state };
+  }}
 
 export const sokoniPaymentService = new SokoniPaymentService();
