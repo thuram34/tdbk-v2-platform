@@ -13,9 +13,10 @@ import {
   Sparkles,
   LogOut,
   Store,
+  Globe2,
 } from 'lucide-react';
 import type { DbkExperienceProjection, DbkIdentity } from '../../platform/types';
-import { getExperienceProjection } from '../../client/masterControlApi';
+import { getDbkPublication, getExperienceProjection, setDbkPublication, type DbkPublicPublication } from '../../client/masterControlApi';
 
 interface OwnerCommandCenterProps {
   userEmail?: string | null;
@@ -59,6 +60,8 @@ export const OwnerCommandCenter: React.FC<OwnerCommandCenterProps> = ({
 }) => {
   const [projections, setProjections] = useState<Record<string, DbkExperienceProjection>>({});
   const [projectionError, setProjectionError] = useState<string | null>(null);
+  const [publications, setPublications] = useState<Record<string, DbkPublicPublication>>({});
+  const [publicationBusy, setPublicationBusy] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
@@ -78,6 +81,17 @@ export const OwnerCommandCenter: React.FC<OwnerCommandCenterProps> = ({
           activeDbks.map(async (dbk) => [dbk.dbkId, await getExperienceProjection(idToken, dbk.dbkId)] as const),
         );
         if (!cancelled) setProjections(Object.fromEntries(entries));
+
+        const publicationEntries = await Promise.all(
+          activeDbks.map(async (dbk) => {
+            try {
+              return [dbk.dbkId, await getDbkPublication(idToken, dbk.dbkId)] as const;
+            } catch {
+              return null;
+            }
+          }),
+        );
+        if (!cancelled) setPublications(Object.fromEntries(publicationEntries.filter(Boolean) as Array<readonly [string, DbkPublicPublication]>));
       } catch (error) {
         if (!cancelled) {
           console.error('Failed to load DBK experience projections:', error);
@@ -256,6 +270,37 @@ export const OwnerCommandCenter: React.FC<OwnerCommandCenterProps> = ({
                         <p className="mt-1 font-semibold">{projection?.capabilities.enabled.length ?? '—'}</p>
                       </div>
                     </div>
+
+                    {dbk.status === 'ACTIVE' && (
+                      <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-neutral-200 bg-neutral-50 p-3">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Globe2 className="h-4 w-4 shrink-0 text-neutral-500" />
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold">Public discovery</p>
+                            <p className="mt-0.5 text-[11px] text-neutral-500">
+                              {publications[dbk.dbkId]?.status === 'PUBLISHED' ? 'Published on TDBK public discovery' : 'Not publicly discoverable'}
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          disabled={publicationBusy === dbk.dbkId}
+                          onClick={async () => {
+                            setPublicationBusy(dbk.dbkId);
+                            try {
+                              const nextStatus = publications[dbk.dbkId]?.status === 'PUBLISHED' ? 'UNPUBLISHED' : 'PUBLISHED';
+                              const publication = await setDbkPublication(idToken, dbk.dbkId, nextStatus);
+                              setPublications((current) => ({ ...current, [dbk.dbkId]: publication }));
+                            } finally {
+                              setPublicationBusy(null);
+                            }
+                          }}
+                          className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-neutral-950 px-3 py-2 text-[11px] font-bold text-white disabled:opacity-50"
+                        >
+                          {publicationBusy === dbk.dbkId ? 'Saving…' : publications[dbk.dbkId]?.status === 'PUBLISHED' ? 'Unpublish' : 'Publish'}
+                        </button>
+                      </div>
+                    )}
 
                     {projection && (
                       <div className="mt-4 flex items-center gap-2 text-xs text-neutral-500">
