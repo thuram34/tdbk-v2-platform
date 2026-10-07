@@ -8,6 +8,7 @@ import { entityEngine } from '../entity/entityEngine';
 import { eventBus } from '../../orchestration/events/eventBus';
 import { VERTICAL_WORKFLOW_CATALOG } from './workflowCatalog';
 import { entityRecordRepository } from '../../persistence/firestore/repositories/entityRecordRepository';
+import { randomUUID } from 'node:crypto';
 
 export type VerticalOperation =
   | 'CREATE_RECORD'
@@ -93,7 +94,7 @@ export class VerticalCapabilityRuntime {
       updatedBy: context.principal.id,
     };
 
-    let recordId = request.recordId || String(payload.recordId || payload.id || `rec_${Date.now()}_${Math.random().toString(36).slice(2,8)}`);
+    let recordId = request.recordId || String(payload.recordId || payload.id || `rec_${randomUUID()}`);
     let record: any;
 
     if (request.operation === 'CREATE_RECORD') {
