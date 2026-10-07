@@ -6,6 +6,7 @@ import { dbkRegistry } from '../dbkRegistry';
 import { dbkRegistryRepository } from '../../persistence/firestore/repositories/dbkRegistryRepository';
 import { PublicOrganizationProjection, evaluatePublicOrganizationEligibility, projectPublicOrganization } from './publicOrganizationProjection';
 import { publicPublicationRepository, DbkPublicPublication, PublicPublicationStatus } from './publicPublicationRepository';
+import { publicOrganizationIndexRepository } from './publicOrganizationIndexRepository';
 
 export class PublicPublicationService {
   private static instance: PublicPublicationService;
@@ -84,6 +85,18 @@ export class PublicPublicationService {
     };
 
     await publicPublicationRepository.save(publication);
+
+    if (requestedStatus === 'PUBLISHED') {
+      const projection = projectPublicOrganization(dbk);
+      await publicOrganizationIndexRepository.upsert({
+        ...projection,
+        indexedAt: now,
+        publicationVersion: publication.version,
+      });
+    } else {
+      await publicOrganizationIndexRepository.remove(dbkId);
+    }
+
     auditLogger.logEvent(
       'SECURITY_CONFIGURATION_CHANGE',
       context.principal.id,
@@ -110,29 +123,30 @@ export class PublicPublicationService {
     const publication = await publicPublicationRepository.get(dbkId);
     if (!publication || publication.status !== 'PUBLISHED') return null;
     if (evaluatePublicOrganizationEligibility(dbk.status) !== 'ELIGIBLE') return null;
-    return projectPublicOrganization(dbk);
+    const indexed = await publicOrganizationIndexRepository.get(dbkId);
+    return indexed ? projectPublicOrganization(dbk) : null;
   }
 
   public async listPublishedOrganizations(filters?: { area?: string; sector?: string }): Promise<PublicOrganizationProjection[]> {
-    const dbks = await dbkRegistryRepository.listAllDbks();
+    const indexed = await publicOrganizationIndexRepository.list();
     const results: PublicOrganizationProjection[] = [];
-    for (const dbk of dbks) {
-      if (!dbk.dbkId) continue;
-      const publication = await publicPublicationRepository.get(dbk.dbkId);
-      if (!publication || publication.status !== 'PUBLISHED') continue;
-      if (evaluatePublicOrganizationEligibility(dbk.status) !== 'ELIGIBLE') continue;
-      const projection = projectPublicOrganization(dbk);
-      if (filters?.sector && projection.sector !== filters.sector) continue;
+    for (const entry of indexed) {
+      if (filters?.sector && entry.sector !== filters.sector) continue;
       if (filters?.area) {
         const normalizedArea = filters.area.trim().toLowerCase();
-        const hasArea = projection.branches.some((branch) =>
+        const hasArea = entry.branches.some((branch) =>
           [branch.location?.county, branch.location?.town, branch.location?.address]
             .filter(Boolean)
             .some((value) => value!.toLowerCase().includes(normalizedArea)),
         );
         if (!hasArea) continue;
       }
-      results.push(projection);
+      const dbk = await dbkRegistry.getDbkInternal(entry.dbkId);
+      if (!dbk || evaluatePublicOrganizationEligibility(dbk.status) !== 'ELIGIBLE') {
+        await publicOrganizationIndexRepository.remove(entry.dbkId);
+        continue;
+      }
+      results.push(projectPublicOrganization(dbk));
     }
     return results;
   }
