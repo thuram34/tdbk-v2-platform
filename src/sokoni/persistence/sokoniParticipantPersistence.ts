@@ -28,6 +28,7 @@ export interface SokoniMediaRef { mediaId: string; url: string; storagePath: str
 export interface SokoniListing { id: string; kind: 'PRODUCT' | 'SERVICE'; name: string; description: string; mediaIds: string[]; }
 export interface SokoniParticipant {
   id: string;
+  ownerUid: string;
   participantKind: SokoniParticipantKind;
   orientations?: string[];
   orientationContext?: SokoniOrientationContext;
@@ -84,7 +85,7 @@ function validateInput(input: SokoniParticipantRegistrationInput): void {
   if (input.offeringCode && !getSokoniCommercialOffering(input.offeringCode)) throw new Error('The selected Sokoni commercial offering is not configured.');
 }
 
-async function uploadParticipantMedia(participantId: string, files: File[]): Promise<SokoniMediaRef[]> {
+async function uploadParticipantMedia(ownerUid: string, participantId: string, files: File[]): Promise<SokoniMediaRef[]> {
   if (!files.length) return [];
   if (!storage) throw new Error('Sokoni media storage is not configured.');
   const media: SokoniMediaRef[] = [];
@@ -92,7 +93,7 @@ async function uploadParticipantMedia(participantId: string, files: File[]): Pro
     for (const file of files) {
       const mediaId = crypto.randomUUID();
       const extension = file.name.includes('.') ? file.name.split('.').pop()?.toLowerCase() || 'bin' : 'bin';
-      const storagePath = `sokoni/participants/${participantId}/${mediaId}.${extension}`;
+      const storagePath = `sokoni/participants/${ownerUid}/${participantId}/${mediaId}.${extension}`;
       const storageRef = ref(storage, storagePath);
       await uploadBytes(storageRef, file, { contentType: file.type });
       const url = await getDownloadURL(storageRef);
@@ -112,7 +113,8 @@ export async function saveSokoniParticipant(input: SokoniParticipantRegistration
 
   const participantRef = doc(collection(db, COLLECTION));
   const participantId = participantRef.id;
-  const media = await uploadParticipantMedia(participantId, input.photos);
+  const ownerUid = auth.currentUser!.uid;
+  const media = await uploadParticipantMedia(ownerUid, participantId, input.photos);
   const now = new Date().toISOString();
   const commercialState: SokoniCommercialState = input.offeringCode ? 'PAYMENT_REQUIRED' : 'NONE';
   const listings: SokoniListing[] = input.listings.filter((item) => item.name.trim()).map((item) => ({
@@ -124,6 +126,7 @@ export async function saveSokoniParticipant(input: SokoniParticipantRegistration
   }));
   const record: SokoniParticipant = {
     id: participantId,
+    ownerUid,
     participantKind: input.participantKind,
     orientations: Array.from(new Set(input.orientations.filter(Boolean))),
     orientationContext: input.orientationContext,
