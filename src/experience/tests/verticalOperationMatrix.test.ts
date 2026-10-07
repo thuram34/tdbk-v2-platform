@@ -96,5 +96,19 @@ describe('vertical operation acceptance matrix', () => {
     expect(result.record).toMatchObject(payload);
     expect(result.status).toBeTruthy();
     expect(result.eventId).toBeTruthy();
+
+    // A vertical is not complete when it can merely create a record.
+    // Prove the authoritative lifecycle can advance the same persisted
+    // record through its terminal completion operation.
+    const completed = await verticalCapabilityRuntime.execute(context, dbkId, {
+      capabilityId,
+      operation: 'COMPLETE_RECORD',
+      recordId: result.recordId,
+      payload: { branchId: dbkId + '_hq' },
+    });
+
+    expect(completed.recordId).toBe(result.recordId);
+    expect(completed.status).toBe('COMPLETED');
+    expect(completed.eventId).toBeTruthy();
   });
 });
