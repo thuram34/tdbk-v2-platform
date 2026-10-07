@@ -439,6 +439,25 @@ export class TdbkIdentityService {
     await firebaseIdentityManager.setTdbkClaims(targetUid, claims);
     await tdbkIdentityRepository.saveIdentity(targetUid, record);
 
+    const branches = await branchRepository.listBranches(tenantId);
+    const membershipSpaceId =
+      existing?.branchId ||
+      branches.find((branch) => branch.isHeadquarters && branch.status === 'ACTIVE')?.branchId ||
+      tenantId;
+    const ownerMembership: SpaceMembership = {
+      membershipId: `mem_${tenantId}_${targetUid}_${membershipSpaceId}`,
+      userId: targetUid,
+      spaceId: membershipSpaceId,
+      tenantId,
+      role: 'OWNER_OPERATOR',
+      roleTitle: 'Business Owner / Operator',
+      status: 'ACTIVE',
+      joinedAt: new Date().toISOString(),
+      permissions: operatorPerms,
+      department: 'Executive Management',
+    };
+    await spaceMembershipRepository.saveMembership(ownerMembership);
+
     auditLogger.logEvent(
       'SECURITY_CONFIGURATION_CHANGE',
       principal.id,
