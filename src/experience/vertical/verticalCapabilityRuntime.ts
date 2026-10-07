@@ -121,7 +121,16 @@ export class VerticalCapabilityRuntime {
       recordId = record.id;
     }
 
-    const event = await eventBus.publishEvent(context, 'workflow.completed.v1', {
+    const eventType =
+      request.operation === 'CREATE_RECORD'
+        ? 'vertical.record.created.v1'
+        : request.operation === 'UPDATE_RECORD'
+          ? 'vertical.record.updated.v1'
+          : request.operation === 'COMPLETE_RECORD'
+            ? 'vertical.record.completed.v1'
+            : 'vertical.record.cancelled.v1';
+
+    const event = await eventBus.publishEvent(context, eventType, {
       dbkId,
       branchId: branchId || null,
       capabilityId: request.capabilityId,
