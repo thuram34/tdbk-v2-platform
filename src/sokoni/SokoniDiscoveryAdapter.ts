@@ -170,7 +170,7 @@ export const tdbkPublicDiscoveryAdapter: SokoniPublicDiscoveryAdapter = {
     return {
       intent: {
         rawNeed: input.need,
-        interpretedNeed: input.need.trim(),
+        interpretedNeed: sector ? `${sector.replaceAll('_', ' ')} directory` : 'Local business directory',
         category: sector ? sector.replaceAll('_', ' ') : 'Local businesses',
       },
       location: input.location,
