@@ -18,6 +18,7 @@ import { saleTransactionService } from '../business/sales/saleTransactionService
 import { connectionHub } from '../orchestration/bridge/connectionHub';
 import { dbkLifecycleManager } from '../platform/lifecycle/lifecycleManager';
 import { verticalCapabilityRuntime } from './vertical/verticalCapabilityRuntime';
+import { INITIAL_BLUEPRINT_CATALOG } from '../blueprint/catalog';
 
 export class ExperienceResolver {
   private static instance: ExperienceResolver;
@@ -168,6 +169,26 @@ export class ExperienceResolver {
           throw new KernelError('VALIDATION_ERROR', 'Missing capabilityId or record payload', 400, context.requestId);
         }
         const cap = capabilityRegistry.getCapability(String(capabilityId));
+        const targetDbk = await dbkRegistry.getDbkInternal(req.targetDbkId);
+        const targetBlueprint = targetDbk ? INITIAL_BLUEPRINT_CATALOG.find((item) => item.id === targetDbk.blueprintId) : undefined;
+        const targetCapabilityIds = new Set(targetBlueprint?.supportedCapabilities.map((item) => item.id) || []);
+        const isVerticalCapability = !!cap && targetCapabilityIds.has(cap.capabilityId);
+        if (isVerticalCapability) {
+          const verticalResult = await verticalCapabilityRuntime.execute(context, req.targetDbkId, {
+            capabilityId: String(capabilityId),
+            operation: 'CREATE_RECORD',
+            payload: record as Record<string, unknown>,
+          });
+          updatedExperience = await this.resolveExperience(context, req.targetDbkId);
+          return {
+            success: true,
+            commandType: req.commandType,
+            targetDbkId: req.targetDbkId,
+            result: verticalResult,
+            updatedResolvedExperience: updatedExperience,
+            serverTimestamp: timestamp,
+          };
+        }
         const ownerOverride = masterAuthority.isMasterAdmin(context.principal) || masterAuthority.isOwnerPortfolio(context.principal);
         if (cap && !ownerOverride) {
           const roleAllowed = cap.requiredRoles.length === 0 || cap.requiredRoles.some((role) => context.principal.roles.includes(role));
