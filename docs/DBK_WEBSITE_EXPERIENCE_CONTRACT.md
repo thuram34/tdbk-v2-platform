@@ -239,3 +239,17 @@ DBK work must stop and record `MASTER REVIEW REQUIRED` when:
 The repository is now carrying this DBK domain contract so future DBK work can continue from the repository rather than from conversation history.
 
 Next DBK implementation target: **DBK-01 Experience Shell**, followed by DBK-02 public intent experience, using existing Engine contracts as dependencies and without modifying Engine authority.
+
+
+## 15. Grand Operation Update — 2026-10-07
+
+The previous public organization/Sokoni boundary is no longer an unimplemented authority.
+
+The Engine now provides:
+1. owner-controlled durable DBK publication;
+2. lifecycle eligibility enforcement;
+3. public-safe organization projection;
+4. public discovery API;
+5. Sokoni consumption of published TDBK organizations.
+
+DBK must still stop at the boundary for capabilities or commercial workflows that do not have authoritative Engine contracts. Sokoni remains its own marketplace authority and must not be turned into a hidden DBK master.
