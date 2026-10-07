@@ -6,6 +6,8 @@ import { securityContextFactory } from '../../kernel/context/contextFactory';
 import { TokenVerifier } from '../../kernel/identity/tokenVerifier';
 import { verticalCapabilityRuntime } from '../vertical/verticalCapabilityRuntime';
 import { branchRepository } from '../../persistence/firestore/repositories/branchRepository';
+import { entityRecordRepository } from '../../persistence/firestore/repositories/entityRecordRepository';
+import { eventBus } from '../../orchestration/events/eventBus';
 
 const cases = [
   ['school_v1', 'EDUCATION', 'student_records', { admissionNo: 'ADM-001', fullName: 'Student One', classStream: 'Grade 4A' }],
@@ -110,5 +112,19 @@ describe('vertical operation acceptance matrix', () => {
     expect(completed.recordId).toBe(result.recordId);
     expect(completed.status).toBe('COMPLETED');
     expect(completed.eventId).toBeTruthy();
+
+    const reloaded = await entityRecordRepository.getRecord(
+      dbkId,
+      capabilityId,
+      result.recordId,
+    );
+    expect(reloaded?.status).toBe('COMPLETED');
+    expect(reloaded?.branchId).toBe(dbkId + '_hq');
+
+    const completionEvents = eventBus
+      .getEventHistory(dbkId)
+      .filter((event) => event.eventType === 'vertical.record.completed.v1' && (event.payload as any)?.recordId === result.recordId);
+    expect(completionEvents).toHaveLength(1);
+    expect(completionEvents[0].eventId).toBe(completed.eventId);
   });
 });
