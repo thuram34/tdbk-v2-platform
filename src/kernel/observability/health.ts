@@ -56,14 +56,14 @@ export class HealthMonitoringService {
 
     components.eventBus = eventBus.isReady();
 
-    const requiredBridgeIds = ['bridge_mpesa', 'bridge_etims', 'bridge_whatsapp'];
+    const requiredBridgeIds = ['bridge_mpesa', 'bridge_etims', 'bridge_whatsapp', 'bridge_sms', 'bridge_email', 'bridge_bank'];
     components.bridgeAdapters = requiredBridgeIds.every((bridgeId) => {
       const definition = bridgeRegistry.getBridgeDefinition(bridgeId);
       const adapter = bridgeRegistry.getBridgeInstance(bridgeId);
       return Boolean(
         adapter &&
         definition &&
-        definition.status !== 'MOCK',
+        definition.status !== 'DEFINED',
       );
     });
 
