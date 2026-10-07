@@ -716,7 +716,7 @@ export const INITIAL_CAPABILITY_CATALOG: CapabilityDefinition[] = [
     version: '1.0.0',
     supportedBlueprints: ['HARDWARE'],
     dependencies: ['core_identity'],
-    requiredPermissions: ['create:sale', 'manage:pos'],
+    requiredPermissions: ['execute:pos'],
     requiredRoles: ['CASHIER', 'STORE_OWNER', 'TENANT_ADMIN', 'SALES_EXECUTIVE'],
     entitlementRequirements: { minimumTier: 'FOUNDATION' },
     configurationSchema: { requiresConfiguration: false },
