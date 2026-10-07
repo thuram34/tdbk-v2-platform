@@ -18,7 +18,7 @@ export class ExternalReconciliationService {
   public async reconcile(
     context: SecurityContext,
     executionKey: string,
-  ): Promise<{ status: 'RECONCILED_SUCCESS' | 'RECONCILED_FAILURE' | 'STILL_PENDING'; execution: unknown; providerResult?: unknown }> {
+  ): Promise<{ status: 'RECONCILED_SUCCESS' | 'RECONCILED_FAILURE' | 'STILL_PENDING'; execution: unknown; providerResult?: unknown; workflow?: unknown }> {
     const tenantId = context.tenantContext?.tenantId || context.principal.tenantId;
     if (!tenantId) throw new KernelError('TENANT_ISOLATION_ERROR', 'Reconciliation requires an authoritative tenant context.', 403, context.requestId);
 
