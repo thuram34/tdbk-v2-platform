@@ -137,3 +137,55 @@ No new architectural decision was introduced beyond confirming the existing bloc
 - Registry normalization commit: `ed9d1023876ddbc69794008eb8bc054c728ec71a`
 - Regression test commit: `3c5d12e6aed1ecdd3aee01d74dcee20f394fdf70`
 - This provider-contract verification/status update: pending this write
+
+
+## Frontend Canonical Multi-Role Journey — 2026-10-07
+
+### Scope completed
+The authenticated workspace now has an Engine-backed **People & Roles** surface under workspace Settings.
+
+The frontend:
+- reads tenant-scoped identities from `GET /api/kernel/identity?tenantId={dbkId}`;
+- displays existing Engine identity, role, and permission state;
+- assigns tenant-scoped roles through the existing `POST /api/kernel/identity/role` authority;
+- refreshes the authoritative workspace experience after assignment;
+- does not create a second user directory, local membership store, local RBAC model, or local permission authority.
+
+### Role contract completed
+The identity service now supplies operational default permissions for catalog roles already present in the TDBK module/workflow catalogue, including:
+- SCHOOL_PRINCIPAL
+- TEACHER
+- BURSAR
+- FINANCE_VIEWER
+- CASHIER
+- STORE_OWNER
+- SHOP_MANAGER
+- CLINICIAN
+- MEDICAL_DIRECTOR
+- TENANT_ADMIN
+- OWNER_OPERATOR
+
+The permissions are applied by the authoritative Kernel identity service and synchronized into Firebase claims; the frontend only invokes that authority.
+
+### Canonical role journey
+`Owner/Admin -> Workspace Settings -> People & Roles -> assign role -> Kernel identity/claims -> Experience resolution -> role-filtered navigation/capabilities -> authorized operation`
+
+This closes the previously identified frontend gap for **role assignment to existing TDBK identities**.
+
+### Important remaining limitation
+This slice does **not** invent an invitation or Firebase-user-creation workflow. New-user invitation/provisioning remains an Engine identity lifecycle concern. The current UI deliberately manages existing identities only.
+
+The role-specific Experience contract is therefore now connected to role assignment, but full multi-user acceptance still requires an environment-level test with distinct authenticated accounts (for example Principal vs Teacher vs Bursar) entering the same DBK and executing authorized/unauthorized operations.
+
+### Exact files changed in this slice
+- `src/components/experience/TeamRolesPanel.tsx`
+- `src/components/experience/SettingsView.tsx`
+- `src/kernel/identity/tdbkIdentityService.ts`
+- `src/kernel/tests/identityClaimsManagement.test.ts`
+- `docs/master/ENGINE-STATUS.md`
+
+### Verification limitation
+The repository connector in this session does not provide local npm/shell execution. The new test was added but **npm test/typecheck/lint/build were not executed here**. No local verification is claimed as PASS.
+
+### DBK / Sokoni
+**NONE.** DBK and Sokoni authority were not modified by this slice.
