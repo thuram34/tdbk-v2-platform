@@ -6,7 +6,7 @@
 ## Scope
 This audit treats TDBK as one product system rather than a collection of feature slices.
 
-Repository snapshot audited: `cc47ffa4976b9a478308ebe5ec91ebc73ac68f85`
+Repository snapshot audited: `e4fa6d53cf6f4bb03fb8474f032a77b003c3a4a0`
 
 Inventory:
 - 359 tracked files
@@ -63,7 +63,7 @@ A UI is not considered complete unless its authoritative server path exists. A b
 
 The prior GitHub Actions run #922 tested PR #390's merge ref, not the current head. It failed during TypeScript typecheck before lint/tests/build.
 
-Current PR head: `cc47ffa4976b9a478308ebe5ec91ebc73ac68f85`.
+Current PR head at this audit update: `e4fa6d53cf6f4bb03fb8474f032a77b003c3a4a0`.
 
 At audit time, no workflow run or status check had yet been reported for the current head. Therefore no green CI claim is made for the current head.
 
@@ -82,7 +82,14 @@ Email, SMS and Generic Bank remain provider-unconnected in the repository. They 
 M-Pesa, eTIMS and WhatsApp have executable provider adapters, but tenant-specific provider configuration/certification remains an environment gate.
 
 ### B. Gate 04 external side-effect safety
-The repository still needs complete authoritative UNKNOWN/reconciliation enforcement for non-idempotent external operations after execution ownership is lost. No provider idempotency semantics will be invented.
+Gate 04 UNKNOWN/reconciliation enforcement is now wired end-to-end for providers that explicitly support authoritative reconciliation:
+- durable execution state records UNKNOWN/RECONCILIATION_REQUIRED;
+- workflow recovery refuses blind replay when provider idempotency is unavailable;
+- `ExternalReconciliationService` authorizes reconciliation, requires provider reconciliation support and a provider reference, invokes the provider-specific reconciliation operation, durably records RECONCILED_SUCCESS/RECONCILED_FAILURE, and resumes the workflow;
+- `POST /api/workflows/reconcile/:executionKey` exposes the authorized reconciliation boundary;
+- Gate 04 tests now prove the ambiguous-outcome → reconciled terminal-state transition.
+
+M-Pesa is currently the only provider with a registered authoritative reconciliation adapter. Providers without reconciliation support remain blocked from automatic replay after UNKNOWN.
 
 ### C. Sokoni commercial authority
 Sokoni payment initiation and authoritative payment confirmation are not yet implemented. Until this is complete:
@@ -164,7 +171,7 @@ No item is marked COMPLETE from source inspection alone when runtime/provider/de
 ## Next execution order
 1. Obtain fresh CI evidence for current PR head.
 2. Fix every failing CI gate until the complete pipeline executes.
-3. Close Gate 04 UNKNOWN/reconciliation enforcement.
+3. ~~Close Gate 04 UNKNOWN/reconciliation enforcement~~ — completed for the currently supported reconciliation contract.
 4. Harden production readiness.
 5. Finish Sokoni ownership + payment authority.
 6. Build remaining Sokoni authoritative discovery/request domains where justified.
