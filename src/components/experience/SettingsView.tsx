@@ -82,6 +82,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ experience, onRefres
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
+  const [healthTesting, setHealthTesting] = useState(false);
   const { getIdToken } = useAuth();
 
   const selectedConnection = useMemo(
@@ -163,6 +164,33 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ experience, onRefres
       setSaveError(error?.message || 'The connection could not be saved.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const testConnection = async () => {
+    if (!selectedBridgeId || !selectedConnection) return;
+    setHealthTesting(true);
+    setSaveError(null);
+    setSaveSuccess(null);
+    try {
+      const token = await getIdToken();
+      if (!token) throw new Error('Your session has expired. Please sign in again.');
+      const response = await fetch(
+        '/api/connectors/' + encodeURIComponent(dbkId) + '/' + encodeURIComponent(selectedBridgeId) + '/health',
+        { method: 'POST', headers: { Authorization: 'Bearer ' + token } },
+      );
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const reason = data.health?.details?.reason || data.error?.message || 'Provider health check failed.';
+        throw new Error(reason);
+      }
+      setSaveSuccess('Provider connection is healthy. Refreshing workspace readiness…');
+      await onRefreshExperience();
+    } catch (error: any) {
+      setSaveError(error?.message || 'Provider health check failed.');
+      await onRefreshExperience();
+    } finally {
+      setHealthTesting(false);
     }
   };
 
@@ -322,12 +350,22 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ experience, onRefres
             <div className="text-xs text-neutral-500">
               <span className="font-semibold text-neutral-700">Security boundary:</span> provider secrets are referenced, not persisted as raw values.
             </div>
-            <button
-              type="button"
-              onClick={saveConnector}
-              disabled={saving}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-neutral-950 px-5 py-3 text-sm font-bold text-white hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-60"
-            >
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <button
+                type="button"
+                onClick={testConnection}
+                disabled={healthTesting || saving || selectedConnection.status !== 'CONFIGURED'}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-neutral-300 bg-white px-5 py-3 text-sm font-bold text-neutral-800 hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {healthTesting ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlugZap className="h-4 w-4" />}
+                {healthTesting ? 'Testing…' : 'Test connection'}
+              </button>
+              <button
+                type="button"
+                onClick={saveConnector}
+                disabled={saving || healthTesting}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-neutral-950 px-5 py-3 text-sm font-bold text-white hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
               {saving ? 'Saving…' : 'Save connection'}
             </button>
