@@ -145,3 +145,40 @@ export const restoreDbk = (
   dbkId: string,
   reason: string,
 ) => lifecycleAction(idToken, dbkId, 'restore', reason);
+
+
+export interface DbkPublicPublication {
+  dbkId: string;
+  status: 'DRAFT' | 'PUBLISHED' | 'UNPUBLISHED' | 'SUSPENDED';
+  publishedAt: string | null;
+  publishedBy: string | null;
+  updatedAt: string;
+  reason?: string;
+  version: number;
+}
+
+export async function getDbkPublication(idToken: string, dbkId: string): Promise<DbkPublicPublication> {
+  const data = await request<ApiResponse<never>>(
+    `/api/platform/dbks/${encodeURIComponent(dbkId)}/publication`,
+    idToken,
+  );
+  const publication = (data as ApiResponse<never> & { publication?: DbkPublicPublication }).publication;
+  if (!publication) throw new Error('Publication state was not returned.');
+  return publication;
+}
+
+export async function setDbkPublication(
+  idToken: string,
+  dbkId: string,
+  status: DbkPublicPublication['status'],
+  reason?: string,
+): Promise<DbkPublicPublication> {
+  const data = await request<ApiResponse<never>>(
+    `/api/platform/dbks/${encodeURIComponent(dbkId)}/publication`,
+    idToken,
+    { method: 'POST', body: JSON.stringify({ status, reason }) },
+  );
+  const publication = (data as ApiResponse<never> & { publication?: DbkPublicPublication }).publication;
+  if (!publication) throw new Error('Publication state was not returned.');
+  return publication;
+}
