@@ -249,6 +249,7 @@ export const DbkShell: React.FC<DbkShellProps> = ({
     FAILED: 'Provisioning failed',
   };
 
+  const retailLike = /RETAIL|HARDWARE|ELECTRONICS|SUPERMARKET|WHOLESALE/i.test(experience?.sector || '');
   const shellStatusLabel = experience?.shellReadiness === 'READY'
     ? 'Shell ready'
     : experience?.shellReadiness === 'BUILDING'
@@ -334,7 +335,7 @@ export const DbkShell: React.FC<DbkShellProps> = ({
       <div className="mx-auto w-full max-w-7xl px-4 pt-3 sm:px-6">
         <div className="flex gap-2 overflow-x-auto rounded-2xl border border-neutral-200 bg-white p-2 shadow-sm">
           {[
-            ['POS', ShoppingCart, 'nav_overview'],
+            retailLike ? ['POS', ShoppingCart, 'nav_overview'] : ['Overview', ShoppingCart, 'nav_overview'],
             ['Inventory', Package, experience?.navigation.find((item) => /inventory|stock/i.test(item.label))?.capabilityId],
             ['Customers', Users, experience?.navigation.find((item) => /customer|client/i.test(item.label))?.capabilityId],
             ['Reports', BarChart3, experience?.navigation.find((item) => /report|analytics/i.test(item.label))?.capabilityId],
