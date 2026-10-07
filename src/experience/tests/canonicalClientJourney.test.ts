@@ -59,6 +59,37 @@ function ownerContext(): SecurityContext {
   };
 }
 
+function tenantOwnerContext(branchId: string): SecurityContext {
+  return {
+    requestId: 'canonical-owner-runtime-request',
+    correlationId: 'canonical-owner-runtime-correlation',
+    timestamp: new Date().toISOString(),
+    principal: {
+      id: 'canonical-owner',
+      email: 'owner@tdbk.test',
+      isMaster: false,
+      tenantId: dbkId,
+      branchId,
+      roles: ['OWNER_OPERATOR'],
+      permissions: ['TENANT_ADMIN', 'BRANCH_MANAGE', 'STAFF_MANAGE', 'DBK_MANAGE', 'connectors:write'],
+      authTime: Date.now(),
+      tokenSource: 'JWT',
+    },
+    tenantContext: {
+      tenantId: dbkId,
+      name: 'Canonical Hardware Test',
+      blueprintId: 'hardware_v1',
+      status: 'ACTIVE',
+    },
+    branchContext: {
+      branchId,
+      name: 'Mombasa HQ',
+      isHeadquarters: true,
+      status: 'ACTIVE',
+    },
+  };
+}
+
 function cashierContext(branchId: string): SecurityContext {
   return {
     requestId: 'canonical-sale-request',
@@ -212,10 +243,10 @@ describe('TDBK canonical client journey acceptance', () => {
       lastErrorCode: null,
     });
 
-    const connectorHealth = await connectionHub.health(ownerContext(), 'bridge_mpesa');
+    const connectorHealth = await connectionHub.health(tenantOwnerContext(branchId), 'bridge_mpesa');
     expect(connectorHealth.status).toBe('HEALTHY');
 
-    const connectorReport = await connectorReadinessService.inspect(ownerContext(), dbkId);
+    const connectorReport = await connectorReadinessService.inspect(tenantOwnerContext(branchId), dbkId);
     const mpesa = connectorReport.items.find((item) => item.bridgeId === 'bridge_mpesa');
     expect(mpesa?.connectionStatus).toBe('CONFIGURED');
     expect(mpesa?.enabled).toBe(true);
