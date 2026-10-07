@@ -61,7 +61,7 @@ export interface SokoniParticipantRegistrationInput {
   listings: Array<{ kind: 'PRODUCT' | 'SERVICE'; name: string; description: string; photoIndexes?: number[] }>;
 }
 
-const COLLECTION = 'sokoniParticipants';
+const COLLECTION = 'system/sokoniParticipants';
 const MAX_PHOTOS = 8;
 const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
 
