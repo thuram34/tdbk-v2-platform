@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { firestoreClient } from '../persistence/../persistence/firestore/firestoreClient';
+import { firestoreClient } from '../persistence/firestore/firestoreClient';
 import { sokoniPaymentService } from './sokoniPaymentService';
 
 describe('Sokoni payment authority', () => {
