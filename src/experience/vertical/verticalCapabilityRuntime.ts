@@ -52,12 +52,12 @@ export class VerticalCapabilityRuntime {
     const dbk = await dbkRegistry.getDbk(context, dbkId);
     if (!dbk) throw new KernelError('NOT_FOUND', `DBK '${dbkId}' not found`, 404, context.requestId);
 
-    const capability = capabilityRegistry.getCapability(request.capabilityId, `VERTICAL_${request.operation}`);
+    const capability = capabilityRegistry.getCapability(request.capabilityId);
     if (!capability) {
       throw new KernelError('NOT_FOUND', `Capability '${request.capabilityId}' not found`, 404, context.requestId);
     }
 
-    await dbkCapabilityManager.assertCapabilityOperational(context, dbkId, request.capabilityId);
+    await dbkCapabilityManager.assertCapabilityOperational(context, dbkId, request.capabilityId, `VERTICAL_${request.operation}`);
 
     const workflow = VERTICAL_WORKFLOW_CATALOG.find((item) => item.capabilityId === request.capabilityId);
     if (workflow) {
@@ -85,7 +85,7 @@ export class VerticalCapabilityRuntime {
       }
     }
 
-    const payload = {
+    const payload: Record<string, unknown> = {
       ...request.payload,
       ...(branchId ? { branchId } : {}),
       dbkId,
