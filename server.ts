@@ -1900,6 +1900,8 @@ async function startServer() {
     });
   }
 
+  await healthMonitoring.initializeReadinessMarker();
+
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`[TDBK_V2_KERNEL] Express Server listening on http://0.0.0.0:${PORT}`);
   });
