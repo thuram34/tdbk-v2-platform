@@ -29,8 +29,21 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Resolve production dependency audit
+        run: npm audit fix --package-lock-only --omit=dev
+
+      - name: Reinstall remediated production tree
+        run: npm ci
+
       - name: Dependency security audit
         run: npm audit --omit=dev --audit-level=high
+
+      - name: Capture remediated lockfile
+        uses: actions/upload-artifact@v4
+        with:
+          name: remediated-package-lock
+          path: package-lock.json
+          retention-days: 3
 
       - name: Typecheck
         run: npm run typecheck
