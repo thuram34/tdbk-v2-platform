@@ -45,7 +45,8 @@ export const EntityListView: React.FC<EntityListViewProps> = ({
     try {
       const idToken = await getIdToken();
       if (!idToken) throw new Error('Your session has expired. Please sign in again.');
-      const res = await fetch(`/api/experience/entities/${experience.dbkId}/${capabilityId}`, {
+      const branchQuery = experience.activeBranch?.branchId ? `?branchId=${encodeURIComponent(experience.activeBranch.branchId)}` : '';
+      const res = await fetch(`/api/experience/entities/${experience.dbkId}/${capabilityId}${branchQuery}`, {
         headers: { Authorization: `Bearer ${idToken}` },
       });
       if (res.ok) {
@@ -83,10 +84,14 @@ export const EntityListView: React.FC<EntityListViewProps> = ({
       updatedAt: new Date().toISOString(),
     };
 
-    await onDispatchCommand('SUBMIT_ENTITY', {
+    const response = await onDispatchCommand('SUBMIT_ENTITY', {
       capabilityId,
       record: newRecord,
     });
+    const commandResponse = response?.commandResponse;
+    if (commandResponse?.success !== true) {
+      throw new Error(commandResponse?.error?.message || 'The record could not be saved.');
+    }
 
     setIsCreateModalOpen(false);
     setFormData({});
@@ -109,6 +114,12 @@ export const EntityListView: React.FC<EntityListViewProps> = ({
       if (commandResponse?.success !== true) {
         throw new Error(commandResponse?.error?.message || 'The record could not be completed.');
       }
+
+      const result = commandResponse.result || {};
+      if (String(result.recordId || '') !== record.id || String(result.status || '') !== 'COMPLETED') {
+        throw new Error('The server did not confirm the requested record as COMPLETED.');
+      }
+
       await loadRecords();
     } catch (error: any) {
       setOperationError(error?.message || 'The record could not be completed.');
