@@ -152,7 +152,7 @@ describe('TDBK canonical client journey acceptance', () => {
       ownerContext().principal,
       'READ_WORKSPACE',
       'dbk:' + dbkId,
-      { tenantId: dbkId, requiredPermission: 'DBK_MANAGE' },
+      { tenantId: dbkId, requiredPermission: 'TENANT_ADMIN' },
     );
     expect(ownerAuthorized.allowed).toBe(true);
 
