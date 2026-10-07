@@ -63,7 +63,8 @@ export class DbkLifecycleManagerService {
     }
 
     const updated = await dbkRegistry.updateStatus(context, dbkId, 'SUSPENDED', reason);
-    await publicPublicationService.setPublication(context, dbkId, 'SUSPENDED', reason);
+    const publication = await publicPublicationService.getPublication(dbkId);
+    if (publication.status === 'PUBLISHED') await publicPublicationService.setPublication(context, dbkId, 'SUSPENDED', reason);
 
     // Emit event
     eventBus.publishEvent(
