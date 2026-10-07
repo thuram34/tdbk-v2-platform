@@ -89,6 +89,51 @@ describe('Sokoni payment authority', () => {
     expect(mpesaBridge.executeSystemPayment).toHaveBeenCalledTimes(1);
   });
 
+  it('ignores unrelated payment confirmation events', async () => {
+    await firestoreClient.set('/system/sokoni/participants/participant_guard', {
+      id: 'participant_guard',
+      ownerUid: 'owner_sokoni_001',
+      publicationStatus: 'DRAFT',
+      commercial: { offeringCode: 'SOKONI_100', state: 'PAYMENT_PENDING' },
+      tdbkRelationship: 'NOT_ENROLLED',
+    });
+    await firestoreClient.set('/system/sokoni/paymentIntents/intent_guard', {
+      intentId: 'intent_guard',
+      participantId: 'participant_guard',
+      ownerUid: 'owner_sokoni_001',
+      offeringCode: 'SOKONI_100',
+      amount: 100,
+      currency: 'KES',
+      provider: 'SAFARICOM_MPESA',
+      providerReference: 'checkout_guard',
+      state: 'PENDING',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      confirmedAt: null,
+    });
+
+    await handleSokoniPaymentConfirmed({
+      eventId: 'evt_unrelated_payment',
+      eventType: 'payment.confirmed.v1',
+      eventVersion: 'v1',
+      occurredAt: new Date().toISOString(),
+      tenantId: 'tenant_other',
+      branchId: null,
+      principalId: 'worker_test',
+      correlationId: 'corr_unrelated',
+      causationId: 'checkout_guard',
+      source: 'UnrelatedPaymentService',
+      payload: { provider: 'SAFARICOM_MPESA', providerReference: 'checkout_guard', amount: 100, currency: 'KES' },
+      metadata: {},
+    } as any);
+
+    const intent = await firestoreClient.get<any>('/system/sokoni/paymentIntents/intent_guard');
+    const participant = await firestoreClient.get<any>('/system/sokoni/participants/participant_guard');
+    expect(intent.state).toBe('PENDING');
+    expect(participant.commercial.state).toBe('PAYMENT_PENDING');
+    expect(participant.publicationStatus).toBe('DRAFT');
+  });
+
   it('reconciles a real M-Pesa confirmation event by checkout reference', async () => {
     await firestoreClient.set('/system/sokoni/participants/participant_004', {
       id: 'participant_004',
