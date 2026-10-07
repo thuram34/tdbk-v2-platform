@@ -6,6 +6,7 @@ import { dbkCapabilityManager } from '../../capability/dbkCapabilityManager';
 import { capabilityRegistry } from '../../capability/registry';
 import { entityEngine } from '../entity/entityEngine';
 import { eventBus } from '../../orchestration/events/eventBus';
+import { VERTICAL_WORKFLOW_CATALOG } from './workflowCatalog';
 
 export type VerticalOperation =
   | 'CREATE_RECORD'
@@ -57,9 +58,30 @@ export class VerticalCapabilityRuntime {
 
     await dbkCapabilityManager.assertCapabilityOperational(context, dbkId, request.capabilityId);
 
+    const workflow = VERTICAL_WORKFLOW_CATALOG.find((item) => item.capabilityId === request.capabilityId);
+    if (workflow) {
+      const missing = workflow.requiredFields.filter((field) => request.payload[field] === undefined || request.payload[field] === null || request.payload[field] === '');
+      if (missing.length) throw new KernelError('VALIDATION_ERROR', `Missing required fields for ${request.capabilityId}: ${missing.join(', ')}`, 400, context.requestId);
+    }
+
     const branchId = typeof request.payload.branchId === 'string'
       ? request.payload.branchId
       : context.branchContext?.branchId || context.principal.branchId || undefined;
+
+    const currentStatus = request.payload.status ? String(request.payload.status) : undefined;
+    const defaultStatus = workflow ? Object.keys(workflow.allowedTransitions)[0] || 'ACTIVE' : 'ACTIVE';
+    const targetStatus = request.operation === 'COMPLETE_RECORD' ? 'COMPLETED' : request.operation === 'CANCEL_RECORD' ? 'CANCELLED' : (currentStatus || defaultStatus);
+
+    if (workflow && request.operation !== 'CREATE_RECORD') {
+      const from = currentStatus || defaultStatus;
+      const allowed = workflow.allowedTransitions[from] || [];
+      if (request.operation === 'UPDATE_RECORD' && currentStatus && !allowed.includes(targetStatus) && targetStatus !== from) {
+        throw new KernelError('VALIDATION_ERROR', `Invalid ${request.capabilityId} transition: ${from} -> ${targetStatus}`, 409, context.requestId);
+      }
+      if (request.operation === 'COMPLETE_RECORD' && !allowed.includes('COMPLETED')) {
+        throw new KernelError('VALIDATION_ERROR', `Cannot complete ${request.capabilityId} from state ${from}`, 409, context.requestId);
+      }
+    }
 
     const payload = {
       ...request.payload,
@@ -78,17 +100,14 @@ export class VerticalCapabilityRuntime {
         id: recordId,
         primaryIdentifier: String(payload.reference || payload.code || recordId),
         secondaryIdentifier: String(payload.name || payload.title || capability.name),
-        status: String(payload.status || 'ACTIVE'),
+        status: targetStatus,
       });
       recordId = record.id;
     } else {
       if (!request.recordId) {
         throw new KernelError('VALIDATION_ERROR', 'recordId is required for update/complete/cancel operations', 400, context.requestId);
       }
-      const nextStatus =
-        request.operation === 'COMPLETE_RECORD' ? 'COMPLETED' :
-        request.operation === 'CANCEL_RECORD' ? 'CANCELLED' :
-        String(payload.status || 'ACTIVE');
+      const nextStatus = targetStatus;
 
       record = await entityEngine.updatePersistentRecord(
         context,
