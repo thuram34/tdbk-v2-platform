@@ -458,7 +458,7 @@ export class ProvisioningService {
         },
       ],
       provisioningStage: 'REGISTRATION_ACCEPTED',
-      metadata: { ...(isRecovery ? recoveryDbk!.metadata : {}, ...(request.customPreferences || {}), provisioningStage: 'REGISTRATION_ACCEPTED' as DbkProvisioningStage },
+      metadata: { ...(isRecovery ? (recoveryDbk!.metadata || {}) : {}), ...(request.customPreferences || {}), provisioningStage: 'REGISTRATION_ACCEPTED' as DbkProvisioningStage },
     };
 
     await dbkRegistry.saveDbk(context, initialDbk);
