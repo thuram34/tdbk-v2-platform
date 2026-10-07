@@ -84,7 +84,7 @@ describe('ExperienceResolver EXECUTE_SALE binding', () => {
         roles: ['TDBK_MASTER_ADMIN'],
         permissions: ['*'],
         authTime: Date.now(),
-        tokenSource: 'TEST',
+        tokenSource: 'JWT',
         isMaster: true,
       },
       tenantContext: null,
