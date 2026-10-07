@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { INITIAL_BLUEPRINT_CATALOG } from '../../blueprint/catalog';
 import { SPECIALIZED_VIEW_CATALOG } from '../registry/specializedViewCatalog';
-import { VERTICAL_WORKFLOW_CATALOG } from './workflowCatalog';
+import { VERTICAL_WORKFLOW_CATALOG } from '../vertical/workflowCatalog';
 
 describe('vertical contract completeness', () => {
   it('every blueprint-declared capability has a specialized view and workflow contract', () => {
