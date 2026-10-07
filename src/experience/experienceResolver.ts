@@ -31,9 +31,10 @@ export class ExperienceResolver {
   }
 
   public async resolveExperience(context: SecurityContext, dbkId: string, requestedBranchId?: string): Promise<DbkExperienceResolved> {
-    // 1. Assert tenant access and operational lifecycle state.
+    // Experience resolution is a read/projection operation. Keep it available
+    // for suspended/archived DBKs so the shell can truthfully render lifecycle
+    // state and explain why operational actions are unavailable.
     await masterAuthority.assertTenantAuthority(context, dbkId, 'resolveExperience');
-    await dbkLifecycleManager.assertDbkOperational(context, dbkId);
 
     // 2. Compile workspace state
     const workspace = await workspaceManager.compileWorkspaceState(context, dbkId);
