@@ -41,7 +41,7 @@ export class DiscoveryEngineService {
       (c) =>
         (c.supportedBlueprints as string[]).includes('ALL') ||
         blueprintCapabilityIds.has(c.capabilityId) ||
-        (c.supportedBlueprints as string[]).includes(sector as string) && !blueprint
+        (c.supportedBlueprints as string[]).includes(sector as string)
     );
 
     // Get current DBK capability records
@@ -157,7 +157,7 @@ export class DiscoveryEngineService {
     const compatibleCaps = allCaps.filter((cap) =>
       (cap.supportedBlueprints as string[]).includes('ALL') ||
       blueprintCapabilityIds.has(cap.capabilityId) ||
-      ((cap.supportedBlueprints as string[]).includes(sector as string) && !blueprint)
+      (cap.supportedBlueprints as string[]).includes(sector as string)
     );
     const records = await dbkCapabilityManager.hydratePersistentCapabilities(securityContext, dbkId);
     const recordMap = new Map(records.map((record) => [record.capabilityId, record]));
