@@ -37,11 +37,13 @@ service cloud.firestore {
       allow read: if resource.data.publicationStatus == 'ACTIVE';
       allow create: if isSignedIn()
         && request.resource.data.ownerUid == request.auth.uid
-        && request.resource.data.publicationStatus == 'ACTIVE'
-        && request.resource.data.tdbkRelationship == 'NOT_ENROLLED';
+        && request.resource.data.publicationStatus in ['DRAFT', 'ACTIVE']
+        && request.resource.data.tdbkRelationship == 'NOT_ENROLLED'
+        && (request.resource.data.publicationStatus == 'DRAFT' || request.resource.data.commercial.state == 'NONE');
       allow update, delete: if isSignedIn()
         && resource.data.ownerUid == request.auth.uid
-        && request.resource.data.ownerUid == request.auth.uid;
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.commercial.state == resource.data.commercial.state;
     }
 
     // Default Deny Catch-All Rule
