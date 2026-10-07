@@ -338,6 +338,7 @@ export interface IWorkflowStepExecutionRepository {
 export interface IWorkflowInstanceRepository {
   saveWorkflow(tenantId: string, workflowId: string, workflow: WorkflowInstance, expectedLeaseOwner?: string): Promise<void>;
   saveWorkflowWithOutbox(tenantId: string, workflowId: string, workflow: WorkflowInstance, event: OutboxRecord, expectedLeaseOwner?: string): Promise<void>;
+  createWorkflowWithOutboxIfAbsent(tenantId: string, workflowId: string, workflow: WorkflowInstance, event: OutboxRecord): Promise<WorkflowInstance | null>;
   getWorkflow(tenantId: string, workflowId: string): Promise<WorkflowInstance | null>;
   listWorkflows(tenantId: string): Promise<WorkflowInstance[]>;
   claimExecutionLease(tenantId: string, workflowId: string, owner: string, leaseDurationMs: number): Promise<WorkflowInstance | null>;
