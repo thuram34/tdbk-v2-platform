@@ -69,6 +69,8 @@ export default function App() {
       setDbkId(null);
       setIdToken('');
       setShowBusinessDiscovery(false);
+      setProvisionedBusiness(null);
+      setJustProvisioned(false);
       setDbksLoading(false);
       return;
     }
@@ -106,6 +108,7 @@ export default function App() {
 
   const addOrganization = () => {
     setDbkId(null);
+    setProvisionedBusiness(null);
     setShowBusinessDiscovery(true);
   };
 
