@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ArrowLeft, ArrowRight, ChevronDown, Clock3, Compass, MapPin, Phone, Search, Sparkles, UserRound, Wrench, X } from 'lucide-react';
 import { tdbkPublicDiscoveryAdapter, SokoniDiscoveryResult, SokoniLocationContext } from './SokoniDiscoveryAdapter';
-import { BusinessCard, JobCard, OfferCard, OpportunityCard, ProductCard, ProviderCard, ServiceCard } from './SokoniPresentationCards';
+import { ProviderCard } from './SokoniPresentationCards';
 import { listSokoniParticipants, SokoniParticipant } from './persistence/sokoniParticipantPersistence';
 
 type View = 'HOME' | 'SEARCH' | 'RESULTS' | 'PROVIDER' | 'PARTICIPANT' | 'ACTIVITY' | 'ACCOUNT';
@@ -45,7 +45,7 @@ export function SokoniExperience({ onBack }: { onBack?: () => void }) {
       setError('We could not prepare this discovery preview. Try again.');
     }
     if (participantOutcome.status === 'fulfilled') setParticipants(participantOutcome.value);
-    else setParticipantError('Public participant discovery is not available in this environment yet.');
+    else setParticipantError('Sokoni participant discovery is temporarily unavailable.');
     setLoading(false); setParticipantLoading(false);
   };
 
@@ -73,7 +73,7 @@ export function SokoniExperience({ onBack }: { onBack?: () => void }) {
       {view === 'RESULTS' && result && <section className="pt-8 sm:pt-12"><div className="max-w-3xl"><p className="text-xs font-black uppercase tracking-[0.16em] text-neutral-400">Need understood</p><h1 className="mt-2 text-3xl font-black sm:text-5xl">{result.intent.interpretedNeed}</h1><p className="mt-3 text-sm text-neutral-600">“{result.intent.rawNeed}”</p><div className="mt-5 flex flex-wrap gap-2"><span className="rounded-full bg-neutral-950 px-3 py-1.5 text-xs font-bold text-white">{result.intent.category}</span><span className="rounded-full border border-neutral-200 bg-white px-3 py-1.5 text-xs font-semibold"><MapPin className="mr-1 inline h-3.5 w-3.5" />{location.label}</span></div></div>
         <div className="mt-10 flex items-end justify-between"><div><p className="text-xs font-black uppercase tracking-wide text-neutral-400">Sokoni participants</p><h2 className="mt-1 text-2xl font-black">Around {location.label}</h2></div><span className="rounded-full border border-neutral-200 bg-white px-3 py-1.5 text-[10px] font-black text-neutral-600">AUTHORITATIVE SOKONI DATA</span></div>
         {participantLoading && <div className="mt-5 rounded-3xl border border-neutral-200 bg-white p-6 text-sm text-neutral-500">Loading persisted Sokoni participants for this area…</div>}
-        {participantError && <div className="mt-5 rounded-3xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">{participantError}<p className="mt-1 text-xs">The demo discovery experience remains available; no live participant claim is being made.</p></div>}
+        {participantError && <div className="mt-5 rounded-3xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">{participantError}<p className="mt-1 text-xs">TDBK published organization discovery remains separately governed.</p></div>}
         {!participantLoading && !participantError && participants.length === 0 && <div className="mt-5 rounded-3xl border border-dashed border-neutral-300 bg-white p-8 text-center"><p className="font-bold">No persisted participants were found for {location.label}.</p><p className="mt-1 text-sm text-neutral-500">This is a real empty state. Sokoni does not fabricate a business or provider to fill it.</p></div>}
         {participants.length > 0 && <div className="mt-5 grid gap-4 lg:grid-cols-2">{participants.map((participant) => <ParticipantCard key={participant.id} participant={participant} onSelect={() => { setSelectedParticipant(participant); setView('PARTICIPANT'); }} />)}</div>}
       </section>}
