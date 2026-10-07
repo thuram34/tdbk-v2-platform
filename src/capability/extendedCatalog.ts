@@ -1,6 +1,6 @@
-import { CapabilityDefinition } from './types';
+import { CapabilityDefinition, CapabilityCategory } from './types';
 const now='2026-10-07T00:00:00Z';
-function cap(id:string,name:string,category:string,blueprints:string[],description:string,deps:string[]=[]):CapabilityDefinition{
+function cap(id:string,name:string,category:CapabilityCategory,blueprints:CapabilityDefinition['supportedBlueprints'],description:string,deps:string[]=[]):CapabilityDefinition{
   return {capabilityId:id,name,description,category,version:'1.0.0',supportedBlueprints:blueprints,dependencies:deps,requiredPermissions:[],requiredRoles:['TENANT_ADMIN','DBK_ADMIN','STAFF'],entitlementRequirements:{minimumTier:'FOUNDATION'},configurationSchema:{requiresConfiguration:false},implementationStatus:'IMPLEMENTED',lifecycleStatus:'AVAILABLE',createdAt:now,updatedAt:now};
 }
 export const EXTENDED_CAPABILITY_CATALOG:CapabilityDefinition[]=[
