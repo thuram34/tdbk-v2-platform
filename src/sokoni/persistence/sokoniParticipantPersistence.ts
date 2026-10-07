@@ -137,7 +137,7 @@ export async function saveSokoniParticipant(input: SokoniParticipantRegistration
     publicContacts: { phone: input.publicPhone.trim(), ...(input.publicContact?.trim() ? { other: input.publicContact.trim() } : {}) },
     media,
     listings,
-    publicationStatus: 'ACTIVE',
+    publicationStatus: input.offeringCode ? 'DRAFT' : 'ACTIVE',
     commercial: { offeringCode: input.offeringCode || null, state: commercialState },
     tdbkRelationship: 'NOT_ENROLLED',
     createdAt: now,
