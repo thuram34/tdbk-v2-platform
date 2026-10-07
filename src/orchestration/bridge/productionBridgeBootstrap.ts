@@ -7,6 +7,8 @@ import { bridgeRegistry } from './registry';
 import { MpesaBridge } from './adapters/mpesaBridge';
 import { EtimsBridge } from './adapters/etimsBridge';
 import { WhatsappBridge } from './adapters/whatsappBridge';
+import { SmsBridge } from './adapters/smsBridge';
+import { EmailBridge } from './adapters/emailBridge';
 
 let bootstrapped = false;
 
@@ -16,6 +18,8 @@ export function bootstrapProductionBridges(): void {
   bridgeRegistry.registerBridgeInstance(new MpesaBridge());
   bridgeRegistry.registerBridgeInstance(new EtimsBridge());
   bridgeRegistry.registerBridgeInstance(new WhatsappBridge());
+  bridgeRegistry.registerBridgeInstance(new SmsBridge());
+  bridgeRegistry.registerBridgeInstance(new EmailBridge());
 
   bootstrapped = true;
 }
