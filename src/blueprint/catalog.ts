@@ -5,6 +5,7 @@
  */
 
 import { Blueprint } from './types';
+import { EXTENDED_BLUEPRINT_CATALOG } from './extendedCatalog';
 
 export const INITIAL_BLUEPRINT_CATALOG: Blueprint[] = [
   // 1. SCHOOL / EDUCATION
@@ -355,4 +356,5 @@ export const INITIAL_BLUEPRINT_CATALOG: Blueprint[] = [
     inventoryNeeds: ['NONE'],
     createdAt: '2026-08-13T00:00:00.000Z',
   },
+  ...EXTENDED_BLUEPRINT_CATALOG,
 ];
