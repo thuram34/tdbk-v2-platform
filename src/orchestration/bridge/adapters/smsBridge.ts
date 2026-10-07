@@ -17,7 +17,8 @@ import { connectorConnectionRepository } from '../../../persistence/firestore/re
 import { resolveConnectorSecret } from '../connectorSecretResolver';
 
 export interface SmsSendRequest {
-  recipientPhone: string;
+  recipientPhone?: string;
+  recipientPhones?: string[];
   messageText: string;
   senderId?: string;
 }
@@ -86,12 +87,13 @@ export class SmsBridge implements Bridge<SmsSendRequest, any, any> {
     const apiUrl = this.parameter(connection, 'SMS_API_URL', 'apiUrl') || 'https://api.africastalking.com/version1/messaging';
     const senderId = payload.senderId || this.parameter(connection, 'SMS_SENDER_ID', 'senderId');
     if (!apiKey || !username) throw new KernelError('INTEGRATION_UNAVAILABLE', 'Africa\'s Talking credentials are incomplete', 503, context.requestId);
-    if (!payload.recipientPhone || !payload.messageText) throw new KernelError('VALIDATION_ERROR', 'SMS recipientPhone and messageText are required', 400, context.requestId);
+    const recipients = operation === 'BULK_SMS' ? (payload.recipientPhones || []) : (payload.recipientPhone ? [payload.recipientPhone] : []);
+    if (!recipients.length || !payload.messageText) throw new KernelError('VALIDATION_ERROR', 'SMS recipientPhone(s) and messageText are required', 400, context.requestId);
 
     auditLogger.logEvent('BRIDGE_EXECUTION', context.principal.id, 'BRIDGE_REQUESTED', `bridge:${this.bridgeId}`, 'ALLOWED', {
       tenantId,
       requestId: context.requestId,
-      details: { operation, phone: payload.recipientPhone ? '[REDACTED_PHONE]' : undefined },
+      details: { operation, recipientCount: recipients.length },
     });
 
     if (process.env.NODE_ENV === 'test') {
@@ -109,7 +111,7 @@ export class SmsBridge implements Bridge<SmsSendRequest, any, any> {
 
     const body = new URLSearchParams({
       username,
-      to: payload.recipientPhone,
+      to: recipients.join(','),
       message: payload.messageText,
       ...(senderId ? { from: senderId } : {}),
     });
