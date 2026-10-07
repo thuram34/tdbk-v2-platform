@@ -84,18 +84,22 @@ export const EntityListView: React.FC<EntityListViewProps> = ({
       updatedAt: new Date().toISOString(),
     };
 
-    const response = await onDispatchCommand('SUBMIT_ENTITY', {
-      capabilityId,
-      record: newRecord,
-    });
-    const commandResponse = response?.commandResponse;
-    if (commandResponse?.success !== true) {
-      throw new Error(commandResponse?.error?.message || 'The record could not be saved.');
-    }
+    try {
+      const response = await onDispatchCommand('SUBMIT_ENTITY', {
+        capabilityId,
+        record: newRecord,
+      });
+      const commandResponse = response?.commandResponse;
+      if (commandResponse?.success !== true) {
+        throw new Error(commandResponse?.error?.message || 'The record could not be saved.');
+      }
 
-    setIsCreateModalOpen(false);
-    setFormData({});
-    await loadRecords();
+      setIsCreateModalOpen(false);
+      setFormData({});
+      await loadRecords();
+    } catch (error: any) {
+      setOperationError(error?.message || 'The record could not be saved.');
+    }
   };
 
   const handleComplete = async (record: ExperienceEntityRecord) => {
