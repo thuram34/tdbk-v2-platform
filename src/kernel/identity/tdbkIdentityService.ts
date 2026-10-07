@@ -18,6 +18,9 @@ import { auditLogger } from '../audit/auditLogger';
 import { AuthorizationError, KernelError } from '../errors/kernelErrors';
 import { firebaseIdentityManager } from './firebaseIdentityManager';
 import { tdbkIdentityRepository } from '../../persistence/firestore/repositories/tdbkIdentityRepository';
+import { spaceMembershipRepository } from '../../persistence/firestore/repositories/spaceMembershipRepository';
+import { SpaceMembership } from '../../coherence/types';
+import { branchRepository } from '../../persistence/firestore/repositories/branchRepository';
 
 export class TdbkIdentityService {
   private static instance: TdbkIdentityService;
@@ -584,6 +587,31 @@ export class TdbkIdentityService {
 
     await firebaseIdentityManager.setTdbkClaims(request.targetUid, claims);
     await tdbkIdentityRepository.saveIdentity(request.targetUid, record);
+
+    // Persist the role in the active DBK membership context as well. Runtime
+    // authorization reads this membership; identity claims alone are not enough.
+    const branches = await branchRepository.listBranches(request.tenantId);
+    const membershipSpaceId =
+      request.branchId ||
+      branches.find((branch) => branch.isHeadquarters && branch.status === 'ACTIVE')?.branchId ||
+      request.tenantId;
+    const membershipId = `mem_${request.tenantId}_${request.targetUid}_${membershipSpaceId}`;
+    const existingMembership = await spaceMembershipRepository.getMembership(
+      request.tenantId,
+      membershipId,
+    );
+    const membership: SpaceMembership = {
+      membershipId,
+      userId: request.targetUid,
+      spaceId: membershipSpaceId,
+      tenantId: request.tenantId,
+      role: request.role,
+      roleTitle: request.role.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase()),
+      status: 'ACTIVE',
+      joinedAt: existingMembership?.joinedAt || now,
+      permissions: addedPerms,
+    };
+    await spaceMembershipRepository.saveMembership(membership);
 
     auditLogger.logEvent(
       'SECURITY_CONFIGURATION_CHANGE',
