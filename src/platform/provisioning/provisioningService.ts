@@ -103,29 +103,44 @@ export class ProvisioningService {
       };
     });
 
-    // Helper for mock master context during provisioning steps
-    const createStepContext = (workflow: any, dbkId: string): SecurityContext => ({
-      requestId: `req_${workflow.workflowId}`,
-      timestamp: new Date().toISOString(),
-      principal: {
-        id: 'usr_master_provisioner',
-        tenantId: dbkId,
-        branchId: null,
-        roles: ['TDBK_MASTER_ADMIN'],
-        permissions: ['*'],
-        authTime: Date.now(),
-        tokenSource: 'SERVICE_KEY',
-        isMaster: true,
-      },
-      tenantContext: {
-        tenantId: dbkId,
-        name: dbkId,
-        blueprintId: 'provisioning',
-        status: 'PROVISIONING',
-      },
-      branchContext: null,
-      correlationId: workflow.correlationId,
-    });
+    // Provisioning steps execute under the authenticated actor that initiated
+    // the workflow. The workflow metadata carries an immutable actor snapshot so
+    // retries/recovery do not invent a synthetic TDBK_MASTER_ADMIN identity.
+    const createStepContext = (workflow: any, dbkId: string): SecurityContext => {
+      const actor = workflow.metadata?.provisioningActor;
+      if (!actor?.id || !Array.isArray(actor.roles) || !Array.isArray(actor.permissions)) {
+        throw new KernelError(
+          'AUTHORIZATION_ERROR',
+          'Provisioning workflow is missing its authoritative initiating actor context',
+          403,
+          `req_${workflow.workflowId}`,
+        );
+      }
+
+      return {
+        requestId: `req_${workflow.workflowId}`,
+        timestamp: new Date().toISOString(),
+        principal: {
+          id: actor.id,
+          email: actor.email,
+          tenantId: actor.tenantId ?? null,
+          branchId: actor.branchId ?? null,
+          roles: actor.roles,
+          permissions: actor.permissions,
+          authTime: actor.authTime,
+          tokenSource: actor.tokenSource,
+          isMaster: Boolean(actor.isMaster),
+        },
+        tenantContext: {
+          tenantId: dbkId,
+          name: dbkId,
+          blueprintId: String(workflow.metadata?.blueprintId || 'provisioning'),
+          status: 'PROVISIONING',
+        },
+        branchContext: null,
+        correlationId: workflow.correlationId,
+      };
+    };
 
     // 3. INITIALIZE_DNA
     workflowEngine.registerStepHandler('PROVISIONING_INITIALIZE_DNA', async ({ input, workflow }) => {
@@ -608,7 +623,21 @@ export class ProvisioningService {
       'DBK_PROVISIONING',
       'v1.0',
       workflowSteps,
-      { dbkId: effectiveDbkId, blueprintId: bp.id }
+      {
+        dbkId: effectiveDbkId,
+        blueprintId: bp.id,
+        provisioningActor: {
+          id: context.principal.id,
+          email: context.principal.email,
+          tenantId: context.principal.tenantId,
+          branchId: context.principal.branchId,
+          roles: [...context.principal.roles],
+          permissions: [...context.principal.permissions],
+          authTime: context.principal.authTime,
+          tokenSource: context.principal.tokenSource,
+          isMaster: context.principal.isMaster,
+        },
+      }
     );
 
     const executedWorkflow = await workflowEngine.executeWorkflow(workflowCtx, workflowInstance.workflowId);
