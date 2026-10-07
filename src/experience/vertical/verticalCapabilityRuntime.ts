@@ -7,6 +7,7 @@ import { capabilityRegistry } from '../../capability/registry';
 import { entityEngine } from '../entity/entityEngine';
 import { eventBus } from '../../orchestration/events/eventBus';
 import { VERTICAL_WORKFLOW_CATALOG } from './workflowCatalog';
+import { entityRecordRepository } from '../../persistence/firestore/repositories/entityRecordRepository';
 
 export type VerticalOperation =
   | 'CREATE_RECORD'
@@ -68,7 +69,8 @@ export class VerticalCapabilityRuntime {
       ? request.payload.branchId
       : context.branchContext?.branchId || context.principal.branchId || undefined;
 
-    const currentStatus = request.payload.status ? String(request.payload.status) : undefined;
+    const existingRecord = request.recordId ? await entityRecordRepository.getRecord(dbkId, request.capabilityId, request.recordId) : null;
+    const currentStatus = request.payload.status ? String(request.payload.status) : (existingRecord?.status ? String(existingRecord.status) : undefined);
     const defaultStatus = workflow ? Object.keys(workflow.allowedTransitions)[0] || 'ACTIVE' : 'ACTIVE';
     const targetStatus = request.operation === 'COMPLETE_RECORD' ? 'COMPLETED' : request.operation === 'CANCEL_RECORD' ? 'CANCELLED' : (currentStatus || defaultStatus);
 
