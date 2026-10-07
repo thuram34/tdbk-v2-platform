@@ -189,7 +189,9 @@ export class RBACEngineService {
     }
 
     const effectiveAuthority = tenantId
-      ? await this.getEffectiveMembershipAuthority(principal, tenantId, branchId)
+      ? (masterAuthority.isOwnerPortfolio(principal)
+        ? { roles: principal.roles, permissions: principal.permissions, membershipIds: [] }
+        : await this.getEffectiveMembershipAuthority(principal, tenantId, branchId))
       : { roles: principal.roles, permissions: principal.permissions, membershipIds: [] };
 
     if (tenantId && !masterAuthority.isMasterAdmin(principal) && !masterAuthority.isOwnerPortfolio(principal) && !principal.isMaster && effectiveAuthority.membershipIds.length === 0) {
