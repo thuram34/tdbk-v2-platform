@@ -20,7 +20,7 @@ export type SokoniParticipantKind =
   | 'COMMUNITY'
   | 'OTHER';
 
-export type SokoniPublicationStatus = 'DRAFT' | 'READY' | 'ACTIVE';
+export type SokoniPublicationStatus = 'DRAFT' | 'READY' | 'ACTIVE' | 'SUSPENDED' | 'UNPUBLISHED';
 export type SokoniCommercialState = 'NONE' | 'PAYMENT_REQUIRED' | 'PAYMENT_PENDING' | 'PAYMENT_CONFIRMED' | 'PAYMENT_FAILED';
 export type SokoniTdbkRelationship = 'NOT_ENROLLED' | 'ENROLLED';
 
@@ -77,6 +77,7 @@ function validateInput(input: SokoniParticipantRegistrationInput): void {
   if (!input.description.trim()) throw new Error('A public description is required.');
   if (!input.area.trim()) throw new Error('A discovery area is required.');
   if (!input.publicPhone.trim()) throw new Error('A public phone number is required.');
+  if (!/^\+?2547\d{8}$/.test(input.publicPhone.trim().replace(/[\s-]/g, ''))) throw new Error('Enter a valid Kenyan mobile number.');
   if (input.photos.length > MAX_PHOTOS) throw new Error(`A maximum of ${MAX_PHOTOS} photos can be added at once.`);
   input.photos.forEach((photo) => {
     if (!photo.type.startsWith('image/')) throw new Error('Only image files can be used as Sokoni participant media.');
