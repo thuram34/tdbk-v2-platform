@@ -1,13 +1,13 @@
 # TDBK ENGINE STATUS
 
 ## Last Updated
-2026-09-25
+2026-10-07
 
 ## Current Phase
-Production Hardening — Gate 04 Provider Side-Effect Capability Contract
+Grand Operation — External Side-Effect Reconciliation + Production Readiness
 
 ## Current Objective
-Normalize and verify the authoritative side-effect capability declaration at the Engine bridge registry/adapter boundary without inventing provider idempotency or changing execution identity, workflow leases, reconciliation architecture, provisioning identity, DBK, or Sokoni.
+Complete the remaining Gate 04 reconciliation action, strengthen readiness semantics, keep provider idempotency claims conservative, and maintain one authoritative side-effect boundary across all six bridge contracts.
 
 ## Task Completed
 **COMPLETE — capability contract normalized.**
@@ -129,7 +129,7 @@ No new architectural decision was introduced beyond confirming the existing bloc
 **NONE.** No Sokoni files or authority were modified.
 
 ## Next Single Engine Task
-**Implement the UNKNOWN/reconciliation enforcement boundary for non-idempotent external side effects, without introducing provider idempotency claims or changing workflow identity/lease architecture.**
+Complete provider-specific reconciliation coverage and external audit evidence for the remaining non-reconcilable bridges, without introducing provider idempotency claims.
 
 ## Evidence
 - Main normalization baseline: `68cd266534b5654cf158880bd309b4dd844290e0`
