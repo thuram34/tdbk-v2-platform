@@ -8,6 +8,14 @@ import { firestoreClient } from '../../persistence/firestore/firestoreClient';
 describe('runtime readiness gate', () => {
   beforeEach(async () => {
     await firestoreClient.clearAllForTesting();
+    await healthMonitoring.initializeReadinessMarker();
+  });
+
+  it('reports degraded readiness when the durable marker is missing', async () => {
+    await firestoreClient.clearAllForTesting();
+    const status = await healthMonitoring.getReadyStatus();
+    expect(status.status).toBe('DEGRADED');
+    expect(status.components.firestore).toBe(false);
   });
 
   it('reports the core production dependencies as ready', async () => {
