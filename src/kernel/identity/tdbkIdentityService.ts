@@ -689,6 +689,23 @@ export class TdbkIdentityService {
 
     await tdbkIdentityRepository.saveIdentity(request.targetUid, updatedRecord);
 
+    // Revoke the corresponding durable DBK memberships. Runtime RBAC must not
+    // retain access merely because an old Firebase claim still contains a role.
+    if (request.tenantId) {
+      const memberships = await spaceMembershipRepository.listMemberships(
+        request.tenantId,
+        request.targetUid,
+      );
+      for (const membership of memberships) {
+        if (!request.role || membership.role === request.role) {
+          await spaceMembershipRepository.saveMembership({
+            ...membership,
+            status: 'SUSPENDED',
+          });
+        }
+      }
+    }
+
     auditLogger.logEvent(
       'SECURITY_CONFIGURATION_CHANGE',
       principal.id,
