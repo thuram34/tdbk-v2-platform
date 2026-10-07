@@ -307,3 +307,21 @@ The next specialist can safely continue from this file.
 **DBK owns:** organization-facing operation.  
 
 Any requirement that crosses those boundaries must be explicitly routed to the owning domain and marked `MASTER REVIEW REQUIRED` until an authoritative contract is verified.
+
+
+## 12. Grand Operation Update — 2026-10-07
+
+The following previously missing/partial boundaries are now authoritative:
+- GAP-01 public business projection: TDBK public-safe organization projection + explicit publication authority.
+- GAP-20 Sokoni-facing L7 projection/API: Sokoni now consumes the governed TDBK public organization API.
+- Participant ownership: authenticated owner UID is persisted and enforced in Firestore/Storage rules.
+- Owner lifecycle: owner read/update/delete operations exist for Sokoni participants.
+- Paid participant publication: paid offerings remain DRAFT until authoritative payment confirmation; client-side payment-state escalation is blocked by rules.
+
+Still intentionally unresolved:
+- Sokoni payment initiation/confirmation.
+- Full relevance/matching/search index.
+- Provider coverage and real availability.
+- Discovery → request → quote/approval.
+- Jobs/opportunities/offers/trust contracts.
+- Cross-device permanent identity upgrade for anonymous participant onboarding.
