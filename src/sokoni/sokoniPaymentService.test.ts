@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { firestoreClient } from '../persistence/firestore/firestoreClient';
 import { sokoniPaymentService } from './sokoniPaymentService';
+import { mpesaBridge } from '../orchestration/bridge/adapters/mpesaBridge';
 
 describe('Sokoni payment authority', () => {
   beforeEach(() => {
@@ -16,7 +17,7 @@ describe('Sokoni payment authority', () => {
   } as any;
 
   it('keeps a paid participant draft until provider confirmation', async () => {
-    await firestoreClient.set('/system/sokoniParticipants/participant_001', {
+    await firestoreClient.set('/system/sokoni/participants/participant_001', {
       id: 'participant_001',
       ownerUid: 'owner_sokoni_001',
       publicationStatus: 'DRAFT',
@@ -27,13 +28,13 @@ describe('Sokoni payment authority', () => {
     const intent = await sokoniPaymentService.initiate(context, 'participant_001', 'SOKONI_100', '254712345678');
     expect(intent.state).toBe('PENDING');
 
-    const participant = await firestoreClient.get<any>('/system/sokoniParticipants/participant_001');
+    const participant = await firestoreClient.get<any>('/system/sokoni/participants/participant_001');
     expect(participant.commercial.state).toBe('PAYMENT_PENDING');
     expect(participant.publicationStatus).toBe('DRAFT');
   });
 
   it('does not allow a foreign owner to initiate payment', async () => {
-    await firestoreClient.set('/system/sokoniParticipants/participant_002', {
+    await firestoreClient.set('/system/sokoni/participants/participant_002', {
       id: 'participant_002',
       ownerUid: 'different_owner',
       publicationStatus: 'DRAFT',
@@ -45,4 +46,46 @@ describe('Sokoni payment authority', () => {
       sokoniPaymentService.initiate(context, 'participant_002', 'SOKONI_100', '254712345678')
     ).rejects.toThrow('Only the participant owner');
   });
+  it('confirms once from provider truth and is idempotent on repeat confirmation', async () => {
+    await firestoreClient.set('/system/sokoni/participants/participant_003', {
+      id: 'participant_003',
+      ownerUid: 'owner_sokoni_001',
+      publicationStatus: 'DRAFT',
+      commercial: { offeringCode: 'SOKONI_500', state: 'PAYMENT_PENDING' },
+      tdbkRelationship: 'NOT_ENROLLED',
+    });
+    await firestoreClient.set('/system/sokoni/paymentIntents/intent_003', {
+      intentId: 'intent_003',
+      participantId: 'participant_003',
+      ownerUid: 'owner_sokoni_001',
+      offeringCode: 'SOKONI_500',
+      amount: 500,
+      currency: 'KES',
+      provider: 'SAFARICOM_MPESA',
+      providerReference: 'checkout_003',
+      state: 'PENDING',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      confirmedAt: null,
+    });
+
+    vi.spyOn(mpesaBridge, 'executeSystemPayment').mockResolvedValue({
+      status: 'SUCCESS',
+      provider: 'SAFARICOM_MPESA',
+      providerReference: 'checkout_003',
+      occurredAt: new Date().toISOString(),
+      correlationId: 'corr_sokoni_payment',
+    } as any);
+
+    const first = await sokoniPaymentService.confirm(context, 'intent_003');
+    expect(first.state).toBe('CONFIRMED');
+    const participant = await firestoreClient.get<any>('/system/sokoni/participants/participant_003');
+    expect(participant.publicationStatus).toBe('ACTIVE');
+    expect(participant.commercial.state).toBe('PAYMENT_CONFIRMED');
+
+    const second = await sokoniPaymentService.confirm(context, 'intent_003');
+    expect(second.state).toBe('CONFIRMED');
+    expect(mpesaBridge.executeSystemPayment).toHaveBeenCalledTimes(1);
+  });
+
 });
