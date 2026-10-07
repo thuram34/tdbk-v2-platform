@@ -10,6 +10,7 @@ import { masterAuthority } from '../../kernel/master/masterAuthority';
 import { dbkRegistry } from '../dbkRegistry';
 import { KernelError } from '../../kernel/errors/kernelErrors';
 import { eventBus } from '../../orchestration/events/eventBus';
+import { publicPublicationService } from '../public/publicPublicationService';
 
 export class DbkLifecycleManagerService {
   private static instance: DbkLifecycleManagerService;
@@ -62,6 +63,7 @@ export class DbkLifecycleManagerService {
     }
 
     const updated = await dbkRegistry.updateStatus(context, dbkId, 'SUSPENDED', reason);
+    await publicPublicationService.setPublication(context, dbkId, 'SUSPENDED', reason);
 
     // Emit event
     eventBus.publishEvent(
@@ -140,6 +142,7 @@ export class DbkLifecycleManagerService {
     }
 
     const updated = await dbkRegistry.updateStatus(context, dbkId, 'ARCHIVED', reason);
+    await publicPublicationService.setPublication(context, dbkId, 'SUSPENDED', reason);
 
     // Emit event
     eventBus.publishEvent(
