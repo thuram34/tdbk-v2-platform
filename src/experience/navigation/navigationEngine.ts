@@ -5,6 +5,7 @@ import { SecurityContext } from '../../kernel/types';
 import { masterAuthority } from '../../kernel/master/masterAuthority';
 import { capabilityRegistry } from '../../capability/registry';
 import { rbacEngine } from '../../kernel/authorization/rbacEngine';
+import { INITIAL_BLUEPRINT_CATALOG } from '../../blueprint/catalog';
 
 export class NavigationEngine {
   private static instance: NavigationEngine;
@@ -37,9 +38,18 @@ export class NavigationEngine {
     const permissions = context?.principal.permissions || [];
     const isTenantAdmin = isMaster || roles.includes('TENANT_ADMIN') || roles.includes('SYSTEM_ADMIN') || roles.includes('STORE_OWNER') || roles.includes('SHOP_MANAGER') || roles.includes('SCHOOL_PRINCIPAL') || roles.includes('LOGISTICS_DIRECTOR') || roles.includes('MEDICAL_DIRECTOR') || permissions.includes('*') || permissions.includes('admin:*');
 
+    const blueprint = INITIAL_BLUEPRINT_CATALOG.find((item) => item.id === workspace.blueprintId);
+    const blueprintCapabilityIds = new Set(
+      blueprint?.supportedCapabilities.map((capability) => capability.id) || [],
+    );
+
     let order = 1;
     for (const capId of workspace.enabledCapabilities) {
+      // A DBK may only render capabilities belonging to its selected blueprint.
+      // Core capabilities are intentionally blueprint-agnostic.
       const capability = capabilityRegistry.getCapability(capId);
+      const isCoreCapability = capability?.supportedBlueprints.includes('ALL') ?? false;
+      if (!isCoreCapability && blueprint && !blueprintCapabilityIds.has(capId)) continue;
       if (context && capability) {
         const roleAllowed = capability.requiredRoles.length === 0 || capability.requiredRoles.some((role) => roles.includes(role));
         const permissionAllowed = capability.requiredPermissions.length === 0 || capability.requiredPermissions.every((permission) => rbacEngine.hasPermission(context.principal, permission));
