@@ -28,7 +28,7 @@ const providerMeta: Record<string, { name: string; description: string; icon: Re
   SAFARICOM_MPESA: { name: 'M-Pesa', description: 'Accept customer payments and reconcile transactions.', icon: Link2 },
   KRA_ETIMS: { name: 'KRA eTIMS', description: 'Connect sales and invoices to your tax workflow.', icon: ShieldCheck },
   META_WHATSAPP: { name: 'WhatsApp Business', description: 'Connect customer messaging to your business workspace.', icon: Link2 },
-  SYSTEM_SMTP: { name: 'Email', description: 'Send business email from TDBK.', icon: Link2 },
+  SENDGRID: { name: 'Email', description: 'Send business email from TDBK.', icon: Link2 },
   AFRICAS_TALKING: { name: 'SMS', description: 'Send customer and operational SMS.', icon: Link2 },
   GENERIC_BANK: { name: 'Banking', description: 'Connect supported banking operations.', icon: Link2 },
 };
@@ -38,7 +38,7 @@ const fieldLabel = (key: string) =>
     .replace(/^MPESA_/, '')
     .replace(/^ETIMS_/, '')
     .replace(/^WHATSAPP_/, '')
-    .replace(/^SMTP_/, '')
+    .replace(/^SENDGRID_/, '')
     .replace(/^SMS_/, '')
     .replace(/^BANK_/, '')
     .replace(/_/g, ' ')
