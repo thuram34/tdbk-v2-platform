@@ -203,3 +203,23 @@ Implemented on this sprint:
 
 Important remaining gap:
 - `workflowsTriggered` in the coherence model is currently a catalog declaration/result field. The contribution dispatcher does not yet instantiate and execute the corresponding durable Workflow Engine instances from `PLATFORM_WORKFLOW_CATALOG`. Therefore workflow names shown in the coherence result must not be treated as proof of workflow execution. A dedicated event-to-workflow trigger adapter remains release-gated.
+
+## I. Coherence event → workflow trigger boundary — sprint implementation
+
+Implemented on the canonical vertical-completion branch:
+
+- `src/coherence/coherenceWorkflowTriggerAdapter.ts` maps authoritative catalog trigger events to their `PLATFORM_WORKFLOW_CATALOG` workflow definitions.
+- The adapter reconstructs tenant/branch/principal authority from the triggering event envelope and rejects events without authoritative tenant identity.
+- Each matched event creates a Firestore-persisted workflow instance through `createPersistentWorkflow`, with the triggering event ID/source/correlation retained in workflow metadata.
+- The workflow then executes through the existing durable Workflow Engine and `COHERENCE_WORKFLOW_TRIGGER` step handler.
+- `src/orchestration/events/eventBus.ts` subscribes the catalog trigger events to the adapter at initialization and after test-store reset.
+- `src/coherence/tests/coherenceWorkflowTriggerAdapter.test.ts` proves `attendance.recorded.v1` → `wf_record_attendance` → persisted workflow → completed trigger step.
+
+This closes the **event-to-workflow-instantiation boundary**. It does **not** claim that every catalog downstream outcome is implemented: the catalog's business outcomes (for example parent SMS, eTIMS fiscalization, reorder actions, doctor queue mutation) remain release-gated until each has an authoritative step handler/runtime contract.
+
+Evidence commit sequence:
+- `abf188dddf375557ccc6b77f2b80e9667ac35168` — adapter
+- `9ac763cc223e02f5b37983f2f014b7a340527a20` — event-bus subscriptions
+- `9d5a2a5c06175a8abf5d2771093e542a5d394860` — trigger proof test
+
+CI evidence is still pending; GitHub currently reports no pull-request workflow run for the latest commit. Therefore this gate is **implemented but not CI-closed**.
