@@ -3,6 +3,7 @@ import { KernelError } from '../../kernel/errors/kernelErrors';
 import { masterAuthority } from '../../kernel/master/masterAuthority';
 import { auditLogger } from '../../kernel/audit/auditLogger';
 import { dbkRegistry } from '../dbkRegistry';
+import { dbkRegistryRepository } from '../../persistence/firestore/repositories/dbkRegistryRepository';
 import { PublicOrganizationProjection, evaluatePublicOrganizationEligibility, projectPublicOrganization } from './publicOrganizationProjection';
 import { publicPublicationRepository, DbkPublicPublication, PublicPublicationStatus } from './publicPublicationRepository';
 
@@ -113,7 +114,7 @@ export class PublicPublicationService {
   }
 
   public async listPublishedOrganizations(filters?: { area?: string; sector?: string }): Promise<PublicOrganizationProjection[]> {
-    const dbks = await dbkRegistry.listAllDbksInternal();
+    const dbks = await dbkRegistryRepository.listAllDbks();
     const results: PublicOrganizationProjection[] = [];
     for (const dbk of dbks) {
       if (!dbk.dbkId) continue;
