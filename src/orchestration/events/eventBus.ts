@@ -11,6 +11,7 @@ import { createHash } from 'node:crypto';
 import { handleSokoniPaymentConfirmed, handleSokoniPaymentFailed } from '../../sokoni/sokoniPaymentEventHandler';
 import { registerCoherenceWorkflowTriggerSubscriptions } from '../../coherence/coherenceWorkflowTriggerAdapter';
 import { handlePosMpesaPaymentConfirmed, handlePosMpesaPaymentFailed } from '../../business/sales/posMpesaPaymentHandler';
+import { handlePosSaleCompletedForReorder } from '../../business/inventory/reorderEngine';
 
 class EventBusService {
   private eventRegistry: Map<string, EventRegistration> = new Map();
@@ -26,6 +27,7 @@ class EventBusService {
     this.subscribe('payment.failed.v1', handleSokoniPaymentFailed);
     this.subscribe('payment.confirmed.v1', handlePosMpesaPaymentConfirmed);
     this.subscribe('payment.failed.v1', handlePosMpesaPaymentFailed);
+    this.subscribe('pos.sale.completed.v1', handlePosSaleCompletedForReorder);
     registerCoherenceWorkflowTriggerSubscriptions(this);
   }
 
@@ -86,6 +88,7 @@ class EventBusService {
       // Role-Based Coherence & Shared Contribution Events
       { eventType: 'attendance.recorded.v1', version: 'v1', description: 'Learner attendance recorded' },
       { eventType: 'pos.sale.completed.v1', version: 'v1', description: 'Counter POS sale completed' },
+      { eventType: 'inventory.reorder.triggered.v1', version: 'v1', description: 'Authoritative low-stock replenishment intent created' },
       { eventType: 'patient.triaged.v1', version: 'v1', description: 'Clinical patient triaged' },
       { eventType: 'display.broadcast.v1', version: 'v1', description: 'Digital screen broadcast notice' },
       { eventType: 'contribution.recorded.v1', version: 'v1', description: 'Shared contribution recorded' },
