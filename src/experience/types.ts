@@ -216,6 +216,7 @@ export interface ExperienceCommandRequest {
   commandType:
     | 'SWITCH_BRANCH'
     | 'EXECUTE_SALE'
+    | 'EXECUTE_SALE_MPESA_PAYMENT'
   | 'INVOKE_ACTION'
     | 'SUBMIT_ENTITY'
     | 'ENABLE_CAPABILITY'
