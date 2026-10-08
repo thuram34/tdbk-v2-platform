@@ -187,6 +187,29 @@ No item is marked COMPLETE from source inspection alone when runtime/provider/de
 10. Reconcile all status documents against implementation.
 11. Run final CI and release-gate review.
 
+
+## J. Retail/Hardware POS → M-Pesa authoritative payment operation
+
+The retail/hardware canonical operation now crosses the payment boundary after the authoritative sale transaction:
+
+`cashier/RBAC → capability → inventory validation → atomic stock decrement + sale + durable outbox → pos.sale.completed.v1 → checkout workflow reconciliation → pos.payment.requested.v1 → durable M-Pesa payment workflow → Safaricom STK_PUSH bridge → pending financial transaction → provider callback → atomic financial posting + payment.confirmed.v1 outbox → POS sale payment reconciliation`.
+
+Implemented:
+- POS sale input now carries an explicit payment method and customer phone for M-Pesa.
+- M-Pesa sales start in `PENDING`; the sale itself remains authoritative business state while provider confirmation remains a separate financial truth boundary.
+- `wf_pos_mpesa_payment` is a dedicated retail workflow. It does not reuse the school fee workflow.
+- The workflow binds the external side effect through the durable Workflow Engine before invoking `MpesaBridge`.
+- The bridge persists the pending financial transaction and provider checkout reference.
+- Provider callback remains the only authority that promotes the financial transaction to `POSTED`.
+- `payment.confirmed.v1` is reconciled back to the POS sale using the authoritative sale correlation, changing payment state to `PAID`.
+- The canonical journey acceptance test now proves initiation, pending financial truth, callback posting, and final POS payment state.
+- The school fee workflow trigger was narrowed from generic `payment.confirmed.v1` to `school.payment.confirmed.v1` so a retail M-Pesa payment cannot instantiate a school workflow.
+
+Important boundary:
+- Test runtime uses the deterministic M-Pesa mock path. Production provider execution remains dependent on the tenant's configured Safaricom/Daraja connector and callback configuration.
+- eTIMS fiscalization and reorder remain separate release-gated retail workflows; they are not claimed complete by this payment work.
+- CI remains release-gated until a fresh GitHub Actions run proves the current branch.
+
 ## Release rule
 PR #390 must not be merged merely because it is mergeable. It is mergeable only after the grand-operation acceptance criteria above are satisfied for the scope actually claimed.
 
