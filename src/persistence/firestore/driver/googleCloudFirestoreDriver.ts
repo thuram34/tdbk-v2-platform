@@ -11,7 +11,7 @@
  * - NO fallback to in-memory persistence in production.
  */
 
-import type { Firestore, Transaction } from '@google-cloud/firestore';
+import { Firestore, type Transaction } from '@google-cloud/firestore';
 import { IFirestoreDriver } from './types';
 import { FirestoreTransaction, FirestoreWriteOptions } from '../../types';
 import { KernelError } from '../../../kernel/errors/kernelErrors';
@@ -44,12 +44,8 @@ export class GoogleCloudFirestoreDriver implements IFirestoreDriver {
       );
     }
 
-    // Resolve Firestore on Node.js runtime
-    const gcpFirestore = require('@google-cloud/firestore');
-    const FirestoreClass = gcpFirestore.Firestore || gcpFirestore;
-
     // Instantiates official Firestore client with Application Default Credentials (ADC)
-    this.db = new FirestoreClass(config);
+    this.db = new Firestore(config);
   }
 
   public getRawFirestoreInstance(): Firestore {

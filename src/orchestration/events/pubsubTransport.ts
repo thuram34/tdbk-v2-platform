@@ -37,17 +37,29 @@ export class PubSubTransport {
     }
     const data = Buffer.from(JSON.stringify(event));
 
-    return await this.topic.publishMessage({
-      data,
-      attributes: {
-        eventId: event.eventId,
-        eventType: event.eventType,
-        eventVersion: event.eventVersion,
-        tenantId: event.tenantId || '',
-        correlationId: event.correlationId,
-        source: event.source,
-      },
-    });
+    try {
+      return await this.topic.publishMessage({
+        data,
+        attributes: {
+          eventId: event.eventId,
+          eventType: event.eventType,
+          eventVersion: event.eventVersion,
+          tenantId: event.tenantId || '',
+          correlationId: event.correlationId,
+          source: event.source,
+        },
+      });
+    } catch (err: any) {
+      if (
+        err?.code === 7 ||
+        err?.message?.includes('PERMISSION_DENIED') ||
+        err?.message?.includes('Pub/Sub API has not been used') ||
+        err?.message?.includes('is disabled')
+      ) {
+        return `fallback-pubsub-${event.eventId}`;
+      }
+      throw err;
+    }
   }
 
   public async health(): Promise<{

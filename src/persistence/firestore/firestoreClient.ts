@@ -26,19 +26,31 @@ export class FirestoreClient {
 
   private constructor() {
     const isBrowser = typeof window !== 'undefined';
+    const isExplicitGcp =
+      typeof process !== 'undefined' && process.env.TDBK_PERSISTENCE_DRIVER === 'gcp_firestore';
+    const isExplicitMemory =
+      typeof process !== 'undefined' && process.env.TDBK_PERSISTENCE_DRIVER === 'test_memory';
+    const isProduction =
+      typeof process !== 'undefined' && process.env.NODE_ENV === 'production';
     const isTest =
-      !isBrowser &&
       typeof process !== 'undefined' &&
-      (process.env.NODE_ENV === 'test' ||
-        process.env.VITEST === 'true' ||
-        process.env.TDBK_PERSISTENCE_DRIVER === 'test_memory');
+      (process.env.NODE_ENV === 'test' || process.env.VITEST === 'true');
+    const isDevelopment =
+      typeof process !== 'undefined' && process.env.NODE_ENV === 'development';
 
-    // Any non-browser, non-test execution is a server execution and must use
-    // authoritative Firestore. A missing NODE_ENV must never silently select
-    // the in-memory driver, especially on Cloud Run.
-    this.isProductionMode = !isBrowser && !isTest;
+    // Cloud Run and production deployments must strictly use authoritative Google Cloud Firestore.
+    // Also, if NODE_ENV is missing/undefined on a server, we default to production mode
+    // so that a container without NODE_ENV will never silently select in-memory persistence.
+    // In local development or testing (unless explicitly forced to gcp_firestore),
+    // TestMemoryFirestoreDriver is selected for isolation and responsive dev preview.
+    const useMemoryDriver =
+      isBrowser ||
+      isExplicitMemory ||
+      ((isTest || isDevelopment) && !isExplicitGcp && !isProduction);
 
-    if (isBrowser || isTest) {
+    this.isProductionMode = !useMemoryDriver;
+
+    if (useMemoryDriver) {
       this.driver = new TestMemoryFirestoreDriver();
     } else {
       this.driver = new GoogleCloudFirestoreDriver();

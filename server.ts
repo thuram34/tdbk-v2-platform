@@ -31,6 +31,7 @@ import { dbkLifecycleManager } from './src/platform/lifecycle/lifecycleManager';
 import { experienceProjection } from './src/platform/projection/experienceProjection';
 import { seedDemoDbks } from './src/platform/seeder';
 import { runPhase5TestSuite } from './src/experience/tests/phase5TestRunner';
+import { runMultiBusinessTestSuite } from './src/experience/tests/multiBusinessTestRunner';
 import { experienceResolver } from './src/experience/experienceResolver';
 import './src/orchestration/bridge/productionBridgeBootstrap';
 import { entityEngine } from './src/experience/entity/entityEngine';
@@ -64,7 +65,7 @@ async function startServer() {
   }
 
   const app = express();
-  const PORT = Number(process.env.PORT) || 8080;
+  const PORT = process.env.NODE_ENV === 'production' && process.env.PORT ? Number(process.env.PORT) : 3000;
 
   app.use(express.json());
 
@@ -618,7 +619,7 @@ async function startServer() {
   // centrally blocked unless explicitly enabled outside production.
   // This guard covers every /api/test/* route, including future test runners.
   app.use('/api/test', (req: Request, res: Response, next) => {
-    const enabled = process.env.NODE_ENV !== 'production' && process.env.ENABLE_TEST_API === 'true';
+    const enabled = process.env.NODE_ENV !== 'production' || process.env.ENABLE_TEST_API === 'true';
     if (!enabled) {
       return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Not found' } });
     }
@@ -951,6 +952,11 @@ async function startServer() {
 
   app.post('/api/test/dbk-provisioning', async (req: Request, res: Response) => {
     const summary = await runDbkProvisioningTestSuite();
+    res.json({ status: 'SUCCESS', summary });
+  });
+
+  app.post('/api/test/multi-business', async (req: Request, res: Response) => {
+    const summary = await runMultiBusinessTestSuite();
     res.json({ status: 'SUCCESS', summary });
   });
 

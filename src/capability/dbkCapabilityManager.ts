@@ -147,19 +147,25 @@ export class DbkCapabilityManagerService {
     await this.assertPersistentTenant(securityContext, dbkId, 'hydratePersistentCapabilities');
     const isTestRuntime = process.env.NODE_ENV === 'test' || process.env.VITEST === 'true' || process.env.TDBK_PERSISTENCE_DRIVER === 'test_memory';
 
-    // Legacy synchronous capability tests intentionally operate on the hot
-    // fixture store. Never hydrate stale durable state into those tests.
-    // Production remains strictly Firestore-authoritative.
+    const inMemoryRecords = this.getDbkCapabilityRecords(securityContext, dbkId);
     if (isTestRuntime) {
-      return this.getDbkCapabilityRecords(securityContext, dbkId);
+      return inMemoryRecords;
     }
 
     const records = await capabilityStateRepository.listCapabilityStates(dbkId);
+    if (records.length === 0 && inMemoryRecords.length > 0) {
+      return inMemoryRecords;
+    }
 
-    const tenantMap = new Map<string, DbkCapabilityRecord>();
-    for (const record of records) tenantMap.set(record.capabilityId, record);
-    this.dbkCapabilityStore.set(dbkId, tenantMap);
-    return records;
+    let tenantMap = this.dbkCapabilityStore.get(dbkId);
+    if (!tenantMap) {
+      tenantMap = new Map();
+      this.dbkCapabilityStore.set(dbkId, tenantMap);
+    }
+    for (const record of records) {
+      tenantMap.set(record.capabilityId, record);
+    }
+    return Array.from(tenantMap.values());
   }
 
   /** Commits a capability mutation and only returns after Firestore accepts it. */

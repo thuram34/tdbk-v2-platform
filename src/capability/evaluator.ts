@@ -14,6 +14,23 @@ import { dbkCapabilityManager } from './dbkCapabilityManager';
 import { ActivationDecision } from './types';
 
 export class ActivationEvaluatorService {
+  private async resolveDna(
+    securityContext: SecurityContext,
+    dbkId: string,
+    dnaOverride?: import('../blueprint/types').BusinessDNA
+  ): Promise<import('../blueprint/types').BusinessDNA> {
+    if (dnaOverride) return dnaOverride;
+    try {
+      return await businessDnaManager.getPersistentBusinessDna(securityContext, dbkId);
+    } catch (err) {
+      try {
+        return businessDnaManager.getBusinessDna(securityContext, dbkId);
+      } catch {
+        throw err;
+      }
+    }
+  }
+
   /**
    * Evaluates if a DBK is eligible to activate a specified capability.
    */
@@ -58,10 +75,7 @@ export class ActivationEvaluatorService {
     }
 
     // 2. Check Blueprint Sector Compatibility
-    const isTestRuntime = process.env.NODE_ENV === 'test' || process.env.VITEST === 'true' || process.env.TDBK_PERSISTENCE_DRIVER === 'test_memory';
-    const dna = dnaOverride || (isTestRuntime
-      ? businessDnaManager.getBusinessDna(securityContext, dbkId)
-      : await businessDnaManager.getPersistentBusinessDna(securityContext, dbkId));
+    const dna = await this.resolveDna(securityContext, dbkId, dnaOverride);
     const sector = dna.identity.businessType as any;
 
     const isBlueprintSupported =
@@ -222,7 +236,7 @@ export class ActivationEvaluatorService {
       };
     }
 
-    const dna = dnaOverride || await businessDnaManager.getPersistentBusinessDna(securityContext, dbkId);
+    const dna = await this.resolveDna(securityContext, dbkId, dnaOverride);
     const sector = dna.identity.businessType as string;
     const isBlueprintSupported =
       (cap.supportedBlueprints as string[]).includes('ALL') ||

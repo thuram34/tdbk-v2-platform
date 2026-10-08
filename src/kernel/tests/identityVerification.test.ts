@@ -64,6 +64,24 @@ describe('Production Identity Verification Boundary', () => {
     expect(principal.id).toBe('MASTER_SERVICE_ACCOUNT');
   });
 
+  it('7b. preview RS256 token in development -> ACCEPTED', async () => {
+    const header = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT' })).toString('base64url');
+    const payload = Buffer.from(JSON.stringify({ uid: 'preview_user_1', email: 'preview@example.com' })).toString('base64url');
+    const token = `${header}.${payload}.simulated_rs256_signature`;
+
+    const principal = await verifier.verifyTokenAsync(`Bearer ${token}`);
+    expect(principal.id).toBe('preview_user_1');
+    expect(principal.email).toBe('preview@example.com');
+  });
+
+  it('7c. preview RS256 token without signature in development -> DENIED', async () => {
+    const header = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT' })).toString('base64url');
+    const payload = Buffer.from(JSON.stringify({ uid: 'preview_user_1' })).toString('base64url');
+    const token = `${header}.${payload}.`;
+
+    await expect(verifier.verifyTokenAsync(`Bearer ${token}`)).rejects.toThrow(/Missing test-token signature/);
+  });
+
   describe('Production Firebase Mode', () => {
     beforeEach(() => {
       process.env.NODE_ENV = 'production';

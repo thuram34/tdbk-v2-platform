@@ -16,12 +16,10 @@ export const AuditStreamPanel: React.FC = () => {
         const data = await response.json();
         setEvents(data.events || []);
       } else {
-        const { auditLogger } = await import('../kernel/audit/auditLogger');
-        setEvents(auditLogger.getEvents({ tenantId: tenantFilter || undefined }));
+        setEvents([]);
       }
     } catch {
-      const { auditLogger } = await import('../kernel/audit/auditLogger');
-      setEvents(auditLogger.getEvents({ tenantId: tenantFilter || undefined }));
+      setEvents([]);
     } finally {
       setIsLoading(false);
     }

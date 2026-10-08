@@ -76,9 +76,21 @@ export const MultiBusinessSuitePanel: React.FC<MultiBusinessSuitePanelProps> = (
         const data = await response.json();
         setProvSummary(data.summary ?? data);
       } else {
-        throw new Error(
-          'Multi-business test suite has no server API endpoint yet.'
-        );
+        const response = await fetch('/api/test/multi-business', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error(
+            `Multi-business test request failed: ${response.status}`
+          );
+        }
+
+        const data = await response.json();
+        setMbSummary(data.summary ?? data);
       }
     } catch (err) {
       console.error('Failed to run test suite:', err);

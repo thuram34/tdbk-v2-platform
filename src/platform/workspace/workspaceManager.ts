@@ -33,7 +33,7 @@ export class WorkspaceManagerService {
   public async compileWorkspaceState(context: SecurityContext, dbkId: string): Promise<DbkWorkspaceState> {
     await masterAuthority.assertTenantAuthority(context, dbkId, 'compileWorkspaceState');
 
-    const dbk = await dbkRegistry.getDbk(context, dbkId);
+    const dbk = await dbkRegistry.getDbkInternal(dbkId);
     if (!dbk) {
       throw new KernelError('NOT_FOUND', `DBK with ID '${dbkId}' does not exist`, 404, context.requestId);
     }

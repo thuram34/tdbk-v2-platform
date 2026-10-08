@@ -41,6 +41,17 @@ export class BlueprintRegistry {
     this.blueprints.set(blueprint.id, blueprint);
   }
 
+  private static readonly ALIAS_MAP: Record<string, string> = {
+    school_fee_structure: 'school_v1',
+    pos_register: 'retail_v1',
+    inventory_catalog: 'hardware_v1',
+    logistics_fleet: 'logistics_v1',
+    clinic_patients: 'clinic_v1',
+    hotel_booking: 'hotel_v1',
+    salon_pos: 'salon_v1',
+    legal_cases: 'prof_services_v1',
+  };
+
   /**
    * Gets a blueprint by ID and optional version.
    */
@@ -51,6 +62,14 @@ export class BlueprintRegistry {
       bp = this.blueprints.get(exactKey);
     } else {
       bp = this.blueprints.get(id);
+    }
+    if (!bp && BlueprintRegistry.ALIAS_MAP[id]) {
+      const targetId = BlueprintRegistry.ALIAS_MAP[id];
+      if (version) {
+        bp = this.blueprints.get(`${targetId}@${version}`);
+      } else {
+        bp = this.blueprints.get(targetId);
+      }
     }
     return bp ? JSON.parse(JSON.stringify(bp)) : undefined;
   }

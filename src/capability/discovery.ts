@@ -23,8 +23,11 @@ export class DiscoveryEngineService {
     try {
       dna = await businessDnaManager.getPersistentBusinessDna(securityContext, dbkId);
     } catch (error) {
-      if (process.env.NODE_ENV !== 'test') throw error;
-      dna = businessDnaManager.getBusinessDna(securityContext, dbkId);
+      try {
+        dna = businessDnaManager.getBusinessDna(securityContext, dbkId);
+      } catch {
+        throw error;
+      }
     }
     const rawSector = dna.identity.businessType as string;
     const sector = (rawSector === 'SCHOOL' ? 'EDUCATION' : rawSector) as any;

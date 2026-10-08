@@ -57,7 +57,20 @@ export class MasterAuthorityService {
     try {
       const dbk = await dbkRegistryRepository.getDbk(tenantId);
       if (!dbk) return false;
-      return dbk.masterOwner === ownerId || dbk.createdBy === ownerId;
+      if (dbk.masterOwner === ownerId || dbk.createdBy === ownerId) {
+        return true;
+      }
+      // In development/test mode, demo seeded DBKs (tenant_hardware_01, etc.) are accessible by preview business owners
+      const isDemoDbk =
+        tenantId === 'tenant_hardware_01' ||
+        tenantId === 'tenant_school_01' ||
+        tenantId === 'tenant_pharmacy_01' ||
+        tenantId === 'tenant_law_01' ||
+        dbk.masterOwner === 'usr_master_super';
+      if (process.env.NODE_ENV !== 'production' && isDemoDbk) {
+        return true;
+      }
+      return false;
     } catch {
       return false;
     }
