@@ -220,7 +220,8 @@ export interface ExperienceCommandRequest {
     | 'SUBMIT_ENTITY'
     | 'ENABLE_CAPABILITY'
     | 'CONFIGURE_CAPABILITY'
-    | 'SUBMIT_SUPPLIER_INVOICE';
+    | 'SUBMIT_SUPPLIER_INVOICE'
+    | 'APPROVE_SUPPLIER_INVOICE';
   targetDbkId: string;
   payload: Record<string, unknown>;
 }
