@@ -186,7 +186,7 @@ export const PLATFORM_WORKFLOW_CATALOG: BusinessWorkflowDefinition[] = [
     moduleId: 'mod_fee_bursar',
     capabilityId: 'capability_payments',
     description: 'Accepts fee installment, posts double-entry journal, and issues fiscal receipt.',
-    triggerEvent: 'payment.confirmed.v1',
+    triggerEvent: 'school.payment.confirmed.v1',
     requiredPermissions: ['finance:receive'],
     authorizedRoles: ['BURSAR', 'SCHOOL_PRINCIPAL', 'TENANT_ADMIN'],
     downstreamOutcomes: [
