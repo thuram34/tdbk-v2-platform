@@ -266,6 +266,16 @@ describe('TDBK canonical client journey acceptance', () => {
       },
     );
     expect(enableSales.success).toBe(true);
+    const enableEtims = await experienceResolver.dispatchCommand(
+      ownerContext(),
+      {
+        commandType: 'ENABLE_CAPABILITY',
+        targetDbkId: dbkId,
+        payload: { capabilityId: 'capability_statutory_tax' },
+      },
+    );
+    expect(enableEtims.success).toBe(true);
+
 
     const resolved = await experienceResolver.resolveExperience(
       cashierContext(branchId),
@@ -474,5 +484,30 @@ describe('TDBK canonical client journey acceptance', () => {
     expect(confirmedSale?.attributes?.paymentProviderReference).toBe('CANONICAL-RECEIPT-001');
     expect(receipts).toHaveLength(1);
     expect(receipts[0]?.transactionId).toBe('mpesa_' + checkoutRequestId);
+    const fiscalization = await experienceResolver.dispatchCommand(
+      cashierContext(branchId),
+      {
+        commandType: 'EXECUTE_SALE_ETIMS_FISCALIZATION',
+        targetDbkId: dbkId,
+        payload: { saleId: 'canonical-sale-001' },
+      },
+    );
+    expect(fiscalization.success).toBe(true);
+    expect(fiscalization.result).toMatchObject({
+      saleId: 'canonical-sale-001',
+      status: 'FISCALIZED',
+      invoiceNumber: 'TDBK-canonical-sale-001',
+    });
+
+    const fiscalRecord = await firestoreClient.get<any>(
+      '/tenants/' + dbkId + '/entities/etims_fiscalizations/records/canonical-sale-001',
+    );
+    const fiscalSale = await firestoreClient.get<any>(
+      '/tenants/' + dbkId + '/entities/sales_counter/records/canonical-sale-001',
+    );
+    expect(fiscalRecord?.status).toBe('FISCALIZED');
+    expect(fiscalRecord?.providerReference).toBeTruthy();
+    expect(fiscalSale?.attributes?.etimsStatus).toBe('FISCALIZED');
+    expect(fiscalSale?.attributes?.etimsInvoiceNumber).toBe('TDBK-canonical-sale-001');
   });
 });
