@@ -21,6 +21,7 @@ import { connectionHub } from '../orchestration/bridge/connectionHub';
 import { dbkLifecycleManager } from '../platform/lifecycle/lifecycleManager';
 import { verticalCapabilityRuntime } from './vertical/verticalCapabilityRuntime';
 import { INITIAL_BLUEPRINT_CATALOG } from '../blueprint/catalog';
+import { procurementLifecycleService } from '../business/inventory/procurementLifecycleService';
 
 export class ExperienceResolver {
   private static instance: ExperienceResolver;
@@ -302,6 +303,18 @@ export class ExperienceResolver {
           },
           serverTimestamp: timestamp,
         };
+      } else if (req.commandType === 'SELECT_PROCUREMENT_SUPPLIER') {
+        const result = await procurementLifecycleService.selectSupplier(context, req.targetDbkId, req.payload as any);
+        await auditLogger.persistEvent(auditLogger.logAuditEvent(context, { action: 'PROCUREMENT_SUPPLIER_SELECTED', targetResource: `dbk:${req.targetDbkId}`, outcome: 'ALLOWED', details: result }));
+        return { success: true, commandType: req.commandType, targetDbkId: req.targetDbkId, result: result as any, serverTimestamp: timestamp };
+      } else if (req.commandType === 'ISSUE_PURCHASE_ORDER') {
+        const result = await procurementLifecycleService.issuePurchaseOrder(context, req.targetDbkId, req.payload as any);
+        await auditLogger.persistEvent(auditLogger.logAuditEvent(context, { action: 'PURCHASE_ORDER_ISSUED', targetResource: `dbk:${req.targetDbkId}`, outcome: 'ALLOWED', details: result }));
+        return { success: true, commandType: req.commandType, targetDbkId: req.targetDbkId, result: result as any, serverTimestamp: timestamp };
+      } else if (req.commandType === 'RECEIVE_PURCHASE_GOODS') {
+        const result = await procurementLifecycleService.receiveGoods(context, req.targetDbkId, req.payload as any);
+        await auditLogger.persistEvent(auditLogger.logAuditEvent(context, { action: 'PURCHASE_GOODS_RECEIVED', targetResource: `dbk:${req.targetDbkId}`, outcome: 'ALLOWED', details: result }));
+        return { success: true, commandType: req.commandType, targetDbkId: req.targetDbkId, result: result as any, serverTimestamp: timestamp };
       } else if (req.commandType === 'EXECUTE_SALE_MPESA_PAYMENT') {
         const paymentResult = await saleMpesaPaymentService.initiate(
           context,
