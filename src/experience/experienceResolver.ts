@@ -15,6 +15,7 @@ import { branchAuthority } from '../kernel/branch/branchAuthority';
 import { discoveryEngine } from '../capability/discovery';
 import { KernelError } from '../kernel/errors/kernelErrors';
 import { saleTransactionService } from '../business/sales/saleTransactionService';
+import { saleMpesaPaymentService } from '../business/sales/saleMpesaPaymentService';
 import { connectionHub } from '../orchestration/bridge/connectionHub';
 import { dbkLifecycleManager } from '../platform/lifecycle/lifecycleManager';
 import { verticalCapabilityRuntime } from './vertical/verticalCapabilityRuntime';
@@ -273,6 +274,27 @@ export class ExperienceResolver {
           commandType: req.commandType,
           targetDbkId: req.targetDbkId,
           result: { ...saleResult },
+          serverTimestamp: timestamp,
+        };
+      } else if (req.commandType === 'EXECUTE_SALE_MPESA_PAYMENT') {
+        const paymentResult = await saleMpesaPaymentService.initiate(
+          context,
+          req.targetDbkId,
+          req.payload as any,
+        );
+
+        await auditLogger.persistEvent(auditLogger.logAuditEvent(context, {
+          action: 'SALE_MPESA_PAYMENT_INITIATED',
+          targetResource: `dbk:${req.targetDbkId}`,
+          outcome: 'ALLOWED',
+          details: { ...paymentResult },
+        }));
+
+        return {
+          success: true,
+          commandType: req.commandType,
+          targetDbkId: req.targetDbkId,
+          result: { ...paymentResult },
           serverTimestamp: timestamp,
         };
       } else {
