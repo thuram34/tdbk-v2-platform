@@ -428,3 +428,34 @@ Implementation:
 - Generic BankBridge remains provider-gated in production: it does not fabricate a transfer and currently requires a tenant-specific bank adapter. Therefore provider certification is not claimed complete.
 
 This boundary is IMPLEMENTED / STRUCTURALLY TESTED / RELEASE-GATED FOR PROVIDER AND CI.
+
+
+## N. Supplier finance execution — invoice → AP → payment → settlement
+
+The procurement boundary now extends into supplier financial truth:
+
+SUPPLIER INVOICE
+→ PO/GRN MATCH
+→ ACCOUNTS PAYABLE POST
+→ PAYMENT INSTRUCTION
+→ PROVIDER CONFIRMATION
+→ POSTED FINANCIAL TRANSACTION
+→ SUPPLIER INVOICE PAID.
+
+Implementation:
+- `SupplierInvoiceService.match` persists the authoritative supplier invoice and PO/GRN match and emits `procurement.supplier.invoice.matched.v1`.
+- `SupplierFinancialLifecycleService.postPayable` creates an immutable double-entry payable transaction: DEBIT `EXPENSES:PURCHASES`, CREDIT `LIABILITIES:SUPPLIERS`.
+- `initiatePayment` creates a durable pending financial transaction and supplier payment intent. Initiation does **not** mark the invoice paid.
+- `confirmPayment` requires the pending financial transaction, promotes it to POSTED only after provider confirmation, records provider reference, settles the supplier liability and marks the invoice PAID.
+- Ambiguous/reconciliation-required financial states are not promoted to local success.
+- Experience commands are wired through the canonical Experience Layer:
+  - `MATCH_SUPPLIER_INVOICE`
+  - `POST_ACCOUNTS_PAYABLE`
+  - `INITIATE_SUPPLIER_PAYMENT`
+  - `CONFIRM_SUPPLIER_PAYMENT`
+- Workflow contracts are registered for invoice matching, AP posting and supplier payment.
+
+Release boundary:
+- Generic BankBridge currently reports no provider idempotency/reconciliation support and deliberately refuses fabricated production transfers. Supplier payment therefore remains **RELEASE-GATED** until a tenant-specific certified bank adapter or an approved payment bridge is configured.
+- eTIMS supplier purchase submission/certification is not claimed merely because an invoice carries an eTIMS number; the supplier's tax evidence and KRA provider confirmation remain separate controls.
+- CI evidence remains pending.
