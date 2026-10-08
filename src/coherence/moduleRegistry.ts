@@ -213,6 +213,21 @@ export const PLATFORM_WORKFLOW_CATALOG: BusinessWorkflowDefinition[] = [
     ],
   },
   {
+    workflowId: 'wf_pos_mpesa_payment',
+    name: 'POS M-Pesa Payment Initiation Flow',
+    moduleId: 'mod_pos_counter',
+    capabilityId: 'capability_payments',
+    description: 'Initiates an M-Pesa STK payment for an authoritative POS sale and leaves provider confirmation to the callback/reconciliation truth boundary.',
+    triggerEvent: 'pos.payment.requested.v1',
+    requiredPermissions: ['pos:checkout'],
+    authorizedRoles: ['CASHIER', 'STORE_OWNER', 'SHOP_MANAGER', 'TENANT_ADMIN'],
+    downstreamOutcomes: [
+      { targetSystemOrRole: 'Safaricom M-Pesa', description: 'Accepts the STK push and returns a provider checkout reference' },
+      { targetSystemOrRole: 'Financial Truth', description: 'Persists the pending provider transaction before/with external initiation' },
+      { targetSystemOrRole: 'POS Payment State', description: 'Remains pending until authoritative provider callback confirmation' },
+    ],
+  },
+  {
     workflowId: 'wf_triage_patient',
     name: 'Patient Triage & Queue Assignment',
     moduleId: 'mod_clinic_triage',
