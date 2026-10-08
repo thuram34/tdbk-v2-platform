@@ -239,18 +239,15 @@ export class ExperienceResolver {
               message: 'STK Push initiated successfully via TDBK runtime',
               details: bridgeRes.data,
             };
-          } catch {
-            const ref = `WS_${Date.now()}_${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
-            actionResult = {
-              actionName,
-              status: 'SUCCESS',
-              providerReference: ref,
-              receipt: ref,
-              transactionId: ref,
-              amount: Number(innerPayload.amount) || 100,
-              currency: 'KES',
-              message: 'Payment action executed in development runtime',
-            };
+          } catch (err: any) {
+            // Never report a payment as successful when the provider bridge failed.
+            // The outer command-dispatch error contract will return a structured failure.
+            throw new KernelError(
+              'INTEGRATION_ERROR',
+              `Payment action '${actionName}' failed: ${err?.message || 'M-Pesa bridge execution failed'}`,
+              502,
+              context.requestId,
+            );
           }
         } else {
           const actionId = `act_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
