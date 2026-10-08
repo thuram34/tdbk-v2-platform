@@ -213,6 +213,21 @@ export const PLATFORM_WORKFLOW_CATALOG: BusinessWorkflowDefinition[] = [
     ],
   },
   {
+    workflowId: 'wf_reorder_replenishment',
+    name: 'Low-Stock Reorder & Replenishment Intent Flow',
+    moduleId: 'mod_inventory_yard',
+    capabilityId: 'inventory_foundation',
+    description: 'Evaluates authoritative post-sale stock against the configured reorder policy and creates an idempotent procurement intent; supplier selection and purchase-order issuance remain separate capability-gated operations.',
+    triggerEvent: 'inventory.reorder.triggered.v1',
+    requiredPermissions: ['read:inventory'],
+    authorizedRoles: ['STORE_OWNER', 'SHOP_MANAGER', 'OPERATIONS_SUPERVISOR', 'TENANT_ADMIN'],
+    downstreamOutcomes: [
+      { targetSystemOrRole: 'Procurement Intent', description: 'Persists replenishment quantity and supplier-selection state' },
+      { targetSystemOrRole: 'Supplier Registry', description: 'Resolves configured supplier when one is authoritative' },
+      { targetSystemOrRole: 'Purchase Orders', description: 'Issues a PO only when the purchasing capability and supplier authority are available' },
+    ],
+  },
+  {
     workflowId: 'wf_triage_patient',
     name: 'Patient Triage & Queue Assignment',
     moduleId: 'mod_clinic_triage',
