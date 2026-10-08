@@ -802,7 +802,7 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
         tenantId: idempotencyTenant,
         branchId: initiatedBranchId,
         principalId: context.principal.id,
-        correlationId: normalized.correlationId,
+        correlationId: String((await firestoreClient.get<any>(`/tenants/${idempotencyTenant}/financialTransactions/${authoritativeTransactionId}`))?.correlationId || normalized.correlationId),
         causationId: stk.CheckoutRequestID,
         source: 'MpesaBridge',
         payload: normalized as unknown as Record<string, unknown>,
