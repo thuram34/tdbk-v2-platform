@@ -13,6 +13,7 @@ import { discoveryEngine } from '../capability/discovery';
 import { KernelError } from '../kernel/errors/kernelErrors';
 import { saleTransactionService } from '../business/sales/saleTransactionService';
 import { mpesaBridge } from '../orchestration/bridge/adapters/mpesaBridge';
+import { supplierInvoiceService } from '../business/procurement/supplierInvoiceService';
 
 export class ExperienceResolver {
   private static instance: ExperienceResolver;
@@ -202,6 +203,21 @@ export class ExperienceResolver {
           commandType: req.commandType,
           targetDbkId: req.targetDbkId,
           result: { ...saleResult },
+          serverTimestamp: timestamp,
+        };
+      } else if (req.commandType === 'SUBMIT_SUPPLIER_INVOICE') {
+        const invoiceResult = await supplierInvoiceService.submitInvoice(context, req.targetDbkId, req.payload as any);
+        await auditLogger.persistEvent(auditLogger.logAuditEvent(context, {
+          action: 'SUPPLIER_INVOICE_SUBMITTED',
+          targetResource: `dbk:${req.targetDbkId}`,
+          outcome: invoiceResult.status === 'DISPUTED' ? 'DENIED' : 'ALLOWED',
+          details: invoiceResult,
+        }));
+        return {
+          success: true,
+          commandType: req.commandType,
+          targetDbkId: req.targetDbkId,
+          result: { ...invoiceResult },
           serverTimestamp: timestamp,
         };
       } else if (req.commandType === 'INVOKE_ACTION') {
