@@ -14,6 +14,7 @@ import { connectionHub } from '../../orchestration/bridge/connectionHub';
 import { rbacEngine } from '../../kernel/authorization/rbacEngine';
 import { outboxEngine } from '../../orchestration/outbox/outboxEngine';
 import { eventBus } from '../../orchestration/events/eventBus';
+import { MpesaBridge } from '../../orchestration/bridge/adapters/mpesaBridge';
 
 const dbkId = 'canonical_journey_hardware_01';
 const inventoryRecordId = 'canonical_stock_001';
@@ -303,10 +304,17 @@ describe('TDBK canonical client journey acceptance', () => {
           saleId: 'canonical-sale-001',
           branchId,
           items: [{ inventoryRecordId, quantity: 2 }],
-          paymentStatus: 'PAID',
+          paymentStatus: 'PENDING',
+          paymentMethod: 'MPESA',
+          customerPhone: '0712345678',
         },
       },
     );
+
+    // Connector readiness is proven above; the test runtime intentionally removes
+    // the configured connection so the bridge uses its deterministic test provider
+    // path rather than making a real Safaricom call.
+    await connectorConnectionRepository.deleteConnection(dbkId, 'conn_mpesa');
 
     expect(sale.success).toBe(true);
     expect(sale.result).toMatchObject({
@@ -364,5 +372,86 @@ describe('TDBK canonical client journey acceptance', () => {
       totalAmountKes: 500,
       reconciledAgainstPersistedSale: true,
     });
+
+    const paymentWorkflow = workflows.find((candidate) => candidate.workflowType === 'wf_pos_mpesa_payment');
+    expect(paymentWorkflow).toBeDefined();
+    expect(paymentWorkflow?.status).toBe('COMPLETED');
+    const paymentOutput = paymentWorkflow?.steps[0].output as any;
+    expect(paymentOutput).toMatchObject({
+      operation: 'POS_MPESA_STK_PUSH',
+      saleId: 'canonical-sale-001',
+      branchId,
+      amountKes: 500,
+      paymentStatus: 'PENDING',
+      provider: 'SAFARICOM_MPESA',
+      confirmationRequired: true,
+    });
+
+    const checkoutRequestId = paymentOutput.providerReference as string;
+    expect(checkoutRequestId).toBeTruthy();
+    const pendingPayment = await firestoreClient.get<any>(
+      '/tenants/' + dbkId + '/financialTransactions/mpesa_' + checkoutRequestId,
+    );
+    expect(pendingPayment?.status).toBe('PENDING');
+    expect(pendingPayment?.amount).toBe(500);
+
+    const mpesaBridge = new MpesaBridge();
+    await mpesaBridge.handleCallback(
+      {
+        requestId: 'canonical-mpesa-callback',
+        correlationId: 'canonical-sale-correlation',
+        timestamp: new Date().toISOString(),
+        principal: {
+          id: 'canonical-system',
+          isMaster: false,
+          tenantId: dbkId,
+          branchId,
+          roles: ['SYSTEM'],
+          permissions: [],
+          authTime: Date.now(),
+          tokenSource: 'SYSTEM',
+        },
+        tenantContext: { tenantId: dbkId, name: 'Canonical Hardware Test', status: 'ACTIVE' },
+        branchContext: { branchId },
+      } as any,
+      {
+        Body: {
+          stkCallback: {
+            MerchantRequestID: 'canonical-mpesa-merchant',
+            CheckoutRequestID: checkoutRequestId,
+            ResultCode: 0,
+            ResultDesc: 'The service request is processed successfully.',
+            CallbackMetadata: {
+              Item: [
+                { Name: 'Amount', Value: 500 },
+                { Name: 'MpesaReceiptNumber', Value: 'CANONICAL-RECEIPT-001' },
+              ],
+            },
+          },
+        },
+        tenantId: dbkId,
+        correlationId: 'canonical-sale-correlation',
+      } as any,
+    );
+
+    const paymentDelivery = await outboxEngine.processTenantOutbox(
+      dbkId,
+      'canonical-payment-worker',
+      30000,
+      async (event) => eventBus.publish(event),
+    );
+    expect(paymentDelivery.succeeded).toBeGreaterThanOrEqual(1);
+
+    const confirmedSale = await firestoreClient.get<any>(
+      '/tenants/' + dbkId + '/entities/sales_counter/records/canonical-sale-001',
+    );
+    const confirmedPayment = await firestoreClient.get<any>(
+      '/tenants/' + dbkId + '/financialTransactions/mpesa_' + checkoutRequestId,
+    );
+    expect(confirmedPayment?.status).toBe('POSTED');
+    expect(confirmedPayment?.providerReceiptReference).toBe('CANONICAL-RECEIPT-001');
+    expect(confirmedSale?.attributes?.paymentStatus).toBe('PAID');
+    expect(confirmedSale?.attributes?.paymentProvider).toBe('SAFARICOM_MPESA');
+    expect(confirmedSale?.attributes?.paymentProviderReference).toBe('CANONICAL-RECEIPT-001');
   });
 });
