@@ -233,6 +233,24 @@ export const INITIAL_CAPABILITY_CATALOG: CapabilityDefinition[] = [
     updatedAt: '2026-01-01T00:00:00Z',
   },
 
+  {
+    capabilityId: 'supplier_invoices',
+    name: 'Supplier Invoices & Accounts Payable',
+    description: 'Authoritative supplier invoice capture, PO/GRN matching, payable recognition, duplicate protection, and reconciliation events',
+    category: 'PURCHASING',
+    version: '1.0.0',
+    supportedBlueprints: ['HARDWARE', 'RETAIL', 'ELECTRONICS', 'HOSPITALITY', 'HEALTHCARE'],
+    dependencies: ['purchase_orders', 'supplier_registry', 'finance_ledger_core'],
+    requiredPermissions: ['manage:purchasing'],
+    requiredRoles: ['PROCUREMENT_OFFICER', 'ACCOUNTANT', 'DBK_ADMIN'],
+    entitlementRequirements: { minimumTier: 'GROWTH' },
+    configurationSchema: { requiresConfiguration: false },
+    implementationStatus: 'IMPLEMENTED',
+    lifecycleStatus: 'AVAILABLE',
+    createdAt: '2026-10-08T00:00:00Z',
+    updatedAt: '2026-10-08T00:00:00Z',
+  },
+
   // -------------------------------------------------------------
   // STAFF & PAYROLL
   // -------------------------------------------------------------
