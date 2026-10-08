@@ -45,5 +45,18 @@ describe('Coherence Event -> Durable Workflow Trigger', () => {
     expect(workflow?.steps[0].stepType).toBe('COHERENCE_WORKFLOW_TRIGGER');
     expect(workflow?.steps[0].status).toBe('COMPLETED');
     expect(workflow?.status).toBe('COMPLETED');
+
+    // Simulate subscriber/process restart: the EventBus cache and Workflow Engine
+    // cache are cleared, but Firestore remains authoritative.
+    eventBus.clearStoreForTesting();
+    workflowEngine.clearStoreForTesting();
+
+    const replay = await eventBus.publish(event);
+    const replayedWorkflows = await workflowInstanceRepository.listWorkflows(tenantId);
+    const matching = replayedWorkflows.filter((candidate) => candidate.workflowType === 'wf_record_attendance');
+
+    expect(replay.published).toBe(true);
+    expect(matching).toHaveLength(1);
+    expect(matching[0].workflowId).toBe(workflow?.workflowId);
   });
 });
