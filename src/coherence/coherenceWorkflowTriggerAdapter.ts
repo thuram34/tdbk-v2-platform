@@ -4,6 +4,7 @@ import type { EventEnvelope } from '../orchestration/events/types';
 import type { EventHandler } from '../orchestration/events/types';
 import { PLATFORM_WORKFLOW_CATALOG } from './moduleRegistry';
 import { firestoreClient } from '../persistence/firestore/firestoreClient';
+import { mpesaBridge } from '../orchestration/bridge/adapters/mpesaBridge';
 
 /**
  * Authoritative coherence boundary:
@@ -30,6 +31,71 @@ function registerTriggerStepHandler(workflowEngineLike: { registerStepHandler: (
       };
     }
 
+    if (catalogWorkflowId === 'wf_pos_mpesa_payment') {
+      const payload = (input.payload || {}) as Record<string, unknown>;
+      const saleId = String(payload.saleId || '');
+      const branchId = String(payload.branchId || workflow.branchId || '');
+      const phoneNumber = String(payload.customerPhone || '');
+      const amount = Number(payload.amountKes);
+      if (!saleId || !branchId || !phoneNumber || !Number.isFinite(amount) || amount <= 0) {
+        return { success: false, status: 'FAILED', error: 'POS M-Pesa payment trigger is missing authoritative sale, branch, phone, or amount', failureClassification: 'PERMANENT' };
+      }
+      const sale = await firestoreClient.get<Record<string, any>>(
+        '/tenants/' + workflow.tenantId + '/entities/sales_counter/records/' + saleId,
+      );
+      if (!sale || sale.status !== 'COMPLETED' || sale.branchId !== branchId) {
+        return { success: false, status: 'FAILED', error: 'Authoritative POS sale ' + saleId + ' is missing, incomplete, or belongs to another branch', failureClassification: 'PERMANENT' };
+      }
+      if (sale.attributes?.paymentMethod !== 'MPESA' || Number(sale.attributes?.totalAmountKes) !== amount) {
+        return { success: false, status: 'FAILED', error: 'POS sale ' + saleId + ' does not reconcile with the requested M-Pesa payment', failureClassification: 'PERMANENT' };
+      }
+      const operation = await prepareExternalSideEffect({
+        operation: 'STK_PUSH',
+        providerName: 'SAFARICOM_MPESA',
+        providerIdempotencySupported: false,
+        providerReconciliationSupported: true,
+      });
+      const context = contextFromEvent({
+        eventId: String(input.triggerEventId || workflow.workflowId),
+        eventType: triggerEventType,
+        eventVersion: 'v1',
+        occurredAt: workflow.startedAt,
+        tenantId: workflow.tenantId,
+        branchId,
+        principalId: String(workflow.metadata?.triggerPrincipalId || 'SYSTEM'),
+        correlationId: workflow.correlationId,
+        causationId: String(input.triggerEventId || workflow.workflowId),
+        source: String(input.source || 'POS'),
+        payload: {},
+        metadata: {},
+      });
+      try {
+        const providerResult = await mpesaBridge.execute(context, 'STK_PUSH', {
+          phoneNumber,
+          amount,
+          accountReference: saleId,
+          transactionDesc: 'TDBK POS sale ' + saleId,
+        });
+        await recordExternalSideEffectOutcome({
+          providerReference: providerResult.providerReference,
+          outcomeState: providerResult.status === 'PENDING' || providerResult.status === 'SUCCESS' ? 'PROVIDER_ACCEPTED' : 'PROVIDER_REJECTED',
+        });
+        return { success: true, status: 'COMPLETED', output: {
+          operation: 'POS_MPESA_STK_PUSH', saleId, branchId, amountKes: amount,
+          paymentStatus: providerResult.status, provider: providerResult.provider,
+          providerReference: providerResult.providerReference,
+          providerOperationIdentity: operation.providerOperationIdentity, confirmationRequired: true,
+        } };
+      } catch (error: any) {
+        const initiation = await firestoreClient.get<any>('/tenants/' + workflow.tenantId + '/financialTransactions/mpesa_init_' + context.requestId);
+        if (initiation?.status === 'RECONCILIATION_REQUIRED') {
+          await recordExternalSideEffectOutcome({ providerReference: initiation.providerReference || null, outcomeState: 'RECONCILIATION_REQUIRED' });
+          return { success: false, status: 'WAITING', error: 'M-Pesa provider accepted the request but local financial state requires reconciliation', failureClassification: 'WAITING_FOR_EXTERNAL_RESULT' };
+        }
+        await recordExternalSideEffectOutcome({ providerReference: initiation?.providerReference || null, outcomeState: 'PROVIDER_REJECTED' });
+        return { success: false, status: 'FAILED', error: error?.message || 'M-Pesa STK initiation failed', failureClassification: 'PERMANENT' };
+      }
+    }
     if (catalogWorkflowId === 'wf_execute_checkout') {
       const payload = (input.payload || {}) as Record<string, unknown>;
       const saleId = String(payload.saleId || '');
