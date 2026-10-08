@@ -61,15 +61,21 @@ export class SupplierFinancialLifecycleService {
   const transactionId=invoice.attributes?.paymentTransactionId||`supplier_pay_${input.invoiceId}`;
   const transaction=await firestoreClient.get<FinancialTransaction>(`/tenants/${tenantId}/financialTransactions/${transactionId}`);
   if(!transaction) throw new KernelError('NOT_FOUND','Supplier payment transaction not found.',404,c.requestId);
-  if(input.status==='FAILED'){await reconciliationService.resolveFailed(tenantId,transactionId).catch(()=>{});await firestoreClient.update(invoicePath(tenantId,input.invoiceId),{'attributes.paymentStatus':'FAILED','updatedAt':new Date().toISOString()} as any);return {invoiceId:input.invoiceId,status:'FAILED'};}
-  const posted:FinancialTransaction={...transaction,status:'POSTED',providerReference:input.providerReference,providerReceiptReference:input.providerReceiptReference||null,postedAt:new Date().toISOString()};
-  const entries:LedgerEntry[]=[
-   {entryId:`${transactionId}_debit`,transactionId,tenantId,account:'LIABILITIES:SUPPLIERS',entryType:'DEBIT',amount:transaction.amount,currency:'KES',createdAt:posted.createdAt,immutable:true},
-   {entryId:`${transactionId}_credit`,transactionId,tenantId,account:'CASH:BANK',entryType:'CREDIT',amount:transaction.amount,currency:'KES',createdAt:posted.createdAt,immutable:true}
-  ];
-  if(transaction.status==='RECONCILIATION_REQUIRED') await reconciliationService.resolveConfirmed(posted,entries); else await financialLedgerRepository.postTransaction(posted,entries);
-  await firestoreClient.update(invoicePath(tenantId,input.invoiceId),{status:'PAID','attributes.paymentStatus':'PAID','attributes.paymentTransactionId':transactionId,'attributes.paymentProviderReference':input.providerReference,updatedAt:new Date().toISOString()} as any);
+  if (transaction.status === 'RECONCILIATION_REQUIRED') {
+   throw new KernelError('RECONCILIATION_REQUIRED','Supplier payment has an ambiguous provider outcome and must be resolved by the authoritative reconciliation adapter before it can be confirmed.',409,c.requestId);
+  }
+  if (transaction.status !== 'POSTED') {
+   throw new KernelError('VALIDATION_ERROR','Supplier payment is not provider-confirmed. Confirmation cannot promote a PENDING transaction.',409,c.requestId);
+  }
+  if (transaction.providerReference !== input.providerReference) {
+   throw new KernelError('VALIDATION_ERROR','Provider reference does not match the authoritative financial transaction.',409,c.requestId);
+  }
+  if(input.status==='FAILED') {
+   throw new KernelError('CONFLICT','A payment already confirmed as POSTED cannot be changed to FAILED.',409,c.requestId);
+  }
+  await firestoreClient.update(invoicePath(tenantId,input.invoiceId),{'attributes.paymentStatus':'PAID','attributes.paymentTransactionId':transactionId,'attributes.paymentProviderReference':input.providerReference,'updatedAt':new Date().toISOString()} as any);
   await outboxEngine.enqueueEvent(tenantId,{eventId:`supplier-payment-confirmed-${input.invoiceId}`,eventType:'finance.supplier.payment.confirmed.v1',eventVersion:'v1',occurredAt:new Date().toISOString(),tenantId,branchId,principalId:c.principal.id,correlationId:c.correlationId,causationId:input.providerReference,source:'SupplierFinancialLifecycleService',payload:{invoiceId:input.invoiceId,transactionId,providerReference:input.providerReference,amountKes:transaction.amount},metadata:{}});
+  return {invoiceId:input.invoiceId,status:'PAID',transactionId,providerReference:input.providerReference};
   return {invoiceId:input.invoiceId,status:'PAID',transactionId,providerReference:input.providerReference};
  }
 }
