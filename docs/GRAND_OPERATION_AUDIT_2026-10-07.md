@@ -459,3 +459,21 @@ Release boundary:
 - Generic BankBridge currently reports no provider idempotency/reconciliation support and deliberately refuses fabricated production transfers. Supplier payment therefore remains **RELEASE-GATED** until a tenant-specific certified bank adapter or an approved payment bridge is configured.
 - eTIMS supplier purchase submission/certification is not claimed merely because an invoice carries an eTIMS number; the supplier's tax evidence and KRA provider confirmation remain separate controls.
 - CI evidence remains pending.
+
+
+## O. Supplier finance release gate — hardened
+
+The supplier-finance boundary is implemented in the repository but is not declared production-closed.
+
+Required truth chain:
+
+SUPPLIER INVOICE → AP POSTING → PAYMENT INTENT → CERTIFIED PROVIDER EXECUTION → PROVIDER TRUTH → POSTED FINANCIAL TRANSACTION → INVOICE PAID.
+
+Hardening completed:
+- Supplier payment initiation creates a durable PENDING financial transaction and never treats initiation as settlement.
+- Supplier payment confirmation refuses to promote PENDING or RECONCILIATION_REQUIRED state based solely on an application command.
+- A confirmation must reference an already authoritative POSTED financial transaction and the exact persisted provider reference.
+- Ambiguous provider outcomes remain reconciliation-gated.
+- Generic BankBridge production transfer remains unavailable until a tenant-specific certified bank adapter supplies provider execution/idempotency/reconciliation guarantees.
+
+Therefore this stage is **IMPLEMENTED / HARDENED / RELEASE-GATED**. CI has not yet supplied executable workflow evidence for the current branch.
