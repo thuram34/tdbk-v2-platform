@@ -68,6 +68,26 @@ export class WorkflowInstanceRepository implements IWorkflowInstanceRepository {
       await tx.set('/tenants/' + tenantId + '/outbox/' + event.eventId, event as unknown as Record<string, unknown>);
     });
   }
+  public async createWorkflowWithOutboxIfAbsent(
+    tenantId: string,
+    workflowId: string,
+    workflow: WorkflowInstance,
+    event: import('../../types').OutboxRecord
+  ): Promise<WorkflowInstance | null> {
+    return await firestoreClient.runTransaction(async (tx) => {
+      const path = this.getPath(tenantId, workflowId);
+      const existing = await tx.get<WorkflowInstance>(path);
+      if (existing) return existing;
+
+      await tx.set(path, workflow as unknown as Record<string, unknown>);
+      await tx.set(
+        '/tenants/' + tenantId + '/outbox/' + event.eventId,
+        event as unknown as Record<string, unknown>
+      );
+      return null;
+    });
+  }
+
   public async getWorkflow(tenantId: string, workflowId: string): Promise<WorkflowInstance | null> {
     return await firestoreClient.get<WorkflowInstance>(this.getPath(tenantId, workflowId));
   }
