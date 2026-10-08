@@ -227,3 +227,29 @@ Initialization-cycle hardening was added after the first implementation: the ada
 Deterministic trigger identity hardening is now implemented: coherence workflow IDs are derived from tenant + catalog workflow + triggering event ID, and durable creation uses a Firestore transaction with create-if-absent semantics. A replay after clearing the in-process EventBus/Workflow caches must resolve to the same persisted workflow rather than creating a second instance. This protects the event-to-workflow boundary against process restart and duplicate delivery.
 
 CI evidence is still pending; GitHub currently reports no pull-request workflow run for the latest commit. Therefore this gate is **implemented but not CI-closed**.
+
+
+## J. Retail POS → M-Pesa payment operation
+
+The retail/hardware vertical now has a distinct payment boundary after checkout:
+
+COMPLETED SALE
+→ PosPaymentService
+→ M-Pesa STK_PUSH
+→ durable PENDING financial transaction
+→ Safaricom callback
+→ atomic financial posting + ledger + payment.confirmed.v1
+→ EventBus
+→ POS payment reconciliation
+→ authoritative sale paymentStatus = PAID.
+
+The implementation deliberately does not mark a sale paid on STK initiation. The sale is marked PAID only from an authoritative MpesaBridge confirmation event whose amount reconciles against the persisted sale.
+
+Proof artifacts:
+- src/business/sales/posPaymentService.ts
+- src/business/sales/posPaymentEventHandler.ts
+- src/business/sales/posPaymentService.test.ts
+- src/business/sales/posPaymentEventHandler.test.ts
+- src/orchestration/bridge/adapters/mpesaBridge.ts
+
+The provider-specific live Safaricom transaction remains production-certification gated; test-runtime proof uses the existing mock boundary and the real callback/reconciliation path.
