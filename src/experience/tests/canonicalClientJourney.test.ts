@@ -321,11 +321,6 @@ describe('TDBK canonical client journey acceptance', () => {
       },
     );
 
-    // Connector readiness is proven above; the test runtime intentionally removes
-    // the configured connection so the bridge uses its deterministic test provider
-    // path rather than making a real Safaricom call.
-    await connectorConnectionRepository.deleteConnection(dbkId, 'conn_mpesa');
-
     expect(sale.success).toBe(true);
     expect(sale.result).toMatchObject({
       saleId: 'canonical-sale-001',
