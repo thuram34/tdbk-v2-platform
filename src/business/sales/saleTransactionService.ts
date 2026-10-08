@@ -324,35 +324,6 @@ export class SaleTransactionService {
         saleRecord,
       );
 
-      if (paymentMethod === 'MPESA') {
-        await outboxEngine.enqueueEvent(
-          tenantId,
-          {
-            eventId: `payment-requested-${input.saleId}`,
-            eventType: 'pos.payment.requested.v1',
-            eventVersion: 'v1',
-            occurredAt: now,
-            tenantId,
-            branchId,
-            principalId: context.principal.id,
-            correlationId: context.correlationId,
-            causationId: eventId,
-            source: 'SaleTransactionService',
-            payload: {
-              saleId: input.saleId,
-              branchId,
-              paymentMethod,
-              customerPhone: input.customerPhone,
-              amountKes: totalAmountKes,
-              currency: 'KES',
-            },
-            metadata: { requestId: context.requestId, command: 'REQUEST_MPESA_PAYMENT' },
-          },
-          transaction,
-          context.principal.id,
-        );
-      }
-
       await outboxEngine.enqueueEvent(
         tenantId,
         {
