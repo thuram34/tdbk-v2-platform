@@ -406,3 +406,25 @@ Implementation:
 This closes the **supplier invoice matching boundary only**. It does **not** yet claim accounts-payable posting, supplier payment, provider reconciliation, or final procurement closure. Those remain release-gated financial stages.
 
 CI evidence remains pending; GitHub has not exposed a workflow run/status for the branch head.
+
+
+## N. Supplier invoice → AP → payment → settlement boundary
+
+The procurement financial boundary is now represented as:
+
+SUPPLIER INVOICE MATCH
+→ ACCOUNTS PAYABLE POST
+→ SUPPLIER PAYMENT INSTRUCTION
+→ PROVIDER CONFIRMATION
+→ POSTED FINANCIAL TRANSACTION
+→ SUPPLIER INVOICE PAID.
+
+Implementation:
+- SupplierInvoiceService binds a supplier invoice to an authoritative PO/GRN and persists a PO–GRN–invoice match.
+- SupplierFinancialLifecycleService.postPayable posts a balanced immutable financial transaction: debit EXPENSES:PURCHASES, credit LIABILITIES:SUPPLIERS.
+- initiatePayment creates a durable supplier payment instruction and a PENDING bank financial transaction. It deliberately does not mark the invoice paid.
+- confirmPayment only promotes the payment to PAID after provider confirmation and authoritative ledger posting/reconciliation.
+- Payment confirmation emits finance.supplier.payment.confirmed.v1.
+- Generic BankBridge remains provider-gated in production: it does not fabricate a transfer and currently requires a tenant-specific bank adapter. Therefore provider certification is not claimed complete.
+
+This boundary is IMPLEMENTED / STRUCTURALLY TESTED / RELEASE-GATED FOR PROVIDER AND CI.
