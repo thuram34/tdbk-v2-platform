@@ -210,6 +210,28 @@ Important boundary:
 - eTIMS fiscalization and reorder remain separate release-gated retail workflows; they are not claimed complete by this payment work.
 - CI remains release-gated until a fresh GitHub Actions run proves the current branch.
 
+
+## K. Retail POS → eTIMS fiscalization boundary
+
+The retail/hardware operation now has an explicit fiscalization command after the completed POS sale and payment lifecycle:
+
+`completed sale → tenant/branch/RBAC → capability_statutory_tax → authoritative sale lines → eTIMS SAVE_SALES → confirmed provider result → fiscalization record → sale fiscal state`.
+
+Implemented:
+- `EXECUTE_SALE_ETIMS_FISCALIZATION` is exposed through the Experience command boundary.
+- Fiscalization validates tenant, branch, cashier authority, sale completion and statutory-tax capability.
+- The service derives the eTIMS payload from the persisted sale rather than trusting a second client-side amount.
+- A durable fiscalization record is created with deterministic identity `etims_<saleId>`.
+- Successful provider response atomically records fiscal state on the sale and the fiscalization record.
+- Deterministic configuration/authorization failures are not converted into provider ambiguity.
+- Provider-ambiguous outcomes are recorded as `REQUIRES_RECONCILIATION`; the sale is not falsely marked fiscalized.
+- Test runtime has a deterministic eTIMS boundary; production still requires an actual configured KRA/VSCU connection.
+- This remains separate from school fee operations.
+
+Remaining retail operation:
+- Reorder/replenishment remains the next authoritative runtime boundary.
+- eTIMS production certification/provider evidence and fresh CI are still release gates.
+
 ## Release rule
 PR #390 must not be merged merely because it is mergeable. It is mergeable only after the grand-operation acceptance criteria above are satisfied for the scope actually claimed.
 
