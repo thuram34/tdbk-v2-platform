@@ -236,11 +236,24 @@ export class ExperienceResolver {
 
         if (isPaymentAction) {
           try {
-            const rawAmount = Number(innerPayload.amount) || 100;
+            const phoneNumber = String(innerPayload.phoneNumber || '').trim();
+            const amount = Number(innerPayload.amount);
+            const reference = String(innerPayload.reference || '').trim();
+
+            if (!phoneNumber) {
+              throw new KernelError('VALIDATION_ERROR', `Payment action '${actionName}' requires phoneNumber`, 400, context.requestId);
+            }
+            if (!Number.isFinite(amount) || amount <= 0) {
+              throw new KernelError('VALIDATION_ERROR', `Payment action '${actionName}' requires a positive amount`, 400, context.requestId);
+            }
+            if (!reference) {
+              throw new KernelError('VALIDATION_ERROR', `Payment action '${actionName}' requires reference`, 400, context.requestId);
+            }
+
             const bridgeRes = await mpesaBridge.execute(context, 'STK_PUSH', {
-              phoneNumber: String(innerPayload.phoneNumber || '0712345678'),
-              amount: rawAmount,
-              accountReference: String(innerPayload.reference || 'INV-2026-001'),
+              phoneNumber,
+              amount,
+              accountReference: reference,
               transactionDesc: `TDBK Action: ${actionName}`,
             });
 
