@@ -243,7 +243,7 @@ export class ExperienceResolver {
             // Never report a payment as successful when the provider bridge failed.
             // The outer command-dispatch error contract will return a structured failure.
             throw new KernelError(
-              'INTEGRATION_ERROR',
+              'INTEGRATION_UNAVAILABLE',
               `Payment action '${actionName}' failed: ${err?.message || 'M-Pesa bridge execution failed'}`,
               502,
               context.requestId,
