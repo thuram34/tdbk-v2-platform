@@ -734,6 +734,7 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
       }
 
       await tx.set(claimPath, claimRecord);
+      let eventCorrelationId = normalized.correlationId;
 
       if (normalized.status === 'FAILED') {
         const transactionId = authoritativeTransactionId;
@@ -746,6 +747,7 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
         ) {
           throw new Error('M-Pesa failed callback conflicts with authoritative pending transaction');
         }
+        eventCorrelationId = existingTransaction.correlationId || eventCorrelationId;
         await tx.update<any>(`/tenants/${idempotencyTenant}/financialTransactions/${transactionId}`, {
           status: 'FAILED',
           description: stk.ResultDesc || existingTransaction.description || 'M-Pesa payment failed',
@@ -769,6 +771,7 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
           throw new Error('M-Pesa callback conflicts with authoritative pending transaction');
         }
 
+        eventCorrelationId = existingTransaction.correlationId || eventCorrelationId;
         const transaction = {
           ...existingTransaction,
           providerReference: stk.CheckoutRequestID,
@@ -802,7 +805,7 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
         tenantId: idempotencyTenant,
         branchId: initiatedBranchId,
         principalId: context.principal.id,
-        correlationId: String((await firestoreClient.get<any>(`/tenants/${idempotencyTenant}/financialTransactions/${authoritativeTransactionId}`))?.correlationId || normalized.correlationId),
+        correlationId: eventCorrelationId,
         causationId: stk.CheckoutRequestID,
         source: 'MpesaBridge',
         payload: normalized as unknown as Record<string, unknown>,
