@@ -12,7 +12,7 @@ export async function handlePosMpesaPaymentConfirmed(event: EventEnvelope): Prom
       record?.attributes?.paymentMethod === 'MPESA' &&
       record?.attributes?.correlationId === event.correlationId,
   );
-  if (!sale) throw new Error('No authoritative POS sale matches payment correlation ' + event.correlationId);
+  if (!sale) return;
 
   const providerReference = String((event.payload as any)?.providerReference || '');
   const amount = Number((event.payload as any)?.amount || 0);
@@ -53,7 +53,7 @@ export async function handlePosMpesaPaymentFailed(event: EventEnvelope): Promise
       record?.attributes?.paymentMethod === 'MPESA' &&
       record?.attributes?.correlationId === event.correlationId,
   );
-  if (!sale) throw new Error('No authoritative POS sale matches failed payment correlation ' + event.correlationId);
+  if (!sale) return;
 
   await firestoreClient.runTransaction(async (tx) => {
     const path = '/tenants/' + event.tenantId + '/entities/sales_counter/records/' + sale.id;
