@@ -5,7 +5,6 @@ import { dbkCapabilityManager } from '../../capability/dbkCapabilityManager';
 import { firestoreClient } from '../../persistence/firestore/firestoreClient';
 import { outboxEngine } from '../../orchestration/outbox/outboxEngine';
 import { financialLedgerRepository } from '../../persistence/firestore/repositories/financialLedgerRepository';
-import { reconciliationService } from '../../finance/reconciliationService';
 import type { FinancialTransaction, LedgerEntry } from '../../finance/types';
 
 const invoicePath=(t:string,id:string)=>`/tenants/${t}/entities/supplier_invoices/records/${id}`;
