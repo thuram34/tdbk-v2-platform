@@ -22,6 +22,8 @@ import { dbkLifecycleManager } from '../platform/lifecycle/lifecycleManager';
 import { verticalCapabilityRuntime } from './vertical/verticalCapabilityRuntime';
 import { INITIAL_BLUEPRINT_CATALOG } from '../blueprint/catalog';
 import { procurementLifecycleService } from '../business/inventory/procurementLifecycleService';
+import { supplierInvoiceService } from '../business/inventory/supplierInvoiceService';
+import { supplierFinancialLifecycleService } from '../business/inventory/supplierFinancialLifecycleService';
 
 export class ExperienceResolver {
   private static instance: ExperienceResolver;
@@ -315,6 +317,22 @@ export class ExperienceResolver {
         const result = await procurementLifecycleService.receiveGoods(context, req.targetDbkId, req.payload as any);
         await auditLogger.persistEvent(auditLogger.logAuditEvent(context, { action: 'PURCHASE_GOODS_RECEIVED', targetResource: `dbk:${req.targetDbkId}`, outcome: 'ALLOWED', details: result }));
         return { success: true, commandType: req.commandType, targetDbkId: req.targetDbkId, result: result as any, serverTimestamp: timestamp };
+      } else if (req.commandType === 'MATCH_SUPPLIER_INVOICE') {
+        const result = await supplierInvoiceService.match(context, req.targetDbkId, req.payload as any);
+        await auditLogger.persistEvent(auditLogger.logAuditEvent(context, { action: 'SUPPLIER_INVOICE_MATCHED', targetResource: `dbk:${req.targetDbkId}`, outcome: 'ALLOWED', details: result }));
+        return { success: true, commandType: req.commandType, targetDbkId: req.targetDbkId, result: result as any, serverTimestamp: timestamp };
+      } else if (req.commandType === 'POST_ACCOUNTS_PAYABLE') {
+        const result = await supplierFinancialLifecycleService.postPayable(context, req.targetDbkId, req.payload as any);
+        await auditLogger.persistEvent(auditLogger.logAuditEvent(context, { action: 'ACCOUNTS_PAYABLE_POSTED', targetResource: `dbk:${req.targetDbkId}`, outcome: 'ALLOWED', details: result }));
+        return { success: true, commandType: req.commandType, targetDbkId: req.targetDbkId, result: result as any, serverTimestamp: timestamp };
+      } else if (req.commandType === 'INITIATE_SUPPLIER_PAYMENT') {
+        const result = await supplierFinancialLifecycleService.initiatePayment(context, req.targetDbkId, req.payload as any);
+        await auditLogger.persistEvent(auditLogger.logAuditEvent(context, { action: 'SUPPLIER_PAYMENT_INITIATED', targetResource: `dbk:${req.targetDbkId}`, outcome: 'ALLOWED', details: result }));
+        return { success: true, commandType: req.commandType, targetDbkId: req.targetDbkId, result: result as any, serverTimestamp: timestamp };
+      } else if (req.commandType === 'CONFIRM_SUPPLIER_PAYMENT') {
+        const result = await supplierFinancialLifecycleService.confirmPayment(context, req.targetDbkId, req.payload as any);
+        await auditLogger.persistEvent(auditLogger.logAuditEvent(context, { action: 'SUPPLIER_PAYMENT_CONFIRMED', targetResource: `dbk:${req.targetDbkId}`, outcome: result.status === 'PAID' ? 'ALLOWED' : 'DENIED', details: result }));
+        return { success: result.status === 'PAID', commandType: req.commandType, targetDbkId: req.targetDbkId, result: result as any, serverTimestamp: timestamp };
       } else if (req.commandType === 'EXECUTE_SALE_MPESA_PAYMENT') {
         const paymentResult = await saleMpesaPaymentService.initiate(
           context,
