@@ -16,6 +16,7 @@ import { discoveryEngine } from '../capability/discovery';
 import { KernelError } from '../kernel/errors/kernelErrors';
 import { saleTransactionService } from '../business/sales/saleTransactionService';
 import { saleMpesaPaymentService } from '../business/sales/saleMpesaPaymentService';
+import { saleEtimsFiscalizationService } from '../business/sales/saleEtimsFiscalizationService';
 import { connectionHub } from '../orchestration/bridge/connectionHub';
 import { dbkLifecycleManager } from '../platform/lifecycle/lifecycleManager';
 import { verticalCapabilityRuntime } from './vertical/verticalCapabilityRuntime';
@@ -274,6 +275,31 @@ export class ExperienceResolver {
           commandType: req.commandType,
           targetDbkId: req.targetDbkId,
           result: { ...saleResult },
+          serverTimestamp: timestamp,
+        };
+      } else if (req.commandType === 'EXECUTE_SALE_ETIMS_FISCALIZATION') {
+        const fiscalizationResult = await saleEtimsFiscalizationService.fiscalize(
+          context,
+          req.targetDbkId,
+          req.payload as any,
+        );
+        await auditLogger.persistEvent(auditLogger.logAuditEvent(context, {
+          action: 'SALE_ETIMS_FISCALIZATION',
+          targetResource: `dbk:${req.targetDbkId}`,
+          outcome: fiscalizationResult.status === 'FISCALIZED' ? 'ALLOWED' : 'DENIED',
+          details: { ...fiscalizationResult },
+        }));
+        return {
+          success: fiscalizationResult.status === 'FISCALIZED',
+          commandType: req.commandType,
+          targetDbkId: req.targetDbkId,
+          result: { ...fiscalizationResult },
+          error: fiscalizationResult.status === 'FISCALIZED' ? undefined : {
+            code: fiscalizationResult.status,
+            message: fiscalizationResult.status === 'REQUIRES_RECONCILIATION'
+              ? 'eTIMS provider outcome requires reconciliation; sale was not promoted beyond confirmed local fiscal state.'
+              : 'eTIMS fiscalization failed.',
+          },
           serverTimestamp: timestamp,
         };
       } else if (req.commandType === 'EXECUTE_SALE_MPESA_PAYMENT') {
