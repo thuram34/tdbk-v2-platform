@@ -373,21 +373,32 @@ describe('TDBK canonical client journey acceptance', () => {
       reconciledAgainstPersistedSale: true,
     });
 
-    const paymentWorkflow = workflows.find((candidate) => candidate.workflowType === 'wf_pos_mpesa_payment');
-    expect(paymentWorkflow).toBeDefined();
-    expect(paymentWorkflow?.status).toBe('COMPLETED');
-    const paymentOutput = paymentWorkflow?.steps[0].output as any;
-    expect(paymentOutput).toMatchObject({
-      operation: 'POS_MPESA_STK_PUSH',
+    const paymentRequest = await experienceResolver.dispatchCommand(
+      cashierContext(branchId),
+      {
+        commandType: 'EXECUTE_SALE_MPESA_PAYMENT',
+        targetDbkId: dbkId,
+        payload: {
+          saleId: 'canonical-sale-001',
+          phoneNumber: '0712345678',
+        },
+      },
+    );
+    expect(paymentRequest.success).toBe(true);
+    expect(paymentRequest.result).toMatchObject({
       saleId: 'canonical-sale-001',
-      branchId,
+      status: 'PENDING',
       amountKes: 500,
-      paymentStatus: 'PENDING',
-      provider: 'SAFARICOM_MPESA',
-      confirmationRequired: true,
+      currency: 'KES',
     });
 
-    const checkoutRequestId = paymentOutput.providerReference as string;
+    const paymentIntent = await firestoreClient.get<any>(
+      '/tenants/' + dbkId + '/entities/payment_intents/records/canonical-sale-001',
+    );
+    expect(paymentIntent?.status).toBe('PENDING');
+    expect(paymentIntent?.paymentMethod).toBe('MPESA_STK_PUSH');
+
+    const checkoutRequestId = paymentRequest.result?.providerReference as string;
     expect(checkoutRequestId).toBeTruthy();
     const pendingPayment = await firestoreClient.get<any>(
       '/tenants/' + dbkId + '/financialTransactions/mpesa_' + checkoutRequestId,
@@ -399,7 +410,7 @@ describe('TDBK canonical client journey acceptance', () => {
     await mpesaBridge.handleCallback(
       {
         requestId: 'canonical-mpesa-callback',
-        correlationId: 'canonical-sale-correlation',
+        correlationId: 'canonical-sale-001',
         timestamp: new Date().toISOString(),
         principal: {
           id: 'canonical-system',
@@ -430,7 +441,7 @@ describe('TDBK canonical client journey acceptance', () => {
           },
         },
         tenantId: dbkId,
-        correlationId: 'canonical-sale-correlation',
+        correlationId: 'canonical-sale-001',
       } as any,
     );
 
@@ -448,10 +459,20 @@ describe('TDBK canonical client journey acceptance', () => {
     const confirmedPayment = await firestoreClient.get<any>(
       '/tenants/' + dbkId + '/financialTransactions/mpesa_' + checkoutRequestId,
     );
+    const confirmedIntent = await firestoreClient.get<any>(
+      '/tenants/' + dbkId + '/entities/payment_intents/records/canonical-sale-001',
+    );
+    const receipts = await firestoreClient.listCollection<any>(
+      '/tenants/' + dbkId + '/receipts',
+    );
     expect(confirmedPayment?.status).toBe('POSTED');
     expect(confirmedPayment?.providerReceiptReference).toBe('CANONICAL-RECEIPT-001');
+    expect(confirmedIntent?.status).toBe('CONFIRMED');
     expect(confirmedSale?.attributes?.paymentStatus).toBe('PAID');
     expect(confirmedSale?.attributes?.paymentProvider).toBe('SAFARICOM_MPESA');
+    expect(confirmedSale?.attributes?.paymentTransactionId).toBe('mpesa_' + checkoutRequestId);
     expect(confirmedSale?.attributes?.paymentProviderReference).toBe('CANONICAL-RECEIPT-001');
+    expect(receipts).toHaveLength(1);
+    expect(receipts[0]?.transactionId).toBe('mpesa_' + checkoutRequestId);
   });
 });
