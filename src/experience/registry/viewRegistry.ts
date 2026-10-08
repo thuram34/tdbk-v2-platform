@@ -198,6 +198,21 @@ export class CapabilityViewRegistry {
         displayOrder: 4,
       },
 
+      {
+        capabilityId: 'supplier_invoices',
+        defaultNavLabel: 'Supplier Invoices',
+        category: 'FINANCE',
+        iconName: 'FileText',
+        viewType: 'ENTITY_LIST',
+        displayOrder: 6,
+        terminologyKey: 'transaction',
+        entitySchema: [
+          { name: 'supplierInvoiceNumber', label: 'Supplier Invoice Number', type: 'string', required: true },
+          { name: 'supplierId', label: 'Supplier', type: 'string', required: true },
+          { name: 'totalAmountKes', label: 'Total Amount (KES)', type: 'number', required: true },
+          { name: 'status', label: 'Status', type: 'string', required: true, options: ['SUBMITTED', 'MATCHED', 'APPROVED', 'PARTIALLY_PAID', 'PAID', 'DISPUTED'] },
+        ],
+      },
       // RETAIL
       {
         capabilityId: 'barcode_pos',
