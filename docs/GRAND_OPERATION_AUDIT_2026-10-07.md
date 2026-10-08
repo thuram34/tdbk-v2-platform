@@ -224,4 +224,6 @@ Evidence commit sequence:
 
 Initialization-cycle hardening was added after the first implementation: the adapter no longer statically imports the Event Bus or Workflow Engine in a circular path; the Workflow Engine is lazy-loaded only when a trigger is actually consumed. The Event Bus also re-registers the trigger subscriptions after its test-store reset.
 
+Deterministic trigger identity hardening is now implemented: coherence workflow IDs are derived from tenant + catalog workflow + triggering event ID, and durable creation uses a Firestore transaction with create-if-absent semantics. A replay after clearing the in-process EventBus/Workflow caches must resolve to the same persisted workflow rather than creating a second instance. This protects the event-to-workflow boundary against process restart and duplicate delivery.
+
 CI evidence is still pending; GitHub currently reports no pull-request workflow run for the latest commit. Therefore this gate is **implemented but not CI-closed**.
