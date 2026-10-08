@@ -15,6 +15,8 @@ export interface ExecuteSaleInput {
   saleId: string;
   items: SaleItemInput[];
   paymentStatus?: 'PAID' | 'PENDING' | 'CREDIT';
+  paymentMethod?: 'CASH' | 'MPESA' | 'CREDIT';
+  customerPhone?: string;
   customerName?: string;
   notes?: string;
 }
@@ -146,6 +148,13 @@ export class SaleTransactionService {
     }
 
     const paymentStatus = input.paymentStatus ?? 'PENDING';
+    const paymentMethod = input.paymentMethod ?? (paymentStatus === 'CREDIT' ? 'CREDIT' : 'CASH');
+    if (paymentMethod === 'MPESA' && !input.customerPhone) {
+      fail('customerPhone is required for M-Pesa checkout.', context.requestId);
+    }
+    if (paymentMethod === 'MPESA' && paymentStatus !== 'PENDING') {
+      fail('M-Pesa checkout must start in PENDING payment state.', context.requestId);
+    }
     const salePath = entityPath(
       tenantId,
       SALE_CAPABILITY,
@@ -295,6 +304,9 @@ export class SaleTransactionService {
           totalAmountKes,
           currency: 'KES',
           paymentStatus,
+          paymentMethod,
+          customerPhone: input.customerPhone ?? null,
+          correlationId: context.correlationId,
           customerName: input.customerName ?? null,
           notes: input.notes ?? null,
           completedAt: now,
@@ -311,6 +323,35 @@ export class SaleTransactionService {
         salePath,
         saleRecord,
       );
+
+      if (paymentMethod === 'MPESA') {
+        await outboxEngine.enqueueEvent(
+          tenantId,
+          {
+            eventId: `payment-requested-${input.saleId}`,
+            eventType: 'pos.payment.requested.v1',
+            eventVersion: 'v1',
+            occurredAt: now,
+            tenantId,
+            branchId,
+            principalId: context.principal.id,
+            correlationId: context.correlationId,
+            causationId: eventId,
+            source: 'SaleTransactionService',
+            payload: {
+              saleId: input.saleId,
+              branchId,
+              paymentMethod,
+              customerPhone: input.customerPhone,
+              amountKes: totalAmountKes,
+              currency: 'KES',
+            },
+            metadata: { requestId: context.requestId, command: 'REQUEST_MPESA_PAYMENT' },
+          },
+          transaction,
+          context.principal.id,
+        );
+      }
 
       await outboxEngine.enqueueEvent(
         tenantId,
@@ -332,6 +373,8 @@ export class SaleTransactionService {
             totalAmountKes,
             currency: 'KES',
             paymentStatus,
+            paymentMethod,
+            customerPhone: input.customerPhone ?? null,
             completedAt: now,
           },
           metadata: {
