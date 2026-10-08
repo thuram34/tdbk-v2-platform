@@ -201,7 +201,7 @@ export const PLATFORM_WORKFLOW_CATALOG: BusinessWorkflowDefinition[] = [
     name: 'Point of Sale Checkout & Stock Deduction',
     moduleId: 'mod_pos_counter',
     capabilityId: 'capability_payments',
-    description: 'Processes cashier sale, decrements item stock balances, and executes M-Pesa STK push.',
+    description: 'Finalizes and reconciles a completed cashier sale against authoritative sale and stock state; provider payment and fiscalization are separate release-gated workflows.',
     triggerEvent: 'pos.sale.completed.v1',
     requiredPermissions: ['pos:checkout'],
     authorizedRoles: ['CASHIER', 'STORE_OWNER', 'SHOP_MANAGER', 'TENANT_ADMIN'],
