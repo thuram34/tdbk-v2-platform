@@ -53,7 +53,8 @@ class WorkflowEngineService {
       compensationStepId?: string;
     }>,
     metadata: Record<string, unknown> = {},
-    publishLifecycleEvent: boolean = true
+    publishLifecycleEvent: boolean = true,
+    workflowIdOverride?: string
   ): WorkflowInstance {
     const tenantId = context.tenantContext?.tenantId || context.principal.tenantId;
     if (!tenantId) {
@@ -65,7 +66,7 @@ class WorkflowEngineService {
       );
     }
 
-    const workflowId = `wf_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    const workflowId = workflowIdOverride || `wf_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     const steps: WorkflowStep[] = stepDefinitions.map((s) => ({
       stepId: s.stepId,
       stepType: s.stepType,
@@ -158,10 +159,19 @@ class WorkflowEngineService {
       retryPolicy?: { maxAttempts: number; backoffMs: number; timeoutMs: number; retryableErrors: string[] };
       compensationStepId?: string;
     }>,
-    metadata: Record<string, unknown> = {}
+    metadata: Record<string, unknown> = {},
+    workflowIdOverride?: string
   ): Promise<WorkflowInstance> {
     // Durable creation must commit business state before publishing its lifecycle signal.
-    const workflow = this.createWorkflow(context, workflowType, workflowVersion, stepDefinitions, metadata, false);
+    const workflow = this.createWorkflow(
+      context,
+      workflowType,
+      workflowVersion,
+      stepDefinitions,
+      metadata,
+      false,
+      workflowIdOverride
+    );
     const startedEnvelope: EventEnvelope = {
       eventId: `evt_${workflow.workflowId}_started`,
       eventType: 'workflow.started.v1',
@@ -185,7 +195,18 @@ class WorkflowEngineService {
       status: 'PENDING', attemptCount: 0, availableAt: workflow.startedAt, createdAt: workflow.startedAt,
       updatedAt: workflow.startedAt, leaseOwner: null, leaseUntil: null, lastError: null, deliveredAt: null,
     };
-    await workflowInstanceRepository.saveWorkflowWithOutbox(workflow.tenantId, workflow.workflowId, workflow, startedRecord);
+    const existing = await workflowInstanceRepository.createWorkflowWithOutboxIfAbsent(
+      workflow.tenantId,
+      workflow.workflowId,
+      workflow,
+      startedRecord
+    );
+
+    if (existing) {
+      this.workflows.set(existing.workflowId, existing);
+      return existing;
+    }
+
     await eventBus.publish(startedEnvelope);
     return workflow;
   }
