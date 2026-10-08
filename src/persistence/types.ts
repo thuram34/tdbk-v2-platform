@@ -154,6 +154,7 @@ export interface IFinancialLedgerRepository {
   bindPendingTransaction(tenantId: string, pendingTransactionId: string, boundTransaction: FinancialTransaction): Promise<void>;
   failPendingTransaction(tenantId: string, transactionId: string, reason: string): Promise<void>;
   postTransaction(transaction: FinancialTransaction, entries: LedgerEntry[]): Promise<void>;
+  confirmPendingTransaction(transaction: FinancialTransaction, entries: LedgerEntry[]): Promise<void>;
   confirmReconciledTransaction(transaction: FinancialTransaction, entries: LedgerEntry[], outboxRecord?: OutboxRecord): Promise<void>;
   reverseTransaction(tenantId: string, transactionId: string, reversalTransaction: FinancialTransaction, reversalEntries: LedgerEntry[]): Promise<void>;
   getTransaction(tenantId: string, transactionId: string): Promise<FinancialTransaction | null>;
