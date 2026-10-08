@@ -159,5 +159,28 @@ export class SupplierInvoiceService {
       return { invoiceId: input.invoiceId, supplierInvoiceNumber: input.supplierInvoiceNumber, totalAmountKes, status, matched, idempotent: false, eventId };
     });
   }
+  async approveInvoice(context: SecurityContext, dbkId: string, invoiceId: string): Promise<SupplierInvoiceResult> {
+    const tenantId = context.tenantContext?.tenantId ?? dbkId;
+    const branchId = context.branchContext?.branchId;
+    if (!branchId) fail('An active branch is required to approve a supplier invoice.', context.requestId);
+    if (tenantId !== dbkId) fail('Supplier invoice tenant does not match the target business.', context.requestId);
+    const authorization = await rbacEngine.authorizeAsync(context.principal, 'approve', 'purchasing:supplier_invoice', { tenantId, branchId, requiredPermission: 'approve:purchasing', requestId: context.requestId });
+    if (!authorization.allowed) throw new KernelError('AUTHORIZATION_ERROR', authorization.reason, 403, context.requestId);
+    await dbkCapabilityManager.assertCapabilityOperational(context, dbkId, CAPABILITY, 'APPROVE_SUPPLIER_INVOICE');
+    const eventId = `supplier-invoice-approved-${invoiceId}`;
+    const invoicePath = entityPath(tenantId, CAPABILITY, invoiceId);
+    return firestoreClient.runTransaction(async (transaction) => {
+      const existing = await transaction.get(invoicePath);
+      if (!existing) throw new KernelError('NOT_FOUND', `Supplier invoice '${invoiceId}' was not found.`, 404, context.requestId);
+      const record = asRecord(existing); const attrs = record.attributes ?? {};
+      if (record.status === 'APPROVED' || record.status === 'PARTIALLY_PAID' || record.status === 'PAID') return { invoiceId, supplierInvoiceNumber: String(attrs.supplierInvoiceNumber ?? ''), totalAmountKes: Number(attrs.totalAmountKes ?? 0), status: record.status as SupplierInvoiceStatus, matched: Boolean(attrs.matched), idempotent: true, eventId };
+      if (record.status !== 'MATCHED') throw new KernelError('CONFLICT', `Supplier invoice '${invoiceId}' cannot be approved from status '${record.status}'.`, 409, context.requestId);
+      const now = new Date().toISOString();
+      await transaction.update(invoicePath, { status: 'APPROVED', updatedAt: now, attributes: { ...attrs, accountsPayableStatus: 'OPEN', approvedAt: now, approvedBy: context.principal.id } });
+      await outboxEngine.enqueueEvent(tenantId, { eventId, eventType: 'procurement.supplier_invoice.approved', eventVersion: 'v1', occurredAt: now, tenantId, branchId, principalId: context.principal.id, correlationId: context.correlationId, causationId: context.requestId, source: 'SupplierInvoiceService', payload: { invoiceId, supplierId: attrs.supplierId, supplierInvoiceNumber: attrs.supplierInvoiceNumber, totalAmountKes: attrs.totalAmountKes, currency: 'KES', status: 'APPROVED' }, metadata: { requestId: context.requestId, command: 'APPROVE_SUPPLIER_INVOICE' } }, transaction, context.principal.id);
+      return { invoiceId, supplierInvoiceNumber: String(attrs.supplierInvoiceNumber ?? ''), totalAmountKes: Number(attrs.totalAmountKes ?? 0), status: 'APPROVED', matched: true, idempotent: false, eventId };
+    });
+  }
+
 }
 export const supplierInvoiceService = new SupplierInvoiceService();
