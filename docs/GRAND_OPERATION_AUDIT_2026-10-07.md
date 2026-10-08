@@ -347,3 +347,42 @@ Canonical proof was extended in `src/experience/tests/canonicalClientJourney.tes
 This closes the **retail reorder-decision and replenishment-intent boundary**. It does not claim supplier selection, PO issuance, goods receipt, or physical replenishment as complete. Those remain separate purchasing execution stages.
 
 CI evidence remains pending. This item is therefore **IMPLEMENTED / PROVEN BY TEST CODE / RELEASE-GATED FOR CI**.
+
+
+## M. Retail procurement execution — supplier → PO → GRN → stock
+
+The replenishment intent boundary is now connected to the purchasing execution stages:
+
+REORDER INTENT
+→ AUTHORITATIVE SUPPLIER SELECTION
+→ PURCHASE ORDER ISSUED
+→ GOODS RECEIPT / GRN
+→ AUTHORITATIVE STOCK INCREASE
+→ PROCUREMENT INTENT FULFILLED.
+
+Implementation:
+- `ProcurementLifecycleService.selectSupplier` validates the tenant, branch, purchasing authority and active supplier record before binding a supplier to the procurement intent.
+- `issuePurchaseOrder` creates a deterministic PO from the selected procurement intent and records ordered quantity, cost, supplier and received quantity.
+- `receiveGoods` requires an issued/partially received PO, rejects over-receipt, posts a GRN, increments authoritative stock transactionally, updates PO receipt state and fulfils the procurement intent when fully received.
+- Partial receipts remain supported through `PARTIALLY_RECEIVED` PO state and subsequent GRNs.
+- Each state transition emits a durable outbox event:
+  - `procurement.supplier.selected.v1`
+  - `procurement.purchase_order.issued.v1`
+  - `inventory.goods.received.v1`
+- The event contracts are registered with EventBus and mapped to durable coherence workflows:
+  - `wf_supplier_selection`
+  - `wf_purchase_order_issuance`
+  - `wf_goods_receiving`
+- Experience commands expose the authoritative path:
+  - `SELECT_PROCUREMENT_SUPPLIER`
+  - `ISSUE_PURCHASE_ORDER`
+  - `RECEIVE_PURCHASE_GOODS`
+- `procurementLifecycleJourney.test.ts` proves the complete command path and final stock increase through the Experience Layer.
+
+The implementation follows the operational distinction that a PO represents intent/order, while a GRN is the stock-affecting receipt; partial receipt is explicitly supported. citeturn0search1turn0search13
+
+This closes the **supplier → PO → GRN → stock replenishment execution boundary** for the supported retail/hardware purchasing capability.
+
+It does not yet claim supplier invoice/eTIMS purchase matching, accounts payable settlement, supplier payment, returns/debit notes, or approval-threshold workflows. Those are separate financial/procurement stages.
+
+CI evidence remains pending; GitHub has not exposed a workflow run/status for the current branch head.
