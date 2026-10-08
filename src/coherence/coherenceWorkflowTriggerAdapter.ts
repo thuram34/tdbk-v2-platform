@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { SecurityContext } from '../kernel/types';
 import type { EventEnvelope } from '../orchestration/events/types';
 import type { EventHandler } from '../orchestration/events/types';
@@ -14,11 +15,7 @@ import { PLATFORM_WORKFLOW_CATALOG } from './moduleRegistry';
 
 const TRIGGER_STEP_TYPE = 'COHERENCE_WORKFLOW_TRIGGER';
 
-let stepHandlerRegistered = false;
-
 function registerTriggerStepHandler(workflowEngineLike: { registerStepHandler: (stepType: string, handler: any) => void }): void {
-  if (stepHandlerRegistered) return;
-
   workflowEngineLike.registerStepHandler(TRIGGER_STEP_TYPE, async ({ input, workflow }) => {
     const triggerEventType = input.triggerEventType as string | undefined;
     const catalogWorkflowId = input.catalogWorkflowId as string | undefined;
@@ -43,7 +40,6 @@ function registerTriggerStepHandler(workflowEngineLike: { registerStepHandler: (
     };
   });
 
-  stepHandlerRegistered = true;
 }
 
 function contextFromEvent(event: EventEnvelope): SecurityContext {
@@ -77,9 +73,8 @@ function contextFromEvent(event: EventEnvelope): SecurityContext {
   };
 }
 
-export async function triggerCatalogWorkflowFromEvent(event: EventEnvelope, workflowEngineLike: any): Promise<void> {
-
-
+export async function triggerCatalogWorkflowFromEvent(event: EventEnvelope): Promise<void> {
+  const { workflowEngine } = await import('../orchestration/workflow/engine');
   const definition = PLATFORM_WORKFLOW_CATALOG.find((workflow) => workflow.triggerEvent === event.eventType);
   if (!definition) return;
 
@@ -89,8 +84,9 @@ export async function triggerCatalogWorkflowFromEvent(event: EventEnvelope, work
   }
 
   const context = contextFromEvent(event);
+  const workflowId = `coh_${createHash('sha256').update(`${tenantId}:${definition.workflowId}:${event.eventId}`).digest('hex').slice(0, 48)}`;
 
-  const workflow = await workflowEngineLike.createPersistentWorkflow(
+  const workflow = await workflowEngine.createPersistentWorkflow(
     context,
     definition.workflowId,
     'v1',
@@ -116,15 +112,17 @@ export async function triggerCatalogWorkflowFromEvent(event: EventEnvelope, work
       catalogCapabilityId: definition.capabilityId,
       downstreamOutcomes: definition.downstreamOutcomes,
     },
+    workflowId,
   );
 
-  await workflowEngineLike.executeWorkflow(context, workflow.workflowId);
+  await workflowEngine.executeWorkflow(context, workflow.workflowId);
 }
 
 export function registerCoherenceWorkflowTriggerSubscriptions(
   eventBusLike: { subscribe: (eventType: string, handler: EventHandler) => void },
 ): void {
-  registerTriggerStepHandler(workflowEngineLike);
+  // The handler is registered lazily after the EventBus is initialized to avoid a module cycle.
+  void import('../orchestration/workflow/engine').then(({ workflowEngine }) => registerTriggerStepHandler(workflowEngine));
 
   const triggerEvents = [...new Set(PLATFORM_WORKFLOW_CATALOG.map((workflow) => workflow.triggerEvent))];
   for (const eventType of triggerEvents) {
