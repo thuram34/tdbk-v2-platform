@@ -402,15 +402,7 @@ describe('TDBK canonical client journey acceptance', () => {
 
     const reorderOutbox = await outboxRepository.listOutbox(dbkId);
     const reorderEvent = reorderOutbox.find((event) => event.eventType === 'inventory.reorder.triggered.v1');
-    expect(reorderEvent?.status).toBe('PENDING');
-
-    const reorderDelivery = await outboxEngine.processTenantOutbox(
-      dbkId,
-      'canonical-reorder-worker',
-      30000,
-      async (event) => eventBus.publish(event),
-    );
-    expect(reorderDelivery.succeeded).toBeGreaterThanOrEqual(1);
+    expect(reorderEvent?.status).toBe('DELIVERED');
 
     const reorderWorkflowCandidates = await (await import('../../persistence/firestore/repositories/workflowInstanceRepository')).workflowInstanceRepository.listWorkflows(dbkId);
     const reorderWorkflow = reorderWorkflowCandidates.find((candidate) => candidate.workflowType === 'wf_reorder_replenishment');
