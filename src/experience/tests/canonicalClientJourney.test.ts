@@ -299,6 +299,8 @@ describe('TDBK canonical client journey acceptance', () => {
           unitPrice: 250,
           itemName: 'Canonical Test Item',
           skuCode: 'CANONICAL-001',
+          reorderLevel: 3,
+          targetStockLevel: 8,
         },
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -377,6 +379,45 @@ describe('TDBK canonical client journey acceptance', () => {
       totalAmountKes: 500,
       reconciledAgainstPersistedSale: true,
     });
+
+    const reorderIntent = await firestoreClient.listCollection<any>(
+      '/tenants/' + dbkId + '/entities/procurement_intents',
+    );
+    expect(reorderIntent).toHaveLength(1);
+    expect(reorderIntent[0]?.attributes).toMatchObject({
+      inventoryRecordId,
+      quantity: 5,
+      currentQuantity: 3,
+      reorderLevel: 3,
+      status: 'SUPPLIER_SELECTION_REQUIRED',
+      source: 'REORDER_ENGINE',
+      triggerEventId: 'sale-canonical-sale-001',
+    });
+
+    const reorderDecisions = await firestoreClient.listCollection<any>(
+      '/tenants/' + dbkId + '/entities/reorder_decisions',
+    );
+    expect(reorderDecisions).toHaveLength(1);
+    expect(reorderDecisions[0]?.attributes?.procurementIntentId).toBe(reorderIntent[0]?.id);
+
+    const reorderOutbox = await outboxRepository.listOutbox(dbkId);
+    const reorderEvent = reorderOutbox.find((event) => event.eventType === 'inventory.reorder.triggered.v1');
+    expect(reorderEvent?.status).toBe('PENDING');
+
+    const reorderDelivery = await outboxEngine.processTenantOutbox(
+      dbkId,
+      'canonical-reorder-worker',
+      30000,
+      async (event) => eventBus.publish(event),
+    );
+    expect(reorderDelivery.succeeded).toBeGreaterThanOrEqual(1);
+
+    const reorderWorkflowCandidates = await (await import('../../persistence/firestore/repositories/workflowInstanceRepository')).workflowInstanceRepository.listWorkflows(dbkId);
+    const reorderWorkflow = reorderWorkflowCandidates.find((candidate) => candidate.workflowType === 'wf_reorder_replenishment');
+    expect(reorderWorkflow).toBeDefined();
+    expect(reorderWorkflow?.status).toBe('COMPLETED');
+    expect(reorderWorkflow?.metadata.triggerEventId).toBe(reorderEvent?.eventId);
+    expect(reorderWorkflow?.steps[0].status).toBe('COMPLETED');
 
     const paymentRequest = await experienceResolver.dispatchCommand(
       cashierContext(branchId),
