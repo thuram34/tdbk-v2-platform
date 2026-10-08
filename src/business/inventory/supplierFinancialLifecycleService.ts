@@ -6,13 +6,14 @@ import { firestoreClient } from '../../persistence/firestore/firestoreClient';
 import { outboxEngine } from '../../orchestration/outbox/outboxEngine';
 import { financialLedgerRepository } from '../../persistence/firestore/repositories/financialLedgerRepository';
 import { reconciliationRepository } from '../../persistence/firestore/repositories/reconciliationRepository';
-import { bankBridge } from '../../orchestration/bridge/adapters/bankBridge';
+import { BankBridge } from '../../orchestration/bridge/adapters/bankBridge';
 import type { FinancialTransaction, LedgerEntry } from '../../finance/types';
 
 const invoicePath=(t:string,id:string)=>`/tenants/${t}/entities/supplier_invoices/records/${id}`;
 const paymentPath=(t:string,id:string)=>`/tenants/${t}/entities/supplier_payment_intents/records/${id}`;
 
 type ProviderPaymentStatus = 'SUCCESS' | 'FAILED' | 'UNKNOWN' | 'REQUIRES_RECONCILIATION' | 'PENDING';
+const bankBridge = new BankBridge();
 
 export class SupplierFinancialLifecycleService {
   private async auth(c:SecurityContext,dbk:string,permission='manage:purchasing'){
