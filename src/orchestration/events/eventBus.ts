@@ -10,6 +10,7 @@ import { idempotencyRepository } from '../../persistence/firestore/repositories/
 import { createHash } from 'node:crypto';
 import { handleSokoniPaymentConfirmed, handleSokoniPaymentFailed } from '../../sokoni/sokoniPaymentEventHandler';
 import { registerCoherenceWorkflowTriggerSubscriptions } from '../../coherence/coherenceWorkflowTriggerAdapter';
+import { handlePosMpesaPaymentConfirmed, handlePosMpesaPaymentFailed } from '../../business/sales/posMpesaPaymentHandler';
 import { handlePosMpesaPaymentEvent } from '../../business/sales/posPaymentEventHandler';
 
 class EventBusService {
@@ -24,6 +25,8 @@ class EventBusService {
     this.subscribe('payment.confirmed.v1', handleSubscriptionPaymentConfirmed);
     this.subscribe('payment.confirmed.v1', handleSokoniPaymentConfirmed);
     this.subscribe('payment.failed.v1', handleSokoniPaymentFailed);
+    this.subscribe('payment.confirmed.v1', handlePosMpesaPaymentConfirmed);
+    this.subscribe('payment.failed.v1', handlePosMpesaPaymentFailed);
     this.subscribe('payment.confirmed.v1', handlePosMpesaPaymentEvent);
     this.subscribe('payment.failed.v1', handlePosMpesaPaymentEvent);
     registerCoherenceWorkflowTriggerSubscriptions(this);
