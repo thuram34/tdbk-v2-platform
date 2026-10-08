@@ -309,3 +309,41 @@ Further hardening in the current sprint:
 - Retail/hardware/general commerce remains strictly separated from school workflows.
 
 This payment boundary is implemented but remains **RELEASE-GATED** until CI executes and passes.
+
+
+## L. Retail POS → low-stock reorder → replenishment intent
+
+The retail/hardware operation now has an authoritative replenishment boundary after the sale event:
+
+COMPLETED SALE
+→ authoritative stock balance
+→ configured reorderLevel / targetStockLevel policy
+→ deterministic reorder decision
+→ durable procurement intent
+→ supplier-selection state
+→ inventory.reorder.triggered.v1
+→ EventBus
+→ durable coherence workflow `wf_reorder_replenishment`.
+
+Implementation:
+- `src/business/inventory/reorderEngine.ts` evaluates only the authoritative persisted stock record for the tenant and sold inventory item.
+- `reorderLevel` is the trigger threshold. `targetStockLevel` is optional; when absent the policy targets twice the reorder level. An explicit `reorderQuantity` takes precedence.
+- Reorder decision identity is deterministic from inventory record + triggering sale event. Repeated delivery is idempotent.
+- The procurement intent is persisted separately from the reorder decision.
+- If no authoritative `supplierId` exists, the intent is `SUPPLIER_SELECTION_REQUIRED`; TDBK does not invent a supplier.
+- If a supplier is configured, the intent becomes `READY_FOR_PURCHASE_ORDER`; actual PO issuance remains a separate purchasing-capability operation.
+- The reorder event is written through the durable outbox in the same transaction as the decision and procurement intent.
+- `eventBus.ts` subscribes completed POS sales to the Reorder Engine.
+- `wf_reorder_replenishment` is registered in `PLATFORM_WORKFLOW_CATALOG`, so the durable event-to-workflow adapter also persists its workflow instance.
+
+Canonical proof was extended in `src/experience/tests/canonicalClientJourney.test.ts`:
+- the sale reduces stock from 5 to 3;
+- reorderLevel is 3 and targetStockLevel is 8;
+- exactly one procurement intent is created for quantity 5;
+- the intent remains supplier-selection gated because no supplier was fabricated;
+- the reorder outbox event is created and delivered;
+- `wf_reorder_replenishment` is persisted and completes its trigger boundary.
+
+This closes the **retail reorder-decision and replenishment-intent boundary**. It does not claim supplier selection, PO issuance, goods receipt, or physical replenishment as complete. Those remain separate purchasing execution stages.
+
+CI evidence remains pending. This item is therefore **IMPLEMENTED / PROVEN BY TEST CODE / RELEASE-GATED FOR CI**.
