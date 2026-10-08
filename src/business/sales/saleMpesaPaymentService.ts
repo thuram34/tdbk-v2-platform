@@ -66,6 +66,7 @@ export class SaleMpesaPaymentService {
         return { saleId: input.saleId, paymentIntentId: existing.paymentIntentId, transactionId: existing.transactionId ?? null, providerReference: existing.providerReference ?? null, status: existing.status, amountKes: Number(existing.amountKes), currency: 'KES' };
       }
       if (existing.status === 'INITIATING') throw new KernelError('CONFLICT', 'A sale payment initiation is already in progress.', 409, context.requestId);
+      if (existing.status === 'FAILED') throw new KernelError('CONFLICT', 'The sale payment attempt already failed; create a new payment attempt before retrying.', 409, context.requestId);
     }
 
     const now = new Date().toISOString();
