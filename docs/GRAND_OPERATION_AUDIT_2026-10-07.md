@@ -192,18 +192,18 @@ No item is marked COMPLETE from source inspection alone when runtime/provider/de
 
 The retail/hardware canonical operation now crosses the payment boundary after the authoritative sale transaction:
 
-`cashier/RBAC → capability → inventory validation → atomic stock decrement + sale + durable outbox → pos.sale.completed.v1 → checkout workflow reconciliation → pos.payment.requested.v1 → durable M-Pesa payment workflow → Safaricom STK_PUSH bridge → pending financial transaction → provider callback → atomic financial posting + payment.confirmed.v1 outbox → POS sale payment reconciliation`.
+`cashier/RBAC → capability → inventory validation → atomic stock decrement + sale + durable outbox → pos.sale.completed.v1 → checkout workflow reconciliation → explicit POS M-Pesa payment command → durable payment_intent → M-Pesa STK_PUSH bridge → pending financial transaction → provider callback → atomic financial posting + payment.confirmed.v1 outbox → payment-intent + POS sale reconciliation → receipt`.
 
 Implemented:
-- POS sale input now carries an explicit payment method and customer phone for M-Pesa.
-- M-Pesa sales start in `PENDING`; the sale itself remains authoritative business state while provider confirmation remains a separate financial truth boundary.
-- `wf_pos_mpesa_payment` is a dedicated retail workflow. It does not reuse the school fee workflow.
-- The workflow binds the external side effect through the durable Workflow Engine before invoking `MpesaBridge`.
-- The bridge persists the pending financial transaction and provider checkout reference.
-- Provider callback remains the only authority that promotes the financial transaction to `POSTED`.
-- `payment.confirmed.v1` is reconciled back to the POS sale using the authoritative sale correlation, changing payment state to `PAID`.
-- The canonical journey acceptance test now proves initiation, pending financial truth, callback posting, and final POS payment state.
-- The school fee workflow trigger was narrowed from generic `payment.confirmed.v1` to `school.payment.confirmed.v1` so a retail M-Pesa payment cannot instantiate a school workflow.
+- POS sale input carries an explicit payment method and customer phone.
+- M-Pesa payment initiation is a **separate authoritative command**: `EXECUTE_SALE_MPESA_PAYMENT`. It does not silently mutate payment state as a side effect of sale creation.
+- The payment command validates tenant, branch, RBAC, sale state, payable amount and `capability_payments`.
+- A durable `payment_intent` is created before provider execution.
+- The M-Pesa bridge persists pending financial truth and returns the provider checkout reference.
+- Provider callback is the authority that promotes the financial transaction to `POSTED`.
+- The POS payment event handler requires posted financial truth, reconciles amount/identity, confirms the payment intent, marks the sale `PAID`, and creates the authoritative receipt idempotently.
+- Generic `payment.confirmed.v1` is no longer used as the school fee workflow trigger; the fee catalog trigger is scoped to `school.payment.confirmed.v1` so a retail payment cannot instantiate a school workflow.
+- Regression coverage proves confirmed payment → PAID sale + CONFIRMED intent + one receipt, duplicate confirmation delivery, and rejection of unposted financial state.
 
 Important boundary:
 - Test runtime uses the deterministic M-Pesa mock path. Production provider execution remains dependent on the tenant's configured Safaricom/Daraja connector and callback configuration.
