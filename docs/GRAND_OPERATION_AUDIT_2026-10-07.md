@@ -269,10 +269,10 @@ COMPLETED SALE
 The implementation deliberately does not mark a sale paid on STK initiation. The sale is marked PAID only from an authoritative MpesaBridge confirmation event whose amount reconciles against the persisted sale.
 
 Proof artifacts:
-- src/business/sales/posPaymentService.ts
-- src/business/sales/posPaymentEventHandler.ts
-- src/business/sales/posPaymentService.test.ts
-- src/business/sales/posPaymentEventHandler.test.ts
+- src/business/sales/saleMpesaPaymentService.ts
+- src/business/sales/posMpesaPaymentHandler.ts
+- src/experience/tests/canonicalClientJourney.test.ts
+- src/orchestration/tests/externalBridgeHardening.test.ts
 - src/orchestration/bridge/adapters/mpesaBridge.ts
 
 The provider-specific live Safaricom transaction remains production-certification gated; test-runtime proof uses the existing mock boundary and the real callback/reconciliation path.
