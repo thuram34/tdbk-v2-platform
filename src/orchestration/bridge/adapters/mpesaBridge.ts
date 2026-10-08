@@ -808,7 +808,11 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
         correlationId: eventCorrelationId,
         causationId: stk.CheckoutRequestID,
         source: 'MpesaBridge',
-        payload: normalized as unknown as Record<string, unknown>,
+        payload: {
+          ...(normalized as unknown as Record<string, unknown>),
+          transactionId: authoritativeTransactionId,
+          checkoutRequestId: stk.CheckoutRequestID,
+        },
         metadata: {},
       }, tx, context.principal.id);
 
