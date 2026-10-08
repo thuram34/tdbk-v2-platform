@@ -276,3 +276,14 @@ Proof artifacts:
 - src/orchestration/bridge/adapters/mpesaBridge.ts
 
 The provider-specific live Safaricom transaction remains production-certification gated; test-runtime proof uses the existing mock boundary and the real callback/reconciliation path.
+
+Further hardening in the current sprint:
+- A durable sale-scoped `payment_intent` is created before STK Push.
+- The payment command is exposed through `EXECUTE_SALE_MPESA_PAYMENT` and requires tenant authority, branch authority, RBAC `execute:sales`, and `capability_payments`.
+- The POS payment handler resolves the payment intent and authoritative POSTED financial transaction rather than trusting event correlation alone.
+- M-Pesa callback events carry the authoritative financial transaction ID and CheckoutRequestID for downstream reconciliation.
+- Confirmed payment updates the sale and payment intent atomically; the receipt is then created from POSTED financial truth.
+- Regression proof covers duplicate confirmation delivery and rejection of unposted financial state.
+- Retail/hardware/general commerce remains strictly separated from school workflows.
+
+This payment boundary is implemented but remains **RELEASE-GATED** until CI executes and passes.
