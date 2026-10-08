@@ -76,7 +76,6 @@ export class SupplierFinancialLifecycleService {
   await firestoreClient.update(invoicePath(tenantId,input.invoiceId),{'attributes.paymentStatus':'PAID','attributes.paymentTransactionId':transactionId,'attributes.paymentProviderReference':input.providerReference,'updatedAt':new Date().toISOString()} as any);
   await outboxEngine.enqueueEvent(tenantId,{eventId:`supplier-payment-confirmed-${input.invoiceId}`,eventType:'finance.supplier.payment.confirmed.v1',eventVersion:'v1',occurredAt:new Date().toISOString(),tenantId,branchId,principalId:c.principal.id,correlationId:c.correlationId,causationId:input.providerReference,source:'SupplierFinancialLifecycleService',payload:{invoiceId:input.invoiceId,transactionId,providerReference:input.providerReference,amountKes:transaction.amount},metadata:{}});
   return {invoiceId:input.invoiceId,status:'PAID',transactionId,providerReference:input.providerReference};
-  return {invoiceId:input.invoiceId,status:'PAID',transactionId,providerReference:input.providerReference};
  }
 }
 export const supplierFinancialLifecycleService=new SupplierFinancialLifecycleService();
