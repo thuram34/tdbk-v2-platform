@@ -82,6 +82,7 @@ class EventBusService {
       // Role-Based Coherence & Shared Contribution Events
       { eventType: 'attendance.recorded.v1', version: 'v1', description: 'Learner attendance recorded' },
       { eventType: 'pos.sale.completed.v1', version: 'v1', description: 'Counter POS sale completed' },
+      { eventType: 'pos.payment.requested.v1', version: 'v1', description: 'POS requests M-Pesa payment initiation' },
       { eventType: 'patient.triaged.v1', version: 'v1', description: 'Clinical patient triaged' },
       { eventType: 'display.broadcast.v1', version: 'v1', description: 'Digital screen broadcast notice' },
       { eventType: 'contribution.recorded.v1', version: 'v1', description: 'Shared contribution recorded' },
