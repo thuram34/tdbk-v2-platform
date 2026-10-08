@@ -349,5 +349,20 @@ describe('TDBK canonical client journey acceptance', () => {
       'sale-canonical-sale-001',
     );
     expect(deliveredOutbox?.status).toBe('DELIVERED');
+
+    const workflows = await (await import('../../persistence/firestore/repositories/workflowInstanceRepository')).workflowInstanceRepository.listWorkflows(dbkId);
+    const checkoutWorkflow = workflows.find((candidate) => candidate.workflowType === 'wf_execute_checkout');
+    expect(checkoutWorkflow).toBeDefined();
+    expect(checkoutWorkflow?.status).toBe('COMPLETED');
+    expect(checkoutWorkflow?.metadata.triggerEventId).toBe('sale-canonical-sale-001');
+    expect(checkoutWorkflow?.steps[0].status).toBe('COMPLETED');
+    expect(checkoutWorkflow?.steps[0].output).toMatchObject({
+      operation: 'POS_CHECKOUT',
+      saleId: 'canonical-sale-001',
+      branchId,
+      saleStatus: 'COMPLETED',
+      totalAmountKes: 500,
+      reconciledAgainstPersistedSale: true,
+    });
   });
 });
