@@ -386,3 +386,23 @@ This closes the **supplier → PO → GRN → stock replenishment execution boun
 It does not yet claim supplier invoice/eTIMS purchase matching, accounts payable settlement, supplier payment, returns/debit notes, or approval-threshold workflows. Those are separate financial/procurement stages.
 
 CI evidence remains pending; GitHub has not exposed a workflow run/status for the current branch head.
+
+
+## N. Supplier invoice three-way match boundary
+
+The procurement chain now extends from GRN evidence into supplier-invoice matching:
+
+REORDER → SUPPLIER → PO → GRN → STOCK → SUPPLIER INVOICE → PO/GRN MATCH.
+
+Implementation:
+- `SupplierInvoiceMatchService.match` is tenant/branch/RBAC/capability gated.
+- An invoice is accepted only when the PO has received evidence and the invoice total matches the received PO value within the configured precision.
+- The authoritative invoice record persists supplier, PO, received quantity, amount, eTIMS invoice identifier/status, AP state and payment state.
+- A separate `purchase_invoice_matches` record preserves the PO/GRN/invoice matching evidence.
+- Matching emits durable `procurement.supplier.invoice.matched.v1` outbox state.
+- Duplicate invoice matching is idempotent by deterministic invoice identity.
+- Test coverage proves successful matching and rejection of an amount mismatch.
+
+This closes the **supplier invoice matching boundary only**. It does **not** yet claim accounts-payable posting, supplier payment, provider reconciliation, or final procurement closure. Those remain release-gated financial stages.
+
+CI evidence remains pending; GitHub has not exposed a workflow run/status for the branch head.
