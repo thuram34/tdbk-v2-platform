@@ -220,6 +220,15 @@ export class ExperienceResolver {
           result: { ...invoiceResult },
           serverTimestamp: timestamp,
         };
+      } else if (req.commandType === 'APPROVE_SUPPLIER_INVOICE') {
+        const invoiceResult = await supplierInvoiceService.approveInvoice(context, req.targetDbkId, String((req.payload as any).invoiceId));
+        return {
+          success: true,
+          commandType: req.commandType,
+          targetDbkId: req.targetDbkId,
+          result: { ...invoiceResult },
+          serverTimestamp: timestamp,
+        };
       } else if (req.commandType === 'INVOKE_ACTION') {
         const actionPayload = (req.payload || {}) as Record<string, any>;
         const actionName = (actionPayload.actionName as string) || 'GENERIC_ACTION';
