@@ -94,7 +94,8 @@ export class SaleMpesaPaymentService {
     });
 
     try {
-      const bridgeResult = await mpesaBridge.execute(context, 'STK_PUSH', {
+      const paymentContext: SecurityContext = { ...context, correlationId: input.saleId };
+      const bridgeResult = await mpesaBridge.execute(paymentContext, 'STK_PUSH', {
         phoneNumber: input.phoneNumber,
         amount: amountKes,
         accountReference: `SALE-${input.saleId}`,
@@ -116,7 +117,7 @@ export class SaleMpesaPaymentService {
           tenantId,
           branchId,
           principalId: context.principal.id,
-          correlationId: context.correlationId || context.requestId,
+          correlationId: input.saleId,
           causationId: context.requestId,
           source: 'SaleMpesaPaymentService',
           payload: { saleId: input.saleId, paymentIntentId, transactionId, providerReference, amountKes, currency: 'KES', status },
