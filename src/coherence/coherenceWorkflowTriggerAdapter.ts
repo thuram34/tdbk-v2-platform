@@ -3,6 +3,7 @@ import { SecurityContext } from '../kernel/types';
 import type { EventEnvelope } from '../orchestration/events/types';
 import type { EventHandler } from '../orchestration/events/types';
 import { PLATFORM_WORKFLOW_CATALOG } from './moduleRegistry';
+import { firestoreClient } from '../persistence/firestore/firestoreClient';
 
 /**
  * Authoritative coherence boundary:
@@ -26,6 +27,67 @@ function registerTriggerStepHandler(workflowEngineLike: { registerStepHandler: (
         status: 'FAILED',
         error: 'Coherence workflow trigger context is incomplete',
         failureClassification: 'PERMANENT',
+      };
+    }
+
+    if (catalogWorkflowId === 'wf_execute_checkout') {
+      const payload = (input.payload || {}) as Record<string, unknown>;
+      const saleId = String(payload.saleId || '');
+      const branchId = String(payload.branchId || workflow.branchId || '');
+      if (!saleId || !branchId) {
+        return {
+          success: false,
+          status: 'FAILED',
+          error: 'POS checkout trigger is missing authoritative saleId or branchId',
+          failureClassification: 'PERMANENT',
+        };
+      }
+
+      const sale = await firestoreClient.get<Record<string, any>>(
+        `/tenants/${workflow.tenantId}/entities/sales_counter/records/${saleId}`,
+      );
+      if (!sale) {
+        return {
+          success: false,
+          status: 'FAILED',
+          error: `Authoritative sale '${saleId}' was not found`,
+          failureClassification: 'PERMANENT',
+        };
+      }
+
+      if (sale.status !== 'COMPLETED' || sale.branchId !== branchId) {
+        return {
+          success: false,
+          status: 'FAILED',
+          error: `Authoritative sale '${saleId}' is not completed in the triggering branch`,
+          failureClassification: 'PERMANENT',
+        };
+      }
+
+      const eventTotal = Number(payload.totalAmountKes);
+      const persistedTotal = Number(sale.attributes?.totalAmountKes);
+      if (!Number.isFinite(eventTotal) || eventTotal !== persistedTotal) {
+        return {
+          success: false,
+          status: 'FAILED',
+          error: `POS sale '${saleId}' total does not reconcile with persisted business truth`,
+          failureClassification: 'PERMANENT',
+        };
+      }
+
+      return {
+        success: true,
+        status: 'COMPLETED',
+        output: {
+          operation: 'POS_CHECKOUT',
+          saleId,
+          branchId,
+          saleStatus: sale.status,
+          totalAmountKes: persistedTotal,
+          paymentStatus: sale.attributes?.paymentStatus || null,
+          reconciledAgainstPersistedSale: true,
+          reconciledAt: new Date().toISOString(),
+        },
       };
     }
 
