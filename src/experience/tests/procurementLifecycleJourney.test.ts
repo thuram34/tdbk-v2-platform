@@ -7,6 +7,7 @@ import { experienceResolver } from '../../experience/experienceResolver';
 import { outboxEngine } from '../../orchestration/outbox/outboxEngine';
 import { outboxRepository } from '../../persistence/firestore/repositories/outboxRepository';
 import { eventBus } from '../../orchestration/events/eventBus';
+import { financialLedgerRepository } from '../../persistence/firestore/repositories/financialLedgerRepository';
 
 const dbkId = 'procurement-journey-hardware-01';
 
@@ -103,6 +104,73 @@ describe('TDBK retail procurement journey acceptance',()=>{
     expect(poRecord?.status).toBe('RECEIVED');
     expect(receipt?.status).toBe('POSTED');
     expect(intent?.status).toBe('FULFILLED');
+
+    const matched=await experienceResolver.dispatchCommand(ctx,{
+      commandType:'MATCH_SUPPLIER_INVOICE',targetDbkId:dbkId,
+      payload:{purchaseOrderId:'PO-CANONICAL-001',invoiceNumber:'INV-CANONICAL-001',totalAmountKes:500},
+    });
+    expect(matched.success).toBe(true);
+    expect(matched.result).toMatchObject({status:'MATCHED',apStatus:'OPEN',paymentStatus:'UNPAID'});
+
+    const payable=await experienceResolver.dispatchCommand(ctx,{
+      commandType:'POST_ACCOUNTS_PAYABLE',targetDbkId:dbkId,
+      payload:{invoiceId:matched.result.invoiceId},
+    });
+    expect(payable.success).toBe(true);
+    expect(payable.result).toMatchObject({status:'AP_POSTED'});
+
+    const paymentTransactionId='supplier_pay_INV-CANONICAL-001';
+    await financialLedgerRepository.savePendingTransaction({
+      transactionId:paymentTransactionId,
+      tenantId:dbkId,
+      branchId,
+      source:'BANK',
+      providerReference:'BANK-PENDING-001',
+      amount:500,
+      currency:'KES',
+      status:'PENDING',
+      description:'Supplier payment acceptance test',
+      correlationId:ctx.correlationId,
+      createdAt:new Date().toISOString(),
+      postedAt:null,
+      reversedAt:null,
+    });
+    await firestoreClient.set(`/tenants/${dbkId}/entities/supplier_payment_intents/records/supplier_payment_${matched.result.invoiceId}`,{
+      id:`supplier_payment_${matched.result.invoiceId}`,
+      entityType:'supplier_payment_intent',
+      primaryIdentifier:`supplier_payment_${matched.result.invoiceId}`,
+      status:'PENDING',
+      branchId,
+      invoiceId:matched.result.invoiceId,
+      transactionId:paymentTransactionId,
+      amountKes:500,
+      destinationAccount:'001234567890',
+      sourceAccount:'009876543210',
+      bankCode:'01',
+      createdAt:new Date().toISOString(),
+      updatedAt:new Date().toISOString(),
+    });
+
+    const confirmed=await experienceResolver.dispatchCommand(ctx,{
+      commandType:'CONFIRM_SUPPLIER_PAYMENT',targetDbkId:dbkId,
+      payload:{invoiceId:matched.result.invoiceId,providerReference:'BANK-CONFIRMED-001',status:'SUCCESS',providerReceiptReference:'BANK-RCPT-001'},
+    });
+    expect(confirmed.success).toBe(true);
+    expect(confirmed.result).toMatchObject({status:'PAID',closureStatus:'CLOSED'});
+
+    const closedInvoice=await firestoreClient.get<any>(`/tenants/${dbkId}/entities/supplier_invoices/records/${matched.result.invoiceId}`);
+    const settledPayment=await firestoreClient.get<any>(`/tenants/${dbkId}/entities/supplier_payment_intents/records/supplier_payment_${matched.result.invoiceId}`);
+    const paidTransaction=await financialLedgerRepository.getTransaction(dbkId,paymentTransactionId);
+    const paymentEntries=await financialLedgerRepository.listEntries(dbkId,paymentTransactionId);
+    expect(closedInvoice?.status).toBe('CLOSED');
+    expect(closedInvoice?.attributes?.apStatus).toBe('SETTLED');
+    expect(closedInvoice?.attributes?.paymentStatus).toBe('PAID');
+    expect(settledPayment?.status).toBe('SETTLED');
+    expect(paidTransaction?.status).toBe('POSTED');
+    expect(paidTransaction?.providerReference).toBe('BANK-CONFIRMED-001');
+    expect(paymentEntries).toHaveLength(2);
+    expect(paymentEntries.filter(e=>e.entryType==='DEBIT')).toHaveLength(1);
+    expect(paymentEntries.filter(e=>e.entryType==='CREDIT')).toHaveLength(1);
 
     const delivery=await outboxEngine.processTenantOutbox(dbkId,'procurement-journey-worker',30000,async event=>eventBus.publish(event));
     expect(delivery.failed).toBe(0);
