@@ -306,7 +306,7 @@ export class SaleTransactionService {
           paymentStatus,
           paymentMethod,
           customerPhone: input.customerPhone ?? null,
-          correlationId: input.saleId,
+          correlationId: context.correlationId,
           customerName: input.customerName ?? null,
           notes: input.notes ?? null,
           completedAt: now,
