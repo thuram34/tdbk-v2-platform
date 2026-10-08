@@ -232,6 +232,39 @@ export class FinancialLedgerRepository implements IFinancialLedgerRepository {
     });
   }
 
+  public async confirmPendingTransaction(transaction: FinancialTransaction, entries: LedgerEntry[]): Promise<void> {
+    this.assertBalanced(transaction, entries);
+    if (transaction.status !== 'POSTED') throw new Error('Confirmed transaction must have POSTED status');
+    if (!transaction.postedAt) throw new Error('Confirmed transaction must have postedAt');
+    await firestoreClient.runTransaction(async (tx) => {
+      const path = this.transactionPath(transaction.tenantId, transaction.transactionId);
+      const existing = await tx.get<FinancialTransaction>(path);
+      if (!existing) throw new Error('Financial transaction not found for provider confirmation');
+      if (existing.tenantId !== transaction.tenantId) throw new Error('Financial transaction tenant mismatch');
+      if (existing.amount !== transaction.amount || existing.currency !== transaction.currency) {
+        throw new Error('Provider confirmation amount/currency conflicts with pending transaction');
+      }
+      if (existing.status === 'POSTED') {
+        if (existing.providerReference !== transaction.providerReference) throw new Error('Posted transaction provider reference conflicts');
+        return;
+      }
+      if (existing.status !== 'PENDING') {
+        throw new Error(`Only PENDING transactions may be provider-confirmed; found '${existing.status}'`);
+      }
+      const confirmed: FinancialTransaction = {
+        ...existing,
+        ...transaction,
+        transactionId: existing.transactionId,
+        tenantId: existing.tenantId,
+        status: 'POSTED',
+        postedAt: transaction.postedAt,
+        reversedAt: null,
+      };
+      await this.writePostedState(tx, confirmed, entries);
+      await this.ensureFinancialOutbox(tx, confirmed, 'payment.posted.v1', confirmed.providerReference);
+    });
+  }
+
   public async confirmReconciledTransaction(transaction: FinancialTransaction, entries: LedgerEntry[], outboxRecord?: import('../../types').OutboxRecord): Promise<void> {
     this.assertBalanced(transaction, entries);
     if (transaction.status !== 'POSTED') throw new Error('Confirmed transaction must have POSTED status');
