@@ -83,7 +83,8 @@ export class SaleEtimsFiscalizationService {
       });
       return out;
     } catch(error:any) {
-      const out={saleId:input.saleId,fiscalizationId,invoiceNumber,status:'REQUIRES_RECONCILIATION' as const,providerReference:null};
+      const deterministicFailure = error?.code === 'INTEGRATION_UNAVAILABLE' || error?.code === 'VALIDATION_ERROR' || error?.code === 'AUTHORIZATION_ERROR' || error?.code === 'TENANT_ISOLATION_ERROR';
+      const out={saleId:input.saleId,fiscalizationId,invoiceNumber,status:(deterministicFailure ? 'FAILED' : 'REQUIRES_RECONCILIATION') as 'FAILED' | 'REQUIRES_RECONCILIATION',providerReference:null};
       await firestoreClient.set(fiscalPath(tenantId,input.saleId),{id:fiscalizationId,tenantId,branchId,saleId:input.saleId,invoiceNumber,status:out.status,result:out,lastError:error?.message||'eTIMS provider outcome unresolved',updatedAt:new Date().toISOString()});
       return out;
     }
