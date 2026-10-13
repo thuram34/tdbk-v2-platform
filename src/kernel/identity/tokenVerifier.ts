@@ -8,13 +8,22 @@ import { AuthenticationError } from '../errors/kernelErrors';
 import { configManager } from '../configuration/configManager';
 
 export interface DecodedToken {
-  uid: string;
+  uid?: string;
+  user_id?: string;
+  sub?: string;
   email?: string;
-  isMaster?: boolean;
+  isMaster?: boolean | string;
   tenantId?: string | null;
   branchId?: string | null;
   roles?: string[];
   permissions?: string[];
+  tdbk?: {
+    isMaster?: boolean | string;
+    tenantId?: string | null;
+    branchId?: string | null;
+    roles?: string[];
+    permissions?: string[];
+  };
   iat?: number;
   exp?: number;
   iss?: string;
