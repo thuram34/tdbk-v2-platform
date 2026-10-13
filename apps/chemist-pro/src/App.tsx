@@ -159,7 +159,7 @@ export default function App() {
   </div>;
 }
 
-function StatCard({title,value,detail,icon,alert=false,trend}:{title:string;value:string;detail:string;icon:React.ReactNode;alert?:boolean;trend:string}) {
+function StatCard({title,value,detail,icon,alert=false,trend}:{title:string;value:string;detail:string;icon:React.ReactNode;alert?:boolean;trend?:string}) {
   return <div className="stat-card"><div className="stat-top"><span>{title}</span><div className={`stat-icon ${alert?"stat-icon-alert":""}`}>{icon}</div></div><div className="stat-value">{value}</div><div className="stat-bottom"><span>{detail}</span><span className={`stat-trend ${alert?"trend-alert":""}`}>{alert?<AlertTriangle size={13}/>:<ArrowUpRight size={13}/>} {trend}</span></div></div>;
 }
 function EmptyState({icon,title,text,action,onClick}:{icon:React.ReactNode;title:string;text:string;action?:string;onClick?:()=>void}) {
