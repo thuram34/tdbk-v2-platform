@@ -3,7 +3,7 @@ import {
   Activity, AlertTriangle, ArrowDownRight, ArrowUpRight, BarChart3, Bell,
   Boxes, Check, ChevronDown, CircleDollarSign, ClipboardList, Clock3,
   LayoutDashboard, Menu, Package, Plus, Search, Settings, ShieldCheck,
-  ShoppingCart, Smartphone, Trash2, TrendingUp, Truck, Wifi, WifiOff, X,
+  ShoppingCart, Smartphone, Trash2, TrendingUp, Truck, X,
 } from "lucide-react";
 
 type Product = {
