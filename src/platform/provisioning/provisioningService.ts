@@ -20,7 +20,7 @@ import { workflowEngine } from '../../orchestration/workflow/engine';
 import { eventBus } from '../../orchestration/events/eventBus';
 import { idempotencyRepository } from '../../persistence/firestore/repositories/idempotencyRepository';
 import { auditLogger } from '../../kernel/audit/auditLogger';
-import { KernelError } from '../../kernel/errors/kernelErrors';
+import { AuthorizationError, KernelError } from '../../kernel/errors/kernelErrors';
 import { SectorType } from '../../blueprint/types';
 
 export class ProvisioningService {
@@ -293,7 +293,6 @@ export class ProvisioningService {
     const isMasterProvisioner = masterAuthority.isMasterAdmin(context.principal);
     const requestedTier = request.subscriptionTier ?? (isMasterProvisioner ? 'FOUNDATION' : 'FREE');
     if (!isMasterProvisioner && requestedTier !== 'FREE') {
-      const { AuthorizationError } = await import('../../kernel/errors/kernelErrors');
       throw new AuthorizationError(
         'Business owners cannot self-assign a paid subscription tier during provisioning. Paid tiers require confirmed subscription payment.',
         context.requestId,
