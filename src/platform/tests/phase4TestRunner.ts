@@ -589,7 +589,7 @@ export async function runPhase4TestSuite(): Promise<Phase4TestSummary> {
   await runTest('P4_TEST_34', 'Failed provisioning can recover safely', async () => {
     const recoveryResult = await provisioningService.provisionDbk(masterContext, {
       dbkId: 'tenant_p4_failing_01',
-      legalName: 'Fail Test Fixed Inc',
+      legalName: 'Fail Test Inc',
       blueprintId: 'school_v1',
       primaryBranchName: 'HQ Fixed',
       secondaryBranches: [{ branchId: 'fixed_branch_01', name: 'Branch 1', type: 'CAMPUS' }],
