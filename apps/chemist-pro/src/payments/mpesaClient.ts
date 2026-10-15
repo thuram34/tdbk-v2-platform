@@ -46,7 +46,7 @@ function apiUrl(path: string): string {
   return `${API_BASE}${path}`;
 }
 
-function normalizeKenyanPhone(input: string): string {
+export function normalizeKenyanPhone(input: string): string {
   const digits = input.replace(/\D/g, "");
   const normalized = digits.startsWith("254")
     ? digits
