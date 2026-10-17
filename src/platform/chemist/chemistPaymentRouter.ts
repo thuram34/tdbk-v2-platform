@@ -120,7 +120,7 @@ router.post("/api/chemist/payments/mpesa/stk-push", async (req: Request, res: Re
     const callbackToken = randomBytes(32).toString("hex");
     tokenHashValue = tokenHash(callbackToken);
     const now = new Date().toISOString();
-    payment = {
+    const candidatePayment: ChemistPayment = {
       paymentId, tenantId, branchId, saleId,
       amountMinor: sale.totalMinor,
       amountKes: sale.totalMinor / 100,
@@ -134,7 +134,7 @@ router.post("/api/chemist/payments/mpesa/stk-push", async (req: Request, res: Re
       if (slot && ["PENDING", "REQUIRES_RECONCILIATION", "PAID"].includes(slot.status)) {
         throw new KernelError("CONFLICT", "An M-Pesa payment attempt already exists for this sale; check its status before retrying.", 409, context.requestId);
       }
-      await tx.set(paymentPath(tenantId, paymentId), payment!);
+      await tx.set(paymentPath(tenantId, paymentId), candidatePayment);
       await tx.set(slotPath, { tenantId, branchId, saleId, paymentId, status: "PENDING", updatedAt: now });
       await tx.set(callbackTokenPath(tokenHashValue), {
         tokenHash: tokenHashValue, tenantId, branchId, saleId, paymentId,
@@ -142,6 +142,7 @@ router.post("/api/chemist/payments/mpesa/stk-push", async (req: Request, res: Re
       });
       await tx.update(salePath(tenantId, saleId), { paymentStatus: "PENDING" });
     });
+    payment = candidatePayment;
 
     const adapter = bridgeRegistry.getBridgeInstance("bridge_mpesa");
     if (!adapter) throw new KernelError("INTEGRATION_UNAVAILABLE", "TDBK M-Pesa adapter is not available.", 503, context.requestId);
@@ -159,14 +160,20 @@ router.post("/api/chemist/payments/mpesa/stk-push", async (req: Request, res: Re
     if (result.status !== "PENDING" || !result.providerReference) {
       throw new Error("Provider did not return a pending checkout reference.");
     }
-    const updated: ChemistPayment = { ...payment, providerReference: result.providerReference, updatedAt: new Date().toISOString() };
     await firestoreClient.runTransaction(async (tx) => {
+      const current = await tx.get<ChemistPayment>(paymentPath(tenantId, paymentId));
+      if (!current) throw new Error("Payment record disappeared after STK initiation.");
+      const updated: ChemistPayment = {
+        ...current,
+        providerReference: result.providerReference,
+        updatedAt: new Date().toISOString(),
+      };
       await tx.set(paymentPath(tenantId, paymentId), updated);
-      await tx.set(slotPath, { tenantId, branchId, saleId, paymentId, status: "PENDING", updatedAt: updated.updatedAt });
+      await tx.set(slotPath, { tenantId, branchId, saleId, paymentId, status: updated.status, updatedAt: updated.updatedAt });
       await tx.set(callbackTokenPath(tokenHashValue), {
         tokenHash: tokenHashValue, tenantId, branchId, saleId, paymentId,
         providerReference: result.providerReference,
-        createdAt: payment!.createdAt,
+        createdAt: current.createdAt,
         expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
       });
     });
