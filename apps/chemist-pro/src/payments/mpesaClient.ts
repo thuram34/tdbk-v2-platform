@@ -120,13 +120,17 @@ export async function startMpesaPayment(
 export async function getMpesaPaymentStatus(
   paymentId: string,
   idToken: string,
+  tenantId: string,
+  branchId: string,
 ): Promise<MpesaPaymentStatusResult> {
   if (!idToken) throw new Error("Sign in to check payment status.");
+  if (!tenantId || !branchId) throw new Error("Authorized tenant and branch are required to check payment status.");
   if (!paymentId || !/^[A-Za-z0-9_-]{3,160}$/.test(paymentId)) {
     throw new Error("Invalid payment reference.");
   }
+  const query = new URLSearchParams({ tenantId, branchId }).toString();
   const response = await fetch(
-    apiUrl(`/api/chemist/payments/${encodeURIComponent(paymentId)}`),
+    apiUrl(`/api/chemist/payments/${encodeURIComponent(paymentId)}?${query}`),
     {
       headers: {
         Authorization: `Bearer ${idToken}`,
