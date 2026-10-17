@@ -121,6 +121,23 @@ export default function App() {
     setNotice("Product added to this browser's demo catalogue.");
   }
 
+  function exportBackup() {
+    const payload = {
+      schemaVersion: 1,
+      exportedAt: new Date().toISOString(),
+      products,
+      sales,
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `chemist-pro-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+    setNotice("Backup downloaded. Store it somewhere safe; this device is still the only live copy.");
+  }
+
   const nav = [
     { label: "Dashboard", icon: LayoutDashboard },
     { label: "Point of Sale", icon: ShoppingCart },
@@ -143,7 +160,7 @@ export default function App() {
     </aside>
     {mobileNav && <button className="nav-scrim" aria-label="Close navigation" onClick={() => setMobileNav(false)}/>}
     <main className="main-area">
-      <header className="topbar"><div className="topbar-left"><button className="icon-button mobile-menu" onClick={() => setMobileNav(true)} aria-label="Open menu"><Menu size={21}/></button><div className="breadcrumb">Workspace <span>/</span> <strong>{page}</strong></div></div><div className="topbar-actions"><div className="status-chip"><span/> Local-first workspace</div><button className="icon-button notification-button" aria-label="Notifications"><Bell size={19}/>{lowStock.length > 0 && <i/>}</button><div className="top-avatar">O</div></div></header>
+      <header className="topbar"><div className="topbar-left"><button className="icon-button mobile-menu" onClick={() => setMobileNav(true)} aria-label="Open menu"><Menu size={21}/></button><div className="breadcrumb">Workspace <span>/</span> <strong>{page}</strong></div></div><div className="topbar-actions"><button className="outline-action" onClick={exportBackup} title="Download a JSON backup of local products and sales">Export backup</button><div className="status-chip"><span/> Local-first workspace</div><button className="icon-button notification-button" aria-label="Notifications"><Bell size={19}/>{lowStock.length > 0 && <i/>}</button><div className="top-avatar">O</div></div></header>
       <div className="page-content">
         <div className="prototype-warning"><AlertTriangle size={17}/><span><strong>Local-only storage.</strong> Records stay in this browser and do not sync to other devices. M-Pesa verification and cloud backup are not connected.</span></div>
         {notice && <div className="toast" role="status"><Check size={17}/><span>{notice}</span><button onClick={() => setNotice("")} aria-label="Dismiss"><X size={16}/></button></div>}
