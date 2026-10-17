@@ -506,11 +506,6 @@ router.post("/api/chemist/payments/mpesa/callback", async (req: Request, res: Re
         paymentStatus: nextStatus, ...(success ? { status: "COMPLETED", paidAt: now } : {}),
       });
     });
-      await tx.update(salePath(binding.tenantId, binding.saleId), {
-        paymentStatus: nextStatus,
-        ...(success ? { status: "COMPLETED", paidAt: now } : {}),
-      });
-    });
     return res.status(200).json({ ResultCode: 0, ResultDesc: "Accepted" });
   } catch (error) {
     // Return non-2xx so a provider retry or manual reconciliation can recover.
