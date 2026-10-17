@@ -469,6 +469,19 @@ router.post("/api/chemist/payments/mpesa/callback", async (req: Request, res: Re
       if (!current) throw new Error("Payment record disappeared during callback settlement.");
       if (current.status === "PAID" && nextStatus === "PAID") return;
       if (current.providerReference && current.providerReference !== checkoutId) throw new Error("Provider reference mismatch during settlement.");
+      const sale = await tx.get<ChemistSale>(salePath(binding.tenantId, binding.saleId));
+      if (!sale || sale.tenantId !== binding.tenantId || sale.branchId !== binding.branchId) throw new Error("Authoritative sale missing during settlement.");
+      if (success && (sale.status !== "OPEN" || sale.totalMinor !== current.amountMinor)) throw new Error("Sale state or amount conflict; reconciliation required.");
+      const products = new Map<string, ChemistProduct>();
+      if (success) {
+        for (const line of sale.lines || []) {
+          const product = await tx.get<ChemistProduct>(`/tenants/${binding.tenantId}/chemistProducts/${line.productId}`);
+          if (!product || product.tenantId !== binding.tenantId || product.branchId !== binding.branchId || product.stock < line.quantity || (product.reserved || 0) < line.quantity) {
+            throw new Error("Reserved stock mismatch; reconciliation required.");
+          }
+          products.set(line.productId, product);
+        }
+      }
       const updated: ChemistPayment = {
         ...current, status: nextStatus, providerReference: checkoutId,
         receiptNumber: typeof receipt === "string" ? receipt : current.receiptNumber,
@@ -476,14 +489,23 @@ router.post("/api/chemist/payments/mpesa/callback", async (req: Request, res: Re
         payerPhone: typeof payerPhone === "number" || typeof payerPhone === "string" ? String(payerPhone) : current.payerPhone ?? null,
         providerResultCode: Number.isInteger(stk.ResultCode) ? stk.ResultCode : current.providerResultCode ?? null,
         providerResultDescription: typeof stk.ResultDesc === "string" ? stk.ResultDesc.slice(0, 500) : current.providerResultDescription ?? null,
-        paidAt: success ? now : current.paidAt ?? null,
-        updatedAt: now,
+        paidAt: success ? now : current.paidAt ?? null, updatedAt: now,
       };
+      for (const line of success ? (sale.lines || []) : []) {
+        const product = products.get(line.productId)!;
+        await tx.update(`/tenants/${binding.tenantId}/chemistProducts/${line.productId}`, {
+          stock: product.stock - line.quantity, reserved: Math.max(0, (product.reserved || 0) - line.quantity), updatedAt: now,
+        });
+      }
       await tx.set(paymentPath(binding.tenantId, binding.paymentId), updated);
       await tx.set(`/tenants/${binding.tenantId}/chemistPaymentBySale/${binding.saleId}`, {
         tenantId: binding.tenantId, branchId: binding.branchId, saleId: binding.saleId,
         paymentId: binding.paymentId, status: nextStatus, updatedAt: now,
       });
+      await tx.update(salePath(binding.tenantId, binding.saleId), {
+        paymentStatus: nextStatus, ...(success ? { status: "COMPLETED", paidAt: now } : {}),
+      });
+    });
       await tx.update(salePath(binding.tenantId, binding.saleId), {
         paymentStatus: nextStatus,
         ...(success ? { status: "COMPLETED", paidAt: now } : {}),
