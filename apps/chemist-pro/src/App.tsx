@@ -122,10 +122,11 @@ export default function App() {
       const parsed = JSON.parse(await file.text()) as { format?: unknown; version?: unknown; products?: unknown; sales?: unknown };
       if (parsed.format !== "tdbk-chemist-pro-backup" || parsed.version !== 1 || !Array.isArray(parsed.products) || !Array.isArray(parsed.sales)) throw new Error("Backup format is not supported.");
       const validProducts = parsed.products.every((p: any) => p && typeof p.id === "string" && typeof p.sku === "string" && typeof p.name === "string" && Number.isInteger(p.stock) && Number.isInteger(p.priceMinor) && typeof p.expiry === "string");
-      const validSales = parsed.sales.every((sale: any) => sale && typeof sale.id === "string" && typeof sale.receipt === "string" && Number.isInteger(sale.totalMinor) && Array.isArray(sale.lines));
+      const validSales = parsed.sales.every((sale: any) => sale && typeof sale.id === "string" && typeof sale.receipt === "string" && Number.isInteger(sale.totalMinor) && (Array.isArray(sale.lines) || Number.isInteger(sale.items)));
       if (!validProducts || !validSales) throw new Error("Backup contains invalid product or sales records.");
       if (!window.confirm(`Restore ${parsed.products.length} products and ${parsed.sales.length} sales? This replaces the records currently stored in this browser.`)) return;
-      setProducts(parsed.products as Product[]); setSales(parsed.sales as Sale[]); setCart([]);
+      const restoredSales = parsed.sales.map((sale: any) => ({ ...sale, lines: Array.isArray(sale.lines) ? sale.lines : [] }));
+      setProducts(parsed.products as Product[]); setSales(restoredSales as Sale[]); setCart([]);
       setNotice("Backup restored in this browser. Export a fresh backup and verify stock totals before trading.");
     } catch (error) { setNotice(error instanceof Error ? error.message : "Could not restore this backup."); }
   }
