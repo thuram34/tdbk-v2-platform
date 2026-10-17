@@ -95,30 +95,6 @@ export default function App() {
     setCart([]);
     setNotice("Sale recorded on this device. Back up records regularly; no payment provider was verified.");
   }
-  function importBackup(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        const parsed = JSON.parse(String(reader.result)) as { schemaVersion?: number; products?: Product[]; sales?: Sale[] };
-        if (parsed.schemaVersion !== 1 || !Array.isArray(parsed.products) || !Array.isArray(parsed.sales)) {
-          throw new Error("Unsupported backup format");
-        }
-        if (!window.confirm("This replaces the products and sales on this device. Continue?")) return;
-        setProducts(parsed.products);
-        setSales(parsed.sales);
-        setCart([]);
-        setNotice("Backup restored on this device. Export a fresh backup after future sales.");
-      } catch {
-        setNotice("Could not restore backup. Choose a valid Chemist Pro JSON backup.");
-      } finally {
-        event.target.value = "";
-      }
-    };
-    reader.readAsText(file);
-  }
-
   function exportBackup() {
     const backup = { format: "tdbk-chemist-pro-backup", version: 1, exportedAt: new Date().toISOString(), products, sales };
     const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
@@ -183,7 +159,7 @@ export default function App() {
     </aside>
     {mobileNav && <button className="nav-scrim" aria-label="Close navigation" onClick={() => setMobileNav(false)}/>}
     <main className="main-area">
-      <header className="topbar"><div className="topbar-left"><button className="icon-button mobile-menu" onClick={() => setMobileNav(true)} aria-label="Open menu"><Menu size={21}/></button><div className="breadcrumb">Workspace <span>/</span> <strong>{page}</strong></div></div><div className="topbar-actions"><input ref={backupFileInput} type="file" accept="application/json,.json" hidden onChange={importBackup}/><button className="outline-action" onClick={() => backupFileInput.current?.click()} title="Restore products and sales from a Chemist Pro JSON backup">Import backup</button><button className="outline-action" onClick={exportBackup} title="Download a JSON backup of local products and sales">Export backup</button><div className="status-chip"><span/> Local-first workspace</div><button className="icon-button notification-button" aria-label="Notifications"><Bell size={19}/>{lowStock.length > 0 && <i/>}</button><div className="top-avatar">O</div></div></header>
+      <header className="topbar"><div className="topbar-left"><button className="icon-button mobile-menu" onClick={() => setMobileNav(true)} aria-label="Open menu"><Menu size={21}/></button><div className="breadcrumb">Workspace <span>/</span> <strong>{page}</strong></div></div><div className="topbar-actions"><input ref={backupFileInput} type="file" accept="application/json,.json" hidden onChange={restoreBackup}/><button className="outline-action" onClick={() => backupFileInput.current?.click()} title="Restore products and sales from a Chemist Pro JSON backup">Import backup</button><button className="outline-action" onClick={exportBackup} title="Download a JSON backup of local products and sales">Export backup</button><div className="status-chip"><span/> Local-first workspace</div><button className="icon-button notification-button" aria-label="Notifications"><Bell size={19}/>{lowStock.length > 0 && <i/>}</button><div className="top-avatar">O</div></div></header>
       <div className="page-content">
         <div className="prototype-warning"><AlertTriangle size={17}/><span><strong>Local-only storage.</strong> Records stay in this browser and do not sync to other devices. M-Pesa verification and cloud backup are not connected.</span></div>
         {notice && <div className="toast" role="status"><Check size={17}/><span>{notice}</span><button onClick={() => setNotice("")} aria-label="Dismiss"><X size={16}/></button></div>}
