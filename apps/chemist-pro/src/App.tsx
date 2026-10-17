@@ -147,24 +147,7 @@ export default function App() {
     setNotice("Product added to this browser's demo catalogue.");
   }
 
-  function exportBackup() {
-    const payload = {
-      schemaVersion: 1,
-      exportedAt: new Date().toISOString(),
-      products,
-      sales,
-    };
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `chemist-pro-backup-${new Date().toISOString().slice(0, 10)}.json`;
-    link.click();
-    URL.revokeObjectURL(url);
-    setNotice("Backup downloaded. Store it somewhere safe; this device is still the only live copy.");
-  }
-
-  const nav = [
+    const nav = [
     { label: "Dashboard", icon: LayoutDashboard },
     { label: "Point of Sale", icon: ShoppingCart },
     { label: "Products & Stock", icon: Boxes },
