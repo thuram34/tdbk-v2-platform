@@ -17,6 +17,13 @@ type ChemistSale = {
   paymentStatus: "UNPAID" | "PENDING" | "PAID" | "FAILED" | "REQUIRES_RECONCILIATION";
   createdAt?: string;
   paidAt?: string | null;
+  lines?: Array<{ productId: string; name: string; sku: string; quantity: number; unitPriceMinor: number; lineTotalMinor: number; batch: string; expiry: string }>;
+};
+type ChemistProduct = {
+  productId: string; tenantId: string; branchId: string; sku: string; name: string;
+  category: string; barcode?: string; priceMinor: number; costMinor: number;
+  stock: number; reserved?: number; reorderLevel: number; batch: string; expiry: string;
+  status: "active" | "quarantined"; updatedAt?: string;
 };
 
 type ChemistPayment = {
@@ -61,6 +68,178 @@ function tenantAndBranch(context: SecurityContext): { tenantId: string; branchId
   }
   return { tenantId, branchId };
 }
+
+
+router.get("/api/chemist/products", async (req: Request, res: Response) => {
+  try {
+    const tenantIdInput = typeof req.query.tenantId === "string" ? req.query.tenantId : undefined;
+    const branchIdInput = typeof req.query.branchId === "string" ? req.query.branchId : undefined;
+    const context = await securityContextFactory.createSecurityContext({
+      authHeader: req.headers.authorization, targetTenantId: tenantIdInput,
+      targetBranchId: branchIdInput, ipAddress: req.ip, userAgent: req.headers["user-agent"],
+    });
+    const { tenantId, branchId } = tenantAndBranch(context);
+    const products = await firestoreClient.listCollection<ChemistProduct>(`/tenants/${tenantId}/chemistProducts`);
+    return res.json({
+      status: "SUCCESS",
+      products: products.filter(p => p.tenantId === tenantId && p.branchId === branchId),
+    });
+  } catch (error) { return apiError(res, error); }
+});
+
+router.post("/api/chemist/products", async (req: Request, res: Response) => {
+  try {
+    const { tenantId: tenantIdInput, branchId: branchIdInput } = req.body || {};
+    const context = await securityContextFactory.createSecurityContext({
+      authHeader: req.headers.authorization,
+      targetTenantId: typeof tenantIdInput === "string" ? tenantIdInput : undefined,
+      targetBranchId: typeof branchIdInput === "string" ? branchIdInput : undefined,
+      ipAddress: req.ip, userAgent: req.headers["user-agent"],
+    });
+    const { tenantId, branchId } = tenantAndBranch(context);
+    const canManageInventory = context.principal.isMaster ||
+      context.principal.roles.some(role => ["BUSINESS_OWNER", "TENANT_ADMIN", "PHARMACY_MANAGER", "SYSTEM_ADMIN"].includes(role)) ||
+      context.principal.permissions.includes("chemist:inventory:write");
+    if (!canManageInventory) return res.status(403).json({ error: { code: "AUTHORIZATION_ERROR", message: "Inventory management permission is required." } });
+    const body = req.body || {};
+    const sku = typeof body.sku === "string" ? body.sku.trim() : "";
+    const name = typeof body.name === "string" ? body.name.trim() : "";
+    const batch = typeof body.batch === "string" ? body.batch.trim() : "";
+    const expiry = typeof body.expiry === "string" ? body.expiry : "";
+    const priceMinor = body.priceMinor;
+    const costMinor = body.costMinor;
+    const stock = body.stock;
+    const reorderLevel = body.reorderLevel;
+    if (!sku || !name || !batch || !/^\d{4}-\d{2}-\d{2}$/.test(expiry) ||
+        !Number.isSafeInteger(priceMinor) || priceMinor < 0 ||
+        !Number.isSafeInteger(costMinor) || costMinor < 0 ||
+        !Number.isSafeInteger(stock) || stock < 0 ||
+        !Number.isSafeInteger(reorderLevel) || reorderLevel < 0) {
+      return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Valid SKU, name, batch, expiry, price, cost, stock and reorder level are required." } });
+    }
+    const existing = await firestoreClient.listCollection<ChemistProduct>(`/tenants/${tenantId}/chemistProducts`);
+    if (existing.some(p => p.tenantId === tenantId && p.branchId === branchId && p.sku.toLowerCase() === sku.toLowerCase())) {
+      return res.status(409).json({ error: { code: "SKU_EXISTS", message: "That SKU already exists in this branch." } });
+    }
+    const productId = `chem_prod_${randomBytes(12).toString("hex")}`;
+    const product: ChemistProduct = {
+      productId, tenantId, branchId, sku, name,
+      category: typeof body.category === "string" && body.category.trim() ? body.category.trim() : "General",
+      barcode: typeof body.barcode === "string" ? body.barcode.trim() : "",
+      priceMinor, costMinor, stock, reserved: 0, reorderLevel, batch, expiry,
+      status: body.status === "quarantined" ? "quarantined" : "active",
+      updatedAt: new Date().toISOString(),
+    };
+    await firestoreClient.set(`/tenants/${tenantId}/chemistProducts/${productId}`, product);
+    return res.status(201).json({ status: "SUCCESS", product });
+  } catch (error) { return apiError(res, error); }
+});
+
+router.post("/api/chemist/sales", async (req: Request, res: Response) => {
+  try {
+    const { tenantId: tenantIdInput, branchId: branchIdInput } = req.body || {};
+    const context = await securityContextFactory.createSecurityContext({
+      authHeader: req.headers.authorization,
+      targetTenantId: typeof tenantIdInput === "string" ? tenantIdInput : undefined,
+      targetBranchId: typeof branchIdInput === "string" ? branchIdInput : undefined,
+      ipAddress: req.ip, userAgent: req.headers["user-agent"],
+    });
+    const { tenantId, branchId } = tenantAndBranch(context);
+    const requestedLines = req.body?.items;
+    if (!Array.isArray(requestedLines) || requestedLines.length < 1 || requestedLines.length > 100) {
+      return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "A sale must contain between 1 and 100 line items." } });
+    }
+    const quantities = new Map<string, number>();
+    for (const line of requestedLines) {
+      if (!line || typeof line.productId !== "string" || !safeId.test(line.productId) ||
+          !Number.isSafeInteger(line.quantity) || line.quantity < 1 || line.quantity > 10000) {
+        return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Each sale item requires a valid productId and positive integer quantity." } });
+      }
+      quantities.set(line.productId, (quantities.get(line.productId) || 0) + line.quantity);
+    }
+    const saleId = `chem_sale_${randomBytes(12).toString("hex")}`;
+    const now = new Date().toISOString();
+    const pathByProduct = (id: string) => `/tenants/${tenantId}/chemistProducts/${id}`;
+    let sale: ChemistSale | null = null;
+    await firestoreClient.runTransaction(async (tx) => {
+      const products = new Map<string, ChemistProduct>();
+      // All transaction reads happen before the first write.
+      for (const productId of quantities.keys()) {
+        const product = await tx.get<ChemistProduct>(pathByProduct(productId));
+        if (!product || product.tenantId !== tenantId || product.branchId !== branchId) {
+          throw new KernelError("NOT_FOUND", "One or more products were not found in the authorized branch.", 404, context.requestId);
+        }
+        if (product.status !== "active" || product.expiry < now.slice(0, 10)) {
+          throw new KernelError("VALIDATION_ERROR", `Product ${product.sku} is quarantined or expired and cannot be sold.`, 422, context.requestId);
+        }
+        const quantity = quantities.get(productId)!;
+        const available = product.stock - (product.reserved || 0);
+        if (available < quantity) {
+          throw new KernelError("CONFLICT", `Insufficient available stock for ${product.name}.`, 409, context.requestId);
+        }
+        products.set(productId, product);
+      }
+      const lines = [...quantities.entries()].map(([productId, quantity]) => {
+        const product = products.get(productId)!;
+        return {
+          productId, name: product.name, sku: product.sku, quantity,
+          unitPriceMinor: product.priceMinor, lineTotalMinor: product.priceMinor * quantity,
+          batch: product.batch, expiry: product.expiry,
+        };
+      });
+      const totalMinor = lines.reduce((sum, line) => sum + line.lineTotalMinor, 0);
+      if (!Number.isSafeInteger(totalMinor) || totalMinor < 100 || totalMinor % 100 !== 0) {
+        throw new KernelError("VALIDATION_ERROR", "Sale total must be a valid whole-KSh amount of at least KSh 1 for this checkout.", 422, context.requestId);
+      }
+      sale = {
+        saleId, tenantId, branchId, totalMinor, status: "OPEN", paymentStatus: "UNPAID",
+        lines, createdAt: now, paidAt: null,
+      };
+      for (const [productId, quantity] of quantities.entries()) {
+        const product = products.get(productId)!;
+        await tx.update(pathByProduct(productId), { reserved: (product.reserved || 0) + quantity, updatedAt: now });
+      }
+      await tx.set(salePath(tenantId, saleId), sale);
+    });
+    return res.status(201).json({ status: "SUCCESS", sale });
+  } catch (error) { return apiError(res, error); }
+});
+
+router.post("/api/chemist/sales/:saleId/cancel", async (req: Request, res: Response) => {
+  try {
+    const { tenantId: tenantIdInput, branchId: branchIdInput } = req.body || {};
+    const context = await securityContextFactory.createSecurityContext({
+      authHeader: req.headers.authorization,
+      targetTenantId: typeof tenantIdInput === "string" ? tenantIdInput : undefined,
+      targetBranchId: typeof branchIdInput === "string" ? branchIdInput : undefined,
+      ipAddress: req.ip, userAgent: req.headers["user-agent"],
+    });
+    const { tenantId, branchId } = tenantAndBranch(context);
+    const saleId = req.params.saleId;
+    if (!safeId.test(saleId)) return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Invalid sale reference." } });
+    await firestoreClient.runTransaction(async (tx) => {
+      const sale = await tx.get<ChemistSale>(salePath(tenantId, saleId));
+      if (!sale || sale.tenantId !== tenantId || sale.branchId !== branchId) throw new KernelError("NOT_FOUND", "Sale not found in the authorized branch.", 404, context.requestId);
+      if (sale.status !== "OPEN" || sale.paymentStatus === "PENDING" || sale.paymentStatus === "REQUIRES_RECONCILIATION") {
+        throw new KernelError("CONFLICT", "A pending or uncertain payment must be reconciled before this sale can be cancelled.", 409, context.requestId);
+      }
+      const productRecords = new Map<string, ChemistProduct>();
+      for (const line of sale.lines || []) {
+        const product = await tx.get<ChemistProduct>(`/tenants/${tenantId}/chemistProducts/${line.productId}`);
+        if (product) productRecords.set(line.productId, product);
+      }
+      const now = new Date().toISOString();
+      for (const line of sale.lines || []) {
+        const product = productRecords.get(line.productId);
+        if (product) await tx.update(`/tenants/${tenantId}/chemistProducts/${line.productId}`, {
+          reserved: Math.max(0, (product.reserved || 0) - line.quantity), updatedAt: now,
+        });
+      }
+      await tx.update(salePath(tenantId, saleId), { status: "CANCELLED", paymentStatus: "FAILED" });
+    });
+    return res.json({ status: "SUCCESS", saleId, saleStatus: "CANCELLED" });
+  } catch (error) { return apiError(res, error); }
+});
 
 router.post("/api/chemist/payments/mpesa/stk-push", async (req: Request, res: Response) => {
   let payment: ChemistPayment | null = null;
