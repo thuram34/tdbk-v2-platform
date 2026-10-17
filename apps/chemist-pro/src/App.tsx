@@ -17,6 +17,7 @@ type CartLine = { productId: string; quantity: number };
 const seedProducts: Product[] = [];
 const money = (minor: number) => new Intl.NumberFormat("en-KE", { style: "currency", currency: "KES", maximumFractionDigits: 2 }).format(minor / 100);
 const dateLabel = (date: string) => new Date(date).toLocaleDateString("en-KE", { day: "2-digit", month: "short", year: "numeric" });
+const localDateISO = (date = new Date()) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 function readStore<T,>(key: string, fallback: T): T {
   try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) as T : fallback; } catch { return fallback; }
 }
@@ -46,13 +47,13 @@ export default function App() {
     return days >= 0 && days <= 120 && p.status === "active";
   });
   const filteredProducts = useMemo(() => products.filter(p => [p.name, p.sku, p.category, p.barcode].some(v => v.toLowerCase().includes(search.toLowerCase()))), [products, search]);
-  const filteredCartProducts = products.filter(p => p.status === "active" && p.stock > 0 && p.expiry >= new Date().toISOString().slice(0, 10) && [p.name, p.sku, p.barcode].some(v => v.toLowerCase().includes(cartSearch.toLowerCase())));
+  const filteredCartProducts = products.filter(p => p.status === "active" && p.stock > 0 && p.expiry >= localDateISO() && [p.name, p.sku, p.barcode].some(v => v.toLowerCase().includes(cartSearch.toLowerCase())));
   const cartTotal = cart.reduce((sum, line) => sum + (products.find(p => p.id === line.productId)?.priceMinor ?? 0) * line.quantity, 0);
   const cartUnits = cart.reduce((sum, line) => sum + line.quantity, 0);
 
   function addToCart(product: Product) {
     if (product.status !== "active" || product.stock < 1) { setNotice("This product is not available for sale."); return; }
-    if (product.expiry < new Date().toISOString().slice(0, 10)) { setNotice("Expired stock cannot be sold. Quarantine this batch."); return; }
+    if (product.expiry < localDateISO()) { setNotice("Expired stock cannot be sold. Quarantine this batch."); return; }
     setCart(prev => {
       const line = prev.find(l => l.productId === product.id);
       if (line && line.quantity >= product.stock) { setNotice("Quantity exceeds the stock shown on this device."); return prev; }
@@ -67,7 +68,7 @@ export default function App() {
   }
   function checkout() {
     if (!cart.length) return;
-    const todayISO = new Date().toISOString().slice(0, 10);
+    const todayISO = localDateISO();
     const badLine = cart.find(l => !products.some(p => p.id === l.productId && p.status === "active" && p.stock >= l.quantity && p.expiry >= todayISO));
     if (badLine) { setNotice("Stock changed or a batch is expired. Review the cart before retrying."); return; }
     const lines = cart.map(l => { const p = products.find(x => x.id === l.productId)!; return { name: p.name, sku: p.sku, quantity: l.quantity, unitPriceMinor: p.priceMinor, lineTotalMinor: p.priceMinor * l.quantity }; });
