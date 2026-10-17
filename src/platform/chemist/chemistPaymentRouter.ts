@@ -31,6 +31,11 @@ type ChemistPayment = {
   status: "PENDING" | "PAID" | "FAILED" | "REQUIRES_RECONCILIATION";
   providerReference: string | null;
   receiptNumber: string | null;
+  paidAmountKes?: number | null;
+  payerPhone?: string | null;
+  providerResultCode?: number | null;
+  providerResultDescription?: string | null;
+  paidAt?: string | null;
   callbackTokenHash: string;
   createdAt: string;
   updatedAt: string;
@@ -277,6 +282,8 @@ router.post("/api/chemist/payments/mpesa/callback", async (req: Request, res: Re
     const nextStatus: ChemistPayment["status"] = success ? "PAID" : failed ? "FAILED" : "REQUIRES_RECONCILIATION";
     const metadata = stk.CallbackMetadata?.Item || [];
     const receipt = metadata.find(item => item.Name === "MpesaReceiptNumber")?.Value;
+    const paidAmount = metadata.find(item => item.Name === "Amount")?.Value;
+    const payerPhone = metadata.find(item => item.Name === "PhoneNumber")?.Value;
     const now = new Date().toISOString();
     await firestoreClient.runTransaction(async (tx) => {
       const current = await tx.get<ChemistPayment>(paymentPath(binding.tenantId, binding.paymentId));
@@ -286,6 +293,11 @@ router.post("/api/chemist/payments/mpesa/callback", async (req: Request, res: Re
       const updated: ChemistPayment = {
         ...current, status: nextStatus, providerReference: checkoutId,
         receiptNumber: typeof receipt === "string" ? receipt : current.receiptNumber,
+        paidAmountKes: typeof paidAmount === "number" && Number.isFinite(paidAmount) ? paidAmount : current.paidAmountKes ?? null,
+        payerPhone: typeof payerPhone === "number" || typeof payerPhone === "string" ? String(payerPhone) : current.payerPhone ?? null,
+        providerResultCode: Number.isInteger(stk.ResultCode) ? stk.ResultCode : current.providerResultCode ?? null,
+        providerResultDescription: typeof stk.ResultDesc === "string" ? stk.ResultDesc.slice(0, 500) : current.providerResultDescription ?? null,
+        paidAt: success ? now : current.paidAt ?? null,
         updatedAt: now,
       };
       await tx.set(paymentPath(binding.tenantId, binding.paymentId), updated);
