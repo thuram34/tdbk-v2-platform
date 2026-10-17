@@ -19,7 +19,7 @@ Import this repository into Vercel with **Root Directory** set to `apps/chemist-
 
 ## Handover boundary — read before real use
 
-The current build supports a local catalogue, cash checkout, local stock deduction, sales history, itemized printable receipts, expiry-date exclusion, and JSON backup/restore. Records are stored in this browser's local storage. They do **not** sync across devices and can be lost if browser storage is cleared or the device fails. The app starts with sample catalogue entries; replace them with verified opening stock before any trial.
+The current build supports a local catalogue, cash checkout, local stock deduction, sales history, itemized printable receipts, expiry-date exclusion, and JSON backup/restore. Records are stored in this browser's local storage. They do **not** sync across devices and can be lost if browser storage is cleared or the device fails. The app starts with an empty catalogue; enter only physically verified opening stock before any trial.
 
 This build does **not** provide authenticated users, cloud persistence, a trusted server-side stock ledger, multi-device conflict handling, verified M-Pesa, KRA eTIMS fiscal receipts, or complete pharmacy batch/dispensing controls. The printable receipt explicitly is not an eTIMS receipt. It is suitable only for a controlled single-device trial after the owner accepts these limitations and confirms an external backup routine. Do not enter patient-identifiable or clinical data.
 
