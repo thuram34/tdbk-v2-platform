@@ -11,7 +11,7 @@ type Product = {
   priceMinor: number; costMinor: number; stock: number; reorderLevel: number;
   batch: string; expiry: string; status: "active" | "quarantined";
 };
-type Sale = { id: string; receipt: string; createdAt: string; totalMinor: number; items: number; method: "Cash"; };
+type Sale = { id: string; receipt: string; createdAt: string; totalMinor: number; items: number; method: "Cash"; lines: { name: string; sku: string; quantity: number; unitPriceMinor: number; lineTotalMinor: number }[]; };
 type CartLine = { productId: string; quantity: number };
 
 const seedProducts: Product[] = [
@@ -51,12 +51,13 @@ export default function App() {
     return days >= 0 && days <= 120 && p.status === "active";
   });
   const filteredProducts = useMemo(() => products.filter(p => [p.name, p.sku, p.category, p.barcode].some(v => v.toLowerCase().includes(search.toLowerCase()))), [products, search]);
-  const filteredCartProducts = products.filter(p => p.status === "active" && p.stock > 0 && [p.name, p.sku, p.barcode].some(v => v.toLowerCase().includes(cartSearch.toLowerCase())));
+  const filteredCartProducts = products.filter(p => p.status === "active" && p.stock > 0 && p.expiry >= new Date().toISOString().slice(0, 10) && [p.name, p.sku, p.barcode].some(v => v.toLowerCase().includes(cartSearch.toLowerCase())));
   const cartTotal = cart.reduce((sum, line) => sum + (products.find(p => p.id === line.productId)?.priceMinor ?? 0) * line.quantity, 0);
   const cartUnits = cart.reduce((sum, line) => sum + line.quantity, 0);
 
   function addToCart(product: Product) {
     if (product.status !== "active" || product.stock < 1) { setNotice("This product is not available for sale."); return; }
+    if (product.expiry < new Date().toISOString().slice(0, 10)) { setNotice("Expired stock cannot be sold. Quarantine this batch."); return; }
     setCart(prev => {
       const line = prev.find(l => l.productId === product.id);
       if (line && line.quantity >= product.stock) { setNotice("Quantity exceeds the stock shown on this device."); return prev; }
@@ -71,15 +72,43 @@ export default function App() {
   }
   function checkout() {
     if (!cart.length) return;
-    const badLine = cart.find(l => !products.some(p => p.id === l.productId && p.status === "active" && p.stock >= l.quantity));
-    if (badLine) { setNotice("Stock changed. Review the cart before retrying."); return; }
-    const total = cart.reduce((sum, l) => sum + (products.find(p => p.id === l.productId)?.priceMinor ?? 0) * l.quantity, 0);
-    const sale: Sale = { id: crypto.randomUUID(), receipt: "DEMO-" + String(sales.length + 1).padStart(5, "0"), createdAt: new Date().toISOString(), totalMinor: total, items: cartUnits, method: "Cash" };
+    const todayISO = new Date().toISOString().slice(0, 10);
+    const badLine = cart.find(l => !products.some(p => p.id === l.productId && p.status === "active" && p.stock >= l.quantity && p.expiry >= todayISO));
+    if (badLine) { setNotice("Stock changed or a batch is expired. Review the cart before retrying."); return; }
+    const lines = cart.map(l => { const p = products.find(x => x.id === l.productId)!; return { name: p.name, sku: p.sku, quantity: l.quantity, unitPriceMinor: p.priceMinor, lineTotalMinor: p.priceMinor * l.quantity }; });
+    const total = lines.reduce((sum, line) => sum + line.lineTotalMinor, 0);
+    const sale: Sale = { id: crypto.randomUUID(), receipt: "DEMO-" + String(sales.length + 1).padStart(5, "0"), createdAt: new Date().toISOString(), totalMinor: total, items: cartUnits, method: "Cash", lines };
     setProducts(prev => prev.map(p => { const line = cart.find(l => l.productId === p.id); return line ? { ...p, stock: p.stock - line.quantity } : p; }));
     setSales(prev => [sale, ...prev]);
     setCart([]);
     setNotice("Demo sale saved locally. No real payment was collected.");
   }
+  function exportBackup() {
+    const backup = { format: "tdbk-chemist-pro-backup", version: 1, exportedAt: new Date().toISOString(), products, sales };
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `chemist-pro-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(url);
+    setNotice("Backup exported. Store it somewhere safe outside this device.");
+  }
+  async function restoreBackup(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.currentTarget.files?.[0];
+    event.currentTarget.value = "";
+    if (!file) return;
+    try {
+      const parsed = JSON.parse(await file.text()) as { format?: unknown; version?: unknown; products?: unknown; sales?: unknown };
+      if (parsed.format !== "tdbk-chemist-pro-backup" || parsed.version !== 1 || !Array.isArray(parsed.products) || !Array.isArray(parsed.sales)) throw new Error("Backup format is not supported.");
+      const validProducts = parsed.products.every((p: any) => p && typeof p.id === "string" && typeof p.sku === "string" && typeof p.name === "string" && Number.isInteger(p.stock) && Number.isInteger(p.priceMinor) && typeof p.expiry === "string");
+      const validSales = parsed.sales.every((sale: any) => sale && typeof sale.id === "string" && typeof sale.receipt === "string" && Number.isInteger(sale.totalMinor) && Array.isArray(sale.lines));
+      if (!validProducts || !validSales) throw new Error("Backup contains invalid product or sales records.");
+      if (!window.confirm(`Restore ${parsed.products.length} products and ${parsed.sales.length} sales? This replaces the records currently stored in this browser.`)) return;
+      setProducts(parsed.products as Product[]); setSales(parsed.sales as Sale[]); setCart([]);
+      setNotice("Backup restored in this browser. Export a fresh backup and verify stock totals before trading.");
+    } catch (error) { setNotice(error instanceof Error ? error.message : "Could not restore this backup."); }
+  }
+
   function saveProduct(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const price = Math.round(Number(newProduct.price) * 100);
@@ -152,7 +181,7 @@ export default function App() {
 
         {page === "Suppliers" && <PlaceholderPage title="Suppliers" eyebrow="PROCUREMENT" text="Supplier records, purchase orders, goods-received notes and payable tracking are planned for the next implementation stage." icon={<Truck/>} action="Continue to inventory" onClick={() => changePage("Products & Stock")}/>}
         {page === "Reports" && <><div className="page-heading"><div><div className="eyebrow">BUSINESS INTELLIGENCE</div><h1>Reports</h1><p>Summary from the demo records saved in this browser.</p></div></div><div className="stat-grid"><StatCard title="Recorded sales" value={String(sales.length)} detail="All demo transactions" icon={<ClipboardList/>}/><StatCard title="Sales value" value={money(sales.reduce((s,x)=>s+x.totalMinor,0))} detail="Not independently reconciled" icon={<CircleDollarSign/>}/><StatCard title="Estimated stock cost" value={money(products.reduce((s,p)=>s+p.stock*p.costMinor,0))} detail="Based on demo unit costs" icon={<Boxes/>}/><StatCard title="Potential gross margin" value={money(products.reduce((s,p)=>s+p.stock*(p.priceMinor-p.costMinor),0))} detail="Stock at listed prices, not realized profit" icon={<TrendingUp/>}/></div><section className="panel report-note"><ShieldCheck size={21}/><div><strong>Reports are illustrative</strong><p>These figures are derived from local demo data. They are not audited financial statements, tax calculations or reconciled cash reports.</p></div></section></>}
-        {page === "Settings" && <PlaceholderPage title="Settings" eyebrow="WORKSPACE CONFIGURATION" text="Business identity, tax configuration, receipt numbering, user access, backup/export and integration credentials will be added in the secured configuration stage." icon={<Settings/>} action="Back to dashboard" onClick={() => changePage("Dashboard")}/>}
+        {page === "Settings" && <><div className="page-heading"><div><div className="eyebrow">WORKSPACE CONFIGURATION</div><h1>Settings & data safety</h1><p>Offline single-device mode. These records are stored in this browser, not a cloud database.</p></div></div><section className="panel coming-soon"><div className="coming-icon"><Settings/></div><h2>Backup and restore</h2><p>Export a backup at the end of each shift and keep a copy outside this device. Restoring replaces the current browser records. Verify counts and totals after restoring.</p><div className="quick-grid"><button className="primary-button" onClick={exportBackup}>Export full backup (JSON)</button><label className="outline-action">Restore from backup<input type="file" accept="application/json,.json" onChange={restoreBackup} style={{display:"block",marginTop:8}}/></label></div><div className="prototype-warning" style={{marginTop:16}}><AlertTriangle size={17}/><span>Not cloud-synced, not multi-user, and not protected against browser storage deletion or device failure. No verified M-Pesa or eTIMS integration.</span></div><button className="outline-action" onClick={() => changePage("Dashboard")}>Back to dashboard</button></section></>}
         <footer className="page-footer"><span>© {new Date().getFullYear()} TDBK Chemist Pro</span><span><ShieldCheck size={14}/> Development build · Not for live pharmacy operations</span></footer>
       </div>
     </main>
