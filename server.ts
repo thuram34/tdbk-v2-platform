@@ -57,6 +57,7 @@ import { subscriptionRouter } from './src/platform/subscription/subscriptionRout
 import { tdbkAgentRuntime } from './src/platform/agent/agentRuntime';
 import { agentExecutionRepository } from './src/persistence/firestore/repositories/agentExecutionRepository';
 import { flowOrchestrator } from './src/platform/flow/flowOrchestrator';
+import chemistPaymentRouter from './src/platform/chemist/chemistPaymentRouter';
 
 async function startServer() {
   // Explicit bootstrap boundary: Seed demo DBKs only in development, preview, or explicit flag
@@ -68,6 +69,9 @@ async function startServer() {
   const PORT = process.env.NODE_ENV === 'production' && process.env.PORT ? Number(process.env.PORT) : 3000;
 
   app.use(express.json());
+
+  // Chemist Pro payment API: tenant/branch authorization and durable settlement live server-side.
+  app.use(chemistPaymentRouter);
 
   pubSubConsumer.register(app);
 
