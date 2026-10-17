@@ -183,15 +183,24 @@ router.post("/api/chemist/payments/mpesa/stk-push", async (req: Request, res: Re
     });
   } catch (error) {
     if (payment) {
-      const failed: ChemistPayment = { ...payment, status: "REQUIRES_RECONCILIATION", updatedAt: new Date().toISOString() };
       try {
-        await firestoreClient.set(paymentPath(payment.tenantId, payment.paymentId), failed);
-        await firestoreClient.set(`/tenants/${payment.tenantId}/chemistPaymentBySale/${payment.saleId}`, {
-          tenantId: payment.tenantId, branchId: payment.branchId, saleId: payment.saleId,
-          paymentId: payment.paymentId, status: "REQUIRES_RECONCILIATION", updatedAt: failed.updatedAt,
+        await firestoreClient.runTransaction(async (tx) => {
+          const current = await tx.get<ChemistPayment>(paymentPath(payment!.tenantId, payment!.paymentId));
+          // A fast provider callback may have already confirmed payment. Never downgrade it.
+          if (current?.status === "PAID") return;
+          const failed: ChemistPayment = {
+            ...(current || payment!),
+            status: "REQUIRES_RECONCILIATION",
+            updatedAt: new Date().toISOString(),
+          };
+          await tx.set(paymentPath(failed.tenantId, failed.paymentId), failed);
+          await tx.set(`/tenants/${failed.tenantId}/chemistPaymentBySale/${failed.saleId}`, {
+            tenantId: failed.tenantId, branchId: failed.branchId, saleId: failed.saleId,
+            paymentId: failed.paymentId, status: "REQUIRES_RECONCILIATION", updatedAt: failed.updatedAt,
+          });
+          await tx.update(salePath(failed.tenantId, failed.saleId), { paymentStatus: "REQUIRES_RECONCILIATION" });
         });
-        await firestoreClient.update(salePath(payment.tenantId, payment.saleId), { paymentStatus: "REQUIRES_RECONCILIATION" });
-      } catch { /* preserve the original error; durable financial records remain authoritative */ }
+      } catch { /* preserve the original error; reconcile against provider truth */ }
     }
     return apiError(res, error);
   }
