@@ -4,8 +4,10 @@
 
 The UI must call the trusted TDBK API through `src/payments/mpesaClient.ts`.
 The browser must never contain Daraja consumer keys, consumer secrets, passkeys, or
-callback credentials. The client currently defines the safe API contract; this
-does **not** mean the API routes or callback processing are deployed yet.
+callback credentials. The trusted TDBK server now has guarded STK-initiation, status,
+and callback routes. These routes are **not yet sufficient for live checkout** because
+Chemist Pro's current UI still creates demo sales in localStorage and does not create
+authoritative `chemistSales` records in Firestore.
 
 Configure the client with `VITE_TDBK_API_BASE_URL` pointing to the HTTPS TDBK API.
 
@@ -26,16 +28,20 @@ Requires a valid Firebase/TDBK ID token and tenant/branch authorization. Request
 }
 ```
 
-The server must load the persisted sale and calculate its payable balance itself. It
-must not trust a browser-provided amount as authoritative. It must persist a
-unique payment attempt before calling Daraja and return a pending state with the
-provider checkout reference. A retry must not silently issue a second STK Push.
+The implemented server route loads `/tenants/{tenantId}/chemistSales/{saleId}`, checks
+its tenant and branch, and calculates the amount from `totalMinor`. It ignores the
+browser's amount for financial authority. It persists a payment attempt and opaque
+callback token before calling the existing TDBK M-Pesa bridge. A sale must currently
+already exist with `saleId`, `tenantId`, `branchId`, `totalMinor`, `status: OPEN`, and
+`paymentStatus`; no production UI sale writer has been connected yet. A pending or
+ambiguous attempt must be checked/reconciled rather than blindly replayed.
 
 ### Check payment status
 
 `GET /api/chemist/payments/:paymentId`
 
-Returns only server-authoritative status. The client must never mark a sale paid
+The implemented route requires an authenticated token and authorized tenant/branch context,
+and returns only server-authoritative status. The client must never mark a sale paid
 because the STK request was accepted, the customer says they paid, or a timeout
 occurred.
 
@@ -54,7 +60,7 @@ occurred.
 - Do not expose consumer credentials or passkeys to the frontend or logs.
 - Do not blindly replay ambiguous provider requests; reconcile them first.
 
-## Daraja setup needed before live testing
+## Current blockers before live testing\n\n1. Migrate product and sale operations off browser localStorage into server-authoritative Firestore routes. The current UI still labels itself a prototype.\n2. Ensure sale creation decrements/reserves stock atomically and records line items, batch/expiry allocations, cashier, branch and totals.\n3. Exercise callback success/failure, duplicate callback, token expiry, wrong amount, unknown checkout reference, and provider-accepted/local-write-failed paths against a test Firestore driver and Daraja sandbox.\n4. Review the callback trust boundary and operational logs before production enablement. Live payments are additionally blocked unless `TDBK_ALLOW_LIVE_MPESA=true` and `TDBK_PUBLIC_API_BASE_URL` is a public HTTPS URL.\n\n## Daraja setup needed before live testing
 
 The chemist owner must have the correct Safaricom Daraja app/environment, shortcode
 (PayBill or Till according to the merchant setup), consumer key/secret, passkey,
