@@ -132,6 +132,10 @@ export function BusinessDiscovery({ onProvisioned }: BusinessDiscoveryProps) {
       setError('Business name and business type are required.');
       return;
     }
+    if (selectedTier !== 'FREE' && !/^254[17]\\d{8}$/.test(mpesaPhoneNumber.trim())) {
+      setError('Enter a valid Kenyan M-Pesa number in 2547XXXXXXXX or 2541XXXXXXXX format to continue with a paid tier.');
+      return;
+    }
 
     setProvisioning(true);
     setError(null);
