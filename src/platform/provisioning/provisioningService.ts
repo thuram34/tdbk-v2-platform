@@ -192,14 +192,15 @@ export class ProvisioningService {
       for (const cap of compatible) {
         const isEntitled = entitlementEngine.isTierSatisfied(tier, cap.entitlementRequirements.minimumTier);
         const isDefaultInBp = defaultCapIds.has(cap.capabilityId);
+        const requiresConfiguration = cap.configurationSchema.requiresConfiguration;
 
-        let state: CapabilityLifecycleState = 'DISCOVERABLE';
-        if (isEntitled) {
-          if (isDefaultInBp || !cap.configurationSchema.requiresConfiguration) {
-            state = 'ENABLED';
-          } else {
-            state = 'CONFIGURED';
-          }
+        // Blueprint inclusion is not proof that configuration has been supplied.
+        // Only default capabilities that need no configuration may start enabled.
+        // Other entitled capabilities remain ENTITLED until explicitly activated;
+        // capabilities requiring configuration remain gated until configured.
+        let state: CapabilityLifecycleState = isEntitled ? 'ENTITLED' : 'DISCOVERABLE';
+        if (isEntitled && isDefaultInBp && !requiresConfiguration) {
+          state = 'ENABLED';
         }
 
         // Capability state is business truth. Provisioning must not report
@@ -210,7 +211,7 @@ export class ProvisioningService {
           capabilityVersion: cap.version,
           state: cap.lifecycleStatus === 'SUSPENDED' ? 'SUSPENDED' : state,
           configurationState: {
-            isConfigured: isDefaultInBp || !cap.configurationSchema.requiresConfiguration,
+            isConfigured: !requiresConfiguration,
           },
           entitlement: isEntitled ? 'ENTITLED' : 'UPGRADE_REQUIRED',
           updatedAt: new Date().toISOString(),
