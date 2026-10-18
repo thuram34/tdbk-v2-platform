@@ -51,6 +51,7 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
   public readonly provider = 'SAFARICOM_MPESA';
   public readonly capabilityId = 'mpesa_bridge';
   public readonly version = 'v1.0';
+  public readonly sideEffectCapabilities = { providerIdempotency: false, providerReconciliation: true, automaticUnknownReplay: false, providerOperationIdentityRequired: true };
 
   
   public async health(context: SecurityContext): Promise<{ status: BridgeHealthStatus; details?: Record<string, unknown> }> {
