@@ -22,6 +22,7 @@ import { idempotencyRepository } from '../../persistence/firestore/repositories/
 import { auditLogger } from '../../kernel/audit/auditLogger';
 import { KernelError } from '../../kernel/errors/kernelErrors';
 import { SectorType } from '../../blueprint/types';
+import { resolveInitialCapabilityState } from './initialCapabilityState';
 
 export class ProvisioningService {
   private static instance: ProvisioningService;
@@ -192,16 +193,11 @@ export class ProvisioningService {
       for (const cap of compatible) {
         const isEntitled = entitlementEngine.isTierSatisfied(tier, cap.entitlementRequirements.minimumTier);
         const isDefaultInBp = defaultCapIds.has(cap.capabilityId);
-        const requiresConfiguration = cap.configurationSchema.requiresConfiguration;
-
-        // Blueprint inclusion is not proof that configuration has been supplied.
-        // Only default capabilities that need no configuration may start enabled.
-        // Other entitled capabilities remain ENTITLED until explicitly activated;
-        // capabilities requiring configuration remain gated until configured.
-        let state: CapabilityLifecycleState = isEntitled ? 'ENTITLED' : 'DISCOVERABLE';
-        if (isEntitled && isDefaultInBp && !requiresConfiguration) {
-          state = 'ENABLED';
-        }
+        const initialState = resolveInitialCapabilityState(
+          isEntitled,
+          isDefaultInBp,
+          cap.configurationSchema.requiresConfiguration,
+        );
 
         // Capability state is business truth. Provisioning must not report
         // success until the initialized record is durably committed.
@@ -209,9 +205,9 @@ export class ProvisioningService {
           dbkId,
           capabilityId: cap.capabilityId,
           capabilityVersion: cap.version,
-          state: cap.lifecycleStatus === 'SUSPENDED' ? 'SUSPENDED' : state,
+          state: cap.lifecycleStatus === 'SUSPENDED' ? 'SUSPENDED' : initialState.state,
           configurationState: {
-            isConfigured: !requiresConfiguration,
+            isConfigured: initialState.isConfigured,
           },
           entitlement: isEntitled ? 'ENTITLED' : 'UPGRADE_REQUIRED',
           updatedAt: new Date().toISOString(),
