@@ -40,7 +40,7 @@ export function BusinessDiscovery({ onProvisioned }: BusinessDiscoveryProps) {
   const [existingDbkName, setExistingDbkName] = useState<string | null>(null);
   const [selectedBlueprintId, setSelectedBlueprintId] = useState('');
   const [selectedCapabilities, setSelectedCapabilities] = useState<string[]>([]);
-  const [selectedTier, setSelectedTier] = useState<SubscriptionTier>('FOUNDATION');
+  const [selectedTier, setSelectedTier] = useState<SubscriptionTier>('FREE');
   const [businessName, setBusinessName] = useState('');
   const [branchName, setBranchName] = useState('Mombasa');
   const [narrative, setNarrative] = useState('');
