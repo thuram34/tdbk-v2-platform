@@ -41,6 +41,7 @@ export function BusinessDiscovery({ onProvisioned }: BusinessDiscoveryProps) {
   const [selectedBlueprintId, setSelectedBlueprintId] = useState('');
   const [selectedCapabilities, setSelectedCapabilities] = useState<string[]>([]);
   const [selectedTier, setSelectedTier] = useState<SubscriptionTier>('FREE');
+  const [mpesaPhoneNumber, setMpesaPhoneNumber] = useState('');
   const [businessName, setBusinessName] = useState('');
   const [branchName, setBranchName] = useState('Mombasa');
   const [narrative, setNarrative] = useState('');
@@ -215,9 +216,26 @@ export function BusinessDiscovery({ onProvisioned }: BusinessDiscoveryProps) {
         throw new Error('TDBK saved the business, but the authoritative Business Context could not be verified.');
       }
 
-      // Initial provisioning never grants paid capabilities.
-      // Provisioning initializes entitlement-aware capability records; activation
-      // happens later through the subscription authority and the capability gate.
+      // A paid tier selection starts a server-priced M-Pesa checkout only after
+      // the DBK and Business DNA are verified. Checkout failures never undo the
+      // successfully provisioned FREE workspace or unlock paid capabilities.
+      if (selectedTier !== 'FREE') {
+        try {
+          const checkoutResponse = await fetch(`/api/subscriptions/${dbkId}/checkout`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ tier: selectedTier, phoneNumber: mpesaPhoneNumber.trim(), interval: 'MONTHLY' }),
+          });
+          const checkoutData = await checkoutResponse.json().catch(() => ({}));
+          if (!checkoutResponse.ok) {
+            window.alert(checkoutData.error?.message || 'Your workspace is ready, but subscription checkout could not start. You can retry from subscription settings.');
+          } else {
+            window.alert(`M-Pesa payment request sent for ${checkoutData.amount} KES. Complete the prompt on your phone; your selected tier activates after payment is verified.`);
+          }
+        } catch {
+          window.alert('Your workspace is ready, but checkout could not be reached. You can retry from subscription settings.');
+        }
+      }
       window.sessionStorage.removeItem('tdbk:onboarding:request-id');
       onProvisioned(dbkId);
     } catch (err: any) {
@@ -275,6 +293,21 @@ export function BusinessDiscovery({ onProvisioned }: BusinessDiscoveryProps) {
               <div className="text-xs font-bold uppercase tracking-wider text-neutral-500">Choose your TDBK tier</div>
               <h2 className="mt-1 text-xl font-bold">What level of workspace do you need?</h2>
               <p className="mt-2 text-sm text-neutral-600">TDBK builds the complete core workspace now. Your selected tier is saved with the registration; paid capabilities are activated only after the subscription authority verifies payment.</p>
+              {selectedTier !== 'FREE' && (
+                <label className="mt-4 block max-w-md">
+                  <span className="mb-2 block text-sm font-semibold text-neutral-700">M-Pesa phone number</span>
+                  <input
+                    value={mpesaPhoneNumber}
+                    onChange={(event) => setMpesaPhoneNumber(event.target.value)}
+                    inputMode="tel"
+                    autoComplete="tel"
+                    placeholder="2547XXXXXXXX"
+                    className="w-full rounded-xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-neutral-950"
+                    aria-describedby="mpesa-checkout-help"
+                  />
+                  <span id="mpesa-checkout-help" className="mt-2 block text-xs text-neutral-500">Use 2547XXXXXXXX or 2541XXXXXXXX. The server determines the tier price; payment is verified before paid tools activate.</span>
+                </label>
+              )}
               <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {([
                   { id: 'FREE', name: 'Free', detail: 'Core workspace and essential tools' },
@@ -332,7 +365,7 @@ export function BusinessDiscovery({ onProvisioned }: BusinessDiscoveryProps) {
               {narrative && <p className="mt-5 text-sm text-neutral-600 leading-relaxed">{narrative}</p>}
               <div className="mt-6"><div className="text-xs font-bold uppercase tracking-wider text-neutral-500 mb-3">Starting tools</div><div className="flex flex-wrap gap-2">{selectedCapabilities.map((id) => <span key={id} className="inline-flex items-center gap-1.5 rounded-full bg-neutral-100 px-3 py-1.5 text-xs"><WalletCards className="w-3.5 h-3.5" />{selectedBlueprint.supportedCapabilities?.find((capability) => capability.id === id)?.name || id}</span>)}</div><p className="mt-3 text-xs text-neutral-500">Included tools are part of your starting business setup. Optional tools are not activated during free provisioning; they become available after the required subscription tier is activated.</p></div>
             </section>
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">TDBK will provision the complete core DBK workspace now and save your selected tier ({selectedTier}). Paid capabilities remain locked until the subscription authority confirms payment; choosing a tier alone cannot unlock paid features.</div>
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">TDBK will provision the complete core DBK workspace now and save your selected tier ({selectedTier}). {selectedTier === 'FREE' ? 'No payment is required.' : 'An M-Pesa checkout request will be started for the selected tier. Paid capabilities remain locked until the subscription authority confirms payment.'}</div>
             <div className="flex justify-between"><button disabled={provisioning} onClick={() => setStep('CAPABILITIES')} className="inline-flex items-center gap-2 rounded-xl border border-neutral-200 bg-white px-4 py-3 text-sm font-semibold"><ChevronLeft className="w-4 h-4" /> Back</button><button disabled={provisioning} onClick={handleProvision} className="inline-flex items-center gap-2 rounded-xl bg-emerald-700 px-5 py-3 text-sm font-bold text-white disabled:opacity-50">{provisioning ? <><Loader2 className="w-4 h-4 animate-spin" /> Provisioning your workspace…</> : <>Create my workspace <ArrowRight className="w-4 h-4" /></>}</button></div>
           </div>
         )}
