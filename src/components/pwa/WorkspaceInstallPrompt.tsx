@@ -140,7 +140,7 @@ export function WorkspaceInstallPrompt({
 
             {installEvent ? (
               <button type="button" onClick={() => void install()} disabled={installing} className="mt-6 w-full rounded-2xl bg-neutral-950 px-5 py-3.5 text-sm font-bold text-white disabled:opacity-50">
-                {installing ? 'Installing…' : 'Install {displayName}'}
+                {installing ? 'Installing…' : `Install ${displayName}`}
               </button>
             ) : (
               <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
