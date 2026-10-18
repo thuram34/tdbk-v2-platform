@@ -6,6 +6,7 @@ import { provisioningService } from '../../platform/provisioning/provisioningSer
 import { experienceResolver } from '../../experience/experienceResolver';
 import { outboxRepository } from '../../persistence/firestore/repositories/outboxRepository';
 import { subscriptionService } from '../../platform/subscription/subscriptionService';
+import { subscriptionRepository } from '../../persistence/firestore/repositories/subscriptionRepository';
 import { handleSubscriptionPaymentConfirmed } from '../../platform/subscription/subscriptionPaymentHandler';
 
 const dbkId = 'canonical_journey_hardware_01';
@@ -137,17 +138,17 @@ describe('TDBK canonical client journey acceptance', () => {
     expect(preSubscriptionEnable.success).toBe(false);
     expect(preSubscriptionEnable.error?.code).toBe('AUTHORIZATION_ERROR');
 
-    await subscriptionService.createSubscription(masterContext(), {
+    const checkoutSubscription = await subscriptionService.createOwnerCheckoutSubscription(ownerContext(), {
       dbkId,
       tier: 'FOUNDATION',
       amount: 2500,
       currency: 'KES',
       interval: 'MONTHLY',
+      correlationId: 'canonical-subscription-correlation',
+    });
+    await subscriptionRepository.updateSubscriptionForDbk(dbkId, checkoutSubscription.subscriptionId, {
       paymentReference: 'canonical-subscription-payment-001',
       provider: 'SAFARICOM_MPESA',
-      status: 'TRIAL',
-      paymentStatus: 'PENDING',
-      correlationId: 'canonical-subscription-correlation',
     });
 
     await handleSubscriptionPaymentConfirmed({
