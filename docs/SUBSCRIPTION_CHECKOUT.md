@@ -26,3 +26,4 @@ Values must be positive integers. If a selected tier has no valid server-side pr
 - Confirm that the M-Pesa bridge's normalized provider reference matches the `checkoutRequestId` in the payment-confirmed event.
 - Run repository CI and an end-to-end test against the configured M-Pesa sandbox before production release.
 - A payment initiation response is not payment confirmation. Paid entitlements must only be enabled by the authoritative confirmation path.
+- Ambiguous STK transport failures remain pending to avoid duplicate charges; reconcile against provider truth before allowing a retry.
