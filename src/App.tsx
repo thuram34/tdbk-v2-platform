@@ -49,8 +49,12 @@ export default function App() {
         ? window.localStorage.getItem('tdbk:last-workspace')
         : null;
       const preferredDbk = requestedDbk || rememberedDbk;
-      if (preferredDbk && result.some((dbk) => dbk.dbkId === preferredDbk && dbk.status === 'ACTIVE')) {
+      const activeDbks = result.filter((dbk) => dbk.status === 'ACTIVE' && dbk.dbkId);
+      if (preferredDbk && activeDbks.some((dbk) => dbk.dbkId === preferredDbk)) {
         setDbkId(preferredDbk);
+      } else if (activeDbks.length === 1 && activeDbks[0].dbkId) {
+        // A single-business owner should land directly in their workspace after sign-in.
+        setDbkId(activeDbks[0].dbkId);
       }
     } catch (error) {
       console.error('Failed to load organizations:', error);
