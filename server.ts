@@ -1781,22 +1781,62 @@ async function startServer() {
   });
 
   // -------------------------------------------------------------
-  // PWA MANIFEST — workspace-aware install target
+  // DBK-BRANDED PWA — each active business has its own app identity.
+  // Only public branding fields are exposed; workspace APIs still enforce auth.
   // -------------------------------------------------------------
-  app.get('/manifest.webmanifest', (req: Request, res: Response) => {
+  app.get('/pwa-icon.svg', async (req: Request, res: Response) => {
+    const dbkId = typeof req.query.dbk === 'string' ? req.query.dbk.trim() : '';
+    let initials = 'T';
+    if (dbkId) {
+      try {
+        const dbk = await dbkRegistry.getDbkInternal(dbkId);
+        if (dbk?.status === 'ACTIVE') {
+          const words = dbk.displayName.trim().split(/\\s+/).filter(Boolean);
+          initials = (words.length > 1
+            ? `${words[0][0]}${words[1][0]}`
+            : (words[0] || 'T').slice(0, 2)).toUpperCase().replace(/[^A-Z0-9]/g, '') || 'T';
+        }
+      } catch {
+        // Keep the neutral TDBK icon if public branding cannot be resolved.
+      }
+    }
+    res.setHeader('Cache-Control', 'public, max-age=300');
+    res.type('image/svg+xml').send(
+      `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="112" fill="#111111"/><circle cx="256" cy="256" r="174" fill="#FBFBF9"/><text x="256" y="292" font-family="Arial,sans-serif" font-size="${initials.length > 1 ? 150 : 210}" font-weight="700" text-anchor="middle" fill="#111111">${initials}</text></svg>`
+    );
+  });
+
+  app.get('/manifest.webmanifest', async (req: Request, res: Response) => {
     const dbkId = typeof req.query.dbk === 'string' ? req.query.dbk.trim() : '';
     const startUrl = dbkId ? `/?dbk=${encodeURIComponent(dbkId)}` : '/';
+    let displayName = 'TDBK — Digital Business Space';
+    let description = 'Your TDBK digital business space.';
+    let activeDbkId = '';
+    if (dbkId) {
+      try {
+        const dbk = await dbkRegistry.getDbkInternal(dbkId);
+        if (dbk?.status === 'ACTIVE') {
+          displayName = dbk.displayName || dbk.legalName || 'Business Workspace';
+          description = `${dbk.sector} workspace for ${displayName}.`;
+          activeDbkId = dbk.dbkId || dbkId;
+        }
+      } catch {
+        // Invalid/unavailable identities fall back to the neutral TDBK manifest.
+      }
+    }
+    res.setHeader('Cache-Control', 'no-store');
     res.type('application/manifest+json').json({
-      name: dbkId ? 'TDBK — Business Workspace' : 'TDBK — Digital Business Space',
-      short_name: 'TDBK',
-      description: 'Your provisioned TDBK business workspace.',
+      id: activeDbkId ? `/?dbk=${encodeURIComponent(activeDbkId)}` : '/',
+      name: displayName,
+      short_name: displayName.length > 16 ? `${displayName.slice(0, 15).trim()}…` : displayName,
+      description,
       start_url: startUrl,
       scope: '/',
       display: 'standalone',
       background_color: '#FBFBF9',
       theme_color: '#111111',
       icons: [
-        { src: '/pwa-icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any maskable' },
+        { src: activeDbkId ? `/pwa-icon.svg?dbk=${encodeURIComponent(activeDbkId)}` : '/pwa-icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any maskable' },
       ],
     });
   });
