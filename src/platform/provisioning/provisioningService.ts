@@ -386,7 +386,7 @@ export class ProvisioningService {
       sector: bp.sector,
       blueprintId: bp.id,
       blueprintVersion: bp.version,
-      subscriptionTier: request.subscriptionTier || 'FOUNDATION',
+      subscriptionTier: request.subscriptionTier || 'FREE',
       status: 'PROVISIONING',
       masterOwner: context.principal.id,
       createdAt: now,
