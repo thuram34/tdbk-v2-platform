@@ -196,7 +196,7 @@ export default function App() {
     return (
       <DbkApp
         dbkId={dbkId}
-        autoOpenInstall={justProvisioned}
+        autoOpenInstall={true}
         onLogout={async () => {
           await signOutUser();
           window.history.replaceState({}, '', window.location.pathname);
