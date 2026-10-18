@@ -15,7 +15,6 @@ import { businessDnaManager } from '../../blueprint/dnaManager';
 import { entitlementEngine } from '../../capability/entitlement';
 import { dbkCapabilityManager } from '../../capability/dbkCapabilityManager';
 import { capabilityRegistry } from '../../capability/registry';
-import { CapabilityLifecycleState } from '../../capability/types';
 import { workflowEngine } from '../../orchestration/workflow/engine';
 import { eventBus } from '../../orchestration/events/eventBus';
 import { idempotencyRepository } from '../../persistence/firestore/repositories/idempotencyRepository';
