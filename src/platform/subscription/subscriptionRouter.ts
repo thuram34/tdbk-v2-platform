@@ -97,7 +97,9 @@ subscriptionRouter.post('/:dbkId/checkout', async (req, res) => {
       });
       return res.status(202).json({ subscriptionId: subscription.subscriptionId, tier: subscription.tier, amount: subscription.amount, currency: 'KES', payment });
     } catch (paymentError) {
-      await subscriptionRepository.updateSubscriptionForDbk(dbkId, subscription.subscriptionId, { paymentStatus: 'FAILED', status: 'PAST_DUE' });
+      // STK initiation failures can be ambiguous: the provider may have accepted
+      // the request before the transport failed. Keep the durable checkout pending
+      // to prevent a second charge until provider truth is reconciled.
       throw paymentError;
     }
   } catch (error) { return sendError(res, error); }
