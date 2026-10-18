@@ -41,6 +41,55 @@ subscriptionRouter.post('/', async (req, res) => {
 });
 
 
+subscriptionRouter.post('/:dbkId/checkout', async (req, res) => {
+  try {
+    const context = await contextFor(req);
+    const dbkId = req.params.dbkId;
+    const tier = req.body?.tier;
+    const allowedTiers = ['FOUNDATION', 'GROWTH', 'PRO', 'ENTERPRISE'] as const;
+    if (!allowedTiers.includes(tier)) {
+      return res.status(400).json({ error: { code: 'INVALID_TIER', message: 'Choose a valid paid TDBK tier.' } });
+    }
+    const priceKey = `TDBK_TIER_PRICE_KES_${tier}`;
+    const configuredAmount = process.env[priceKey];
+    if (!configuredAmount || !/^\\d+$/.test(configuredAmount) || !Number.isSafeInteger(Number(configuredAmount)) || Number(configuredAmount) <= 0) {
+      return res.status(503).json({ error: { code: 'TIER_PRICE_NOT_CONFIGURED', message: `The server price for ${tier} is not configured. No payment was initiated.`, tier } });
+    }
+    const phoneNumber = String(req.body?.phoneNumber || '').trim();
+    if (!/^254[17]\\d{8}$/.test(phoneNumber)) {
+      return res.status(400).json({ error: { code: 'INVALID_PHONE_NUMBER', message: 'Use a Kenyan M-Pesa number in 2547XXXXXXXX or 2541XXXXXXXX format.' } });
+    }
+    await dbkRegistry.getDbk(context, dbkId);
+    const correlationId = context.correlationId || context.requestId;
+    const subscription = await subscriptionService.createOwnerCheckoutSubscription(context, {
+      dbkId,
+      tier,
+      amount: Number(configuredAmount),
+      currency: 'KES',
+      interval: req.body?.interval === 'ANNUAL' ? 'ANNUAL' : 'MONTHLY',
+      correlationId,
+    });
+    try {
+      const payment = await mpesaBridge.execute(context, 'STK_PUSH', {
+        phoneNumber,
+        amount: subscription.amount,
+        accountReference: `TDBK-${dbkId}-${subscription.subscriptionId}`,
+        transactionDesc: `TDBK subscription ${subscription.tier}`,
+      });
+      await subscriptionRepository.updateSubscriptionForDbk(dbkId, subscription.subscriptionId, {
+        paymentReference: payment.providerReference,
+        provider: payment.provider || 'SAFARICOM_MPESA',
+        paymentStatus: 'PENDING',
+        status: 'TRIAL',
+      });
+      return res.status(202).json({ subscriptionId: subscription.subscriptionId, tier: subscription.tier, amount: subscription.amount, currency: 'KES', payment });
+    } catch (paymentError) {
+      await subscriptionRepository.updateSubscriptionForDbk(dbkId, subscription.subscriptionId, { paymentStatus: 'FAILED', status: 'PAST_DUE' });
+      throw paymentError;
+    }
+  } catch (error) { return sendError(res, error); }
+});
+
 subscriptionRouter.post('/:dbkId/:subscriptionId/pay', async (req, res) => {
   try {
     const context = await contextFor(req);
