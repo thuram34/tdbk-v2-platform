@@ -66,7 +66,7 @@ subscriptionRouter.post('/:dbkId/checkout', async (req, res) => {
       tier,
       amount: Number(configuredAmount),
       currency: 'KES',
-      interval: req.body?.interval === 'ANNUAL' ? 'ANNUAL' : 'MONTHLY',
+      interval: 'MONTHLY',
       correlationId,
     });
     try {
