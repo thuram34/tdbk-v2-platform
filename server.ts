@@ -1808,7 +1808,6 @@ async function startServer() {
 
   app.get('/manifest.webmanifest', async (req: Request, res: Response) => {
     const dbkId = typeof req.query.dbk === 'string' ? req.query.dbk.trim() : '';
-    const startUrl = dbkId ? `/?dbk=${encodeURIComponent(dbkId)}` : '/';
     let displayName = 'TDBK — Digital Business Space';
     let description = 'Your TDBK digital business space.';
     let activeDbkId = '';
@@ -1824,6 +1823,7 @@ async function startServer() {
         // Invalid/unavailable identities fall back to the neutral TDBK manifest.
       }
     }
+    const startUrl = activeDbkId ? `/?dbk=${encodeURIComponent(activeDbkId)}` : '/';
     res.setHeader('Cache-Control', 'no-store');
     res.type('application/manifest+json').json({
       id: activeDbkId ? `/?dbk=${encodeURIComponent(activeDbkId)}` : '/',
