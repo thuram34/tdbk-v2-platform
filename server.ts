@@ -1791,7 +1791,7 @@ async function startServer() {
       try {
         const dbk = await dbkRegistry.getDbkInternal(dbkId);
         if (dbk?.status === 'ACTIVE') {
-          const words = dbk.displayName.trim().split(/\\s+/).filter(Boolean);
+          const words = dbk.displayName.trim().split(/\s+/).filter(Boolean);
           initials = (words.length > 1
             ? `${words[0][0]}${words[1][0]}`
             : (words[0] || 'T').slice(0, 2)).toUpperCase().replace(/[^A-Z0-9]/g, '') || 'T';
