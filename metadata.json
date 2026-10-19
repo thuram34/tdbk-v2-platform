@@ -1,6 +1,0 @@
-{
-  "name": "TDBK V2 Platform Foundation",
-  "description": "Bring your business into the digital space with DBK — connected tools, services and experiences built for Kenyan businesses and organisations.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}

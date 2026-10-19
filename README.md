@@ -1,71 +1,40 @@
-# Thuram Digital Bridge Kenya (TDBK) V2 Platform
+# TDBK Chemist Pro
 
-TDBK V2 is a robust, multi-tenant kernel, blueprint validation, and dynamic experience projection engine designed for Kenyan micro, small, and medium enterprises (MSMEs) and diversified business owners.
+Standalone React + TypeScript retail chemist POS, designed for a local-first single-device workflow.
 
----
-
-## 1. System Purpose
-
-TDBK V2 provides an enterprise-grade digital operating platform that empowers business operators across multiple sectors (Education, Retail/Hardware, Healthcare/Clinics, Hospitality, Logistics, Salons, and Professional Services) to run independent Digital Business Kits (DBKs) with strong tenant boundaries, automated workflow orchestration, dynamic UI projection, and outbox event reliability.
-
----
-
-## 2. 3-Tier Authorization Model
-
-TDBK V2 enforces a strict, hierarchical 3-tier authorization model:
-
-1. **Tier 1 — TDBK Master Authority (`TDBK_MASTER_ADMIN`)**:
-   - Platform-wide governance, global registry management, capability suspension, and comprehensive cross-tenant audit logging.
-   - Master authority is isolated and cannot be accessed by tenant administrators or business owners.
-2. **Tier 2 — Business Owner / Portfolio (`BUSINESS_OWNER` / `OWNER_OPERATOR`)**:
-   - Multi-DBK portfolio management, provisioning new DBKs into the owner portfolio, and cross-DBK context switching.
-   - Strictly prohibited from escalating to TDBK Master operations or accessing other owners' DBKs.
-3. **Tier 3 — DBK Operational Scope (`TENANT_ADMIN`, `OPERATOR`, `STAFF`)**:
-   - Day-to-day operations locked strictly to the user's assigned `tenantId` (DBK ID).
-   - Zero access to cross-tenant records, other DBKs, or platform portfolio controls.
-
----
-
-## 3. Multi-DBK Owner Portfolio Model
-
-Diversified business owners can own and operate arbitrary numbers of DBKs (e.g. a School, a Pharmacy, a Hardware Store, and a Fleet Depot):
-- **Unified Portfolio Registry**: The owner can list all their active DBKs without leaking data between them.
-- **Context Switching**: Switching between DBKs recompiles the client workspace, resetting sector taxonomy, business DNA, navigation menus, and operational views.
-- **Independent Lifecycles**: Each DBK maintains its own branches, capability states, billing tiers, and data boundaries.
-
----
-
-## 4. DBK Tenant Isolation
-
-- **Partitioned Storage**: All database entities, branch structures, outbox messages, and capability states are partitioned by `dbkId`.
-- **Runtime Boundary Enforcement**: `BlueprintValidator.assertTenantAccess` validates every inbound request to ensure principals cannot read or mutate data outside their assigned tenant ID.
-- **Branch Scoping**: Multi-branch setups (HQ, outlets, satellite stores) are strictly contained within their parent DBK.
-
----
-
-## 5. Blueprint & Capability Isolation
-
-- **Sector-Specific Blueprints**: Blueprints (`school_v1`, `hardware_v1`, `clinic_v1`, `hotel_v1`, `logistics_v1`, etc.) declare strict capability bindings.
-- **Zero Leakage**: Capabilities designed for one industry cannot leak into or be discovered by another industry DBK (e.g. POS registers cannot attach to schools; academic grades cannot attach to hardware stores).
-- **Commercial Entitlement Tiers**: Capabilities are evaluated against commercial subscription tiers (Starter, Growth, Scale, Enterprise) before activation.
-
----
-
-## 6. Development & Verification Commands
+## Run locally
 
 ```bash
-# Execute full Vitest test suite (11 suites, 112 tests)
-npm test
-
-# Run TypeScript type validation
+cd apps/chemist-pro
+npm install --legacy-peer-deps
 npm run typecheck
-
-# Run ESLint codebase validation
-npm run lint
-
-# Build full-stack application (client bundle + CommonJS server)
+npm test
 npm run build
-
-# Start production server
-npm start
+npm run dev
 ```
+
+## Deploy a hosted static build
+
+Import this repository into Vercel with **Root Directory** set to `apps/chemist-pro`. Use the Vite framework preset, `npm run build` as the build command and `dist` as the output directory. `vercel.json` configures SPA fallback routing. This is a static frontend; hosting does not create a backend or make local records cloud-synced.
+
+## Handover boundary — read before real use
+
+The current build supports a local catalogue, cash checkout, local stock deduction, sales history, itemized printable receipts, expiry-date exclusion, and JSON backup/restore. Records are stored in this browser's local storage. They do **not** sync across devices and can be lost if browser storage is cleared or the device fails. The app starts with an empty catalogue; enter only physically verified opening stock before any trial.
+
+This build does **not** provide authenticated users, cloud persistence, a trusted server-side stock ledger, multi-device conflict handling, verified M-Pesa, KRA eTIMS fiscal receipts, or complete pharmacy batch/dispensing controls. The printable receipt explicitly is not an eTIMS receipt. It is suitable only for a controlled single-device trial after the owner accepts these limitations and confirms an external backup routine. Do not enter patient-identifiable or clinical data.
+
+## Before operating
+
+1. Replace sample products with a physically verified stock count, including batch and expiry details.
+2. Export a JSON backup before the first shift and after each shift; store copies off-device.
+3. Test a cash sale, receipt print, stock deduction, expired-item exclusion, backup export, and restore.
+4. Confirm that totals and stock match the physical opening count.
+5. Do not enable or advertise M-Pesa/eTIMS as available until the server integration is deployed and end-to-end tested.
+
+## Production gates still required
+
+1. Authenticated multi-user access and a trusted server-side stock ledger.
+2. Cloud persistence, conflict-safe synchronization and audit logging.
+3. Batch/expiry allocation, returns, purchasing and financial reconciliation.
+4. Verified Daraja M-Pesa callback processing with server-authoritative payment status.
+5. eTIMS support where required, automated backups, monitoring and production security tests.
