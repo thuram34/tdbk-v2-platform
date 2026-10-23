@@ -1,0 +1,35 @@
+version: 2.1
+
+jobs:
+  verify-tdbk:
+    docker:
+      - image: cimg/node:22.14
+    working_directory: ~/project
+    steps:
+      - checkout
+      - run:
+          name: Install locked dependencies
+          command: npm ci
+      - run:
+          name: TypeScript typecheck
+          command: npm run typecheck
+      - run:
+          name: ESLint
+          command: npm run lint
+      - run:
+          name: Capability tests
+          command: npm run test:capabilities
+      - run:
+          name: Flow tests
+          command: npm run test:flow
+      - run:
+          name: Full automated test suite
+          command: npm test
+      - run:
+          name: Production build
+          command: npm run build
+
+workflows:
+  tdbk-engineering-gates:
+    jobs:
+      - verify-tdbk
