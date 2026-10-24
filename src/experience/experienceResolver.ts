@@ -103,6 +103,7 @@ export class ExperienceResolver {
       navigation,
       dashboardWidgets,
       discoveryItems,
+      connections: [],
       currentPrincipal: {
         userId: context.principal.id,
         tenantId: context.principal.tenantId,
@@ -211,7 +212,7 @@ export class ExperienceResolver {
           action: 'SUPPLIER_INVOICE_SUBMITTED',
           targetResource: `dbk:${req.targetDbkId}`,
           outcome: invoiceResult.status === 'DISPUTED' ? 'DENIED' : 'ALLOWED',
-          details: invoiceResult,
+          details: { ...invoiceResult } as Record<string, unknown>,
         }));
         return {
           success: true,
