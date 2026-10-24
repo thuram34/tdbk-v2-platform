@@ -272,7 +272,7 @@ export class TokenVerifier {
         );
       }
 
-      const tdbk = decoded.tdbk && typeof decoded.tdbk === 'object' ? decoded.tdbk : {};
+      const tdbk: Record<string, unknown> = decoded.tdbk && typeof decoded.tdbk === 'object' ? decoded.tdbk : {};
       const uid = decoded.uid || decoded.user_id || decoded.sub;
       let roles = Array.isArray(tdbk.roles) ? tdbk.roles : (Array.isArray(decoded.roles) ? decoded.roles : []);
       let permissions = Array.isArray(tdbk.permissions) ? tdbk.permissions : (Array.isArray(decoded.permissions) ? decoded.permissions : []);
