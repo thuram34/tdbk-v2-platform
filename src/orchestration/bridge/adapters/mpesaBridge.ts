@@ -6,6 +6,7 @@
 import {
   Bridge,
   BridgeHealthStatus,
+  BridgeSideEffectCapabilities,
   CallbackVerificationResult,
   NormalizedBridgeResult,
 } from '../types';
@@ -51,8 +52,11 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
   public readonly provider = 'SAFARICOM_MPESA';
   public readonly capabilityId = 'mpesa_bridge';
   public readonly version = 'v1.0';
+  public readonly sideEffectCapabilities: BridgeSideEffectCapabilities = {
+    providerIdempotency: false,
+    providerReconciliation: true,
+  };
 
-  
   public async health(context: SecurityContext): Promise<{ status: BridgeHealthStatus; details?: Record<string, unknown> }> {
     const tenantId = context.tenantContext?.tenantId || context.principal.tenantId;
     if (!tenantId) {

@@ -9,12 +9,15 @@ import { configManager } from '../configuration/configManager';
 
 export interface DecodedToken {
   uid: string;
+  sub?: string;
+  user_id?: string;
   email?: string;
-  isMaster?: boolean;
+  isMaster?: boolean | string;
   tenantId?: string | null;
   branchId?: string | null;
   roles?: string[];
   permissions?: string[];
+  tdbk?: Record<string, unknown>;
   iat?: number;
   exp?: number;
   iss?: string;
@@ -282,8 +285,8 @@ export class TokenVerifier {
       const isMaster = tdbk.isMaster !== undefined
         ? (tdbk.isMaster === true || tdbk.isMaster === 'true')
         : (decoded.isMaster === true || decoded.isMaster === 'true' || roles.includes('TDBK_MASTER_ADMIN'));
-      const tenantId = tdbk.tenantId !== undefined ? tdbk.tenantId : (decoded.tenantId ?? null);
-      const branchId = tdbk.branchId !== undefined ? tdbk.branchId : (decoded.branchId ?? null);
+      const tenantId = tdbk.tenantId !== undefined ? (tdbk.tenantId as string) : (decoded.tenantId ?? null);
+      const branchId = tdbk.branchId !== undefined ? (tdbk.branchId as string) : (decoded.branchId ?? null);
 
       return {
         id: uid,
