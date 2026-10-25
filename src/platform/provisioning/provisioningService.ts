@@ -20,7 +20,7 @@ import { workflowEngine } from '../../orchestration/workflow/engine';
 import { eventBus } from '../../orchestration/events/eventBus';
 import { idempotencyRepository } from '../../persistence/firestore/repositories/idempotencyRepository';
 import { auditLogger } from '../../kernel/audit/auditLogger';
-import { KernelError } from '../../kernel/errors/kernelErrors';
+import { KernelError, AuthorizationError } from '../../kernel/errors/kernelErrors';
 import { SectorType } from '../../blueprint/types';
 
 export class ProvisioningService {
@@ -288,6 +288,19 @@ export class ProvisioningService {
     // 1. Security Assertion: Authorized Business Owner or Master Admin can provision DBKs
     masterAuthority.assertOwnerOrMasterAuthority(context.principal, 'provisionDbk', context.requestId);
 
+    // Business owners cannot self-assign paid subscription tiers; only TDBK MASTER may assign them.
+    if (
+      !masterAuthority.isMasterAdmin(context.principal) &&
+      request.subscriptionTier &&
+      request.subscriptionTier !== 'FOUNDATION' &&
+      request.subscriptionTier !== 'FREE'
+    ) {
+      throw new AuthorizationError(
+        'Business owners cannot self-assign a paid subscription tier. Subscription tier assignment requires TDBK MASTER authority.',
+        context.requestId
+      );
+    }
+
     const correlationId = request.correlationId || context.correlationId || `corr_prov_${request.dbkId}_${Date.now()}`;
     const idempotencyKey = request.idempotencyKey || `idem_${request.dbkId}`;
 
@@ -346,6 +359,7 @@ export class ProvisioningService {
 
     try {
     // 4. Prevent duplicate creation under same dbkId with different keys
+    let isRecovery = false;
     if (await dbkRegistry.hasDbk(request.dbkId)) {
       const existing = await dbkRegistry.getDbk(context, request.dbkId);
       if (existing && existing.status !== 'PROVISIONING_FAILED') {
@@ -356,6 +370,7 @@ export class ProvisioningService {
           context.requestId
         );
       }
+      isRecovery = true;
     }
 
     // 5. Create DBK in PROVISIONING state
@@ -390,7 +405,11 @@ export class ProvisioningService {
       metadata: request.customPreferences || {},
     };
 
-    await dbkRegistry.saveDbk(context, initialDbk);
+    if (isRecovery) {
+      await dbkRegistry.beginProvisioningRecovery(context, request.dbkId, `Provisioning recovery: ${correlationId}`);
+    } else {
+      await dbkRegistry.saveDbk(context, initialDbk);
+    }
 
     // 6. Emit DBK_PROVISIONING_REQUESTED & STARTED
     eventBus.publishEvent(
@@ -406,22 +425,24 @@ export class ProvisioningService {
       'v1.0'
     );
 
-    auditLogger.logEvent(
-      'SECURITY_CONFIGURATION_CHANGE',
-      context.principal.id,
-      'DBK_CREATED',
-      `dbk:${request.dbkId}`,
-      'ALLOWED',
-      {
-        tenantId: request.dbkId,
-        requestId: context.requestId,
-        details: {
-          blueprintId: bp.id,
-          subscriptionTier: initialDbk.subscriptionTier,
-          correlationId,
-        },
-      }
-    );
+    if (!isRecovery) {
+      auditLogger.logEvent(
+        'SECURITY_CONFIGURATION_CHANGE',
+        context.principal.id,
+        'DBK_CREATED',
+        `dbk:${request.dbkId}`,
+        'ALLOWED',
+        {
+          tenantId: request.dbkId,
+          requestId: context.requestId,
+          details: {
+            blueprintId: bp.id,
+            subscriptionTier: initialDbk.subscriptionTier,
+            correlationId,
+          },
+        }
+      );
+    }
 
     // 7. Define & Execute Provisioning Workflow using Phase 3 Engine
     const workflowSteps = [
