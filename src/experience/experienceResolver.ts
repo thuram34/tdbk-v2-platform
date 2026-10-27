@@ -86,6 +86,8 @@ export class ExperienceResolver {
       displayName: workspace.displayName,
       sector: workspace.sector,
       status: workspace.status,
+      provisioningStage: workspace.provisioningStage,
+      shellReadiness: workspace.shellReadiness,
       subscriptionTier: workspace.subscriptionTier,
       workspaceVersion: workspace.workspaceVersion,
       configurationVersion: workspace.configurationVersion,
@@ -103,6 +105,9 @@ export class ExperienceResolver {
       navigation,
       dashboardWidgets,
       discoveryItems,
+      // Keep the live workspace projection bound to the same authoritative
+      // connector readiness report used by SettingsView and the shell status.
+      connections: workspace.connections,
       currentPrincipal: {
         userId: context.principal.id,
         tenantId: context.principal.tenantId,
