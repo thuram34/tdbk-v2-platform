@@ -288,12 +288,14 @@ export class ProvisioningService {
     // 1. Security Assertion: Authorized Business Owner or Master Admin can provision DBKs
     masterAuthority.assertOwnerOrMasterAuthority(context.principal, 'provisionDbk', context.requestId);
 
-    // Business Owners may only provision FOUNDATION-tier DBKs. Paid tiers require
-    // TDBK Master commercial authority to prevent unauthorized entitlement grants.
+    // Business Owners may provision FREE or FOUNDATION tier DBKs. Commercial paid
+    // tiers (GROWTH, PRO, ENTERPRISE) require TDBK Master authority to prevent
+    // unauthorized entitlement grants.
+    const PAID_COMMERCIAL_TIERS = new Set(['GROWTH', 'PRO', 'ENTERPRISE']);
     if (
       !masterAuthority.isMasterAdmin(context.principal) &&
       request.subscriptionTier &&
-      request.subscriptionTier !== 'FOUNDATION'
+      PAID_COMMERCIAL_TIERS.has(request.subscriptionTier)
     ) {
       throw new AuthorizationError(
         'Business Owners may only provision FOUNDATION-tier DBKs. Paid subscription tiers require TDBK Master commercial authority.',
