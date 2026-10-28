@@ -136,6 +136,25 @@ describe('TDBK canonical client journey acceptance', () => {
     );
     expect(preSubscriptionEnable.success).toBe(true);
 
+    await firestoreClient.set(
+      `/tenants/${dbkId}/entities/stock_control/records/${inventoryRecordId}`,
+      {
+        id: inventoryRecordId,
+        entityType: 'stock_control',
+        primaryIdentifier: inventoryRecordId,
+        status: 'ACTIVE',
+        branchId,
+        attributes: {
+          quantityOnHand: 5,
+          unitPrice: 250,
+          itemName: 'Canonical Test Item',
+          skuCode: 'CANONICAL-001',
+        },
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    );
+
     // FREE tier must support a real sale, not just registration and workspace viewing.
     const freeSale = await experienceResolver.dispatchCommand(
       cashierContext(branchId),
@@ -210,25 +229,6 @@ describe('TDBK canonical client journey acceptance', () => {
     expect(resolved.dbkId).toBe(dbkId);
     expect(resolved.operationalState).toBe('ACTIVE');
     expect(resolved.activeBranch.branchId).toBe(branchId);
-
-    await firestoreClient.set(
-      `/tenants/${dbkId}/entities/stock_control/records/${inventoryRecordId}`,
-      {
-        id: inventoryRecordId,
-        entityType: 'stock_control',
-        primaryIdentifier: inventoryRecordId,
-        status: 'ACTIVE',
-        branchId,
-        attributes: {
-          quantityOnHand: 5,
-          unitPrice: 250,
-          itemName: 'Canonical Test Item',
-          skuCode: 'CANONICAL-001',
-        },
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      },
-    );
 
     const sale = await experienceResolver.dispatchCommand(
       cashierContext(branchId),
