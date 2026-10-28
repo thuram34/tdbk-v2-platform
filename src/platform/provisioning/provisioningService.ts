@@ -20,7 +20,7 @@ import { workflowEngine } from '../../orchestration/workflow/engine';
 import { eventBus } from '../../orchestration/events/eventBus';
 import { idempotencyRepository } from '../../persistence/firestore/repositories/idempotencyRepository';
 import { auditLogger } from '../../kernel/audit/auditLogger';
-import { KernelError } from '../../kernel/errors/kernelErrors';
+import { KernelError, AuthorizationError } from '../../kernel/errors/kernelErrors';
 import { SectorType } from '../../blueprint/types';
 
 export class ProvisioningService {
@@ -288,6 +288,21 @@ export class ProvisioningService {
     // 1. Security Assertion: Authorized Business Owner or Master Admin can provision DBKs
     masterAuthority.assertOwnerOrMasterAuthority(context.principal, 'provisionDbk', context.requestId);
 
+    // Business Owners may provision FREE or FOUNDATION tier DBKs. Commercial paid
+    // tiers (GROWTH, PRO, ENTERPRISE) require TDBK Master authority to prevent
+    // unauthorized entitlement grants.
+    const PAID_COMMERCIAL_TIERS = new Set(['GROWTH', 'PRO', 'ENTERPRISE']);
+    if (
+      !masterAuthority.isMasterAdmin(context.principal) &&
+      request.subscriptionTier &&
+      PAID_COMMERCIAL_TIERS.has(request.subscriptionTier)
+    ) {
+      throw new AuthorizationError(
+        'Business Owners may only provision FOUNDATION-tier DBKs. Paid subscription tiers require TDBK Master commercial authority.',
+        context.requestId
+      );
+    }
+
     const correlationId = request.correlationId || context.correlationId || `corr_prov_${request.dbkId}_${Date.now()}`;
     const idempotencyKey = request.idempotencyKey || `idem_${request.dbkId}`;
 
@@ -345,54 +360,83 @@ export class ProvisioningService {
     }
 
     try {
-    // 4. Prevent duplicate creation under same dbkId with different keys
-    if (await dbkRegistry.hasDbk(request.dbkId)) {
-      const existing = await dbkRegistry.getDbk(context, request.dbkId);
-      if (existing && existing.status !== 'PROVISIONING_FAILED') {
+    // 4. Prevent duplicate creation; allow recovery from PROVISIONING_FAILED.
+    let initialDbk: DbkIdentity;
+    const existingDbk = (await dbkRegistry.hasDbk(request.dbkId))
+      ? await dbkRegistry.getDbk(context, request.dbkId)
+      : undefined;
+
+    if (existingDbk) {
+      if (existingDbk.status !== 'PROVISIONING_FAILED') {
         throw new KernelError(
           'CONFLICT',
-          `DBK with ID '${request.dbkId}' already exists in state '${existing.status}'`,
+          `DBK with ID '${request.dbkId}' already exists in state '${existingDbk.status}'`,
           409,
           context.requestId
         );
       }
+      // Recovery path: reset status to PROVISIONING using the authoritative recovery
+      // primitive. The existing identity (legalName, blueprintId, tier, etc.) is
+      // preserved — only the lifecycle state is reset.
+      initialDbk = await dbkRegistry.beginProvisioningRecovery(
+        context,
+        request.dbkId,
+        'Provisioning recovery initiated'
+      );
+    } else {
+      // 5. Create DBK in PROVISIONING state
+      initialDbk = {
+        dbkId: request.dbkId,
+        legalName: request.legalName,
+        displayName: request.displayName || request.legalName,
+        sector: bp.sector,
+        blueprintId: bp.id,
+        blueprintVersion: bp.version,
+        subscriptionTier: request.subscriptionTier || 'FOUNDATION',
+        status: 'PROVISIONING',
+        masterOwner: context.principal.id,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        createdBy: context.principal.id,
+        configurationVersion: 1,
+        workspaceVersion: 1,
+        branchTopology: [],
+        lifecycleHistory: [
+          {
+            transitionId: `trans_init_${Date.now()}`,
+            fromStatus: 'PROVISIONING',
+            toStatus: 'PROVISIONING',
+            actorId: context.principal.id,
+            actorRole: context.principal.roles[0] || 'TDBK_MASTER_ADMIN',
+            timestamp: new Date().toISOString(),
+            reason: 'Provisioning initiated',
+            correlationId,
+          },
+        ],
+        metadata: request.customPreferences || {},
+      };
+
+      await dbkRegistry.saveDbk(context, initialDbk);
+
+      auditLogger.logEvent(
+        'SECURITY_CONFIGURATION_CHANGE',
+        context.principal.id,
+        'DBK_CREATED',
+        `dbk:${request.dbkId}`,
+        'ALLOWED',
+        {
+          tenantId: request.dbkId,
+          requestId: context.requestId,
+          details: {
+            blueprintId: bp.id,
+            subscriptionTier: initialDbk.subscriptionTier,
+            correlationId,
+          },
+        }
+      );
     }
 
-    // 5. Create DBK in PROVISIONING state
-    const initialDbk: DbkIdentity = {
-      dbkId: request.dbkId,
-      legalName: request.legalName,
-      displayName: request.displayName || request.legalName,
-      sector: bp.sector,
-      blueprintId: bp.id,
-      blueprintVersion: bp.version,
-      subscriptionTier: request.subscriptionTier || 'FOUNDATION',
-      status: 'PROVISIONING',
-      masterOwner: context.principal.id,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      createdBy: context.principal.id,
-      configurationVersion: 1,
-      workspaceVersion: 1,
-      branchTopology: [],
-      lifecycleHistory: [
-        {
-          transitionId: `trans_init_${Date.now()}`,
-          fromStatus: 'PROVISIONING',
-          toStatus: 'PROVISIONING',
-          actorId: context.principal.id,
-          actorRole: context.principal.roles[0] || 'TDBK_MASTER_ADMIN',
-          timestamp: new Date().toISOString(),
-          reason: 'Provisioning initiated',
-          correlationId,
-        },
-      ],
-      metadata: request.customPreferences || {},
-    };
-
-    await dbkRegistry.saveDbk(context, initialDbk);
-
-    // 6. Emit DBK_PROVISIONING_REQUESTED & STARTED
+    // 6. Emit DBK_PROVISIONING_REQUESTED (fires for both new provisioning and recovery)
     eventBus.publishEvent(
       context,
       'dbk.provisioning_requested.v1',
@@ -404,23 +448,6 @@ export class ProvisioningService {
         correlationId,
       },
       'v1.0'
-    );
-
-    auditLogger.logEvent(
-      'SECURITY_CONFIGURATION_CHANGE',
-      context.principal.id,
-      'DBK_CREATED',
-      `dbk:${request.dbkId}`,
-      'ALLOWED',
-      {
-        tenantId: request.dbkId,
-        requestId: context.requestId,
-        details: {
-          blueprintId: bp.id,
-          subscriptionTier: initialDbk.subscriptionTier,
-          correlationId,
-        },
-      }
     );
 
     // 7. Define & Execute Provisioning Workflow using Phase 3 Engine
