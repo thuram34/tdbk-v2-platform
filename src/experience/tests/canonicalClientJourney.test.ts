@@ -134,8 +134,29 @@ describe('TDBK canonical client journey acceptance', () => {
         payload: { capabilityId: 'sales_counter' },
       },
     );
-    expect(preSubscriptionEnable.success).toBe(false);
-    expect(preSubscriptionEnable.error?.code).toBe('AUTHORIZATION_ERROR');
+    expect(preSubscriptionEnable.success).toBe(true);
+
+    // FREE tier must support a real sale, not just registration and workspace viewing.
+    const freeSale = await experienceResolver.dispatchCommand(
+      cashierContext(branchId),
+      {
+        commandType: 'EXECUTE_SALE',
+        targetDbkId: dbkId,
+        payload: {
+          saleId: 'canonical-free-sale-001',
+          branchId,
+          items: [{ inventoryRecordId, quantity: 1 }],
+          paymentStatus: 'PAID',
+        },
+      },
+    );
+    expect(freeSale.success).toBe(true);
+    expect(freeSale.result).toMatchObject({
+      saleId: 'canonical-free-sale-001',
+      totalAmountKes: 250,
+      currency: 'KES',
+      status: 'COMPLETED',
+    });
 
     await subscriptionService.createSubscription(masterContext(), {
       dbkId,
@@ -245,7 +266,7 @@ describe('TDBK canonical client journey acceptance', () => {
     );
 
     expect(persistedSale).toBeTruthy();
-    expect((persistedStock as any)?.attributes?.quantityOnHand).toBe(3);
+    expect((persistedStock as any)?.attributes?.quantityOnHand).toBe(2);
     expect(persistedOutbox).toBeTruthy();
   });
 });
