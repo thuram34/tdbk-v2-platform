@@ -1308,13 +1308,13 @@ export const CommercialBridge: React.FC<CommercialBridgeProps> = ({
                 </select>
               </label>
               <label className="text-xs font-semibold text-neutral-700">Quantity
-                <input type="number" min="1" value={quoteQuantity} onChange={(e) => setQuoteQuantity(Math.max(1, Number(e.target.value) || 1))} className="mt-1.5 w-full px-3 py-2.5 rounded-xl border border-neutral-200 bg-white text-sm" />
+                <input type="number" min="1" max="1000" step="1" inputMode="numeric" aria-label="Quote quantity" value={quoteQuantity} onChange={(e) => setQuoteQuantity(Math.min(1000, Math.max(1, Number(e.target.value) || 1)))} className="mt-1.5 w-full px-3 py-2.5 rounded-xl border border-neutral-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-neutral-900" />
               </label>
               <label className="text-xs font-semibold text-neutral-700">Labour (KSh)
-                <input type="number" min="0" value={quoteLabour} onChange={(e) => setQuoteLabour(Math.max(0, Number(e.target.value) || 0))} className="mt-1.5 w-full px-3 py-2.5 rounded-xl border border-neutral-200 bg-white text-sm" />
+                <input type="number" min="0" max="10000000" step="1" inputMode="numeric" aria-label="Labour cost in Kenyan shillings" value={quoteLabour} onChange={(e) => setQuoteLabour(Math.min(10000000, Math.max(0, Number(e.target.value) || 0)))} className="mt-1.5 w-full px-3 py-2.5 rounded-xl border border-neutral-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-neutral-900" />
               </label>
               <label className="text-xs font-semibold text-neutral-700">Materials / extras (KSh)
-                <input type="number" min="0" value={quoteMaterials} onChange={(e) => setQuoteMaterials(Math.max(0, Number(e.target.value) || 0))} className="mt-1.5 w-full px-3 py-2.5 rounded-xl border border-neutral-200 bg-white text-sm sm:col-span-2" />
+                <input type="number" min="0" max="10000000" step="1" inputMode="numeric" aria-label="Materials and extras cost in Kenyan shillings" value={quoteMaterials} onChange={(e) => setQuoteMaterials(Math.min(10000000, Math.max(0, Number(e.target.value) || 0)))} className="mt-1.5 w-full px-3 py-2.5 rounded-xl border border-neutral-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-neutral-900 sm:col-span-2" />
               </label>
             </div>
             <div className="lg:col-span-5 rounded-2xl bg-neutral-950 text-white p-6">
