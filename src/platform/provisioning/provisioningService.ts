@@ -298,7 +298,7 @@ export class ProvisioningService {
       PAID_COMMERCIAL_TIERS.has(request.subscriptionTier)
     ) {
       throw new AuthorizationError(
-        'Business Owners may only provision FOUNDATION-tier DBKs. Paid subscription tiers require TDBK Master commercial authority.',
+        'Business Owners may only provision FREE or FOUNDATION-tier DBKs. Paid subscription tiers (GROWTH, PRO, ENTERPRISE) require TDBK Master commercial authority.',
         context.requestId
       );
     }
