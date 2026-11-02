@@ -109,6 +109,18 @@ describe('ExperienceResolver EXECUTE_SALE binding', () => {
     });
   });
 
+  it('returns the full resolved experience contract', async () => {
+    const context = makeContext();
+    const resolved = await experienceResolver.resolveExperience(context, tenantId);
+
+    expect(resolved.dbkId).toBe(tenantId);
+    expect(resolved.connections).toEqual(expect.any(Array));
+    expect(resolved.currentPrincipal.userId).toBe(context.principal.id);
+    expect(resolved.currentPrincipal.tenantId).toBe(tenantId);
+    expect(resolved.serverTimestamp).toEqual(expect.any(String));
+    expect(resolved.operationalState).toBe('ACTIVE');
+  });
+
   it('BIND_01: dispatches EXECUTE_SALE to SaleTransactionService and completes the transaction', async () => {
     await seedInventory(10, 100);
 
