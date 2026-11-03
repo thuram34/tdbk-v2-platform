@@ -35,11 +35,6 @@ export class ReconciliationRepository implements IReconciliationRepository {
         throw new Error('Posted/reversed financial history cannot be changed to reconciliation-required');
       }
 
-      // A failed reconciliation is terminal and safe to resolve idempotently.
-      // Do not generalize this shortcut to POSTED or REVERSED: those require
-      // authoritative ledger posting or the dedicated reversal operation.
-      if (status === 'FAILED' && current.status === 'FAILED') return current;
-
       if (current.status !== expectedStatus && current.status !== 'RECONCILIATION_REQUIRED') {
         throw new Error(
           `Financial transaction status conflict: expected '${expectedStatus}', found '${current.status}'`
@@ -79,6 +74,10 @@ export class ReconciliationRepository implements IReconciliationRepository {
 
       if (!current) throw new Error('Financial transaction not found');
       if (current.tenantId !== tenantId) throw new Error('Financial transaction tenant mismatch');
+
+      // Failed reconciliation is terminal and safe to resolve idempotently.
+      // POSTED and REVERSED still require their authoritative ledger operations.
+      if (status === 'FAILED' && current.status === 'FAILED') return current;
 
       if (current.status !== expectedStatus && current.status !== 'RECONCILIATION_REQUIRED') {
         throw new Error(
