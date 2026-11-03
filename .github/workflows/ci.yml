@@ -1,6 +1,6 @@
 name: TDBK V2 CI
 
-# Production-readiness verification trigger: run full gate on main.
+# Deterministic verification only: CI must never mutate or push source files.
 
 on:
   workflow_dispatch:
@@ -10,7 +10,7 @@ on:
     branches: ["main"]
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   verify:
@@ -26,17 +26,8 @@ jobs:
           node-version: 22
           cache: npm
 
-      - name: Reconcile npm lockfile
-        run: |
-          npm install --package-lock-only --ignore-scripts
-          if ! git diff --quiet -- package-lock.json; then
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add package-lock.json
-            git commit -m "chore(ci): reconcile npm lockfile"
-            git push
-          fi
-
+      # npm ci must use the committed lockfile exactly. If it is stale or invalid,
+      # fail visibly and fix package.json/package-lock.json in a reviewed commit.
       - name: Install dependencies
         run: npm ci
 
@@ -68,5 +59,3 @@ jobs:
             --build-arg VITE_FIREBASE_MESSAGING_SENDER_ID=000000000000 \
             --build-arg VITE_FIREBASE_APP_ID=ci-placeholder \
             -t tdbk-v2-ci .
-
-# Verification trigger after deterministic CI test repairs.

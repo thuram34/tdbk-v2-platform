@@ -53,7 +53,7 @@ describe('Gate 04 — external side-effect identity and mapping', () => {
 
     expect(bridgeRegistry.getBridgeDefinition('bridge_mpesa')?.sideEffectCapabilities).toEqual({
       providerIdempotency: false,
-      providerReconciliation: true,
+      providerReconciliation: false,
       automaticUnknownReplay: false,
       providerOperationIdentityRequired: true,
     });
