@@ -20,7 +20,7 @@ import { workflowEngine } from '../../orchestration/workflow/engine';
 import { eventBus } from '../../orchestration/events/eventBus';
 import { idempotencyRepository } from '../../persistence/firestore/repositories/idempotencyRepository';
 import { auditLogger } from '../../kernel/audit/auditLogger';
-import { KernelError } from '../../kernel/errors/kernelErrors';
+import { AuthorizationError, KernelError } from '../../kernel/errors/kernelErrors';
 import { SectorType } from '../../blueprint/types';
 
 export class ProvisioningService {
@@ -288,6 +288,17 @@ export class ProvisioningService {
     // 1. Security Assertion: Authorized Business Owner or Master Admin can provision DBKs
     masterAuthority.assertOwnerOrMasterAuthority(context.principal, 'provisionDbk', context.requestId);
 
+    // Owners may create a FREE workspace, but paid capability tiers are activated
+    // only by the durable subscription/payment-confirmation flow.
+    const isMasterProvisioner = masterAuthority.isMasterAdmin(context.principal);
+    const requestedTier = request.subscriptionTier ?? (isMasterProvisioner ? 'FOUNDATION' : 'FREE');
+    if (!isMasterProvisioner && requestedTier !== 'FREE') {
+      throw new AuthorizationError(
+        'Business owners cannot self-assign a paid subscription tier during provisioning. Paid tiers require confirmed subscription payment.',
+        context.requestId,
+      );
+    }
+
     const correlationId = request.correlationId || context.correlationId || `corr_prov_${request.dbkId}_${Date.now()}`;
     const idempotencyKey = request.idempotencyKey || `idem_${request.dbkId}`;
 
@@ -345,7 +356,9 @@ export class ProvisioningService {
     }
 
     try {
-    // 4. Prevent duplicate creation under same dbkId with different keys
+    // 4. Prevent duplicate creation under the same dbkId with different keys.
+    // A failed attempt may be retried only for the same immutable business identity.
+    let recoveredDbk: DbkIdentity | undefined;
     if (await dbkRegistry.hasDbk(request.dbkId)) {
       const existing = await dbkRegistry.getDbk(context, request.dbkId);
       if (existing && existing.status !== 'PROVISIONING_FAILED') {
@@ -356,17 +369,47 @@ export class ProvisioningService {
           context.requestId
         );
       }
+      if (existing) {
+        if (
+          existing.legalName !== request.legalName ||
+          existing.blueprintId !== bp.id ||
+          existing.blueprintVersion !== bp.version ||
+          (request.subscriptionTier !== undefined && existing.subscriptionTier !== request.subscriptionTier)
+        ) {
+          throw new KernelError(
+            'CONFLICT',
+            'A failed DBK can only be retried with its original legal name, blueprint, version, and subscription tier.',
+            409,
+            context.requestId,
+          );
+        }
+        await dbkRegistry.beginProvisioningRecovery(
+          context,
+          request.dbkId,
+          'Provisioning retried with the same immutable business identity',
+        );
+        recoveredDbk = await dbkRegistry.getDbkInternal(request.dbkId);
+        if (!recoveredDbk || recoveredDbk.status !== 'PROVISIONING') {
+          throw new KernelError(
+            'INTERNAL_ERROR',
+            'Provisioning recovery did not restore the DBK to PROVISIONING.',
+            500,
+            context.requestId,
+          );
+        }
+      }
     }
 
-    // 5. Create DBK in PROVISIONING state
-    const initialDbk: DbkIdentity = {
+    // 5. Create DBK in PROVISIONING state, or continue from the authoritative
+    // recovery transition without rewriting immutable identity/lifecycle fields.
+    const initialDbk: DbkIdentity = recoveredDbk ?? {
       dbkId: request.dbkId,
       legalName: request.legalName,
       displayName: request.displayName || request.legalName,
       sector: bp.sector,
       blueprintId: bp.id,
       blueprintVersion: bp.version,
-      subscriptionTier: request.subscriptionTier || 'FOUNDATION',
+      subscriptionTier: requestedTier,
       status: 'PROVISIONING',
       masterOwner: context.principal.id,
       createdAt: new Date().toISOString(),
@@ -390,7 +433,9 @@ export class ProvisioningService {
       metadata: request.customPreferences || {},
     };
 
-    await dbkRegistry.saveDbk(context, initialDbk);
+    if (!recoveredDbk) {
+      await dbkRegistry.saveDbk(context, initialDbk);
+    }
 
     // 6. Emit DBK_PROVISIONING_REQUESTED & STARTED
     eventBus.publishEvent(
