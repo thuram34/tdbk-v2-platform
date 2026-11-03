@@ -7,13 +7,14 @@
 
 ## 1. Validation evidence
 
-The current mainline was validated by GitHub Actions, not by a local shell session. PR #601 and PR #603 both passed their full verification pipelines, and the corresponding post-merge main runs passed.
+The current mainline was validated by GitHub Actions, not by a local shell session. PR #601, PR #603 and PR #607 passed their full verification pipelines, and the corresponding post-merge main runs passed.
 
 - **Merged PR:** #601 — P0 provisioning, security and CI repair.
 - **PR #601 verification:** [run 41653539907](https://github.com/thuram34/tdbk-v2-platform/actions/runs/41653539907) — passed.
 - **Post-merge main verification after #601:** [run 41654247155](https://github.com/thuram34/tdbk-v2-platform/actions/runs/41654247155) — passed.
 - **PR #603 finance verification:** [run 41656487112](https://github.com/thuram34/tdbk-v2-platform/actions/runs/41656487112) — passed.
 - **Post-merge main verification after #603:** [run 41657142876](https://github.com/thuram34/tdbk-v2-platform/actions/runs/41657142876) — passed.
+- **PR #607 reversal replay verification:** [run 41657582090](https://github.com/thuram34/tdbk-v2-platform/actions/runs/41657582090) — passed; PR #607 merged at 2026-11-03 14:54 UTC.
 - **Passed gates:** TypeScript typecheck, ESLint, capability engineering gate, flow orchestration gate, full test suite, production build and Docker image validation.
 - **Test evidence:** 59 test files and 232 tests passed in the consolidated P0 run.
 - **CI behaviour:** GitHub Actions now uses read-only repository permissions and no longer mutates or pushes `package-lock.json`.
@@ -33,7 +34,7 @@ The earlier main failure at run 41415463980 is superseded by the verified P0 mer
 | Capability state | Blueprint defaults do not bypass entitlement or configuration requirements; entitled but unconfigured capabilities remain inactive | PR #601; capability tests |
 | FREE core | Core identity, finance ledger, customer directory, supplier registry, inventory foundation and sales counter entitlements available on FREE | PR #601; persisted sales journey |
 | Tenant security | AI proposals are strictly branch-scoped; Firestore branch authorization regression coverage remains on main | PR #601 and existing rules tests |
-| Financial truth | Ledger integrity, outbox atomicity, receipt persistence and repeated FAILED reconciliation are covered by tests | PR #603; runs 41656487112 and 41657142876 |
+| Financial truth | Ledger integrity, outbox atomicity, receipt persistence, repeated FAILED reconciliation and conflicting reversal replay are covered by tests | PR #603 and merged PR #607; runs 41656487112, 41657142876 and 41657582090 |
 
 ## 3. Current product completion status
 
@@ -48,7 +49,7 @@ P0 release and authority foundations are verified. The following product capabil
 - Sales transaction and inventory decrement: implemented baseline with acceptance coverage.
 - Full purchasing/procurement, goods receipt, supplier settlement and reorder automation: pending selective integration from PR #390.
 - Full accounting coverage (AP/AR, tax, period close, financial statements and audit reporting): incomplete.
-- Conflicting reversal replay regression: restoration is pending in PR #607; do not mark that specific invariant complete until its CI passes and it is merged.
+- Conflicting reversal replay regression: restored and merged in PR #607; its dedicated CI run 41657582090 passed.
 
 ### External integrations
 - M-Pesa: current main supports STK Push only; STK query, transaction status pull and automated ambiguous-outcome reconciliation remain pending. PR #225 is the preferred advanced implementation source, subject to tests.
