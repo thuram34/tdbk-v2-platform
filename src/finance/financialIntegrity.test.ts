@@ -58,7 +58,9 @@ describe('Financial integrity inspection', () => {
   it('reports a valid balanced immutable transaction', async () => {
     const tx = transaction('txn_integrity_valid');
     await financialLedgerRepository.postTransaction(tx, entries(tx.transactionId));
+
     const report = await financialIntegrityService.inspect(tenantId, tx.transactionId);
+
     expect(report.status).toBe('VALID');
     expect(report.balanced).toBe(true);
     expect(report.immutable).toBe(true);
@@ -69,6 +71,7 @@ describe('Financial integrity inspection', () => {
 
   it('reports missing transactions without throwing', async () => {
     const report = await financialIntegrityService.inspect(tenantId, 'missing');
+
     expect(report.status).toBe('NOT_FOUND');
     expect(report.transaction).toBeNull();
     expect(report.errors).toContain('Financial transaction not found');
@@ -77,11 +80,14 @@ describe('Financial integrity inspection', () => {
   it('detects a tampered non-immutable entry', async () => {
     const tx = transaction('txn_integrity_tampered');
     await financialLedgerRepository.postTransaction(tx, entries(tx.transactionId));
+
     await firestoreClient.update(
       `/tenants/${tenantId}/ledgerTransactions/${tx.transactionId}/entries/${tx.transactionId}_credit`,
       { immutable: false }
     );
+
     const report = await financialIntegrityService.inspect(tenantId, tx.transactionId);
+
     expect(report.status).toBe('INVALID');
     expect(report.immutable).toBe(false);
     expect(report.errors).toContain('One or more ledger entries are not immutable');
@@ -89,24 +95,39 @@ describe('Financial integrity inspection', () => {
 
   it('detects a balance mismatch', async () => {
     const tx = transaction('txn_integrity_unbalanced');
-    await firestoreClient.set(`/tenants/${tenantId}/financialTransactions/${tx.transactionId}`, tx);
+    await firestoreClient.set(
+      `/tenants/${tenantId}/financialTransactions/${tx.transactionId}`,
+      tx
+    );
     const originalEntries = entries(tx.transactionId);
-    await firestoreClient.set(`/tenants/${tenantId}/ledgerTransactions/${tx.transactionId}`, {
-      ledgerTransactionId: tx.transactionId,
-      tenantId,
-      transactionId: tx.transactionId,
-      status: 'POSTED',
-      amount: tx.amount,
-      currency: tx.currency,
-      postedAt: tx.postedAt,
-      createdAt: tx.createdAt,
-    });
-    await firestoreClient.set(`/tenants/${tenantId}/ledgerTransactions/${tx.transactionId}/entries/${originalEntries[0].entryId}`, originalEntries[0]);
-    await firestoreClient.set(`/tenants/${tenantId}/ledgerTransactions/${tx.transactionId}/entries/${originalEntries[1].entryId}`, { ...originalEntries[1], amount: 999 });
+    await firestoreClient.set(
+      `/tenants/${tenantId}/ledgerTransactions/${tx.transactionId}`,
+      {
+        ledgerTransactionId: tx.transactionId,
+        tenantId,
+        transactionId: tx.transactionId,
+        status: 'POSTED',
+        amount: tx.amount,
+        currency: tx.currency,
+        postedAt: tx.postedAt,
+        createdAt: tx.createdAt,
+      }
+    );
+    await firestoreClient.set(
+      `/tenants/${tenantId}/ledgerTransactions/${tx.transactionId}/entries/${originalEntries[0].entryId}`,
+      originalEntries[0]
+    );
+    await firestoreClient.set(
+      `/tenants/${tenantId}/ledgerTransactions/${tx.transactionId}/entries/${originalEntries[1].entryId}`,
+      { ...originalEntries[1], amount: 999 }
+    );
+
     const report = await financialIntegrityService.inspect(tenantId, tx.transactionId);
+
     expect(report.status).toBe('INVALID');
     expect(report.balanced).toBe(false);
     expect(report.debitTotal).toBe(1000);
     expect(report.creditTotal).toBe(999);
+    expect(report.errors).toContain('Ledger is not balanced to the authoritative transaction amount');
   });
 });
