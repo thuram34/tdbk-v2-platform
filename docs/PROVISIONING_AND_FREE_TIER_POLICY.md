@@ -37,8 +37,8 @@ FREE availability does not bypass authentication, role/permission checks, tenant
 
 Before merging a change to this behavior, verify:
 
-1. A Business Owner can provision FREE and FOUNDATION DBKs.
-2. A Business Owner is denied GROWTH, PRO, and ENTERPRISE before registry/blueprint access.
+1. A Business Owner can provision a new DBK on FREE, including when the tier is omitted.
+2. A Business Owner is denied FOUNDATION, GROWTH, PRO, and ENTERPRISE for new DBKs; existing failed DBKs may be recovered only with their original persisted tier.
 3. TDBK Master Admin can provision the paid commercial tiers subject to normal validation.
 4. A failed provisioning attempt can recover through `beginProvisioningRecovery()` without recreating the identity.
 5. Repeated provisioning for an existing DBK outside `PROVISIONING_FAILED` is rejected.

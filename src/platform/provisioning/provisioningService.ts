@@ -287,7 +287,6 @@ export class ProvisioningService {
 
     // Read the existing identity through the caller's authorized tenant boundary.
     // Recovery is allowed for the existing owner, but it must preserve immutable identity.
-
     if (existingDbk) {
       if (request.blueprintId !== existingDbk.blueprintId) {
         throw new KernelError('CONFLICT', 'An existing DBK must retain its original blueprint during provisioning recovery.', 409, context.requestId);
@@ -660,7 +659,7 @@ export class ProvisioningService {
       idempotencyKey,
       tenantId: request.dbkId,
       action: 'DBK_PROVISIONING',
-      requestHash: `${request.dbkId}:${bp.id}:${bp.version}`,
+      requestHash: `${request.dbkId}:${bp.id}:${bp.version}:${effectiveLegalName}:${effectiveTier}`,
       status: 'COMPLETED',
       responsePayload: result as unknown as Record<string, unknown>,
       createdAt: new Date().toISOString(),
