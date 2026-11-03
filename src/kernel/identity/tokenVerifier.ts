@@ -9,8 +9,17 @@ import { configManager } from '../configuration/configManager';
 
 export interface DecodedToken {
   uid: string;
+  user_id?: string;
+  sub?: string;
   email?: string;
-  isMaster?: boolean;
+  isMaster?: boolean | string;
+  tdbk?: {
+    isMaster?: boolean | string;
+    tenantId?: string | null;
+    branchId?: string | null;
+    roles?: string[];
+    permissions?: string[];
+  };
   tenantId?: string | null;
   branchId?: string | null;
   roles?: string[];
