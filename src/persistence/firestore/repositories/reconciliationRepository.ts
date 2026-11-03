@@ -35,6 +35,11 @@ export class ReconciliationRepository implements IReconciliationRepository {
         throw new Error('Posted/reversed financial history cannot be changed to reconciliation-required');
       }
 
+      // A failed reconciliation is terminal and safe to resolve idempotently.
+      // Do not generalize this shortcut to POSTED or REVERSED: those require
+      // authoritative ledger posting or the dedicated reversal operation.
+      if (status === 'FAILED' && current.status === 'FAILED') return current;
+
       if (current.status !== expectedStatus && current.status !== 'RECONCILIATION_REQUIRED') {
         throw new Error(
           `Financial transaction status conflict: expected '${expectedStatus}', found '${current.status}'`
@@ -80,8 +85,6 @@ export class ReconciliationRepository implements IReconciliationRepository {
           `Financial transaction status conflict: expected '${expectedStatus}', found '${current.status}'`
         );
       }
-
-      if (current.status === status) return current;
 
       if (status === 'POSTED') {
         if (current.status !== 'RECONCILIATION_REQUIRED') {
