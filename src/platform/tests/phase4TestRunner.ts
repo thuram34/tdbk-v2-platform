@@ -589,13 +589,17 @@ export async function runPhase4TestSuite(): Promise<Phase4TestSummary> {
   await runTest('P4_TEST_34', 'Failed provisioning can recover safely', async () => {
     const recoveryResult = await provisioningService.provisionDbk(masterContext, {
       dbkId: 'tenant_p4_failing_01',
-      legalName: 'Fail Test Fixed Inc',
+      legalName: 'Fail Test Inc', // Recovery must preserve the original immutable legal name.
       blueprintId: 'school_v1',
       primaryBranchName: 'HQ Fixed',
       secondaryBranches: [{ branchId: 'fixed_branch_01', name: 'Branch 1', type: 'CAMPUS' }],
     });
     if (!recoveryResult.success || recoveryResult.status !== 'ACTIVE') {
       throw new Error(`Recovery provisioning failed: ${recoveryResult.error}`);
+    }
+    const recoveredIdentity = await dbkRegistry.getDbk(masterContext, 'tenant_p4_failing_01');
+    if (recoveredIdentity?.legalName !== 'Fail Test Inc' || recoveredIdentity?.blueprintId !== 'school_v1') {
+      throw new Error('Provisioning recovery changed immutable DBK identity fields');
     }
   });
 
