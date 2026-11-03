@@ -125,6 +125,17 @@ describe('Financial truth layer', () => {
     ).rejects.toThrow('conflicting immutable ledger entries');
   });
 
+  it('rejects conflicting reversal replay', async () => {
+    const original = postedTransaction('txn_reverse_conflict_original');
+    await financialLedgerRepository.postTransaction(original, entries(original.transactionId));
+    const reversal = { ...postedTransaction('txn_reverse_conflict_reversal'), reversalOfTransactionId: original.transactionId, providerReference: 'REVERSAL-ORIGINAL' };
+    const reversalEntries = entries(reversal.transactionId);
+    await financialLedgerRepository.reverseTransaction(tenantId, original.transactionId, reversal, reversalEntries);
+
+    const conflictingReplay = { ...reversal, providerReference: 'REVERSAL-CONFLICT' };
+    await expect(financialLedgerRepository.reverseTransaction(tenantId, original.transactionId, conflictingReplay, reversalEntries)).rejects.toThrow('Conflicting reversal transaction identity');
+  });
+
   it('reverses by creating counter-entries and never edits posted entries', async () => {
     const original = postedTransaction('txn_reverse_001');
     const originalEntries = entries(original.transactionId);
