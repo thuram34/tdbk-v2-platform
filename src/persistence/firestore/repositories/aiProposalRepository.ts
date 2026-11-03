@@ -62,7 +62,10 @@ export class AiProposalRepository implements IAiProposalRepository {
       `/tenants/${tenantId}/ai_proposals`
     );
     if (branchId) {
-      return proposals.filter((p) => !p.branchId || p.branchId === branchId);
+      // Branch-scoped reads must be strict. A proposal without a branch binding
+      // is not safe to expose to a branch-scoped caller because it has no
+      // authoritative proof that it belongs to that branch.
+      return proposals.filter((p) => p.branchId === branchId);
     }
     return proposals;
   }
