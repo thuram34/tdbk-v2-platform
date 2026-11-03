@@ -287,6 +287,10 @@ export class ProvisioningService {
 
     // Read the existing identity through the caller's authorized tenant boundary.
     // Recovery is allowed for the existing owner, but it must preserve immutable identity.
+    const existingDbk = (await dbkRegistry.hasDbk(request.dbkId))
+      ? await dbkRegistry.getDbk(context, request.dbkId)
+      : undefined;
+
     if (existingDbk) {
       if (request.blueprintId !== existingDbk.blueprintId) {
         throw new KernelError('CONFLICT', 'An existing DBK must retain its original blueprint during provisioning recovery.', 409, context.requestId);
@@ -376,10 +380,6 @@ export class ProvisioningService {
     try {
     // 4. Prevent duplicate creation; allow recovery from PROVISIONING_FAILED.
     let initialDbk: DbkIdentity;
-    const existingDbk = (await dbkRegistry.hasDbk(request.dbkId))
-      ? await dbkRegistry.getDbk(context, request.dbkId)
-      : undefined;
-
     if (existingDbk) {
       if (existingDbk.status !== 'PROVISIONING_FAILED') {
         throw new KernelError(
