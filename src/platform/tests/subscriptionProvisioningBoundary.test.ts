@@ -35,7 +35,7 @@ describe('provisioning subscription commercial boundary', () => {
         idempotencyKey: 'subscription-boundary-paid-v1',
         // The server is authoritative for identity; this should never be used
         // to grant paid entitlement to an owner.
-        dbkId: '',
+        dbkId: 'subscription_boundary_paid_tier',
       }),
     ).rejects.toBeInstanceOf(AuthorizationError);
   });

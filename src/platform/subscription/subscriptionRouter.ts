@@ -41,6 +41,70 @@ subscriptionRouter.post('/', async (req, res) => {
 });
 
 
+subscriptionRouter.post('/:dbkId/checkout', async (req, res) => {
+  try {
+    const context = await contextFor(req);
+    const dbkId = req.params.dbkId;
+    const tier = req.body?.tier;
+    const allowedTiers = ['FOUNDATION', 'GROWTH', 'PRO', 'ENTERPRISE'] as const;
+    if (!allowedTiers.includes(tier)) {
+      return res.status(400).json({ error: { code: 'INVALID_TIER', message: 'Choose a valid paid TDBK tier.' } });
+    }
+    const priceKey = `TDBK_TIER_PRICE_KES_${tier}`;
+    const configuredAmount = process.env[priceKey];
+    if (!configuredAmount || !/^\\d+$/.test(configuredAmount) || !Number.isSafeInteger(Number(configuredAmount)) || Number(configuredAmount) <= 0) {
+      return res.status(503).json({ error: { code: 'TIER_PRICE_NOT_CONFIGURED', message: `The server price for ${tier} is not configured. No payment was initiated.`, tier } });
+    }
+    const phoneNumber = String(req.body?.phoneNumber || '').trim();
+    if (!/^254[17]\\d{8}$/.test(phoneNumber)) {
+      return res.status(400).json({ error: { code: 'INVALID_PHONE_NUMBER', message: 'Use a Kenyan M-Pesa number in 2547XXXXXXXX or 2541XXXXXXXX format.' } });
+    }
+    await dbkRegistry.getDbk(context, dbkId);
+    const pendingCheckout = (await subscriptionRepository.listSubscriptions(dbkId)).find(
+      (candidate) => candidate.status === 'TRIAL' && candidate.paymentStatus === 'PENDING',
+    );
+    if (pendingCheckout) {
+      return res.status(409).json({
+        error: { code: 'CHECKOUT_ALREADY_PENDING', message: 'A subscription payment is already pending for this business. Complete or resolve it before starting another checkout.' },
+        subscriptionId: pendingCheckout.subscriptionId,
+        tier: pendingCheckout.tier,
+      });
+    }
+    const correlationId = context.correlationId || context.requestId;
+    const subscription = await subscriptionService.createOwnerCheckoutSubscription(context, {
+      dbkId,
+      tier,
+      amount: Number(configuredAmount),
+      currency: 'KES',
+      interval: 'MONTHLY',
+      correlationId,
+    });
+    try {
+      const payment = await mpesaBridge.execute(context, 'STK_PUSH', {
+        phoneNumber,
+        amount: subscription.amount,
+        accountReference: `TDBK-${dbkId}-${subscription.subscriptionId}`,
+        transactionDesc: `TDBK subscription ${subscription.tier}`,
+      });
+      if (!payment.providerReference) {
+        throw new Error('M-Pesa accepted no checkout reference; subscription payment remains unconfirmed.');
+      }
+      await subscriptionRepository.updateSubscriptionForDbk(dbkId, subscription.subscriptionId, {
+        paymentReference: payment.providerReference,
+        provider: payment.provider || 'SAFARICOM_MPESA',
+        paymentStatus: 'PENDING',
+        status: 'TRIAL',
+      });
+      return res.status(202).json({ subscriptionId: subscription.subscriptionId, tier: subscription.tier, amount: subscription.amount, currency: 'KES', payment });
+    } catch (paymentError) {
+      // STK initiation failures can be ambiguous: the provider may have accepted
+      // the request before the transport failed. Keep the durable checkout pending
+      // to prevent a second charge until provider truth is reconciled.
+      throw paymentError;
+    }
+  } catch (error) { return sendError(res, error); }
+});
+
 subscriptionRouter.post('/:dbkId/:subscriptionId/pay', async (req, res) => {
   try {
     const context = await contextFor(req);

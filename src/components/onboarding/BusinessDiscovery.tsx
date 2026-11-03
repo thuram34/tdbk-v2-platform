@@ -11,6 +11,7 @@ import {
   WalletCards,
 } from 'lucide-react';
 import { useAuth } from '../../client/AuthContext';
+import type { SubscriptionTier } from '../../capability/types';
 
 type Blueprint = {
   id: string;
@@ -39,6 +40,8 @@ export function BusinessDiscovery({ onProvisioned }: BusinessDiscoveryProps) {
   const [existingDbkName, setExistingDbkName] = useState<string | null>(null);
   const [selectedBlueprintId, setSelectedBlueprintId] = useState('');
   const [selectedCapabilities, setSelectedCapabilities] = useState<string[]>([]);
+  const [selectedTier, setSelectedTier] = useState<SubscriptionTier>('FREE');
+  const [mpesaPhoneNumber, setMpesaPhoneNumber] = useState('');
   const [businessName, setBusinessName] = useState('');
   const [branchName, setBranchName] = useState('Mombasa');
   const [narrative, setNarrative] = useState('');
@@ -129,6 +132,10 @@ export function BusinessDiscovery({ onProvisioned }: BusinessDiscoveryProps) {
       setError('Business name and business type are required.');
       return;
     }
+    if (selectedTier !== 'FREE' && !/^254[17]\\d{8}$/.test(mpesaPhoneNumber.trim())) {
+      setError('Enter a valid Kenyan M-Pesa number in 2547XXXXXXXX or 2541XXXXXXXX format to continue with a paid tier.');
+      return;
+    }
 
     setProvisioning(true);
     setError(null);
@@ -160,6 +167,10 @@ export function BusinessDiscovery({ onProvisioned }: BusinessDiscoveryProps) {
           displayName: businessName.trim(),
           blueprintId: selectedBlueprint.id,
           blueprintVersion: selectedBlueprint.version,
+          // Requested tier is recorded for the subscription flow. A client selection
+          // must not grant paid entitlements before payment is verified by the Engine.
+          subscriptionTier: 'FREE',
+          customPreferences: { requestedSubscriptionTier: selectedTier },
           primaryBranchName: branchName.trim() || 'Head Office',
           idempotencyKey: provisionRequestId,
         }),
@@ -209,9 +220,26 @@ export function BusinessDiscovery({ onProvisioned }: BusinessDiscoveryProps) {
         throw new Error('TDBK saved the business, but the authoritative Business Context could not be verified.');
       }
 
-      // Initial provisioning never grants paid capabilities.
-      // Provisioning initializes entitlement-aware capability records; activation
-      // happens later through the subscription authority and the capability gate.
+      // A paid tier selection starts a server-priced M-Pesa checkout only after
+      // the DBK and Business DNA are verified. Checkout failures never undo the
+      // successfully provisioned FREE workspace or unlock paid capabilities.
+      if (selectedTier !== 'FREE') {
+        try {
+          const checkoutResponse = await fetch(`/api/subscriptions/${dbkId}/checkout`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ tier: selectedTier, phoneNumber: mpesaPhoneNumber.trim(), interval: 'MONTHLY' }),
+          });
+          const checkoutData = await checkoutResponse.json().catch(() => ({}));
+          if (!checkoutResponse.ok) {
+            window.alert(checkoutData.error?.message || 'Your workspace is ready, but subscription checkout could not start. You can retry from subscription settings.');
+          } else {
+            window.alert(`M-Pesa payment request sent for ${checkoutData.amount} KES. Complete the prompt on your phone; your selected tier activates after payment is verified.`);
+          }
+        } catch {
+          window.alert('Your workspace is ready, but checkout could not be reached. You can retry from subscription settings.');
+        }
+      }
       window.sessionStorage.removeItem('tdbk:onboarding:request-id');
       onProvisioned(dbkId);
     } catch (err: any) {
@@ -265,6 +293,41 @@ export function BusinessDiscovery({ onProvisioned }: BusinessDiscoveryProps) {
               <label className="block mt-5"><span className="block text-xs font-semibold text-neutral-600 mb-2">What do you do?</span><textarea value={narrative} onChange={(e) => setNarrative(e.target.value)} rows={3} placeholder="Briefly describe what you sell, provide or operate…" className="w-full rounded-xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-neutral-950" /></label>
             </section>
 
+            <section className="rounded-2xl border border-neutral-200 bg-white p-5 sm:p-7 shadow-sm">
+              <div className="text-xs font-bold uppercase tracking-wider text-neutral-500">Choose your TDBK tier</div>
+              <h2 className="mt-1 text-xl font-bold">What level of workspace do you need?</h2>
+              <p className="mt-2 text-sm text-neutral-600">TDBK builds the complete core workspace now. Your selected tier is saved with the registration; paid capabilities are activated only after the subscription authority verifies payment.</p>
+              {selectedTier !== 'FREE' && (
+                <label className="mt-4 block max-w-md">
+                  <span className="mb-2 block text-sm font-semibold text-neutral-700">M-Pesa phone number</span>
+                  <input
+                    value={mpesaPhoneNumber}
+                    onChange={(event) => setMpesaPhoneNumber(event.target.value)}
+                    inputMode="tel"
+                    autoComplete="tel"
+                    placeholder="2547XXXXXXXX"
+                    className="w-full rounded-xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-neutral-950"
+                    aria-describedby="mpesa-checkout-help"
+                  />
+                  <span id="mpesa-checkout-help" className="mt-2 block text-xs text-neutral-500">Use 2547XXXXXXXX or 2541XXXXXXXX. The server determines the tier price; payment is verified before paid tools activate.</span>
+                </label>
+              )}
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {([
+                  { id: 'FREE', name: 'Free', detail: 'Core workspace and essential tools' },
+                  { id: 'FOUNDATION', name: 'Foundation', detail: 'A stronger starting setup for daily operations' },
+                  { id: 'GROWTH', name: 'Growth', detail: 'For expanding operations and teams' },
+                  { id: 'PRO', name: 'Pro', detail: 'Advanced operational capabilities' },
+                  { id: 'ENTERPRISE', name: 'Enterprise', detail: 'Multi-unit and enterprise-scale needs' },
+                ] as Array<{ id: SubscriptionTier; name: string; detail: string }>).map((tier) => (
+                  <button key={tier.id} type="button" onClick={() => setSelectedTier(tier.id)} className={`rounded-xl border p-4 text-left transition ${selectedTier === tier.id ? 'border-neutral-950 bg-neutral-950 text-white shadow-md' : 'border-neutral-200 bg-white hover:border-neutral-400'}`}>
+                    <div className="flex items-center justify-between gap-2"><span className="font-bold">{tier.name}</span>{selectedTier === tier.id && <Check className="h-4 w-4" />}</div>
+                    <p className="mt-2 text-xs leading-relaxed opacity-75">{tier.detail}</p>
+                  </button>
+                ))}
+              </div>
+            </section>
+
             <section>
               <div className="mb-3"><div className="text-xs font-bold uppercase tracking-wider text-neutral-500">Your business</div><h2 className="text-xl font-bold mt-1">What kind of business do you run?</h2></div>
               <div className="grid md:grid-cols-2 gap-3">
@@ -302,11 +365,11 @@ export function BusinessDiscovery({ onProvisioned }: BusinessDiscoveryProps) {
             <section className="rounded-2xl border border-neutral-200 bg-white p-6 sm:p-8 shadow-sm">
               <div className="flex items-center gap-2 text-emerald-700 text-xs font-bold uppercase tracking-wider"><Sparkles className="w-4 h-4" /> This is what TDBK understands</div>
               <h2 className="mt-3 text-2xl font-serif font-bold">{businessName}</h2>
-              <div className="mt-5 grid md:grid-cols-2 gap-4 text-sm"><div className="rounded-xl bg-neutral-50 p-4"><div className="text-[10px] uppercase text-neutral-500">Business type</div><div className="font-semibold mt-1">{selectedBlueprint.name}</div></div><div className="rounded-xl bg-neutral-50 p-4"><div className="text-[10px] uppercase text-neutral-500">Primary location</div><div className="font-semibold mt-1">{branchName || 'Head Office'}</div></div></div>
+              <div className="mt-5 grid md:grid-cols-3 gap-4 text-sm"><div className="rounded-xl bg-neutral-50 p-4"><div className="text-[10px] uppercase text-neutral-500">Business type</div><div className="font-semibold mt-1">{selectedBlueprint.name}</div></div><div className="rounded-xl bg-neutral-50 p-4"><div className="text-[10px] uppercase text-neutral-500">Primary location</div><div className="font-semibold mt-1">{branchName || 'Head Office'}</div></div><div className="rounded-xl bg-neutral-50 p-4"><div className="text-[10px] uppercase text-neutral-500">Selected tier</div><div className="font-semibold mt-1">{selectedTier}</div></div></div>
               {narrative && <p className="mt-5 text-sm text-neutral-600 leading-relaxed">{narrative}</p>}
               <div className="mt-6"><div className="text-xs font-bold uppercase tracking-wider text-neutral-500 mb-3">Starting tools</div><div className="flex flex-wrap gap-2">{selectedCapabilities.map((id) => <span key={id} className="inline-flex items-center gap-1.5 rounded-full bg-neutral-100 px-3 py-1.5 text-xs"><WalletCards className="w-3.5 h-3.5" />{selectedBlueprint.supportedCapabilities?.find((capability) => capability.id === id)?.name || id}</span>)}</div><p className="mt-3 text-xs text-neutral-500">Included tools are part of your starting business setup. Optional tools are not activated during free provisioning; they become available after the required subscription tier is activated.</p></div>
             </section>
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Your account will be connected to the business, then TDBK will provision the workspace. Paid tools can be activated after the required subscription tier is confirmed.</div>
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">TDBK will provision the complete core DBK workspace now and save your selected tier ({selectedTier}). {selectedTier === 'FREE' ? 'No payment is required.' : 'An M-Pesa checkout request will be started for the selected tier. Paid capabilities remain locked until the subscription authority confirms payment.'}</div>
             <div className="flex justify-between"><button disabled={provisioning} onClick={() => setStep('CAPABILITIES')} className="inline-flex items-center gap-2 rounded-xl border border-neutral-200 bg-white px-4 py-3 text-sm font-semibold"><ChevronLeft className="w-4 h-4" /> Back</button><button disabled={provisioning} onClick={handleProvision} className="inline-flex items-center gap-2 rounded-xl bg-emerald-700 px-5 py-3 text-sm font-bold text-white disabled:opacity-50">{provisioning ? <><Loader2 className="w-4 h-4 animate-spin" /> Provisioning your workspace…</> : <>Create my workspace <ArrowRight className="w-4 h-4" /></>}</button></div>
           </div>
         )}

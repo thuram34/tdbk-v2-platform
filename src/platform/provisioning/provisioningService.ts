@@ -20,7 +20,7 @@ import { workflowEngine } from '../../orchestration/workflow/engine';
 import { eventBus } from '../../orchestration/events/eventBus';
 import { idempotencyRepository } from '../../persistence/firestore/repositories/idempotencyRepository';
 import { auditLogger } from '../../kernel/audit/auditLogger';
-import { KernelError } from '../../kernel/errors/kernelErrors';
+import { AuthorizationError, KernelError } from '../../kernel/errors/kernelErrors';
 import { SectorType } from '../../blueprint/types';
 
 export class ProvisioningService {
@@ -287,6 +287,9 @@ export class ProvisioningService {
     this.registerProvisioningStepHandlers();
     // 1. Security Assertion: Authorized Business Owner or Master Admin can provision DBKs
     masterAuthority.assertOwnerOrMasterAuthority(context.principal, 'provisionDbk', context.requestId);
+    if (!masterAuthority.isMasterAdmin(context.principal) && request.subscriptionTier && request.subscriptionTier !== 'FREE') {
+      throw new AuthorizationError('Business owners cannot assign paid subscription tiers during provisioning. Use the authoritative subscription checkout flow.', context.requestId);
+    }
 
     const correlationId = request.correlationId || context.correlationId || `corr_prov_${request.dbkId}_${Date.now()}`;
     const idempotencyKey = request.idempotencyKey || `idem_${request.dbkId}`;
@@ -345,7 +348,9 @@ export class ProvisioningService {
     }
 
     try {
-    // 4. Prevent duplicate creation under same dbkId with different keys
+    // 4. Prevent duplicate creation. Failed provisioning may be retried only
+    // through the lifecycle recovery transition, preserving immutable DBK identity.
+    let recoveryDbk: DbkIdentity | undefined;
     if (await dbkRegistry.hasDbk(request.dbkId)) {
       const existing = await dbkRegistry.getDbk(context, request.dbkId);
       if (existing && existing.status !== 'PROVISIONING_FAILED') {
@@ -356,21 +361,36 @@ export class ProvisioningService {
           context.requestId
         );
       }
+      if (existing?.status === 'PROVISIONING_FAILED') {
+        if (existing.blueprintId !== bp.id || existing.blueprintVersion !== bp.version) {
+          throw new KernelError('CONFLICT', 'A failed DBK must be recovered with its original blueprint and version.', 409, context.requestId);
+        }
+        await dbkRegistry.beginProvisioningRecovery(context, request.dbkId, 'Provisioning retry requested');
+        recoveryDbk = await dbkRegistry.getDbkInternal(request.dbkId);
+      }
     }
 
-    // 5. Create DBK in PROVISIONING state
-    const initialDbk: DbkIdentity = {
+    // 5. Create or re-enter PROVISIONING without rewriting immutable identity.
+    const now = new Date().toISOString();
+    const initialDbk: DbkIdentity = recoveryDbk ? {
+      ...recoveryDbk,
+      displayName: request.displayName || recoveryDbk.displayName,
+      status: 'PROVISIONING',
+      updatedAt: now,
+      branchTopology: [],
+      metadata: { ...recoveryDbk.metadata, ...(request.customPreferences || {}) },
+    } : {
       dbkId: request.dbkId,
       legalName: request.legalName,
       displayName: request.displayName || request.legalName,
       sector: bp.sector,
       blueprintId: bp.id,
       blueprintVersion: bp.version,
-      subscriptionTier: request.subscriptionTier || 'FOUNDATION',
+      subscriptionTier: request.subscriptionTier || 'FREE',
       status: 'PROVISIONING',
       masterOwner: context.principal.id,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      createdAt: now,
+      updatedAt: now,
       createdBy: context.principal.id,
       configurationVersion: 1,
       workspaceVersion: 1,
@@ -382,7 +402,7 @@ export class ProvisioningService {
           toStatus: 'PROVISIONING',
           actorId: context.principal.id,
           actorRole: context.principal.roles[0] || 'TDBK_MASTER_ADMIN',
-          timestamp: new Date().toISOString(),
+          timestamp: now,
           reason: 'Provisioning initiated',
           correlationId,
         },
@@ -428,7 +448,7 @@ export class ProvisioningService {
       {
         stepId: 'step_1_validate_identity',
         stepType: 'PROVISIONING_VALIDATE_IDENTITY',
-        input: { dbkId: request.dbkId, legalName: request.legalName },
+        input: { dbkId: request.dbkId, legalName: initialDbk.legalName },
       },
       {
         stepId: 'step_2_validate_blueprint',
@@ -440,7 +460,7 @@ export class ProvisioningService {
         stepType: 'PROVISIONING_INITIALIZE_DNA',
         input: {
           dbkId: request.dbkId,
-          legalName: request.legalName,
+          legalName: initialDbk.legalName,
           blueprintId: bp.id,
           blueprintVersion: bp.version,
         },
@@ -486,7 +506,7 @@ export class ProvisioningService {
       ...context,
       tenantContext: {
         tenantId: request.dbkId,
-        name: request.legalName,
+        name: initialDbk.legalName,
         blueprintId: bp.id,
         status: 'PROVISIONING',
       },
