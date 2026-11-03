@@ -2,22 +2,24 @@
 
 **Snapshot date:** 2026-11-03  
 **Repository:** `thuram34/tdbk-v2-platform`  
-**Verified main SHA:** `514ea4ec470bf65bc448043bb98248038b0402a8`  
+**Verified main SHA:** `03ab8ab4ae309f039c52b25416bd92ff94c77f69`  
 **Overall status:** P0 platform baseline verified; full product lifecycle remains incomplete.
 
 ## 1. Validation evidence
 
-The current mainline was validated by GitHub Actions, not by a local shell session.
+The current mainline was validated by GitHub Actions, not by a local shell session. PR #601 and PR #603 both passed their full verification pipelines, and the corresponding post-merge main runs passed.
 
 - **Merged PR:** #601 — P0 provisioning, security and CI repair.
-- **PR verification:** [run 41653539907](https://github.com/thuram34/tdbk-v2-platform/actions/runs/41653539907) — passed.
-- **Post-merge main verification:** [run 41654247155](https://github.com/thuram34/tdbk-v2-platform/actions/runs/41654247155) — passed.
+- **PR #601 verification:** [run 41653539907](https://github.com/thuram34/tdbk-v2-platform/actions/runs/41653539907) — passed.
+- **Post-merge main verification after #601:** [run 41654247155](https://github.com/thuram34/tdbk-v2-platform/actions/runs/41654247155) — passed.
+- **PR #603 finance verification:** [run 41656487112](https://github.com/thuram34/tdbk-v2-platform/actions/runs/41656487112) — passed.
+- **Post-merge main verification after #603:** [run 41657142876](https://github.com/thuram34/tdbk-v2-platform/actions/runs/41657142876) — passed.
 - **Passed gates:** TypeScript typecheck, ESLint, capability engineering gate, flow orchestration gate, full test suite, production build and Docker image validation.
 - **Test evidence:** 59 test files and 232 tests passed in the consolidated P0 run.
 - **CI behaviour:** GitHub Actions now uses read-only repository permissions and no longer mutates or pushes `package-lock.json`.
 - **Local execution:** No local shell execution is claimed. The recorded pass/fail evidence comes from the linked GitHub Actions runs.
 
-The earlier main failure at run 41415463980 is superseded by the verified P0 merge and post-merge run.
+The earlier main failure at run 41415463980 is superseded by the verified P0 merge and post-merge runs.
 
 ## 2. P0 completed on main
 
@@ -31,24 +33,26 @@ The earlier main failure at run 41415463980 is superseded by the verified P0 mer
 | Capability state | Blueprint defaults do not bypass entitlement or configuration requirements; entitled but unconfigured capabilities remain inactive | PR #601; capability tests |
 | FREE core | Core identity, finance ledger, customer directory, supplier registry, inventory foundation and sales counter entitlements available on FREE | PR #601; persisted sales journey |
 | Tenant security | AI proposals are strictly branch-scoped; Firestore branch authorization regression coverage remains on main | PR #601 and existing rules tests |
+| Financial truth | Ledger integrity, outbox atomicity, receipt persistence and repeated FAILED reconciliation are covered by tests | PR #603; runs 41656487112 and 41657142876 |
 
 ## 3. Current product completion status
 
 P0 release and authority foundations are verified. The following product capabilities are **not** marked production-ready merely because some source code or an adapter exists.
 
 ### Commercial onboarding and subscriptions
-- Owner-facing paid checkout and payment activation flow: pending integration from PR #567.
+- Owner-facing paid checkout and payment activation flow: pending integration from PR #567; the current `/pay` route initiates STK Push but no provider callback route completes the flow.
 - Subscription renewal, failed-payment retries, dunning, suspension, cancellation policy and entitlement expiry: pending.
-- Payment ambiguity recovery and provider status query: pending advanced M-Pesa integration.
+- Payment ambiguity recovery, callback route, callback authenticity verification and provider status query: pending advanced M-Pesa integration.
 
 ### Shared business engines
 - Sales transaction and inventory decrement: implemented baseline with acceptance coverage.
 - Full purchasing/procurement, goods receipt, supplier settlement and reorder automation: pending selective integration from PR #390.
 - Full accounting coverage (AP/AR, tax, period close, financial statements and audit reporting): incomplete.
-- Financial integrity and receipt persistence acceptance suites: PR #603 in progress; do not mark complete until its CI passes and it is merged.
+- Conflicting reversal replay regression: restoration is pending in PR #607; do not mark that specific invariant complete until its CI passes and it is merged.
 
 ### External integrations
-- M-Pesa: current main supports STK Push; STK query, transaction status pull and automated ambiguous-outcome reconciliation remain pending. PR #225 is the preferred advanced implementation source, subject to tests.
+- M-Pesa: current main supports STK Push only; STK query, transaction status pull and automated ambiguous-outcome reconciliation remain pending. PR #225 is the preferred advanced implementation source, subject to tests.
+- M-Pesa callback wiring: `MpesaBridge.handleCallback` has no HTTP route/caller in this repository. The subscription router initiates payment but does not expose a callback endpoint. Before production use, add a tenant-bound callback route and verify callback claims through authoritative Safaricom STK Query before ledger posting or entitlement activation. The current callback envelope check is not provider authentication.
 - KRA eTIMS: VSCU adapter source exists in PR #229; endpoint, payload, duplicate submission and production certification evidence remain pending.
 - WhatsApp Cloud API: adapter source exists in PR #224; webhook, delivery, retry and tenant credential verification remain pending.
 - Email, SMS and bank adapters: mock/unavailable; production provider connections are pending.

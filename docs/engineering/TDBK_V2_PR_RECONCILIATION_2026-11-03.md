@@ -134,7 +134,10 @@ Since the audit snapshot above:
 - PR #601 passed its full GitHub Actions pipeline, including typecheck, lint, capability gate, flow gate, full tests, production build and Docker validation. Post-merge `main` run [41654247155](https://github.com/thuram34/tdbk-v2-platform/actions/runs/41654247155) also passed.
 - PR #599 was closed as superseded. Eleven additional duplicate or superseded PRs were closed after their changes were merged or verified already present.
 - The mainline M-Pesa adapter is now explicitly limited to `STK_PUSH`; provider query/reconciliation remains pending until the advanced adapter and its tests are integrated.
-- Financial truth acceptance tests are being added in PR #603. Its first run exposed a repeated FAILED reconciliation transition bug; a repository-level idempotency fix is included and the rerun is pending.
+- PR #603 was merged at commit `03ab8ab4ae309f039c52b25416bd92ff94c77f69`; its financial-integrity, financial-truth and receipt-persistence verification passed in [run 41656487112](https://github.com/thuram34/tdbk-v2-platform/actions/runs/41656487112), and post-merge `main` run [41657142876](https://github.com/thuram34/tdbk-v2-platform/actions/runs/41657142876) passed.
+- PR #10, #12 and #149 were closed as superseded after their useful verification or state-transition behaviour was incorporated into current mainline code.
+- PR #607 restores the pre-existing conflicting-reversal replay regression test that was unintentionally replaced during finance test consolidation; it is pending CI.
+- Additional payment-path review found that `MpesaBridge.handleCallback` has no HTTP route/caller in this repository. The subscription router has a payment initiation route but no callback route. The handler also does not query Safaricom before treating callback success as financial truth. A tenant-bound callback endpoint plus authoritative STK query verification is required before production payment activation.
 
 The original 33-PR table remains an accurate snapshot of the audit date. It is not a claim that those PRs are still open today.
 
