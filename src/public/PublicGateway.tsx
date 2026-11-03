@@ -284,7 +284,7 @@ export function PublicGateway({ onSelectSector, onSignIn }: PublicGatewayProps) 
             </div>
             <div>
               <div className="flex items-center space-x-2">
-                <span className="font-serif font-bold text-lg text-neutral-950 tracking-tight">
+                <span className="font-serif font-bold text-sm sm:text-lg text-neutral-950 tracking-tight max-w-[170px] sm:max-w-none truncate">
                   Thuram Digital Bridge Kenya
                 </span>
                 <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-700 font-bold border border-neutral-200">
@@ -297,7 +297,7 @@ export function PublicGateway({ onSelectSector, onSignIn }: PublicGatewayProps) 
             </div>
           </div>
 
-          <nav className="hidden md:flex items-center space-x-8 text-sm font-medium text-neutral-600">
+          <nav className="hidden xl:flex items-center space-x-5 2xl:space-x-8 text-sm font-medium text-neutral-600">
             <a href="#overview" className="hover:text-neutral-950 focus:outline-none focus:ring-2 focus:ring-neutral-950 rounded-md px-1 transition">Overview</a>
             <a href="#business-spaces" className="hover:text-neutral-950 focus:outline-none focus:ring-2 focus:ring-neutral-950 rounded-md px-1 transition">Your Space</a>
             <a href="#digital-space-showcase" className="hover:text-neutral-950 focus:outline-none focus:ring-2 focus:ring-neutral-950 rounded-md px-1 transition">Workspace Showcase</a>
@@ -306,7 +306,7 @@ export function PublicGateway({ onSelectSector, onSignIn }: PublicGatewayProps) 
             <a href="#gazette" className="hover:text-neutral-950 focus:outline-none focus:ring-2 focus:ring-neutral-950 rounded-md px-1 transition">Gazette</a>
           </nav>
 
-          <div className="hidden md:flex items-center space-x-3">
+          <div className="hidden xl:flex items-center space-x-3">
             {onSignIn ? (
               <button
                 onClick={onSignIn}
@@ -327,7 +327,7 @@ export function PublicGateway({ onSelectSector, onSignIn }: PublicGatewayProps) 
           </div>
 
           {/* Mobile Menu Toggle */}
-          <div className="flex md:hidden items-center space-x-2">
+          <div className="flex xl:hidden items-center space-x-2">
             {onSignIn && (
               <button
                 onClick={onSignIn}
@@ -349,7 +349,7 @@ export function PublicGateway({ onSelectSector, onSignIn }: PublicGatewayProps) 
 
         {/* Mobile Navigation Drawer */}
         {mobileMenuOpen && (
-          <div className="md:hidden bg-white border-b border-neutral-200 px-4 pt-3 pb-6 space-y-3 shadow-lg">
+          <div className="xl:hidden bg-white border-b border-neutral-200 px-4 pt-3 pb-6 space-y-3 shadow-lg">
             <nav className="flex flex-col space-y-1 text-sm font-medium text-neutral-700">
               <a
                 href="#overview"
@@ -1085,6 +1085,9 @@ export function PublicGateway({ onSelectSector, onSignIn }: PublicGatewayProps) 
         </div>
       </footer>
 
+      <a href="#consultation-section" aria-label="Configure a business kit and request a quote" className="hidden sm:flex fixed bottom-5 right-5 z-30 items-center gap-2 rounded-full bg-neutral-950 px-5 py-3 text-sm font-semibold text-white shadow-xl ring-1 ring-white/20 transition hover:-translate-y-0.5 hover:bg-neutral-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">
+        Configure a business kit <ArrowRight className="h-4 w-4" />
+      </a>
     </div>
   );
 }
