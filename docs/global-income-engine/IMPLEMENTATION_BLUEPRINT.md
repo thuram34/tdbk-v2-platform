@@ -180,3 +180,25 @@ Employment and commercial acquisition must remain distinct while sharing source 
 A phase is complete only when code, tests, authorization, persistence, observability and operational documentation are verified. A GitHub commit is not proof of a passing test suite or deployed service. A repository deployment file is not proof of a live Cloud Run revision. A connector listed in ChatGPT is not proof of a production app connector.
 
 **First foundation slice:** domain types, deterministic weighted scoring, canonical opportunity identity and unit tests. No external submissions, CRM writes, account changes, secret changes or production deployment.
+
+
+## Foundation implementation status (2026-11-07)
+
+Implemented on `feature/global-income-engine-foundation`:
+
+- Domain contracts, weighted scoring and source URL normalization.
+- Tenant-scoped Firestore repository for opportunities, deduplication indexes, approvals and application records.
+- Atomic opportunity deduplication and tenant identity checks.
+- Lifecycle service with evidence-backed verification, score eligibility threshold, allowed stage transitions and approval gates.
+- Authenticated Express API mounted at `/api/global-income`.
+- Owner portfolio entry point and Global Income control panel for opportunity capture, pipeline, application ledger, approval queue and execution safeguards.
+- Persistence tests for tenant isolation, duplicate suppression, approval decisions and separate application records.
+- Integration and operations runbook covering OAuth boundaries, provider policy, secrets and release gates.
+
+Still external/deployment-dependent:
+
+- Provider discovery adapters and scheduled ingestion require approved source integrations and runtime configuration.
+- Gmail and HubSpot need server-side OAuth credentials/scopes; ChatGPT connector connections are not deployable server credentials.
+- Marketplace application submission remains subject to official platform capabilities and item-specific approvals.
+- Production Firestore, Cloud Run, Vercel and live CRM configuration have not been changed by this branch.
+- CI must pass before merge; no passing result is asserted until GitHub Actions completes.
