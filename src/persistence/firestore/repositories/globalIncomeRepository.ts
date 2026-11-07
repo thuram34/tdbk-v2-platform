@@ -18,7 +18,10 @@ export class GlobalIncomeRepository {
   private opportunityPath(tenantId: string, id: string): string {
     return `/tenants/${tenantId}/global_income_opportunities/${id}`;
   }
-  private dedupePath(tenantId: string, key: string): string {\n    return `/tenants/${tenantId}/global_income_dedupe/${key}`;\n  }\n  private approvalPath(tenantId: string, id: string): string {
+  private dedupePath(tenantId: string, key: string): string {
+    return `/tenants/${tenantId}/global_income_dedupe/${key}`;
+  }
+  private approvalPath(tenantId: string, id: string): string {
     return `/tenants/${tenantId}/global_income_approvals/${id}`;
   }
   private applicationPath(tenantId: string, id: string): string {
