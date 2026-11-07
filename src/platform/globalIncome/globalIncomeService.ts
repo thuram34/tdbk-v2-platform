@@ -55,7 +55,7 @@ export class GlobalIncomeService {
   private assertOwnerOrAdmin(context: SecurityContext): void {
     const roles = context.principal.roles || [];
     if (!masterAuthority.isMasterAdmin(context.principal) &&
-      !roles.some((role) => ['BUSINESS_OWNER', 'OWNER_OPERATOR', 'TENANT_ADMIN'].includes(role))) {
+      !roles.some((role) => ['BUSINESS_OWNER', 'OWNER_OPERATOR', 'TENANT_ADMIN', 'TDBK_AUTOMATION'].includes(role))) {
       throw new KernelError('AUTHORIZATION_ERROR', 'Owner or tenant administrator authority is required.', 403, context.requestId);
     }
   }
@@ -133,11 +133,11 @@ export class GlobalIncomeService {
     if (next === 'QUALIFIED' && (!current?.score?.eligible || current.score.total < 60)) {
       throw new KernelError('VALIDATION_ERROR', 'Qualification requires an eligible score of at least 60.', 409, context.requestId);
     }
-    if (next === 'SUBMITTED' && (current?.applicationCostAmount && current.applicationCostAmount > 0 || current?.channel === 'upwork')) {
+    if (next === 'SUBMITTED' && ((current?.applicationCostAmount ?? 0) > 0 || current?.channel === 'upwork' || current?.channel === 'direct_b2b')) {
       const approvals = await globalIncomeRepository.listApprovals(tenantId);
       const approved = approvals.some((approval) =>
         approval.targetId === id && approval.status === 'APPROVED' &&
-        (approval.action === 'SUBMIT_PAID_APPLICATION' || approval.action === 'CONFIRM_UPWORK_PROPOSAL')
+        (current?.channel === 'upwork' ? ['SUBMIT_PAID_APPLICATION', 'CONFIRM_UPWORK_PROPOSAL'].includes(approval.action) : current?.channel === 'direct_b2b' ? approval.action === 'SEND_DIRECT_OUTREACH' : approval.action === 'SUBMIT_PAID_APPLICATION')
       );
       if (!approved) throw new KernelError('AUTHORIZATION_ERROR', 'This submission requires an approved application authorization.', 403, context.requestId);
     }
@@ -190,7 +190,7 @@ export class GlobalIncomeService {
     const opportunity = await globalIncomeRepository.getOpportunity(tenantId, input.opportunityId);
     if (!opportunity) throw new KernelError('NOT_FOUND', 'Linked opportunity not found.', 404, context.requestId);
     const now = new Date().toISOString();
-    const requiresApproval = !!input.requiresApproval || opportunity.channel === 'upwork' || (opportunity.applicationCostAmount ?? 0) > 0;
+    const requiresApproval = !!input.requiresApproval || opportunity.channel === 'upwork' || opportunity.channel === 'direct_b2b' || (opportunity.applicationCostAmount ?? 0) > 0;
     const record: ApplicationRecord = { ...input, requiresApproval, tenantId, createdAt: now, updatedAt: now };
     const saved = await globalIncomeRepository.createApplication(tenantId, record);
     this.audit(context, 'GLOBAL_INCOME_APPLICATION_CREATED', `application:${saved.applicationId}`, { opportunityId: saved.opportunityId, status: saved.status });
@@ -208,14 +208,14 @@ export class GlobalIncomeService {
     if (!current) throw new KernelError('NOT_FOUND', 'Application record not found.', 404, context.requestId);
     if (next === 'SUBMITTED') {
       const opportunity = await globalIncomeRepository.getOpportunity(tenantId, current.opportunityId);
-      const requiresApproval = !!current.requiresApproval || opportunity?.channel === 'upwork' || (opportunity?.applicationCostAmount ?? 0) > 0;
+      const requiresApproval = !!current.requiresApproval || opportunity?.channel === 'upwork' || opportunity?.channel === 'direct_b2b' || (opportunity?.applicationCostAmount ?? 0) > 0;
       if (requiresApproval) {
         if (!current.approvalId) throw new KernelError('AUTHORIZATION_ERROR', 'This application requires an approved authorization record.', 403, context.requestId);
         const approval = await globalIncomeRepository.getApproval(tenantId, current.approvalId);
         const permittedActions = opportunity?.channel === 'upwork'
           ? ['CONFIRM_UPWORK_PROPOSAL', 'SUBMIT_PAID_APPLICATION']
           : ['SUBMIT_PAID_APPLICATION'];
-        if (!approval || approval.status !== 'APPROVED' || !permittedActions.includes(approval.action)) {
+        if (!approval || approval.status !== 'APPROVED' || approval.targetId !== current.opportunityId || !permittedActions.includes(approval.action)) {
           throw new KernelError('AUTHORIZATION_ERROR', 'Application submission is blocked until its matching approval is approved.', 403, context.requestId);
         }
       }
