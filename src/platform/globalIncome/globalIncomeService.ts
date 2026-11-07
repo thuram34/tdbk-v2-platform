@@ -4,9 +4,9 @@ import { BlueprintValidator } from '../../blueprint/validator';
 import { masterAuthority } from '../../kernel/master/masterAuthority';
 import { KernelError } from '../../kernel/errors/kernelErrors';
 import { globalIncomeRepository } from '../../persistence/firestore/repositories/globalIncomeRepository';
-import { ApplicationRecord, ApplicationStatus } from './applicationTypes';\nimport { buildOpportunityDeduplicationKey } from './deduplication';
+import { ApplicationRecord, ApplicationStatus } from './applicationTypes';\nimport { buildOpportunityDeduplicationKey } from './deduplication';\nimport { scoreOpportunity } from './scoring';
 import {
-  ApprovalRequest, Opportunity, OpportunityStage,
+  ApprovalRequest, Opportunity, OpportunityEvidence, OpportunityScoreDimensions, OpportunityStage,
 } from './types';
 
 const OPPORTUNITY_TRANSITIONS: Record<OpportunityStage, OpportunityStage[]> = {
@@ -80,6 +80,41 @@ export class GlobalIncomeService {
   async listOpportunities(context: SecurityContext, tenantId: string): Promise<Opportunity[]> {
     this.assertTenant(context, tenantId, 'list global income opportunities');
     return globalIncomeRepository.listOpportunities(tenantId);
+  }
+
+  async verifyOpportunity(context: SecurityContext, tenantId: string, id: string, evidence: OpportunityEvidence): Promise<Opportunity> {
+    this.assertTenant(context, tenantId, 'verify global income opportunity');
+    this.assertOwnerOrAdmin(context);
+    if (!evidence?.sourceUrl || !evidence.summary?.trim() || !Number.isFinite(evidence.confidence) || evidence.confidence < 0 || evidence.confidence > 1) {
+      throw new KernelError('VALIDATION_ERROR', 'Evidence URL, summary and confidence from 0 to 1 are required.', 400, context.requestId);
+    }
+    const source = new URL(evidence.sourceUrl);
+    if (!['http:', 'https:'].includes(source.protocol)) throw new KernelError('VALIDATION_ERROR', 'Evidence must use HTTP or HTTPS.', 400, context.requestId);
+    const current = await globalIncomeRepository.getOpportunity(tenantId, id);
+    if (!current) throw new KernelError('NOT_FOUND', 'Opportunity not found.', 404, context.requestId);
+    const updated: Opportunity = {
+      ...current, verificationStatus: 'VERIFIED',
+      evidence: [...current.evidence, { ...evidence, observedAt: evidence.observedAt || new Date().toISOString() }],
+      lastVerifiedAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+    };
+    await globalIncomeRepository.updateOpportunity(tenantId, updated);
+    this.audit(context, 'GLOBAL_INCOME_OPPORTUNITY_VERIFIED', `opportunity:${id}`, { evidenceType: evidence.evidenceType, sourceUrl: evidence.sourceUrl });
+    return updated;
+  }
+
+  async scoreOpportunityRecord(context: SecurityContext, tenantId: string, id: string, dimensions: OpportunityScoreDimensions, hardExclusionReasons: string[] = []): Promise<Opportunity> {
+    this.assertTenant(context, tenantId, 'score global income opportunity');
+    const current = await globalIncomeRepository.getOpportunity(tenantId, id);
+    if (!current) throw new KernelError('NOT_FOUND', 'Opportunity not found.', 404, context.requestId);
+    if (current.verificationStatus !== 'VERIFIED') throw new KernelError('VALIDATION_ERROR', 'Verify the source before scoring.', 409, context.requestId);
+    const score = scoreOpportunity({ dimensions, hardExclusionReasons });
+    const updated: Opportunity = {
+      ...current, score, hardExclusionReasons: score.hardExclusionReasons,
+      updatedAt: new Date().toISOString(),
+    };
+    await globalIncomeRepository.updateOpportunity(tenantId, updated);
+    this.audit(context, 'GLOBAL_INCOME_OPPORTUNITY_SCORED', `opportunity:${id}`, { total: score.total, eligible: score.eligible });
+    return updated;
   }
 
   async transitionOpportunity(context: SecurityContext, tenantId: string, id: string, next: OpportunityStage): Promise<Opportunity> {
