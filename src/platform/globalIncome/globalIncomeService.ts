@@ -6,7 +6,7 @@ import { KernelError } from '../../kernel/errors/kernelErrors';
 import { globalIncomeRepository } from '../../persistence/firestore/repositories/globalIncomeRepository';
 import { ApplicationRecord, ApplicationStatus } from './applicationTypes';
 import {
-  ApprovalAction, ApprovalRequest, Opportunity, OpportunityStage,
+  ApprovalRequest, Opportunity, OpportunityStage,
 } from './types';
 
 const OPPORTUNITY_TRANSITIONS: Record<OpportunityStage, OpportunityStage[]> = {
@@ -77,6 +77,14 @@ export class GlobalIncomeService {
   async transitionOpportunity(context: SecurityContext, tenantId: string, id: string, next: OpportunityStage): Promise<Opportunity> {
     this.assertTenant(context, tenantId, 'transition global income opportunity');
     const current = await globalIncomeRepository.getOpportunity(tenantId, id);
+    if (next === 'SUBMITTED' && (current?.applicationCostAmount && current.applicationCostAmount > 0 || current?.channel === 'upwork')) {
+      const approvals = await globalIncomeRepository.listApprovals(tenantId);
+      const approved = approvals.some((approval) =>
+        approval.targetId === id && approval.status === 'APPROVED' &&
+        (approval.action === 'SUBMIT_PAID_APPLICATION' || approval.action === 'CONFIRM_UPWORK_PROPOSAL')
+      );
+      if (!approved) throw new KernelError('AUTHORIZATION_ERROR', 'This submission requires an approved application authorization.', 403, context.requestId);
+    }
     if (!current) throw new KernelError('NOT_FOUND', 'Opportunity not found.', 404, context.requestId);
     if (!OPPORTUNITY_TRANSITIONS[current.stage].includes(next)) {
       throw new KernelError('VALIDATION_ERROR', `Invalid opportunity transition: ${current.stage} -> ${next}`, 409, context.requestId);
@@ -98,6 +106,11 @@ export class GlobalIncomeService {
     const saved = await globalIncomeRepository.createApproval(tenantId, approval);
     this.audit(context, 'GLOBAL_INCOME_APPROVAL_REQUESTED', `approval:${saved.approvalId}`, { action: saved.action, targetId: saved.targetId });
     return saved;
+  }
+
+  async listApprovals(context: SecurityContext, tenantId: string): Promise<ApprovalRequest[]> {
+    this.assertTenant(context, tenantId, 'list global income approvals');
+    return globalIncomeRepository.listApprovals(tenantId);
   }
 
   async decideApproval(context: SecurityContext, tenantId: string, id: string, decision: 'APPROVED' | 'REJECTED', note: string | null): Promise<ApprovalRequest> {
