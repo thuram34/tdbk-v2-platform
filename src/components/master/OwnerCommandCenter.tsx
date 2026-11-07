@@ -25,7 +25,8 @@ interface OwnerCommandCenterProps {
   onRefresh: () => Promise<void> | void;
   onAddOrganization: () => void;
   onOpenOrganization: (dbkId: string) => void;
-  onOpenSokoni: () => void;\n  onOpenIncomeEngine: () => void;
+  onOpenSokoni: () => void;
+  onOpenIncomeEngine: () => void;
   onLogout: () => Promise<void> | void;
 }
 
