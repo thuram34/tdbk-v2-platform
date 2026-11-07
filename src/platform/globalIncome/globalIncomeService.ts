@@ -207,6 +207,7 @@ export class GlobalIncomeService {
     const current = await globalIncomeRepository.getApplication(tenantId, id);
     if (!current) throw new KernelError('NOT_FOUND', 'Application record not found.', 404, context.requestId);
     if (next === 'SUBMITTED') {
+      this.assertOwnerOrAdmin(context);
       const opportunity = await globalIncomeRepository.getOpportunity(tenantId, current.opportunityId);
       const requiresApproval = !!current.requiresApproval || opportunity?.channel === 'upwork' || opportunity?.channel === 'direct_b2b' || (opportunity?.applicationCostAmount ?? 0) > 0;
       if (requiresApproval) {
@@ -214,7 +215,9 @@ export class GlobalIncomeService {
         const approval = await globalIncomeRepository.getApproval(tenantId, current.approvalId);
         const permittedActions = opportunity?.channel === 'upwork'
           ? ['CONFIRM_UPWORK_PROPOSAL', 'SUBMIT_PAID_APPLICATION']
-          : ['SUBMIT_PAID_APPLICATION'];
+          : opportunity?.channel === 'direct_b2b'
+            ? ['SEND_DIRECT_OUTREACH']
+            : ['SUBMIT_PAID_APPLICATION'];
         if (!approval || approval.status !== 'APPROVED' || approval.targetId !== current.opportunityId || !permittedActions.includes(approval.action)) {
           throw new KernelError('AUTHORIZATION_ERROR', 'Application submission is blocked until its matching approval is approved.', 403, context.requestId);
         }
