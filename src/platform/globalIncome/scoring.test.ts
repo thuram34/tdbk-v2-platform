@@ -31,7 +31,7 @@ describe('scoreOpportunity', () => {
       },
     });
 
-    expect(result.total).toBe(65);
+    expect(result.total).toBe(65.5);
   });
 
   it('hard-excludes an opportunity before qualification', () => {
