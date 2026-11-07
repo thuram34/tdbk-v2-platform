@@ -4,7 +4,9 @@ import { BlueprintValidator } from '../../blueprint/validator';
 import { masterAuthority } from '../../kernel/master/masterAuthority';
 import { KernelError } from '../../kernel/errors/kernelErrors';
 import { globalIncomeRepository } from '../../persistence/firestore/repositories/globalIncomeRepository';
-import { ApplicationRecord, ApplicationStatus } from './applicationTypes';\nimport { buildOpportunityDeduplicationKey } from './deduplication';\nimport { scoreOpportunity } from './scoring';
+import { ApplicationRecord, ApplicationStatus } from './applicationTypes';
+import { buildOpportunityDeduplicationKey } from './deduplication';
+import { scoreOpportunity } from './scoring';
 import {
   ApprovalRequest, Opportunity, OpportunityEvidence, OpportunityScoreDimensions, OpportunityStage,
 } from './types';
@@ -70,6 +72,11 @@ export class GlobalIncomeService {
   async createOpportunity(context: SecurityContext, opportunity: Opportunity): Promise<Opportunity> {
     const tenantId = opportunity.ownerId;
     this.assertTenant(context, tenantId, 'create global income opportunity');
+    if (!opportunity.title?.trim() || !opportunity.identity?.employerOrClient?.trim() || !opportunity.identity?.roleOrProject?.trim()) {
+      throw new KernelError('VALIDATION_ERROR', 'Opportunity title, employer/client and role/project are required.', 400, context.requestId);
+    }
+    const expectedKey = buildOpportunityDeduplicationKey(opportunity.identity);
+    if (expectedKey !== opportunity.deduplicationKey) throw new KernelError('VALIDATION_ERROR', 'Opportunity deduplication key does not match its source identity.', 400, context.requestId);
     const now = new Date().toISOString();
     const item = { ...opportunity, createdAt: opportunity.createdAt || now, updatedAt: now };
     const saved = await globalIncomeRepository.createOpportunity(tenantId, item);
@@ -120,7 +127,13 @@ export class GlobalIncomeService {
   async transitionOpportunity(context: SecurityContext, tenantId: string, id: string, next: OpportunityStage): Promise<Opportunity> {
     this.assertTenant(context, tenantId, 'transition global income opportunity');
     const current = await globalIncomeRepository.getOpportunity(tenantId, id);
-    if (next === 'VERIFIED' && (current?.verificationStatus !== 'VERIFIED' || !current.evidence?.length)) {\n      throw new KernelError('VALIDATION_ERROR', 'Verification requires VERIFIED status and source evidence.', 409, context.requestId);\n    }\n    if (next === 'QUALIFIED' && (!current?.score?.eligible || current.score.total < 60)) {\n      throw new KernelError('VALIDATION_ERROR', 'Qualification requires an eligible score of at least 60.', 409, context.requestId);\n    }\n    if (next === 'SUBMITTED' && (current?.applicationCostAmount && current.applicationCostAmount > 0 || current?.channel === 'upwork')) {
+    if (next === 'VERIFIED' && (current?.verificationStatus !== 'VERIFIED' || !current.evidence?.length)) {
+      throw new KernelError('VALIDATION_ERROR', 'Verification requires VERIFIED status and source evidence.', 409, context.requestId);
+    }
+    if (next === 'QUALIFIED' && (!current?.score?.eligible || current.score.total < 60)) {
+      throw new KernelError('VALIDATION_ERROR', 'Qualification requires an eligible score of at least 60.', 409, context.requestId);
+    }
+    if (next === 'SUBMITTED' && (current?.applicationCostAmount && current.applicationCostAmount > 0 || current?.channel === 'upwork')) {
       const approvals = await globalIncomeRepository.listApprovals(tenantId);
       const approved = approvals.some((approval) =>
         approval.targetId === id && approval.status === 'APPROVED' &&
@@ -141,7 +154,13 @@ export class GlobalIncomeService {
   async createApproval(context: SecurityContext, input: Omit<ApprovalRequest, 'ownerId' | 'status' | 'requestedAt' | 'decidedAt' | 'decisionNote'>): Promise<ApprovalRequest> {
     const tenantId = context.principal.tenantId;
     if (!tenantId) throw new KernelError('AUTHENTICATION_ERROR', 'Tenant context is required.', 401, context.requestId);
-    this.assertTenant(context, tenantId, 'request global income approval');\n    this.assertOwnerOrAdmin(context);
+    this.assertTenant(context, tenantId, 'request global income approval');
+    this.assertOwnerOrAdmin(context);
+    const allowedActions = ['SUBMIT_PAID_APPLICATION', 'CONFIRM_UPWORK_PROPOSAL', 'SEND_DIRECT_OUTREACH', 'PUBLISH_GIG', 'CHANGE_PROFILE', 'WRITE_CRM', 'ACCEPT_OFFER', 'ACCEPT_CONTRACT', 'SIGN_LEGAL_DOCUMENT', 'DISCLOSE_SENSITIVE_INFORMATION', 'PURCHASE_CREDITS', 'BOOST_PROFILE'];
+    if (!allowedActions.includes(input.action)) throw new KernelError('VALIDATION_ERROR', 'Unsupported approval action.', 400, context.requestId);
+    if (['SUBMIT_PAID_APPLICATION', 'PURCHASE_CREDITS', 'BOOST_PROFILE'].includes(input.action) && !input.termsOrCost?.trim()) {
+      throw new KernelError('VALIDATION_ERROR', 'Cost and terms must be stated for paid actions.', 400, context.requestId);
+    }
     const approval: ApprovalRequest = {
       ...input, ownerId: tenantId, status: 'PENDING', requestedAt: new Date().toISOString(),
       decidedAt: null, decisionNote: null,
@@ -157,7 +176,8 @@ export class GlobalIncomeService {
   }
 
   async decideApproval(context: SecurityContext, tenantId: string, id: string, decision: 'APPROVED' | 'REJECTED', note: string | null): Promise<ApprovalRequest> {
-    this.assertTenant(context, tenantId, 'decide global income approval');\n    this.assertOwnerOrAdmin(context);
+    this.assertTenant(context, tenantId, 'decide global income approval');
+    this.assertOwnerOrAdmin(context);
     const result = await globalIncomeRepository.decideApproval(tenantId, id, decision, note);
     this.audit(context, 'GLOBAL_INCOME_APPROVAL_DECIDED', `approval:${id}`, { decision, action: result.action });
     return result;
@@ -170,7 +190,8 @@ export class GlobalIncomeService {
     const opportunity = await globalIncomeRepository.getOpportunity(tenantId, input.opportunityId);
     if (!opportunity) throw new KernelError('NOT_FOUND', 'Linked opportunity not found.', 404, context.requestId);
     const now = new Date().toISOString();
-    const record: ApplicationRecord = { ...input, tenantId, createdAt: now, updatedAt: now };
+    const requiresApproval = !!input.requiresApproval || opportunity.channel === 'upwork' || (opportunity.applicationCostAmount ?? 0) > 0;
+    const record: ApplicationRecord = { ...input, requiresApproval, tenantId, createdAt: now, updatedAt: now };
     const saved = await globalIncomeRepository.createApplication(tenantId, record);
     this.audit(context, 'GLOBAL_INCOME_APPLICATION_CREATED', `application:${saved.applicationId}`, { opportunityId: saved.opportunityId, status: saved.status });
     return saved;
@@ -185,11 +206,18 @@ export class GlobalIncomeService {
     this.assertTenant(context, tenantId, 'transition application ledger');
     const current = await globalIncomeRepository.getApplication(tenantId, id);
     if (!current) throw new KernelError('NOT_FOUND', 'Application record not found.', 404, context.requestId);
-    if (next === 'SUBMITTED' && current.requiresApproval) {
-      if (!current.approvalId) throw new KernelError('AUTHORIZATION_ERROR', 'This application requires an approved authorization record.', 403, context.requestId);
-      const approval = await globalIncomeRepository.getApproval(tenantId, current.approvalId);
-      if (!approval || approval.status !== 'APPROVED') {
-        throw new KernelError('AUTHORIZATION_ERROR', 'Application submission is blocked until its approval is approved.', 403, context.requestId);
+    if (next === 'SUBMITTED') {
+      const opportunity = await globalIncomeRepository.getOpportunity(tenantId, current.opportunityId);
+      const requiresApproval = !!current.requiresApproval || opportunity?.channel === 'upwork' || (opportunity?.applicationCostAmount ?? 0) > 0;
+      if (requiresApproval) {
+        if (!current.approvalId) throw new KernelError('AUTHORIZATION_ERROR', 'This application requires an approved authorization record.', 403, context.requestId);
+        const approval = await globalIncomeRepository.getApproval(tenantId, current.approvalId);
+        const permittedActions = opportunity?.channel === 'upwork'
+          ? ['CONFIRM_UPWORK_PROPOSAL', 'SUBMIT_PAID_APPLICATION']
+          : ['SUBMIT_PAID_APPLICATION'];
+        if (!approval || approval.status !== 'APPROVED' || !permittedActions.includes(approval.action)) {
+          throw new KernelError('AUTHORIZATION_ERROR', 'Application submission is blocked until its matching approval is approved.', 403, context.requestId);
+        }
       }
     }
     if (!APPLICATION_TRANSITIONS[current.status].includes(next)) {
