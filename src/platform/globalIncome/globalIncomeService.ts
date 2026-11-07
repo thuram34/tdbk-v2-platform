@@ -114,7 +114,10 @@ export class GlobalIncomeService {
     const current = await globalIncomeRepository.getOpportunity(tenantId, id);
     if (!current) throw new KernelError('NOT_FOUND', 'Opportunity not found.', 404, context.requestId);
     if (current.verificationStatus !== 'VERIFIED') throw new KernelError('VALIDATION_ERROR', 'Verify the source before scoring.', 409, context.requestId);
-    if (!Array.isArray(hardExclusionReasons) || hardExclusionReasons.some((reason) => typeof reason !== 'string')) {\n      throw new KernelError('VALIDATION_ERROR', 'Hard exclusion reasons must be a list of text values.', 400, context.requestId);\n    }\n    const score = scoreOpportunity({ dimensions, hardExclusionReasons });
+    if (!Array.isArray(hardExclusionReasons) || hardExclusionReasons.some((reason) => typeof reason !== 'string')) {
+      throw new KernelError('VALIDATION_ERROR', 'Hard exclusion reasons must be a list of text values.', 400, context.requestId);
+    }
+    const score = scoreOpportunity({ dimensions, hardExclusionReasons });
     const updated: Opportunity = {
       ...current, score, hardExclusionReasons: score.hardExclusionReasons,
       updatedAt: new Date().toISOString(),
