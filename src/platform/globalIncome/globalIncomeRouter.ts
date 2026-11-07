@@ -87,8 +87,7 @@ globalIncomeRouter.get('/approvals', async (req, res) => {
     const ctx = await contextFor(req);
     const tenantId = ctx.principal.tenantId || (req.query.tenantId as string);
     if (!tenantId) return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'tenantId is required' } });
-    const { globalIncomeRepository } = await import('../../persistence/firestore/repositories/globalIncomeRepository');
-    return res.json({ status: 'SUCCESS', data: await globalIncomeRepository.listApprovals(tenantId) });
+    return res.json({ status: 'SUCCESS', data: await globalIncomeService.listApprovals(ctx, tenantId) });
   } catch (error) { return fail(res, error); }
 });
 
