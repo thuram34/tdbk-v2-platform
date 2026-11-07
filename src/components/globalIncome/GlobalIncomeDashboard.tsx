@@ -87,6 +87,52 @@ export const GlobalIncomeDashboard: React.FC<Props> = ({ tenantId, idToken, onBa
     finally { setBusy(false); }
   };
 
+  const createApplicationDraft = async (item: Opportunity) => {
+    setBusy(true); setError(null); setNotice(null);
+    try {
+      const requiresApproval = item.channel === 'upwork' || item.channel === 'direct_b2b' || (item.applicationCostAmount ?? 0) > 0;
+      let approvalId: string | null = null;
+      if (requiresApproval) {
+        const action = item.channel === 'upwork' ? 'CONFIRM_UPWORK_PROPOSAL' : item.channel === 'direct_b2b' ? 'SEND_DIRECT_OUTREACH' : 'SUBMIT_PAID_APPLICATION';
+        const termsOrCost = item.channel === 'direct_b2b' ? 'Review target, message and outreach terms before sending.' : window.prompt('Enter the exact application fee / Connects cost and terms. This will be shown in the approval request.');
+        if (item.channel !== 'direct_b2b' && !termsOrCost?.trim()) return;
+        const approval = await api<Approval>('/api/global-income/approvals', idToken, {
+          method: 'POST',
+          body: JSON.stringify({ tenantId, approval: {
+            approvalId: crypto.randomUUID(), action, targetId: item.opportunityId,
+            summary: `${action.replaceAll('_', ' ')} — ${item.title}`, termsOrCost,
+          } }),
+        });
+        approvalId = approval.approvalId;
+      }
+      const application = await api<ApplicationRecord>('/api/global-income/applications', idToken, {
+        method: 'POST',
+        body: JSON.stringify({ tenantId, application: {
+          applicationId: crypto.randomUUID(), opportunityId: item.opportunityId, channel: item.channel,
+          kind: item.kind, status: 'READY', submittedAt: null, externalReference: null,
+          evidenceUrls: [], notes: 'Draft prepared in TDBK. No external submission has been made.',
+          requiresApproval, approvalId,
+        } }),
+      });
+      setNotice(requiresApproval ? 'Application draft created. Its approval request is waiting in the queue.' : 'Application draft created. Submit it on the source platform, then record the submission here.');
+      await load();
+      return application;
+    } catch (e) { setError(e instanceof Error ? e.message : 'Could not create application draft.'); }
+    finally { setBusy(false); }
+  };
+
+  const recordSubmission = async (applicationId: string) => {
+    if (!window.confirm('Have you already submitted this application on the external platform? This only records the event in TDBK.')) return;
+    setBusy(true); setError(null);
+    try {
+      await api<ApplicationRecord>(`/api/global-income/applications/${applicationId}/transition`, idToken, {
+        method: 'POST', body: JSON.stringify({ tenantId, status: 'SUBMITTED' }),
+      });
+      setNotice('External submission recorded in the application ledger.'); await load();
+    } catch (e) { setError(e instanceof Error ? e.message : 'Could not record submission.'); }
+    finally { setBusy(false); }
+  };
+
   const pending = approvals.filter((a) => a.status === 'PENDING').length;
   const active = opportunities.filter((o) => !['WON', 'LOST', 'WITHDRAWN', 'EXCLUDED'].includes(o.stage)).length;
 
@@ -124,10 +170,16 @@ export const GlobalIncomeDashboard: React.FC<Props> = ({ tenantId, idToken, onBa
         <section className="mt-6 grid gap-3 sm:grid-cols-3">
           {[[ 'Active opportunities', active, BriefcaseBusiness ], ['Applications tracked', applications.length, CheckCircle2], ['Approvals pending', pending, ShieldAlert ]] .map(([label, value, Icon]) => <div key={String(label)} className="rounded-2xl border border-neutral-200 bg-white p-5"><div className="flex items-center justify-between text-xs font-bold uppercase tracking-wide text-neutral-500"><span>{label}</span>{React.createElement(Icon as React.ElementType, { className: 'h-4 w-4' })}</div><p className="mt-3 text-3xl font-bold">{value as number}</p></div>)}
         </section>
+        <section className="mt-6 rounded-2xl border border-neutral-200 bg-white p-5">
+          <div className="flex items-center justify-between"><div><h2 className="font-bold">Application ledger</h2><p className="mt-1 text-xs text-neutral-500">Drafts and verified external submissions; no revenue is booked here.</p></div><span className="text-xs text-neutral-500">{applications.length} records</span></div>
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            {applications.length === 0 ? <p className="text-sm text-neutral-500">No application records yet.</p> : applications.map((application) => <article key={application.applicationId} className="rounded-xl border border-neutral-200 p-3"><div className="flex items-start justify-between gap-2"><div><p className="text-sm font-semibold">{opportunities.find((o) => o.opportunityId === application.opportunityId)?.title || application.opportunityId}</p><p className="mt-1 text-xs text-neutral-500">{application.channel.replaceAll('_',' ')}</p></div><span className="rounded-full bg-neutral-100 px-2 py-1 text-[10px] font-bold">{application.status}</span></div>{application.status === 'READY' && <button disabled={busy} onClick={() => void recordSubmission(application.applicationId)} className="mt-3 rounded-lg border border-neutral-300 px-3 py-2 text-xs font-bold disabled:opacity-50">Record external submission</button>}</article>)}
+          </div>
+        </section>
         <div className="mt-7 grid gap-6 lg:grid-cols-[1.4fr_.8fr]">
           <section className="rounded-2xl border border-neutral-200 bg-white p-5">
             <div className="flex items-center justify-between"><div><h2 className="font-bold">Acquisition pipeline</h2><p className="mt-1 text-xs text-neutral-500">Newest opportunities first</p></div><span className="text-xs text-neutral-500">{opportunities.length} records</span></div>
-            <div className="mt-4 space-y-3">{opportunities.length === 0 ? <p className="rounded-xl bg-neutral-50 p-5 text-sm text-neutral-500">No opportunities yet. Capture one to begin.</p> : [...opportunities].sort((a,b) => b.createdAt.localeCompare(a.createdAt)).map((item) => <article key={item.opportunityId} className="rounded-xl border border-neutral-200 p-4"><div className="flex flex-wrap items-start justify-between gap-2"><div><h3 className="font-semibold">{item.title}</h3><p className="mt-1 text-xs text-neutral-500">{item.identity.employerOrClient} · {item.identity.roleOrProject}</p></div><span className="rounded-full bg-neutral-100 px-2.5 py-1 text-[10px] font-bold uppercase">{item.stage}</span></div><div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-neutral-500"><span>{item.channel.replaceAll('_',' ')}</span><span>{item.verificationStatus.replaceAll('_',' ')}</span>{item.score && <span className="font-bold text-neutral-800">Score {item.score.total}/100</span>}<a className="underline" href={item.identity.sourceUrl} target="_blank" rel="noreferrer">Open source</a></div></article>)}</div>
+            <div className="mt-4 space-y-3">{opportunities.length === 0 ? <p className="rounded-xl bg-neutral-50 p-5 text-sm text-neutral-500">No opportunities yet. Capture one to begin.</p> : [...opportunities].sort((a,b) => b.createdAt.localeCompare(a.createdAt)).map((item) => <article key={item.opportunityId} className="rounded-xl border border-neutral-200 p-4"><div className="flex flex-wrap items-start justify-between gap-2"><div><h3 className="font-semibold">{item.title}</h3><p className="mt-1 text-xs text-neutral-500">{item.identity.employerOrClient} · {item.identity.roleOrProject}</p></div><span className="rounded-full bg-neutral-100 px-2.5 py-1 text-[10px] font-bold uppercase">{item.stage}</span></div><div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-neutral-500"><span>{item.channel.replaceAll('_',' ')}</span><span>{item.verificationStatus.replaceAll('_',' ')}</span>{item.score && <span className="font-bold text-neutral-800">Score {item.score.total}/100</span>}<a className="underline" href={item.identity.sourceUrl} target="_blank" rel="noreferrer">Open source</a></div><button disabled={busy} onClick={() => void createApplicationDraft(item)} className="mt-3 rounded-lg border border-neutral-300 px-3 py-2 text-xs font-bold disabled:opacity-50">Create application draft</button></article>)}</div>
           </section>
           <div className="space-y-6">
             <section className="rounded-2xl border border-neutral-200 bg-white p-5"><h2 className="font-bold">Approval queue</h2><p className="mt-1 text-xs text-neutral-500">Human decisions required before gated actions.</p><div className="mt-4 space-y-3">{approvals.filter((a) => a.status === 'PENDING').length === 0 ? <p className="text-sm text-neutral-500">No pending approvals.</p> : approvals.filter((a) => a.status === 'PENDING').map((a) => <article key={a.approvalId} className="rounded-xl border border-neutral-200 p-3"><p className="text-sm font-semibold">{a.summary}</p><p className="mt-1 text-xs text-neutral-500">{a.action.replaceAll('_',' ')} · {a.termsOrCost || 'No cost details supplied'}</p><div className="mt-3 flex gap-2"><button disabled={busy} onClick={() => void decide(a.approvalId,'APPROVED')} className="rounded-lg bg-neutral-950 px-3 py-2 text-xs font-bold text-white">Approve</button><button disabled={busy} onClick={() => void decide(a.approvalId,'REJECTED')} className="rounded-lg border border-neutral-300 px-3 py-2 text-xs font-bold">Reject</button></div></article>)}</div></section>
