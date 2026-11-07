@@ -56,6 +56,7 @@ export const OwnerCommandCenter: React.FC<OwnerCommandCenterProps> = ({
   onAddOrganization,
   onOpenOrganization,
   onOpenSokoni,
+  onOpenIncomeEngine,
   onLogout,
 }) => {
   const [projections, setProjections] = useState<Record<string, DbkExperienceProjection>>({});
