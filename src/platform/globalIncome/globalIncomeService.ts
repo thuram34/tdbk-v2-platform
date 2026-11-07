@@ -92,7 +92,7 @@ export class GlobalIncomeService {
   async verifyOpportunity(context: SecurityContext, tenantId: string, id: string, evidence: OpportunityEvidence): Promise<Opportunity> {
     this.assertTenant(context, tenantId, 'verify global income opportunity');
     this.assertOwnerOrAdmin(context);
-    if (!evidence?.sourceUrl || !evidence.summary?.trim() || !Number.isFinite(evidence.confidence) || evidence.confidence < 0 || evidence.confidence > 1) {
+    if (!evidence?.evidenceType?.trim() || !evidence.sourceUrl || !evidence.summary?.trim() || !Number.isFinite(evidence.confidence) || evidence.confidence < 0 || evidence.confidence > 1) {
       throw new KernelError('VALIDATION_ERROR', 'Evidence URL, summary and confidence from 0 to 1 are required.', 400, context.requestId);
     }
     const source = new URL(evidence.sourceUrl);
@@ -114,7 +114,7 @@ export class GlobalIncomeService {
     const current = await globalIncomeRepository.getOpportunity(tenantId, id);
     if (!current) throw new KernelError('NOT_FOUND', 'Opportunity not found.', 404, context.requestId);
     if (current.verificationStatus !== 'VERIFIED') throw new KernelError('VALIDATION_ERROR', 'Verify the source before scoring.', 409, context.requestId);
-    const score = scoreOpportunity({ dimensions, hardExclusionReasons });
+    if (!Array.isArray(hardExclusionReasons) || hardExclusionReasons.some((reason) => typeof reason !== 'string')) {\n      throw new KernelError('VALIDATION_ERROR', 'Hard exclusion reasons must be a list of text values.', 400, context.requestId);\n    }\n    const score = scoreOpportunity({ dimensions, hardExclusionReasons });
     const updated: Opportunity = {
       ...current, score, hardExclusionReasons: score.hardExclusionReasons,
       updatedAt: new Date().toISOString(),
@@ -189,6 +189,12 @@ export class GlobalIncomeService {
     this.assertTenant(context, tenantId, 'create application ledger record');
     const opportunity = await globalIncomeRepository.getOpportunity(tenantId, input.opportunityId);
     if (!opportunity) throw new KernelError('NOT_FOUND', 'Linked opportunity not found.', 404, context.requestId);
+    if (input.channel !== opportunity.channel || input.kind !== opportunity.kind) {
+      throw new KernelError('VALIDATION_ERROR', 'Application channel and kind must match the linked opportunity.', 400, context.requestId);
+    }
+    if (!['DRAFT', 'READY', 'AWAITING_APPROVAL'].includes(input.status)) {
+      throw new KernelError('VALIDATION_ERROR', 'New applications must start as DRAFT, READY or AWAITING_APPROVAL.', 400, context.requestId);
+    }
     const now = new Date().toISOString();
     const requiresApproval = !!input.requiresApproval || opportunity.channel === 'upwork' || opportunity.channel === 'direct_b2b' || (opportunity.applicationCostAmount ?? 0) > 0;
     const record: ApplicationRecord = { ...input, requiresApproval, tenantId, createdAt: now, updatedAt: now };
