@@ -42,6 +42,24 @@ globalIncomeRouter.post('/opportunities', async (req, res) => {
   } catch (error) { return fail(res, error); }
 });
 
+globalIncomeRouter.post('/opportunities/:id/verify', async (req, res) => {
+  try {
+    const ctx = await contextFor(req);
+    const tenantId = ctx.principal.tenantId || String(req.body?.tenantId || '');
+    if (!tenantId || !req.body?.evidence) return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'tenantId and evidence are required.' } });
+    return res.json({ status: 'SUCCESS', data: await globalIncomeService.verifyOpportunity(ctx, tenantId, req.params.id, req.body.evidence) });
+  } catch (error) { return fail(res, error); }
+});
+
+globalIncomeRouter.post('/opportunities/:id/score', async (req, res) => {
+  try {
+    const ctx = await contextFor(req);
+    const tenantId = ctx.principal.tenantId || String(req.body?.tenantId || '');
+    if (!tenantId || !req.body?.dimensions) return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'tenantId and scoring dimensions are required.' } });
+    return res.json({ status: 'SUCCESS', data: await globalIncomeService.scoreOpportunityRecord(ctx, tenantId, req.params.id, req.body.dimensions, req.body.hardExclusionReasons || []) });
+  } catch (error) { return fail(res, error); }
+});
+
 globalIncomeRouter.post('/opportunities/:id/transition', async (req, res) => {
   try {
     const ctx = await contextFor(req);
