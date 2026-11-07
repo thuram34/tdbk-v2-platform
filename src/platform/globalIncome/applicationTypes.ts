@@ -24,6 +24,8 @@ export interface ApplicationRecord {
   externalReference: string | null;
   evidenceUrls: string[];
   notes: string | null;
+  requiresApproval: boolean;
+  approvalId: string | null;
   createdAt: string;
   updatedAt: string;
 }
