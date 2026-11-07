@@ -7,10 +7,10 @@ interface Props { tenantId: string; idToken: string; onBack: () => void; }
 type Approval = { approvalId: string; action: string; targetId: string; summary: string; termsOrCost: string | null; status: string; };
 
 const api = async <T,>(path: string, token: string, init?: RequestInit): Promise<T> => {
-  const response = await fetch(path, {
-    ...init,
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...(init?.headers || {}) },
-  });
+  const headers = new Headers(init?.headers);
+  headers.set('Content-Type', 'application/json');
+  headers.set('Authorization', `Bearer ${token}`);
+  const response = await fetch(path, { ...init, headers });
   const body = await response.json();
   if (!response.ok) throw new Error(body?.error?.message || body?.error?.code || `Request failed (${response.status})`);
   return body.data as T;
@@ -51,8 +51,18 @@ export const GlobalIncomeDashboard: React.FC<Props> = ({ tenantId, idToken, onBa
   const create = async (event: React.FormEvent) => {
     event.preventDefault(); setBusy(true); setError(null); setNotice(null);
     try {
-      const canonicalUrl = new URL(form.sourceUrl).toString();
-      const canonical = [form.employerOrClient.trim().toLowerCase(), form.roleOrProject.trim().toLowerCase(), canonicalUrl].join('\n');
+      const source = new URL(form.sourceUrl);
+      if (!['https:', 'http:'].includes(source.protocol)) throw new Error('Only HTTP or HTTPS source links are accepted.');
+      source.hash = '';
+      for (const key of Array.from(source.searchParams.keys())) {
+        if (/^(utm_.+|ref|referrer|source|campaign|tracking|fbclid|gclid)$/i.test(key)) source.searchParams.delete(key);
+      }
+      source.searchParams.sort();
+      source.hostname = source.hostname.toLowerCase();
+      source.pathname = source.pathname.replace(/\/+$/, '') || '/';
+      const canonicalUrl = source.toString();
+      const normalizeLabel = (value: string) => value.trim().toLowerCase().replace(/\s+/g, ' ');
+      const canonical = [normalizeLabel(form.employerOrClient), normalizeLabel(form.roleOrProject), canonicalUrl].join('\n');
       const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(canonical));
       const deduplicationKey = Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('');
       const now = new Date().toISOString();
