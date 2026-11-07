@@ -129,6 +129,13 @@ export class GlobalIncomeService {
     this.assertTenant(context, tenantId, 'transition application ledger');
     const current = await globalIncomeRepository.getApplication(tenantId, id);
     if (!current) throw new KernelError('NOT_FOUND', 'Application record not found.', 404, context.requestId);
+    if (next === 'SUBMITTED' && current.requiresApproval) {
+      if (!current.approvalId) throw new KernelError('AUTHORIZATION_ERROR', 'This application requires an approved authorization record.', 403, context.requestId);
+      const approval = await globalIncomeRepository.getApproval(tenantId, current.approvalId);
+      if (!approval || approval.status !== 'APPROVED') {
+        throw new KernelError('AUTHORIZATION_ERROR', 'Application submission is blocked until its approval is approved.', 403, context.requestId);
+      }
+    }
     if (!APPLICATION_TRANSITIONS[current.status].includes(next)) {
       throw new KernelError('VALIDATION_ERROR', `Invalid application transition: ${current.status} -> ${next}`, 409, context.requestId);
     }
