@@ -4,7 +4,7 @@ import { BlueprintValidator } from '../../blueprint/validator';
 import { masterAuthority } from '../../kernel/master/masterAuthority';
 import { KernelError } from '../../kernel/errors/kernelErrors';
 import { globalIncomeRepository } from '../../persistence/firestore/repositories/globalIncomeRepository';
-import { ApplicationRecord, ApplicationStatus } from './applicationTypes';
+import { ApplicationRecord, ApplicationStatus } from './applicationTypes';\nimport { buildOpportunityDeduplicationKey } from './deduplication';
 import {
   ApprovalRequest, Opportunity, OpportunityStage,
 } from './types';
@@ -50,6 +50,14 @@ export class GlobalIncomeService {
     }
   }
 
+  private assertOwnerOrAdmin(context: SecurityContext): void {
+    const roles = context.principal.roles || [];
+    if (!masterAuthority.isMasterAdmin(context.principal) &&
+      !roles.some((role) => ['BUSINESS_OWNER', 'OWNER_OPERATOR', 'TENANT_ADMIN'].includes(role))) {
+      throw new KernelError('AUTHORIZATION_ERROR', 'Owner or tenant administrator authority is required.', 403, context.requestId);
+    }
+  }
+
   private audit(context: SecurityContext, action: string, resource: string, details: Record<string, unknown>): void {
     auditLogger.logEvent('WORKFLOW_EXECUTION', context.principal.id, action, resource, 'ALLOWED', {
       tenantId: context.principal.tenantId,
@@ -77,7 +85,7 @@ export class GlobalIncomeService {
   async transitionOpportunity(context: SecurityContext, tenantId: string, id: string, next: OpportunityStage): Promise<Opportunity> {
     this.assertTenant(context, tenantId, 'transition global income opportunity');
     const current = await globalIncomeRepository.getOpportunity(tenantId, id);
-    if (next === 'SUBMITTED' && (current?.applicationCostAmount && current.applicationCostAmount > 0 || current?.channel === 'upwork')) {
+    if (next === 'VERIFIED' && (current?.verificationStatus !== 'VERIFIED' || !current.evidence?.length)) {\n      throw new KernelError('VALIDATION_ERROR', 'Verification requires VERIFIED status and source evidence.', 409, context.requestId);\n    }\n    if (next === 'QUALIFIED' && (!current?.score?.eligible || current.score.total < 60)) {\n      throw new KernelError('VALIDATION_ERROR', 'Qualification requires an eligible score of at least 60.', 409, context.requestId);\n    }\n    if (next === 'SUBMITTED' && (current?.applicationCostAmount && current.applicationCostAmount > 0 || current?.channel === 'upwork')) {
       const approvals = await globalIncomeRepository.listApprovals(tenantId);
       const approved = approvals.some((approval) =>
         approval.targetId === id && approval.status === 'APPROVED' &&
@@ -98,7 +106,7 @@ export class GlobalIncomeService {
   async createApproval(context: SecurityContext, input: Omit<ApprovalRequest, 'ownerId' | 'status' | 'requestedAt' | 'decidedAt' | 'decisionNote'>): Promise<ApprovalRequest> {
     const tenantId = context.principal.tenantId;
     if (!tenantId) throw new KernelError('AUTHENTICATION_ERROR', 'Tenant context is required.', 401, context.requestId);
-    this.assertTenant(context, tenantId, 'request global income approval');
+    this.assertTenant(context, tenantId, 'request global income approval');\n    this.assertOwnerOrAdmin(context);
     const approval: ApprovalRequest = {
       ...input, ownerId: tenantId, status: 'PENDING', requestedAt: new Date().toISOString(),
       decidedAt: null, decisionNote: null,
@@ -114,7 +122,7 @@ export class GlobalIncomeService {
   }
 
   async decideApproval(context: SecurityContext, tenantId: string, id: string, decision: 'APPROVED' | 'REJECTED', note: string | null): Promise<ApprovalRequest> {
-    this.assertTenant(context, tenantId, 'decide global income approval');
+    this.assertTenant(context, tenantId, 'decide global income approval');\n    this.assertOwnerOrAdmin(context);
     const result = await globalIncomeRepository.decideApproval(tenantId, id, decision, note);
     this.audit(context, 'GLOBAL_INCOME_APPROVAL_DECIDED', `approval:${id}`, { decision, action: result.action });
     return result;
