@@ -180,7 +180,7 @@ export class ExperienceCustomizationService {
     if (!step || !questionnaire || step.id !== stepId || step.questionnaireId !== questionnaireId) {
       throw new KernelError('CONFLICT', 'The questionnaire does not match the current workflow step.', 409, context.requestId);
     }
-    const privileged = masterAuthority.isMasterAdmin(context.principal) || masterAuthority.isBusinessOwner(context.principal);
+    const privileged = masterAuthority.isMasterAdmin(context.principal) || masterAuthority.isOwnerPortfolio(context.principal) || masterAuthority.isBusinessOwner(context.principal);
     if (step.assigneeRole && !privileged && !context.principal.roles.includes(step.assigneeRole)) {
       throw new KernelError('AUTHORIZATION_ERROR', `This step is assigned to role '${step.assigneeRole}'.`, 403, context.requestId);
     }
