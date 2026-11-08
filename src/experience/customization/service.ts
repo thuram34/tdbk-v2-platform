@@ -50,9 +50,9 @@ export class ExperienceCustomizationService {
       throw new KernelError('VALIDATION_ERROR', 'Customization limit exceeded.', 422);
     }
     uniqueIds(menuItems, 'menu item');
-    const menuCapabilityIds = menuItems.map(item => item.capabilityId);
-    if (new Set(menuCapabilityIds).size !== menuCapabilityIds.length) {
-      throw new KernelError('VALIDATION_ERROR', 'A capability can appear only once in the customized menu.', 422);
+    const menuTargets = menuItems.map(item => `${item.targetType || 'CAPABILITY'}:${item.targetId || item.capabilityId || ''}`);
+    if (new Set(menuTargets).size !== menuTargets.length) {
+      throw new KernelError('VALIDATION_ERROR', 'A destination can appear only once in the customized menu.', 422);
     }
     uniqueIds(buttons, 'button');
     uniqueIds(forms, 'questionnaire');
@@ -69,7 +69,16 @@ export class ExperienceCustomizationService {
 
     for (const item of menuItems as CustomMenuItem[]) {
       if (!item.label?.trim() || !item.id?.trim()) throw new KernelError('VALIDATION_ERROR', 'Menu items require an ID and label.', 422);
-      requireCapability(item.capabilityId);
+      const targetType = item.targetType || 'CAPABILITY';
+      const targetId = item.targetId || item.capabilityId || '';
+      if (targetType === 'CAPABILITY') requireCapability(targetId);
+      else if (targetType === 'QUESTIONNAIRE' && !forms.some(form => form.id === targetId && form.enabled)) {
+        throw new KernelError('VALIDATION_ERROR', `Menu item references missing questionnaire '${targetId}'.`, 422);
+      } else if (targetType === 'WORKFLOW' && !workflows.some(flow => flow.id === targetId && flow.enabled)) {
+        throw new KernelError('VALIDATION_ERROR', `Menu item references missing workflow '${targetId}'.`, 422);
+      } else if (!['CAPABILITY','QUESTIONNAIRE','WORKFLOW'].includes(targetType)) {
+        throw new KernelError('VALIDATION_ERROR', 'Menu item destination type is invalid.', 422);
+      }
       if (!Number.isInteger(item.displayOrder) || item.displayOrder < 0) throw new KernelError('VALIDATION_ERROR', 'Menu display order must be a non-negative integer.', 422);
     }
 
@@ -96,7 +105,7 @@ export class ExperienceCustomizationService {
       uniqueIds(workflow.steps, `step in workflow '${workflow.id}'`);
       for (const step of workflow.steps) {
         if (!step.title?.trim()) throw new KernelError('VALIDATION_ERROR', 'Workflow steps require a title.', 422);
-        if (step.questionnaireId && !forms.some(form => form.id === step.questionnaireId)) {
+        if (step.questionnaireId && !forms.some(form => form.id === step.questionnaireId && form.enabled)) {
           throw new KernelError('VALIDATION_ERROR', `Workflow step references missing questionnaire '${step.questionnaireId}'.`, 422);
         }
       }
