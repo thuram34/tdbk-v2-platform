@@ -78,7 +78,7 @@ export class ExperienceCustomizationService {
     };
 
     for (const item of menuItems as CustomMenuItem[]) {
-      if (!item.label?.trim() || item.label.length > 80 || !/^[a-zA-Z0-9_-]{1,100}$/.test(item.id) || item.iconName.length > 50) throw new KernelError('VALIDATION_ERROR', 'Menu items require a valid ID, label (max 80 characters) and icon.', 422);
+      if (!item.label?.trim() || item.label.length > 80 || !item.id || !/^[a-zA-Z0-9_-]{1,100}$/.test(item.id) || (item.iconName?.length || 0) > 50) throw new KernelError('VALIDATION_ERROR', 'Menu items require a valid ID, label (max 80 characters) and icon.', 422);
       const targetType = item.targetType || 'CAPABILITY';
       const targetId = item.targetId || item.capabilityId || '';
       if (targetType === 'CAPABILITY') requireCapability(targetId);
@@ -93,7 +93,7 @@ export class ExperienceCustomizationService {
     }
 
     for (const form of forms as CustomQuestionnaireDefinition[]) {
-      if (!form.title?.trim() || form.title.length > 120 || !form.submitLabel?.trim() || form.submitLabel.length > 40 || (form.description?.length || 0) > 500) throw new KernelError('VALIDATION_ERROR', 'Questionnaires require a title (max 120), description (max 500) and submit label (max 40).', 422);
+      if (!form.id || !/^[a-zA-Z0-9_-]{1,100}$/.test(form.id) || !form.title?.trim() || form.title.length > 120 || !form.submitLabel?.trim() || form.submitLabel.length > 40 || (form.description?.length || 0) > 500) throw new KernelError('VALIDATION_ERROR', 'Questionnaires require a title (max 120), description (max 500) and submit label (max 40).', 422);
       requireCapability(form.targetCapabilityId);
       if (!Array.isArray(form.fields) || !form.fields.length || form.fields.length > 40) throw new KernelError('VALIDATION_ERROR', 'A questionnaire must contain between 1 and 40 fields.', 422);
       uniqueIds(form.fields, `field in questionnaire '${form.id}'`);
@@ -101,7 +101,7 @@ export class ExperienceCustomizationService {
       if (new Set(keys).size !== keys.length) throw new KernelError('VALIDATION_ERROR', 'Questionnaire field keys must be unique.', 422);
       for (const field of form.fields) {
         if (!['TEXT','TEXTAREA','NUMBER','DATE','SELECT','MULTI_SELECT','CHECKBOX'].includes(field.type)) throw new KernelError('VALIDATION_ERROR', `Unsupported questionnaire field type for '${field.label}'.`, 422);
-        if (!/^[a-z][a-zA-Z0-9_]{0,63}$/.test(field.key) || !field.label?.trim() || field.label.length > 120 || (field.placeholder?.length || 0) > 200 || (field.helpText?.length || 0) > 200) throw new KernelError('VALIDATION_ERROR', 'Questionnaire fields require a valid key and label (max 120 characters).', 422);
+        if (!field.id || !/^[a-zA-Z0-9_-]{1,100}$/.test(field.id) || !/^[a-z][a-zA-Z0-9_]{0,63}$/.test(field.key) || !field.label?.trim() || field.label.length > 120 || (field.placeholder?.length || 0) > 200 || (field.helpText?.length || 0) > 200) throw new KernelError('VALIDATION_ERROR', 'Questionnaire fields require a valid key and label (max 120 characters).', 422);
         if (['SELECT', 'MULTI_SELECT'].includes(field.type) && (!field.options || field.options.length === 0 || field.options.length > 30)) {
           throw new KernelError('VALIDATION_ERROR', `Field '${field.label}' requires between 1 and 30 selectable options.`, 422);
         }
@@ -112,7 +112,7 @@ export class ExperienceCustomizationService {
     }
 
     for (const workflow of workflows as CustomWorkflowDefinition[]) {
-      if (!workflow.name?.trim() || workflow.name.length > 120 || (workflow.description?.length || 0) > 500 || workflow.steps.length === 0 || workflow.steps.length > 30) {
+      if (!workflow.id || !/^[a-zA-Z0-9_-]{1,100}$/.test(workflow.id) || !workflow.name?.trim() || workflow.name.length > 120 || (workflow.description?.length || 0) > 500 || !Array.isArray(workflow.steps) || workflow.steps.length === 0 || workflow.steps.length > 30) {
         throw new KernelError('VALIDATION_ERROR', 'Workflows require a name and between 1 and 30 steps.', 422);
       }
       uniqueIds(workflow.steps, `step in workflow '${workflow.id}'`);
@@ -125,7 +125,7 @@ export class ExperienceCustomizationService {
     }
 
     for (const button of buttons as CustomActionButton[]) {
-      if (!button.label?.trim() || button.label.length > 80 || (button.iconName?.length || 0) > 50) throw new KernelError('VALIDATION_ERROR', 'Buttons require a label (max 80 characters) and valid icon.', 422);
+      if (!button.id || !/^[a-zA-Z0-9_-]{1,100}$/.test(button.id) || !button.label?.trim() || button.label.length > 80 || (button.iconName?.length || 0) > 50) throw new KernelError('VALIDATION_ERROR', 'Buttons require a label (max 80 characters) and valid icon.', 422);
       if (!['PRIMARY','SECONDARY','DANGER'].includes(button.variant)) throw new KernelError('VALIDATION_ERROR', 'Button variant is invalid.', 422);
       if (!button.action || !['NAVIGATE_CAPABILITY','OPEN_QUESTIONNAIRE','START_WORKFLOW'].includes(button.action.type)) throw new KernelError('VALIDATION_ERROR', 'Button action is invalid.', 422);
       if (button.action.type === 'NAVIGATE_CAPABILITY') requireCapability(button.action.targetId);
