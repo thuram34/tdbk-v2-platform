@@ -30,7 +30,7 @@ export class ExperienceCustomizationService {
     const principal = context.principal;
     const isPlatformAdmin = masterAuthority.isMasterAdmin(principal);
     const isBusinessOwner = masterAuthority.isBusinessOwner(principal);
-    const allowedRole = ['TENANT_ADMIN', 'OWNER_OPERATOR', 'BUSINESS_OWNER', 'STORE_OWNER', 'SHOP_MANAGER', 'SCHOOL_PRINCIPAL', 'LOGISTICS_DIRECTOR', 'MEDICAL_DIRECTOR'].some(role => principal.roles.includes(role));
+    const allowedRole = ['TENANT_ADMIN', 'SYSTEM_ADMIN', 'OWNER_OPERATOR', 'BUSINESS_OWNER', 'STORE_OWNER', 'SHOP_MANAGER', 'SCHOOL_PRINCIPAL', 'LOGISTICS_DIRECTOR', 'MEDICAL_DIRECTOR'].some(role => principal.roles.includes(role));
     const hasPermission = principal.permissions.includes('*') || principal.permissions.includes('admin:*') || principal.permissions.includes('experience:configure');
     if (!isPlatformAdmin && !isBusinessOwner && !allowedRole && !hasPermission) {
       throw new KernelError('AUTHORIZATION_ERROR', 'You do not have permission to customize this workspace.', 403, context.requestId);
