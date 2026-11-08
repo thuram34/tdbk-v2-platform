@@ -27,7 +27,15 @@ export const ExperienceStudio: React.FC<Props> = ({ experience, onRefresh }) => 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const capabilities = useMemo(() => experience.navigation.filter(item => item.capabilityId), [experience.navigation]);
+  const capabilities = useMemo(() => {
+    const fromNavigation = experience.navigation.filter(item => item.capabilityId).map(item => ({
+      capabilityId: item.capabilityId!, label: item.label, iconName: item.iconName, category: item.category,
+    }));
+    const fromDiscovery = experience.discoveryItems.filter(item => item.isEnabled).map(item => ({
+      capabilityId: item.capabilityId, label: item.name, iconName: item.iconName, category: 'CORE_OPERATIONS' as const,
+    }));
+    return Array.from(new Map([...fromNavigation, ...fromDiscovery].map(item => [item.capabilityId, item])).values());
+  }, [experience.navigation, experience.discoveryItems]);
 
   useEffect(() => {
     let cancelled = false;
@@ -41,7 +49,16 @@ export const ExperienceStudio: React.FC<Props> = ({ experience, onRefresh }) => 
         });
         const data = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(data.error?.message || 'Could not load workspace configuration.');
-        if (!cancelled) setConfig(data.customization || emptyConfig(experience.dbkId));
+        if (!cancelled) {
+          const loaded = data.customization || emptyConfig(experience.dbkId);
+          if (!loaded.menuItems?.length) {
+            loaded.menuItems = experience.navigation.filter(item => item.capabilityId).map((item, index) => ({
+              id: `menu_${item.capabilityId}`, label: item.label, iconName: item.iconName,
+              category: item.category, capabilityId: item.capabilityId!, displayOrder: index + 1, enabled: true,
+            }));
+          }
+          setConfig(loaded);
+        }
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : 'Could not load configuration.');
       } finally { if (!cancelled) setLoading(false); }
@@ -77,8 +94,8 @@ export const ExperienceStudio: React.FC<Props> = ({ experience, onRefresh }) => 
   };
 
   const addMenu = () => {
-    const cap = capabilities[0];
-    if (!cap?.capabilityId) { setError('Enable at least one capability before adding a custom menu item.'); return; }
+    const cap = capabilities.find(item => !config.menuItems.some(existing => existing.capabilityId === item.capabilityId));
+    if (!cap?.capabilityId) { setError('All currently enabled capabilities are already represented in the menu. Enable another capability in Discovery first.'); return; }
     const id = crypto.randomUUID();
     update({ menuItems: [...config.menuItems, { id, label: cap.label, iconName: cap.iconName, category: cap.category, capabilityId: cap.capabilityId, displayOrder: config.menuItems.length + 1, enabled: true }] });
   };
