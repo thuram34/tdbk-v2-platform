@@ -512,7 +512,7 @@ export const DbkShell: React.FC<DbkShellProps> = ({
               ) : activeViewId.startsWith('custom_workflow:') ? (
                 (() => {
                   const workflowId = activeViewId.slice('custom_workflow:'.length);
-                  const workflow = experience.customization?.workflows.find(item => item.id === workflowId && item.enabled);
+                  const workflow = experience.customization?.workflows.find(item => item.id === workflowId);
                   if (!workflow) return <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-800">This workflow is unavailable in the current workspace configuration.</div>;
                   return <CustomWorkflowView experience={experience} workflow={workflow} onDispatchCommand={handleDispatchCommand} onClose={() => setActiveViewId('nav_overview')} />;
                 })()
