@@ -166,6 +166,8 @@ export interface ExperienceDiscoveryItem {
   isEnabled: boolean;
   status: 'OPERATIONAL' | 'DISCOVERABLE' | 'UPGRADE_REQUIRED' | 'CONFIGURATION_REQUIRED' | 'SUSPENDED';
   iconName: string;
+  requiredRoles?: string[];
+  requiredPermissions?: string[];
 }
 
 import type { ExperienceCustomization } from './customization/types';
