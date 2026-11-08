@@ -55,6 +55,14 @@ export class ExperienceResolver {
       const settings = navigation.filter(item => item.category === 'SETTINGS');
       const configured = customization.menuItems
         .filter(item => item.enabled)
+        .filter(item => {
+          const targetType = item.targetType || 'CAPABILITY';
+          const targetId = item.targetId || item.capabilityId || '';
+          if (targetType === 'CAPABILITY') return workspace.enabledCapabilities.includes(targetId);
+          if (targetType === 'QUESTIONNAIRE') return customization.questionnaires.some(form => form.id === targetId && form.enabled);
+          if (targetType === 'WORKFLOW') return customization.workflows.some(flow => flow.id === targetId && flow.enabled);
+          return false;
+        })
         .filter(item => !item.requiredRoles?.length || item.requiredRoles.some(role => context.principal.roles.includes(role)))
         .filter(item => !item.requiredPermissions?.length || item.requiredPermissions.every(permission => context.principal.permissions.includes('*') || context.principal.permissions.includes(permission)))
         .map(item => {
