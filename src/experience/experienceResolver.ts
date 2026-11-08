@@ -116,7 +116,7 @@ export class ExperienceResolver {
     if (canManageExperience && !navigation.some(item => item.viewType === 'EXPERIENCE_STUDIO')) {
       navigation.push({
         id: 'nav_experience_studio',
-        label: 'Experience Studio',
+        label: 'Frameworks & Customization',
         iconName: 'SlidersHorizontal',
         category: 'SETTINGS',
         route: `/dbk/${dbkId}/experience-studio`,
