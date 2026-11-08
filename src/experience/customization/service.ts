@@ -62,7 +62,8 @@ export class ExperienceCustomizationService {
     uniqueIds(workflows, 'workflow');
 
     const requireCapability = (capabilityId: string) => {
-      if (!capabilityRegistry.getCapability(capabilityId)) {
+      const capability = capabilityRegistry.getCapability(capabilityId);
+      if (!capability) {
         throw new KernelError('VALIDATION_ERROR', `Capability '${capabilityId}' is not registered.`, 422);
       }
       if (!enabledCapabilities.includes(capabilityId)) {
