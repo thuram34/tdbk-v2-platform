@@ -497,7 +497,7 @@ export const DbkShell: React.FC<DbkShellProps> = ({
               </div>
 
               {activeViewId === 'nav_experience_studio' || currentNav?.viewType === 'EXPERIENCE_STUDIO' ? (
-                <ExperienceStudio experience={experience} onRefresh={() => resolveExperience(selectedDbkId, selectedBranchId)} />
+                <ExperienceStudio experience={experience} onRefresh={() => resolveExperience(selectedDbkId, selectedBranchId)} onOpenCapabilityCatalog={() => setActiveViewId('nav_discovery')} />
               ) : activeViewId.startsWith('custom_questionnaire:') ? (
                 (() => {
                   const questionnaireId = activeViewId.slice('custom_questionnaire:'.length);
