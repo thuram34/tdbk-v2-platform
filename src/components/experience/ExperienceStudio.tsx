@@ -21,7 +21,7 @@ const button = 'inline-flex items-center gap-2 rounded-xl border border-neutral-
 export const ExperienceStudio: React.FC<Props> = ({ experience, onRefresh, onOpenCapabilityCatalog }) => {
   const { getIdToken } = useAuth();
   const [config, setConfig] = useState<ExperienceCustomization>(() => emptyConfig(experience.dbkId));
-  const [tab, setTab] = useState<'menus' | 'buttons' | 'forms' | 'workflows' | 'preview'>('menus');
+  const [tab, setTab] = useState<'framework' | 'menus' | 'buttons' | 'forms' | 'workflows' | 'preview'>('framework');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
