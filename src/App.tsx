@@ -7,6 +7,7 @@ import { LoginScreen } from './components/auth/LoginScreen';
 import { PublicGateway } from './public/PublicGateway';
 import { SokoniExperience } from './sokoni/SokoniExperience';
 import { SokoniBusinessRegistration } from './sokoni/SokoniBusinessRegistration';
+import { GlobalIncomeDashboard } from './components/globalIncome/GlobalIncomeDashboard';
 import { useAuth } from './client/AuthContext';
 import { listDbks } from './client/masterControlApi';
 import type { DbkIdentity } from './platform/types';
@@ -23,6 +24,7 @@ export default function App() {
   const [dbksLoading, setDbksLoading] = useState(true);
   const [dbks, setDbks] = useState<DbkIdentity[]>([]);
   const [dbksError, setDbksError] = useState<string | null>(null);
+  const [incomeTenantId, setIncomeTenantId] = useState<string | null>(null);
   const [showSokoni, setShowSokoni] = useState(() => typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('sokoni') === '1');
   const [showSokoniBusiness, setShowSokoniBusiness] = useState(() => typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('sokoniBusiness') === '1');
 
@@ -175,6 +177,10 @@ export default function App() {
     );
   }
 
+  if (incomeTenantId && user) {
+    return <GlobalIncomeDashboard tenantId={incomeTenantId} idToken={idToken} onBack={() => setIncomeTenantId(null)} />;
+  }
+
   if (dbksError) {
     return (
       <div className="min-h-screen bg-[#FBFBF9] px-4 py-12 text-neutral-900">
@@ -215,6 +221,10 @@ export default function App() {
       onAddOrganization={addOrganization}
       onOpenOrganization={openOrganization}
       onOpenSokoni={enterSokoni}
+      onOpenIncomeEngine={() => {
+        const firstActive = dbks.find((dbk) => dbk.status === 'ACTIVE');
+        if (firstActive) setIncomeTenantId(firstActive.dbkId);
+      }}
       onLogout={async () => {
         await signOutUser();
         window.history.replaceState({}, '', window.location.pathname);

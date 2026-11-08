@@ -57,6 +57,7 @@ import { subscriptionRouter } from './src/platform/subscription/subscriptionRout
 import { tdbkAgentRuntime } from './src/platform/agent/agentRuntime';
 import { agentExecutionRepository } from './src/persistence/firestore/repositories/agentExecutionRepository';
 import { flowOrchestrator } from './src/platform/flow/flowOrchestrator';
+import { globalIncomeRouter } from './src/platform/globalIncome/globalIncomeRouter';
 
 async function startServer() {
   // Explicit bootstrap boundary: Seed demo DBKs only in development, preview, or explicit flag
@@ -73,6 +74,9 @@ async function startServer() {
 
   // Commercial subscription boundary: authentication is established by the router.
   app.use('/api/subscriptions', subscriptionRouter);
+
+  // Global Income Engine — authenticated, tenant-scoped acquisition and application ledger.
+  app.use('/api/global-income', globalIncomeRouter);
 
   // -------------------------------------------------------------
   // HEALTH & READINESS ENDPOINTS
