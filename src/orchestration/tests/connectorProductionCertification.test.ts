@@ -3,6 +3,17 @@ import { bridgeRegistry } from '../bridge/registry';
 import { certifyBridgeDefinition, certifyBridgeDefinitions } from '../bridge/productionCertification';
 
 describe('connector production certification gate', () => {
+  it('advertises the full implemented eTIMS VSCU operation contract without overclaiming M-Pesa support', () => {
+    expect(bridgeRegistry.getBridgeDefinition('bridge_etims')?.supportedOperations).toEqual([
+      'INITIALIZE', 'GET_CODES', 'GET_ITEM_CLASSES', 'GET_CUSTOMER', 'GET_BRANCHES',
+      'GET_NOTICES', 'SAVE_BRANCH_CUSTOMERS', 'SAVE_BRANCH_USERS', 'SAVE_BRANCH_INSURANCE',
+      'GET_ITEMS', 'SAVE_ITEM', 'SAVE_ITEM_COMPOSITION', 'SUBMIT_INVOICE', 'SAVE_SALES',
+      'GET_PURCHASES', 'SAVE_PURCHASE', 'GET_IMPORTS', 'UPDATE_IMPORT', 'GET_STOCK',
+      'SAVE_STOCK', 'SAVE_STOCK_MASTER',
+    ]);
+    expect(bridgeRegistry.getBridgeDefinition('bridge_mpesa')?.supportedOperations).toEqual(['STK_PUSH']);
+  });
+
   it('fails closed for every seeded connector that is not production-ready', () => {
     const definitions = bridgeRegistry.listBridgeDefinitions();
     const summary = certifyBridgeDefinitions(definitions);
