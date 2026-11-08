@@ -471,7 +471,13 @@ export const DbkShell: React.FC<DbkShellProps> = ({
                     </div>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
-                    {experience.customization?.buttons.filter(button => button.enabled && (!button.requiredRoles?.length || button.requiredRoles.some(role => experience.currentPrincipal.roles.includes(role))) && (!button.requiredPermissions?.length || button.requiredPermissions.every(permission => experience.currentPrincipal.permissions.includes('*') || experience.currentPrincipal.permissions.includes(permission)))).map(button => (
+                    {experience.customization?.buttons.filter(button => button.enabled && (
+                      button.action.type === 'NAVIGATE_CAPABILITY'
+                        ? experience.navigation.some(item => item.capabilityId === button.action.targetId)
+                        : button.action.type === 'OPEN_QUESTIONNAIRE'
+                          ? experience.customization?.questionnaires.some(item => item.id === button.action.targetId && item.enabled)
+                          : experience.customization?.workflows.some(item => item.id === button.action.targetId && item.enabled)
+                    ) && (!button.requiredRoles?.length || button.requiredRoles.some(role => experience.currentPrincipal.roles.includes(role))) && (!button.requiredPermissions?.length || button.requiredPermissions.every(permission => experience.currentPrincipal.permissions.includes('*') || experience.currentPrincipal.permissions.includes(permission)))).map(button => (
                       <button key={button.id} type="button" onClick={() => handleCustomButton(button)} className={`inline-flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-xs font-bold ${button.variant === 'PRIMARY' ? 'bg-neutral-950 text-white hover:bg-neutral-800' : button.variant === 'DANGER' ? 'border border-rose-200 bg-rose-50 text-rose-700' : 'border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50'}`}>
                         {button.label}
                       </button>
