@@ -15,7 +15,8 @@ export const CustomWorkflowView: React.FC<Props> = ({ experience, workflow, onDi
   const [run, setRun] = useState<CustomWorkflowRun | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const currentStep = useMemo(() => run ? workflow.steps[run.currentStepIndex] : undefined, [run, workflow.steps]);
+  const activeWorkflow = run?.workflowSnapshot || workflow;
+  const currentStep = useMemo(() => run ? activeWorkflow.steps[run.currentStepIndex] : undefined, [run, activeWorkflow.steps]);
 
   const start = async () => {
     setBusy(true); setError('');
@@ -51,15 +52,15 @@ export const CustomWorkflowView: React.FC<Props> = ({ experience, workflow, onDi
   };
 
   const currentQuestionnaire = currentStep?.questionnaireId
-    ? experience.customization?.questionnaires.find(item => item.id === currentStep.questionnaireId && item.enabled)
+    ? run?.questionnaireSnapshots.find(item => item.id === currentStep.questionnaireId && item.enabled) || experience.customization?.questionnaires.find(item => item.id === currentStep.questionnaireId && item.enabled)
     : undefined;
 
   return <div className="mx-auto max-w-4xl space-y-5">
     <header className="rounded-3xl bg-neutral-950 p-6 text-white">
       <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-400">TDBK · Guided workflow</p>
-      <h1 className="mt-2 text-2xl font-bold">{workflow.name}</h1>
-      {workflow.description && <p className="mt-2 text-sm text-neutral-300">{workflow.description}</p>}
-      <p className="mt-3 text-xs text-neutral-400">{experience.displayName} · {workflow.steps.length} steps</p>
+      <h1 className="mt-2 text-2xl font-bold">{activeWorkflow.name}</h1>
+      {activeWorkflow.description && <p className="mt-2 text-sm text-neutral-300">{activeWorkflow.description}</p>}
+      <p className="mt-3 text-xs text-neutral-400">{experience.displayName} · {activeWorkflow.steps.length} steps</p>
     </header>
 
     {!run ? <div className="rounded-2xl border border-neutral-200 bg-white p-6">
@@ -69,7 +70,7 @@ export const CustomWorkflowView: React.FC<Props> = ({ experience, workflow, onDi
     </div> : <div className="grid gap-5 lg:grid-cols-[280px_1fr]">
       <aside className="rounded-2xl border border-neutral-200 bg-white p-4">
         <p className="text-[10px] font-black uppercase tracking-wider text-neutral-400">Workflow progress</p>
-        <div className="mt-3 space-y-3">{workflow.steps.map((step,index)=>{
+        <div className="mt-3 space-y-3">{activeWorkflow.steps.map((step,index)=>{
           const complete=run.completedStepIds.includes(step.id);
           const active=run.currentStepIndex===index && run.status==='IN_PROGRESS';
           return <div key={step.id} className="flex items-start gap-2.5">
@@ -84,7 +85,7 @@ export const CustomWorkflowView: React.FC<Props> = ({ experience, workflow, onDi
         currentStep?.questionnaireId && !currentQuestionnaire ? <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-800">The questionnaire assigned to this step is no longer available.</div> :
         currentStep ? currentQuestionnaire ? <CustomQuestionnaireView key={currentStep.id} questionnaire={currentQuestionnaire} onCancel={onClose} onSubmit={answers=>submitQuestionnaire(currentQuestionnaire.id,answers)}/> :
         <div className="rounded-2xl border border-neutral-200 bg-white p-6">
-          <p className="text-[10px] font-black uppercase tracking-wider text-neutral-400">Step {run.currentStepIndex+1} of {workflow.steps.length}</p>
+          <p className="text-[10px] font-black uppercase tracking-wider text-neutral-400">Step {run.currentStepIndex+1} of {activeWorkflow.steps.length}</p>
           <h2 className="mt-2 text-xl font-bold">{currentStep.title}</h2>
           {currentStep.description&&<p className="mt-2 text-sm text-neutral-500">{currentStep.description}</p>}
           {currentStep.assigneeRole&&<p className="mt-3 text-xs text-neutral-500">Assigned role: <strong>{currentStep.assigneeRole}</strong></p>}
