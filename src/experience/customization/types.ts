@@ -83,3 +83,18 @@ export interface ExperienceCustomization {
 export type ExperienceCustomizationInput = Omit<ExperienceCustomization, 'dbkId' | 'version' | 'updatedAt' | 'updatedBy'> & {
   expectedVersion: number;
 };
+
+export type CustomWorkflowRunStatus = 'IN_PROGRESS' | 'COMPLETED';
+
+export interface CustomWorkflowRun {
+  runId: string;
+  dbkId: string;
+  workflowId: string;
+  status: CustomWorkflowRunStatus;
+  currentStepIndex: number;
+  completedStepIds: string[];
+  startedBy: string;
+  startedAt: string;
+  updatedAt: string;
+  completedAt?: string;
+}
