@@ -478,8 +478,12 @@ export const DbkShell: React.FC<DbkShellProps> = ({
                       button.action.type === 'NAVIGATE_CAPABILITY'
                         ? experience.discoveryItems.some(item => item.capabilityId === button.action.targetId && item.canAccess)
                         : button.action.type === 'OPEN_QUESTIONNAIRE'
-                          ? experience.customization?.questionnaires.some(item => item.id === button.action.targetId && item.enabled)
-                          : experience.customization?.workflows.some(item => item.id === button.action.targetId && item.enabled)
+                          ? experience.customization?.questionnaires.some(item => item.id === button.action.targetId && item.enabled && experience.discoveryItems.some(capability => capability.capabilityId === item.targetCapabilityId && capability.canAccess))
+                          : experience.customization?.workflows.some(item => item.id === button.action.targetId && item.enabled && item.steps.every(step => {
+                              if (!step.questionnaireId) return true;
+                              const form = experience.customization?.questionnaires.find(item => item.id === step.questionnaireId && item.enabled);
+                              return Boolean(form && experience.discoveryItems.some(capability => capability.capabilityId === form.targetCapabilityId && capability.canAccess));
+                            }))
                     ) && (!button.requiredRoles?.length || button.requiredRoles.some(role => experience.currentPrincipal.roles.includes(role))) && (!button.requiredPermissions?.length || button.requiredPermissions.every(permission => experience.currentPrincipal.permissions.includes('*') || experience.currentPrincipal.permissions.includes(permission)))).map(button => (
                       <button key={button.id} type="button" onClick={() => handleCustomButton(button)} className={`inline-flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-xs font-bold ${button.variant === 'PRIMARY' ? 'bg-neutral-950 text-white hover:bg-neutral-800' : button.variant === 'DANGER' ? 'border border-rose-200 bg-rose-50 text-rose-700' : 'border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50'}`}>
                         {button.label}
