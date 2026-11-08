@@ -12,6 +12,7 @@ export class ExperienceCustomizationRepository {
   }
 
   private path(dbkId: string): string {
+    if (!/^[a-zA-Z0-9_-]{1,120}$/.test(dbkId)) throw new Error('INVALID_TENANT_ID');
     return `/tenants/${dbkId}/configuration/experience_customization`;
   }
 
@@ -20,6 +21,7 @@ export class ExperienceCustomizationRepository {
   }
 
   private workflowRunPath(dbkId: string, runId: string): string {
+    if (!/^[a-zA-Z0-9_-]{1,120}$/.test(dbkId)) throw new Error('INVALID_TENANT_ID');
     if (!/^[a-zA-Z0-9_-]{1,120}$/.test(runId)) throw new Error('INVALID_WORKFLOW_RUN_ID');
     return `/tenants/${dbkId}/workflow_runs/${runId}`;
   }
