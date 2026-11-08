@@ -30,7 +30,7 @@ export const ExperienceStudio: React.FC<Props> = ({ experience, onRefresh }) => 
     const fromNavigation = experience.navigation.filter(item => item.capabilityId).map(item => ({
       capabilityId: item.capabilityId!, label: item.label, iconName: item.iconName, category: item.category,
     }));
-    const fromDiscovery = experience.discoveryItems.filter(item => item.isEnabled && (experience.currentPrincipal.isMaster || (!item.requiredRoles?.length || item.requiredRoles.some(role => experience.currentPrincipal.roles.includes(role))) && (!item.requiredPermissions?.length || item.requiredPermissions.every(permission => experience.currentPrincipal.permissions.includes('*') || experience.currentPrincipal.permissions.includes(permission))))).map(item => ({
+    const fromDiscovery = experience.discoveryItems.filter(item => item.isEnabled && item.canAccess).map(item => ({
       capabilityId: item.capabilityId, label: item.name, iconName: item.iconName, category: 'CORE_OPERATIONS' as const,
     }));
     const unique = new Map<string, (typeof fromNavigation)[number] | (typeof fromDiscovery)[number]>();
