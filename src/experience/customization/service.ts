@@ -139,12 +139,18 @@ export class ExperienceCustomizationService {
     await masterAuthority.assertTenantAuthority(context, dbkId, 'START_CUSTOM_WORKFLOW');
     const customization = await experienceCustomizationRepository.get(dbkId);
     const workflow = customization?.workflows.find(item => item.id === workflowId && item.enabled);
-    if (!workflow) throw new KernelError('NOT_FOUND', 'The selected workflow is not available.', 404, context.requestId);
+    if (!customization || !workflow) throw new KernelError('NOT_FOUND', 'The selected workflow is not available.', 404, context.requestId);
+    const questionnaireIds = Array.from(new Set(workflow.steps.map(step => step.questionnaireId).filter((id): id is string => Boolean(id))));
+    const questionnaireSnapshots = questionnaireIds.map(id => customization.questionnaires.find(item => item.id === id && item.enabled)).filter((item): item is NonNullable<typeof item> => Boolean(item));
+    if (questionnaireSnapshots.length !== questionnaireIds.length) throw new KernelError('VALIDATION_ERROR', 'A workflow questionnaire is no longer available.', 422, context.requestId);
     const now = new Date().toISOString();
     const run: CustomWorkflowRun = {
       runId: `wfr_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
       dbkId,
       workflowId,
+      configurationVersion: customization.version,
+      workflowSnapshot: structuredClone(workflow),
+      questionnaireSnapshots: structuredClone(questionnaireSnapshots),
       status: 'IN_PROGRESS',
       currentStepIndex: 0,
       completedStepIds: [],
@@ -167,14 +173,11 @@ export class ExperienceCustomizationService {
     questionnaireId: string,
   ): Promise<void> {
     await masterAuthority.assertTenantAuthority(context, dbkId, 'SUBMIT_WORKFLOW_QUESTIONNAIRE');
-    const [run, customization] = await Promise.all([
-      experienceCustomizationRepository.getWorkflowRun(dbkId, runId),
-      experienceCustomizationRepository.get(dbkId),
-    ]);
+    const run = await experienceCustomizationRepository.getWorkflowRun(dbkId, runId);
     if (!run || run.dbkId !== dbkId || run.status !== 'IN_PROGRESS') throw new KernelError('NOT_FOUND', 'Active workflow run not found.', 404, context.requestId);
-    const workflow = customization?.workflows.find(item => item.id === run.workflowId && item.enabled);
-    const step = workflow?.steps[run.currentStepIndex];
-    if (!step || step.id !== stepId || step.questionnaireId !== questionnaireId) {
+    const step = run.workflowSnapshot?.steps[run.currentStepIndex];
+    const questionnaire = run.questionnaireSnapshots?.find(item => item.id === questionnaireId && item.enabled);
+    if (!step || !questionnaire || step.id !== stepId || step.questionnaireId !== questionnaireId) {
       throw new KernelError('CONFLICT', 'The questionnaire does not match the current workflow step.', 409, context.requestId);
     }
     const privileged = masterAuthority.isMasterAdmin(context.principal) || masterAuthority.isBusinessOwner(context.principal);
@@ -191,13 +194,9 @@ export class ExperienceCustomizationService {
     completedQuestionnaireId?: string,
   ): Promise<CustomWorkflowRun> {
     await masterAuthority.assertTenantAuthority(context, dbkId, 'ADVANCE_CUSTOM_WORKFLOW');
-    const [run, customization] = await Promise.all([
-      experienceCustomizationRepository.getWorkflowRun(dbkId, runId),
-      experienceCustomizationRepository.get(dbkId),
-    ]);
-    if (!run || run.dbkId !== dbkId) throw new KernelError('NOT_FOUND', 'Workflow run not found.', 404, context.requestId);
-    const workflow = customization?.workflows.find(item => item.id === run.workflowId && item.enabled);
-    if (!workflow) throw new KernelError('NOT_FOUND', 'Workflow definition is no longer available.', 404, context.requestId);
+    const run = await experienceCustomizationRepository.getWorkflowRun(dbkId, runId);
+    if (!run || run.dbkId !== dbkId || !run.workflowSnapshot) throw new KernelError('NOT_FOUND', 'Workflow run not found.', 404, context.requestId);
+    const workflow = run.workflowSnapshot;
     if (run.status === 'COMPLETED') return run;
     const step = workflow.steps[run.currentStepIndex];
     if (!step || step.id !== stepId) {
@@ -230,6 +229,13 @@ export class ExperienceCustomizationService {
       tenantId: dbkId, requestId: context.requestId, details: { runId, stepId, status: saved.status, currentStepIndex: saved.currentStepIndex },
     });
     return saved;
+  }
+
+  public async getWorkflowRun(context: SecurityContext, dbkId: string, runId: string): Promise<CustomWorkflowRun | null> {
+    await masterAuthority.assertTenantAuthority(context, dbkId, 'READ_CUSTOM_WORKFLOW_RUN');
+    const run = await experienceCustomizationRepository.getWorkflowRun(dbkId, runId);
+    if (!run || run.dbkId !== dbkId) return null;
+    return run;
   }
 
   public async get(context: SecurityContext, dbkId: string): Promise<ExperienceCustomization> {
