@@ -202,6 +202,9 @@ export class StockMovementService {
       if (sourceAfter < 0) {
         throw new KernelError('CONFLICT', `Insufficient stock: requested ${input.quantity}, available ${sourceBefore}.`, 409, context.requestId);
       }
+      if (!Number.isSafeInteger(sourceAfter) || (destinationAfter !== undefined && !Number.isSafeInteger(destinationAfter))) {
+        fail('Stock movement would exceed the supported integer quantity range.', context.requestId);
+      }
 
       const now = new Date().toISOString();
       await transaction.set(sourcePath, {
