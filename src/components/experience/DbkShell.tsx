@@ -10,6 +10,8 @@ import { SettingsView } from './SettingsView';
 import { DocumentAiShellPanel } from '../document_ai/DocumentAiShellPanel';
 import { OwnerPortfolioView } from './OwnerPortfolioView';
 import { SmartClassroomView } from '../classroom/SmartClassroomView';
+import { ExperienceStudio } from './ExperienceStudio';
+import { CustomQuestionnaireView } from './CustomQuestionnaireView';
 import {
   AlertTriangle,
   ArrowLeft,
@@ -177,12 +179,21 @@ export const DbkShell: React.FC<DbkShellProps> = ({
     if (!response.ok) {
       throw new Error(data.error?.message || 'The action could not be completed.');
     }
+    if (data.commandResponse?.success === false) {
+      throw new Error(data.commandResponse.error?.message || 'The action was rejected by the TDBK runtime.');
+    }
 
     if (data.commandResponse?.updatedResolvedExperience) {
       setExperience(data.commandResponse.updatedResolvedExperience);
     }
 
     return data;
+  };
+
+  const handleCustomButton = (button: NonNullable<DbkExperienceResolved['customization']>['buttons'][number]) => {
+    if (button.action.type === 'NAVIGATE_CAPABILITY') setActiveViewId(button.action.targetId);
+    else if (button.action.type === 'OPEN_QUESTIONNAIRE') setActiveViewId(`custom_questionnaire:${button.action.targetId}`);
+    else if (button.action.type === 'START_WORKFLOW') setActiveViewId(`custom_workflow:${button.action.targetId}`);
   };
 
   const handleBranchSwitch = async (newBranchId: string) => {
@@ -458,6 +469,11 @@ export const DbkShell: React.FC<DbkShellProps> = ({
                     </div>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
+                    {experience.customization?.buttons.filter(button => button.enabled && (!button.requiredRoles?.length || button.requiredRoles.some(role => experience.currentPrincipal.roles.includes(role))) && (!button.requiredPermissions?.length || button.requiredPermissions.every(permission => experience.currentPrincipal.permissions.includes('*') || experience.currentPrincipal.permissions.includes(permission)))).map(button => (
+                      <button key={button.id} type="button" onClick={() => handleCustomButton(button)} className={`inline-flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-xs font-bold ${button.variant === 'PRIMARY' ? 'bg-neutral-950 text-white hover:bg-neutral-800' : button.variant === 'DANGER' ? 'border border-rose-200 bg-rose-50 text-rose-700' : 'border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50'}`}>
+                        {button.label}
+                      </button>
+                    ))}
                     <button type="button" onClick={() => setActiveViewId('nav_overview')} className="inline-flex items-center gap-2 rounded-xl border border-neutral-200 bg-white px-3.5 py-2.5 text-xs font-bold text-neutral-700 hover:bg-neutral-50"><CheckCircle2 className="h-4 w-4 text-emerald-600" /> Today</button>
                     <button type="button" onClick={goToSettings} className="inline-flex items-center gap-2 rounded-xl border border-neutral-200 bg-white px-3.5 py-2.5 text-xs font-bold text-neutral-700 hover:bg-neutral-50"><Settings className="h-4 w-4" /> Connections</button>
                     <button type="button" onClick={() => setActiveViewId('view_doc_ai')} className="inline-flex items-center gap-2 rounded-xl bg-neutral-950 px-3.5 py-2.5 text-xs font-bold text-white hover:bg-neutral-800"><Bot className="h-4 w-4" /> AI assistant</button>
@@ -465,7 +481,26 @@ export const DbkShell: React.FC<DbkShellProps> = ({
                 </div>
               </div>
 
-              {activeViewId === 'view_doc_ai' ? (
+              {activeViewId === 'nav_experience_studio' || currentNav?.viewType === 'EXPERIENCE_STUDIO' ? (
+                <ExperienceStudio experience={experience} onRefresh={() => resolveExperience(selectedDbkId, selectedBranchId)} />
+              ) : activeViewId.startsWith('custom_questionnaire:') ? (
+                (() => {
+                  const questionnaireId = activeViewId.slice('custom_questionnaire:'.length);
+                  const questionnaire = experience.customization?.questionnaires.find(item => item.id === questionnaireId && item.enabled);
+                  if (!questionnaire) return <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-800">This questionnaire is unavailable in the current workspace configuration.</div>;
+                  return <CustomQuestionnaireView questionnaire={questionnaire} onCancel={() => setActiveViewId('nav_overview')} onSubmit={async answers => {
+                    const result = await handleDispatchCommand('SUBMIT_QUESTIONNAIRE', { questionnaireId, answers });
+                    if (result?.commandResponse?.success !== true) throw new Error(result?.commandResponse?.error?.message || 'Submission was not accepted.');
+                    await resolveExperience(selectedDbkId, selectedBranchId);
+                  }} />;
+                })()
+              ) : activeViewId.startsWith('custom_workflow:') ? (
+                (() => {
+                  const workflowId = activeViewId.slice('custom_workflow:'.length);
+                  const workflow = experience.customization?.workflows.find(item => item.id === workflowId && item.enabled);
+                  return <div className="rounded-2xl border border-neutral-200 bg-white p-6"><h2 className="text-xl font-bold">{workflow?.name || 'Workflow unavailable'}</h2><p className="mt-2 text-sm text-neutral-500">{workflow?.description || 'The selected workflow is not configured.'}</p><div className="mt-5 space-y-3">{workflow?.steps.map((step,index)=><div key={step.id} className="flex gap-3 rounded-xl bg-neutral-50 p-4"><span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-neutral-200 text-xs font-bold">{index+1}</span><div><p className="text-sm font-semibold">{step.title}</p>{step.description && <p className="mt-1 text-xs text-neutral-500">{step.description}</p>}{step.assigneeRole && <p className="mt-1 text-[10px] text-neutral-400">Assigned role: {step.assigneeRole}</p>}{step.questionnaireId && <button type="button" onClick={()=>setActiveViewId('custom_questionnaire:'+step.questionnaireId)} className="mt-2 rounded-lg bg-neutral-950 px-3 py-2 text-xs font-bold text-white">Open step questionnaire</button>}</div></div>)}</div><p className="mt-4 text-xs text-neutral-500">This is the configured workflow guide. Durable workflow execution, task assignment and step approvals are a separate runtime capability.</p><button type="button" onClick={()=>setActiveViewId('nav_overview')} className="mt-4 rounded-xl border border-neutral-200 px-4 py-2 text-xs font-bold">Close workflow</button></div>;
+                })()
+              ) : activeViewId === 'view_doc_ai' ? (
                 <DocumentAiShellPanel tenantId={selectedDbkId} />
               ) : activeViewId === 'nav_overview' || activeViewId === 'dashboard' ? (
                 <DashboardView experience={experience} onNavigate={(capabilityId) => setActiveViewId(capabilityId)} onDispatchCommand={handleDispatchCommand} />
