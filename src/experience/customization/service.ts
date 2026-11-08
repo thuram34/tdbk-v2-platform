@@ -114,6 +114,7 @@ export class ExperienceCustomizationService {
         if (['SELECT', 'MULTI_SELECT'].includes(field.type) && (!Array.isArray(field.options) || field.options.length === 0 || field.options.length > 30)) {
           throw new KernelError('VALIDATION_ERROR', `Field '${field.label}' requires between 1 and 30 selectable options.`, 422);
         }
+        if (field.options !== undefined && !Array.isArray(field.options)) throw new KernelError('VALIDATION_ERROR', `Field '${field.label}' options must be a list.`, 422);
         if (field.options && (field.options.some(option => !option.label?.trim() || option.label.length > 80 || !option.value?.trim() || option.value.length > 80) || new Set(field.options.map(option => option.value)).size !== field.options.length)) {
           throw new KernelError('VALIDATION_ERROR', `Field '${field.label}' has invalid or duplicate options.`, 422);
         }
