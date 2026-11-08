@@ -130,6 +130,17 @@ export class StockMovementService {
     if (input.movementType === 'TRANSFER' && input.destinationBranchId === branchId) {
       fail('A stock transfer must target a different branch.', context.requestId);
     }
+    if (input.movementType === 'TRANSFER') {
+      const destinationAuthorization = await rbacEngine.authorizeAsync(
+        context.principal,
+        'manage',
+        'inventory:movement',
+        { tenantId, branchId: input.destinationBranchId!, requiredPermission: 'manage:inventory', requestId: context.requestId },
+      );
+      if (!destinationAuthorization.allowed) {
+        throw new KernelError('AUTHORIZATION_ERROR', 'The principal is not authorized to receive stock in the destination branch.', 403, context.requestId);
+      }
+    }
 
     const eventId = `stock-movement-${input.movementId}`;
     const movementPath = entityPath(tenantId, MOVEMENT_ENTITY, input.movementId);
