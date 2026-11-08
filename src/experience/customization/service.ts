@@ -21,6 +21,17 @@ const EMPTY = (dbkId: string): ExperienceCustomization => ({
   updatedAt: new Date(0).toISOString(), updatedBy: 'SYSTEM',
 });
 
+const stripUndefined = <T>(value: T): T => {
+  if (Array.isArray(value)) return value.map(item => stripUndefined(item)) as T;
+  if (value && typeof value === 'object') {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .filter(([, item]) => item !== undefined)
+      .map(([key, item]) => [key, stripUndefined(item)]);
+    return Object.fromEntries(entries) as T;
+  }
+  return value;
+};
+
 const validateAccessRules = (item: { requiredRoles?: string[]; requiredPermissions?: string[] }) => {
   for (const values of [item.requiredRoles, item.requiredPermissions]) {
     if (values !== undefined && (!Array.isArray(values) || values.length > 20 || values.some(value => typeof value !== 'string' || !value.trim() || value.length > 100))) {
@@ -273,13 +284,13 @@ export class ExperienceCustomizationService {
     await masterAuthority.assertTenantAuthority(context, dbkId, 'WRITE_EXPERIENCE_CUSTOMIZATION');
     this.assertCanConfigure(context, dbkId);
     if (!Number.isInteger(input.expectedVersion) || input.expectedVersion < 0) throw new KernelError('VALIDATION_ERROR', 'expectedVersion must be a non-negative integer.', 422, context.requestId);
-    const normalized: ExperienceCustomizationInput = {
+    const normalized: ExperienceCustomizationInput = stripUndefined({
       expectedVersion: input.expectedVersion,
       menuItems: Array.isArray(input.menuItems) ? input.menuItems : [],
       buttons: Array.isArray(input.buttons) ? input.buttons : [],
       questionnaires: Array.isArray(input.questionnaires) ? input.questionnaires : [],
       workflows: Array.isArray(input.workflows) ? input.workflows : [],
-    };
+    });
     const workspace = await workspaceManager.compileWorkspaceState(context, dbkId);
     this.validate(normalized, workspace.enabledCapabilities, context.principal);
 
