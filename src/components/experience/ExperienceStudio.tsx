@@ -53,7 +53,7 @@ export const ExperienceStudio: React.FC<Props> = ({ experience, onRefresh }) => 
           if (loaded.version === 0 && !loaded.menuItems?.length) {
             loaded.menuItems = experience.navigation.filter(item => item.capabilityId).map((item, index) => ({
               id: `menu_${item.capabilityId}`, label: item.label, iconName: item.iconName,
-              category: item.category, capabilityId: item.capabilityId!, displayOrder: index + 1, enabled: true,
+              category: item.category, targetType: 'CAPABILITY', targetId: item.capabilityId!, capabilityId: item.capabilityId!, displayOrder: index + 1, enabled: true,
             }));
           }
           setConfig(loaded);
@@ -93,10 +93,10 @@ export const ExperienceStudio: React.FC<Props> = ({ experience, onRefresh }) => 
   };
 
   const addMenu = () => {
-    const cap = capabilities.find(item => !config.menuItems.some(existing => existing.capabilityId === item.capabilityId));
+    const cap = capabilities.find(item => !config.menuItems.some(existing => (existing.targetType || 'CAPABILITY') === 'CAPABILITY' && (existing.targetId || existing.capabilityId) === item.capabilityId));
     if (!cap?.capabilityId) { setError('All currently enabled capabilities are already represented in the menu. Enable another capability in Discovery first.'); return; }
     const id = crypto.randomUUID();
-    update({ menuItems: [...config.menuItems, { id, label: cap.label, iconName: cap.iconName, category: cap.category, capabilityId: cap.capabilityId, displayOrder: config.menuItems.length + 1, enabled: true }] });
+    update({ menuItems: [...config.menuItems, { id, label: cap.label, iconName: cap.iconName, category: cap.category, targetType: 'CAPABILITY', targetId: cap.capabilityId, capabilityId: cap.capabilityId, displayOrder: config.menuItems.length + 1, enabled: true }] });
   };
   const addButton = () => update({ buttons: [...config.buttons, { id: crypto.randomUUID(), label: 'New action', variant: 'PRIMARY', action: { type: 'NAVIGATE_CAPABILITY', targetId: capabilities[0]?.capabilityId || '' }, enabled: true }] });
   const addForm = () => {
@@ -130,14 +130,24 @@ export const ExperienceStudio: React.FC<Props> = ({ experience, onRefresh }) => 
 
     {tab === 'menus' && <section className="space-y-3 rounded-2xl border border-neutral-200 bg-white p-4 sm:p-5">
       <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-bold">Menu designer</h2><p className="text-xs text-neutral-500">Add, rename, order and show or hide capability destinations.</p></div><button type="button" className={button} onClick={addMenu}><Plus size={14}/>Add menu item</button></div>
-      {config.menuItems.map((item,index) => <div key={item.id} className="grid gap-2 rounded-xl border border-neutral-200 p-3 md:grid-cols-[1fr_1fr_1fr_auto_auto] md:items-center">
-        <input className={input} aria-label="Menu label" value={item.label} onChange={e => update({ menuItems: config.menuItems.map(x => x.id === item.id ? {...x,label:e.target.value} : x) })}/>
-        <select className={input} aria-label="Menu capability" value={item.capabilityId} onChange={e => { const target=capabilities.find(x=>x.capabilityId===e.target.value); update({menuItems:config.menuItems.map(x=>x.id===item.id?{...x,capabilityId:e.target.value,iconName:target?.iconName||x.iconName,category:target?.category||x.category}:x)}); }}>{capabilities.map(x=><option key={x.capabilityId} value={x.capabilityId}>{x.label}</option>)}</select>
-        <input className={input} aria-label="Display order" type="number" min="0" value={item.displayOrder} onChange={e => update({menuItems:config.menuItems.map(x=>x.id===item.id?{...x,displayOrder:Number(e.target.value)}:x)})}/>
-        <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={item.enabled} onChange={e=>update({menuItems:config.menuItems.map(x=>x.id===item.id?{...x,enabled:e.target.checked}:x)})}/>Visible</label>
-        <button type="button" aria-label="Remove menu item" onClick={()=>update({menuItems:config.menuItems.filter(x=>x.id!==item.id)})} className="p-2 text-rose-600"><Trash2 size={15}/></button>
-        <p className="text-[10px] text-neutral-400 md:col-span-5">Position {index+1} · {item.category} · {item.capabilityId}</p>
-      </div>)}
+      {config.menuItems.map((item,index) => {
+        const targetType = item.targetType || 'CAPABILITY';
+        const targetId = item.targetId || item.capabilityId || '';
+        const targets = targetType === 'CAPABILITY'
+          ? capabilities.map(x => ({ id: x.capabilityId, label: x.label }))
+          : targetType === 'QUESTIONNAIRE'
+            ? config.questionnaires.map(x => ({ id: x.id, label: x.title }))
+            : config.workflows.map(x => ({ id: x.id, label: x.name }));
+        return <div key={item.id} className="grid gap-2 rounded-xl border border-neutral-200 p-3 md:grid-cols-[1fr_1fr_1fr_1fr_auto_auto] md:items-center">
+          <input className={input} aria-label="Menu label" value={item.label} onChange={e => update({ menuItems: config.menuItems.map(x => x.id === item.id ? {...x,label:e.target.value} : x) })}/>
+          <select className={input} aria-label="Menu destination type" value={targetType} onChange={e => { const type=e.target.value as 'CAPABILITY'|'QUESTIONNAIRE'|'WORKFLOW'; const list=type==='CAPABILITY'?capabilities.map(x=>({id:x.capabilityId,label:x.label})):type==='QUESTIONNAIRE'?config.questionnaires.map(x=>({id:x.id,label:x.title})):config.workflows.map(x=>({id:x.id,label:x.name})); const first=list[0]; update({menuItems:config.menuItems.map(x=>x.id===item.id?{...x,targetType:type,targetId:first?.id||'',capabilityId:type==='CAPABILITY'?first?.id:undefined,category:type==='CAPABILITY'?(capabilities.find(c=>c.capabilityId===first?.id)?.category||x.category):'OPERATIONS'}:x)}); }}>{['CAPABILITY','QUESTIONNAIRE','WORKFLOW'].map(type=><option key={type} value={type}>{type.replace('_',' ')}</option>)}</select>
+          <select className={input} aria-label="Menu destination" value={targetId} onChange={e => { const target=capabilities.find(x=>x.capabilityId===e.target.value); update({menuItems:config.menuItems.map(x=>x.id===item.id?{...x,targetId:e.target.value,capabilityId:targetType==='CAPABILITY'?e.target.value:undefined,iconName:target?.iconName||x.iconName,category:target?.category||(targetType==='CAPABILITY'?x.category:'OPERATIONS')}:x)}); }}>{targets.map(x=><option key={x.id} value={x.id}>{x.label}</option>)}</select>
+          <input className={input} aria-label="Display order" type="number" min="0" value={item.displayOrder} onChange={e => update({menuItems:config.menuItems.map(x=>x.id===item.id?{...x,displayOrder:Number(e.target.value)}:x)})}/>
+          <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={item.enabled} onChange={e=>update({menuItems:config.menuItems.map(x=>x.id===item.id?{...x,enabled:e.target.checked}:x)})}/>Visible</label>
+          <button type="button" aria-label="Remove menu item" onClick={()=>update({menuItems:config.menuItems.filter(x=>x.id!==item.id)})} className="p-2 text-rose-600"><Trash2 size={15}/></button>
+          <p className="text-[10px] text-neutral-400 md:col-span-6">Position {index+1} · {targetType} · {targetId}</p>
+        </div>;
+      })}
       {config.menuItems.length===0 && <p className="rounded-xl bg-neutral-50 p-4 text-sm text-neutral-500">No custom menu entries. The default capability menu remains active.</p>}
     </section>}
 
