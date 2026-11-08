@@ -476,7 +476,7 @@ export const DbkShell: React.FC<DbkShellProps> = ({
                   <div className="flex flex-wrap items-center gap-2">
                     {experience.customization?.buttons.filter(button => button.enabled && (
                       button.action.type === 'NAVIGATE_CAPABILITY'
-                        ? experience.discoveryItems.some(item => item.capabilityId === button.action.targetId && item.isEnabled && (experience.currentPrincipal.isMaster || (!item.requiredRoles?.length || item.requiredRoles.some(role => experience.currentPrincipal.roles.includes(role))) && (!item.requiredPermissions?.length || item.requiredPermissions.every(permission => experience.currentPrincipal.permissions.includes('*') || experience.currentPrincipal.permissions.includes(permission)))))
+                        ? experience.discoveryItems.some(item => item.capabilityId === button.action.targetId && item.canAccess)
                         : button.action.type === 'OPEN_QUESTIONNAIRE'
                           ? experience.customization?.questionnaires.some(item => item.id === button.action.targetId && item.enabled)
                           : experience.customization?.workflows.some(item => item.id === button.action.targetId && item.enabled)
