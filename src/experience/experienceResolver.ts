@@ -53,6 +53,7 @@ export class ExperienceResolver {
     if (customization.menuItems.length > 0) {
       const overview = navigation.filter(item => item.isDefault);
       const settings = navigation.filter(item => item.category === 'SETTINGS');
+      const discovery = navigation.filter(item => item.category === 'DISCOVERY');
       const configured = customization.menuItems
         .filter(item => item.enabled)
         .filter(item => {
@@ -92,7 +93,7 @@ export class ExperienceResolver {
             requiredRoles: item.requiredRoles, requiredPermissions: item.requiredPermissions,
           };
         });
-      navigation = [...overview, ...configured, ...settings].sort((a,b) => a.displayOrder - b.displayOrder);
+      navigation = [...overview, ...configured, ...discovery, ...settings].sort((a,b) => a.displayOrder - b.displayOrder);
     }
     const canManageExperience = masterAuthority.isMasterAdmin(context.principal)
       || masterAuthority.isBusinessOwner(context.principal)
