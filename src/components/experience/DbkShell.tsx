@@ -236,7 +236,7 @@ export const DbkShell: React.FC<DbkShellProps> = ({
     })
     .map((key) => ({
       key,
-      label: categoryLabels[key] || key.toLowerCase().replace(/_/g, ' ').replace(/\\b\\w/g, (letter) => letter.toUpperCase()),
+      label: categoryLabels[key] || key.toLowerCase().split('_').map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(' '),
     }));
 
   if (viewMode === 'PORTFOLIO') {
