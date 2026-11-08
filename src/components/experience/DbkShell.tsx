@@ -387,7 +387,9 @@ export const DbkShell: React.FC<DbkShellProps> = ({
                             type="button"
                             key={item.id}
                             onClick={() => {
-                              setActiveViewId(item.capabilityId || item.id);
+                              if (item.viewType === 'CUSTOM_QUESTIONNAIRE' && item.customTargetId) setActiveViewId(`custom_questionnaire:${item.customTargetId}`);
+                              else if (item.viewType === 'CUSTOM_WORKFLOW' && item.customTargetId) setActiveViewId(`custom_workflow:${item.customTargetId}`);
+                              else setActiveViewId(item.capabilityId || item.id);
                               setIsMobileMenuOpen(false);
                             }}
                             className={`flex w-full items-center justify-between rounded-xl px-2.5 py-2.5 text-left text-xs font-semibold transition ${isActive ? 'bg-neutral-950 text-white shadow-sm' : 'text-neutral-500 hover:bg-neutral-50 hover:text-neutral-900'}`}
