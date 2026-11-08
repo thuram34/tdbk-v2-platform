@@ -281,6 +281,14 @@ export class ExperienceResolver {
             throw new KernelError('VALIDATION_ERROR', `'${field.label}' contains an invalid selection.`, 422, context.requestId);
           }
         }
+        const workflowRunId = req.payload?.workflowRunId ? String(req.payload.workflowRunId) : '';
+        const workflowStepId = req.payload?.workflowStepId ? String(req.payload.workflowStepId) : '';
+        if (Boolean(workflowRunId) !== Boolean(workflowStepId)) {
+          throw new KernelError('VALIDATION_ERROR', 'workflowRunId and workflowStepId must be provided together.', 422, context.requestId);
+        }
+        if (workflowRunId) {
+          await experienceCustomizationService.assertWorkflowQuestionnaireStep(context, req.targetDbkId, workflowRunId, workflowStepId, questionnaire.id);
+        }
         const recordId = `form_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
         const record = {
           id: recordId,
@@ -294,15 +302,11 @@ export class ExperienceResolver {
             _questionnaireTitle: questionnaire.title,
             _submittedBy: context.principal.id,
             _submittedAt: timestamp,
+            ...(workflowRunId ? { _workflowRunId: workflowRunId, _workflowStepId: workflowStepId } : {}),
           },
           createdAt: timestamp,
           updatedAt: timestamp,
         };
-        const workflowRunId = req.payload?.workflowRunId ? String(req.payload.workflowRunId) : '';
-        const workflowStepId = req.payload?.workflowStepId ? String(req.payload.workflowStepId) : '';
-        if (Boolean(workflowRunId) !== Boolean(workflowStepId)) {
-          throw new KernelError('VALIDATION_ERROR', 'workflowRunId and workflowStepId must be provided together.', 422, context.requestId);
-        }
         await entityEngine.savePersistentRecord(context, req.targetDbkId, questionnaire.targetCapabilityId, record as any);
         const workflowRun = workflowRunId
           ? await experienceCustomizationService.advanceWorkflow(context, req.targetDbkId, workflowRunId, workflowStepId, questionnaire.id)
