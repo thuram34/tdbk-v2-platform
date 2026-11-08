@@ -81,6 +81,7 @@ export const CustomWorkflowView: React.FC<Props> = ({ experience, workflow, onDi
       </aside>
       <section className="space-y-4">
         {run.status==='COMPLETED' ? <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-6"><CheckCircle2 className="h-8 w-8 text-emerald-600"/><h2 className="mt-3 text-lg font-bold text-emerald-900">Workflow completed</h2><p className="mt-1 text-sm text-emerald-800">All configured steps have been recorded for this run.</p></div> :
+        currentStep?.questionnaireId && !currentQuestionnaire ? <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-800">The questionnaire assigned to this step is no longer available.</div> :
         currentStep ? currentQuestionnaire ? <CustomQuestionnaireView key={currentStep.id} questionnaire={currentQuestionnaire} onCancel={onClose} onSubmit={answers=>submitQuestionnaire(currentQuestionnaire.id,answers)}/> :
         <div className="rounded-2xl border border-neutral-200 bg-white p-6">
           <p className="text-[10px] font-black uppercase tracking-wider text-neutral-400">Step {run.currentStepIndex+1} of {workflow.steps.length}</p>
