@@ -3,6 +3,7 @@ import { KernelError } from '../../kernel/errors/kernelErrors';
 import { auditLogger } from '../../kernel/audit/auditLogger';
 import { workspaceManager } from '../../platform/workspace/workspaceManager';
 import { capabilityRegistry } from '../../capability/registry';
+import { rbacEngine } from '../../kernel/authorization/rbacEngine';
 import type { SecurityContext } from '../../kernel/types';
 import { experienceCustomizationRepository } from './repository';
 import type {
@@ -41,6 +42,7 @@ export class ExperienceCustomizationService {
   private validate(
     input: ExperienceCustomizationInput,
     enabledCapabilities: string[],
+    principal: SecurityContext['principal'],
   ) {
     const menuItems = Array.isArray(input.menuItems) ? input.menuItems : [];
     const buttons = Array.isArray(input.buttons) ? input.buttons : [];
@@ -65,6 +67,12 @@ export class ExperienceCustomizationService {
       }
       if (!enabledCapabilities.includes(capabilityId)) {
         throw new KernelError('VALIDATION_ERROR', `Capability '${capabilityId}' is not enabled for this workspace.`, 422);
+      }
+      const ownerOverride = masterAuthority.isMasterAdmin(principal) || masterAuthority.isOwnerPortfolio(principal) || masterAuthority.isBusinessOwner(principal);
+      if (!ownerOverride) {
+        const roleAllowed = capability.requiredRoles.length === 0 || capability.requiredRoles.some(role => principal.roles.includes(role));
+        const permissionAllowed = capability.requiredPermissions.length === 0 || capability.requiredPermissions.every(permission => rbacEngine.hasPermission(principal, permission));
+        if (!roleAllowed || !permissionAllowed) throw new KernelError('AUTHORIZATION_ERROR', `You cannot configure navigation for capability '${capabilityId}'.`, 403);
       }
     };
 
@@ -241,7 +249,7 @@ export class ExperienceCustomizationService {
       workflows: Array.isArray(input.workflows) ? input.workflows : [],
     };
     const workspace = await workspaceManager.compileWorkspaceState(context, dbkId);
-    this.validate(normalized, workspace.enabledCapabilities);
+    this.validate(normalized, workspace.enabledCapabilities, context.principal);
 
     const savedAt = new Date().toISOString();
     const value: ExperienceCustomization = {
