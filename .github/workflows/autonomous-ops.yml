@@ -34,13 +34,26 @@ jobs:
           REPO: ${{ github.repository }}
         run: gh run rerun "$RUN_ID" --failed --repo "$REPO"
 
-      - name: Record unresolved CI failure
+      - name: Record unresolved CI failure without duplicate issues
         if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.run_attempt > 1 }}
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+          RUN_NAME: ${{ github.event.workflow_run.name }}
+          RUN_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          RUN_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
-          gh issue create --repo "$REPO"             --title "Autonomous Ops: CI failure requires engineering action"             --body "TDBK Autonomous Operations retried the failed CI run once. The failure remains unresolved. Review the workflow logs before making production changes."
+          set -euo pipefail
+          title="Autonomous Ops: CI failure requires engineering action"
+          existing="$(gh issue list --repo "$REPO" --state open --search "in:title $title" --json number --jq '.[0].number // empty')"
+          body="TDBK CI remains failed after its one automatic retry.\n\n- Workflow: $RUN_NAME\n- Branch: $RUN_BRANCH\n- Commit: $RUN_SHA\n- Run: $RUN_URL\n\nReview the failing job logs and record the root cause before any production change."
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --repo "$REPO" --body "$body"
+          else
+            gh issue create --repo "$REPO" --title "$title" --body "$body"
+          fi
 
       - name: Report healthy completion
         if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' }}
