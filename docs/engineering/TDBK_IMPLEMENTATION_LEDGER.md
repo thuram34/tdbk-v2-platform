@@ -170,3 +170,36 @@ A capability moves to **VERIFIED** only when:
 - external provider certification is attached where applicable.
 
 **Current overall release status: NOT DECLARED COMPLETE.** This ledger is the working register and must be updated as engineering evidence is produced.
+
+
+## 9. Runtime evidence addendum — 2026-11-09
+
+The following source-level runtime paths were inspected after the initial register was committed. These are stronger than catalogue declarations, but they do not independently prove complete sector workflows or production operation.
+
+| Capability / domain | Runtime evidence inspected | Verified boundary | Remaining acceptance work |
+|---|---|---|---|
+| `sales_counter` | `src/business/sales/saleTransactionService.ts`; `src/business/sales/saleTransactionService.test.ts` | Authenticated branch-scoped sale command; RBAC and capability gate; transactional stock decrement; sale/outbox transaction; deterministic sale ID idempotency | Verify full payment lifecycle, returns/voids, discounts/approvals, tax/eTIMS posting, shift controls and deployed journey. |
+| `stock_control` | `src/business/sales/saleTransactionService.ts`; `src/experience/entity/entityEngine.ts`; `src/experience/registry/viewRegistry.ts` | Stock entity is used by the transactional sale path and has a workspace view/seed data | No complete stock command service for all adjustments/transfers/counts/receiving was evidenced in this inspection; implement and test append-only movement ledger, reservations, reorder and multi-branch transfers. |
+| `supplier_invoices` | `src/business/procurement/supplierInvoiceService.ts` | Tenant/branch-scoped invoice submission, RBAC, capability gate, transaction, duplicate suppression, PO/GRN reference checks, match/dispute state and outbox event | Verify PO/GRN creation and quantity/price line matching, approval/payment lifecycle, ledger posting, supplier statements and negative tests. |
+| `student_records` | `src/experience/entity/entityEngine.ts`; `src/coherence/contributionDispatcher.ts`; `src/experience/registry/viewRegistry.ts` | Student entity seed/persistence and contribution flow references exist | Complete admission, guardian consent/identity, class promotion, transfers, attendance linkage, data privacy and school-year lifecycle. |
+| `fee_management` | `src/coherence/contributionDispatcher.ts`; `src/experience/registry/viewRegistry.ts` | Fee-related contribution record and workspace navigation exist | Build authoritative fee structures, student obligations, receipts, arrears/credit notes, reconciliation, approval and audit lifecycle. |
+| `smart_classroom` | `src/components/classroom/SmartClassroomView.tsx` | A classroom experience component exists | Verify tenant isolation, lesson/session persistence, teacher/student roles, attendance/content workflows and accessibility in a live journey. |
+
+### Provider adapter facts confirmed from current main source
+
+- `src/orchestration/bridge/registry.ts` advertises M-Pesa `STK_PUSH` only. Its side-effect flags explicitly say provider idempotency and provider reconciliation are false.
+- `src/orchestration/bridge/adapters/etimsBridge.ts` uses tenant-scoped connector configuration, Secret Manager references and the VSCU operation mapping. It does not claim provider idempotency or provider reconciliation.
+- The registry now exposes 21 eTIMS operations after PR #641. This is an adapter contract inventory, not proof that every KRA endpoint is accepted by the live taxpayer device.
+- eTIMS callback verification is intentionally disabled after PR #640 until a genuine KRA callback authentication contract is available.
+- The bridge registry marks email, SMS and generic bank as MOCK and all bridge health defaults as UNAVAILABLE. Do not expose these as live integrations.
+
+### Additional merged engineering
+
+- PR #612 merged as `2a9c96e285cdddb7338ab681567d7107ff721f66`: Global Income Engine foundation. Its GitHub CI run 42527682553 passed all 11 verification steps, including Docker image validation. Its Vercel preview comment reported Ready. The merged scope is a tenant-scoped opportunity/application/approval foundation and control panel; provider discovery, app-level Gmail/HubSpot OAuth and marketplace submission remain unconfigured and are not represented as live automation.
+
+### Current PR disposition
+
+- #612 merged after its full verification run.
+- #640 and #641 merged after full verification runs.
+- #625 Experience Studio remains draft: its branch has a Vercel preview that reported Ready, but a later Vercel deployment attempt was blocked by the account's daily deployment limit. It also explicitly excludes workflow resume across devices, conditional branches, SLA timers, notifications/escalation and arbitrary screen layouts. Do not merge until current-base CI and deployment evidence are re-established.
+- #609, #608, #605, #598, #593, #567, #542, #537, #390, #291, #229, #225, #222, #224, #161, #131 and #6 remain open and require individual diff reconciliation. Their presence is not evidence of implementation in main.
