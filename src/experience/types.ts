@@ -17,7 +17,8 @@ export type ExperienceViewType =
   | 'DISCOVERY'
   | 'SETTINGS'
   | 'REPORTS'
-  | 'CUSTOM_CLASSROOM';
+  | 'CUSTOM_CLASSROOM'
+  | 'EXPERIENCE_STUDIO';
 
 export type ExperienceNavCategory =
   | 'OVERVIEW'
@@ -164,7 +165,10 @@ export interface ExperienceDiscoveryItem {
   iconName: string;
 }
 
+import type { ExperienceCustomization } from './customization/types';
+
 export interface DbkExperienceResolved {
+  customization?: ExperienceCustomization;
   dbkId: string;
   legalName: string;
   displayName: string;
