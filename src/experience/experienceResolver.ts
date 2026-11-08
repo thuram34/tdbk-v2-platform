@@ -226,6 +226,10 @@ export class ExperienceResolver {
         if (!questionnaire) {
           throw new KernelError('NOT_FOUND', 'The requested questionnaire is not available.', 404, context.requestId);
         }
+        const submissionWorkspace = await workspaceManager.compileWorkspaceState(context, req.targetDbkId);
+        if (!submissionWorkspace.enabledCapabilities.includes(questionnaire.targetCapabilityId)) {
+          throw new KernelError('AUTHORIZATION_ERROR', 'The questionnaire target capability is no longer enabled.', 403, context.requestId);
+        }
         const expectedKeys = new Set(questionnaire.fields.map(field => field.key));
         for (const key of Object.keys(answers)) {
           if (!expectedKeys.has(key)) throw new KernelError('VALIDATION_ERROR', `Unexpected questionnaire field '${key}'.`, 422, context.requestId);
@@ -235,6 +239,12 @@ export class ExperienceResolver {
           const empty = value === undefined || value === null || value === '' || (Array.isArray(value) && value.length === 0);
           if (field.required && empty) throw new KernelError('VALIDATION_ERROR', `'${field.label}' is required.`, 422, context.requestId);
           if (empty) continue;
+          if (['TEXT','TEXTAREA','DATE'].includes(field.type) && typeof value !== 'string') {
+            throw new KernelError('VALIDATION_ERROR', `'${field.label}' must be text.`, 422, context.requestId);
+          }
+          if (field.type === 'DATE' && typeof value === 'string' && !/^\\d{4}-\\d{2}-\\d{2}$/.test(value)) {
+            throw new KernelError('VALIDATION_ERROR', `'${field.label}' must be a valid date.`, 422, context.requestId);
+          }
           if (field.type === 'NUMBER' && (typeof value !== 'number' || !Number.isFinite(value))) {
             throw new KernelError('VALIDATION_ERROR', `'${field.label}' must be a valid number.`, 422, context.requestId);
           }
