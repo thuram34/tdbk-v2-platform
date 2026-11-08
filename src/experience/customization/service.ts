@@ -29,7 +29,7 @@ const uniqueIds = (items: Array<{ id: string }>, label: string) => {
 export class ExperienceCustomizationService {
   private assertCanConfigure(context: SecurityContext, dbkId: string) {
     const principal = context.principal;
-    const isPlatformAdmin = masterAuthority.isMasterAdmin(principal);
+    const isPlatformAdmin = masterAuthority.isMasterAdmin(principal) || masterAuthority.isOwnerPortfolio(principal);
     const isBusinessOwner = masterAuthority.isBusinessOwner(principal);
     const allowedRole = ['TENANT_ADMIN', 'SYSTEM_ADMIN', 'OWNER_OPERATOR', 'BUSINESS_OWNER', 'STORE_OWNER', 'SHOP_MANAGER', 'SCHOOL_PRINCIPAL', 'LOGISTICS_DIRECTOR', 'MEDICAL_DIRECTOR'].some(role => principal.roles.includes(role));
     const hasPermission = principal.permissions.includes('*') || principal.permissions.includes('admin:*') || principal.permissions.includes('experience:configure');
