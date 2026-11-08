@@ -15,13 +15,23 @@ service cloud.firestore {
       return isSignedIn() && (request.auth.token.tenantId == tenantId || isMasterAdmin());
     }
 
+    // FirebaseIdentityManager writes TDBK roles as a top-level string array.
+    // Keep Firestore authorization on that canonical claim; do not read a
+    // singular "role" claim that the identity writer does not issue.
+    function hasTenantAdminRole() {
+      return isSignedIn()
+        && ('roles' in request.auth.token)
+        && request.auth.token.roles is list
+        && request.auth.token.roles.hasAny(['TENANT_ADMIN']);
+    }
+
     // Branch access must be explicit. A missing branch claim is not treated as
     // unrestricted branch access; only tenant administrators and TDBK Master
     // may enumerate/access every branch in a tenant. Branch-scoped principals
     // must carry the exact branchId they are authorized to access.
     function isBranchAuthorized(branchId) {
       return isMasterAdmin() ||
-             (isSignedIn() && request.auth.token.role == 'TENANT_ADMIN') ||
+             hasTenantAdminRole() ||
              (isSignedIn() && ('branchId' in request.auth.token) &&
               request.auth.token.branchId != null &&
               request.auth.token.branchId == branchId);
@@ -56,12 +66,12 @@ service cloud.firestore {
       // Branch Subcollection
       match /branches/{branchId} {
         allow get, list: if isTenantMember(tenantId) && isValidId(branchId) && isBranchAuthorized(branchId);
-        allow write: if isTenantMember(tenantId) && request.auth.token.role == 'TENANT_ADMIN';
+        allow write: if isTenantMember(tenantId) && hasTenantAdminRole();
       }
 
       // Security Audit Logs (Read-only for tenant admin, append-only via server)
       match /security_audits/{auditId} {
-        allow get, list: if isTenantMember(tenantId) && request.auth.token.role == 'TENANT_ADMIN';
+        allow get, list: if isTenantMember(tenantId) && hasTenantAdminRole();
         allow write: if false; // Audit logs can only be created by authoritative server runtime
       }
 
