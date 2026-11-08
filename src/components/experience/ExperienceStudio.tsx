@@ -31,7 +31,7 @@ export const ExperienceStudio: React.FC<Props> = ({ experience, onRefresh }) => 
       capabilityId: item.capabilityId!, label: item.label, iconName: item.iconName, category: item.category,
     }));
     const fromDiscovery = experience.discoveryItems.filter(item => item.isEnabled && item.canAccess).map(item => ({
-      capabilityId: item.capabilityId, label: item.name, iconName: item.iconName, category: 'CORE_OPERATIONS' as const,
+      capabilityId: item.capabilityId, label: item.name, iconName: item.iconName, category: item.category === 'FINANCE' ? 'FINANCE' as const : item.category === 'RECORDS' ? 'RECORDS' as const : 'CORE_OPERATIONS' as const,
     }));
     const unique = new Map<string, (typeof fromNavigation)[number] | (typeof fromDiscovery)[number]>();
     [...fromNavigation, ...fromDiscovery].forEach(item => unique.set(item.capabilityId, item));
