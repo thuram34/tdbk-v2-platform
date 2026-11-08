@@ -18,6 +18,7 @@ export const EntityListView: React.FC<EntityListViewProps> = ({
   const [records, setRecords] = useState<ExperienceEntityRecord[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [selectedRecord, setSelectedRecord] = useState<ExperienceEntityRecord | null>(null);
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [isLoading, setIsLoading] = useState(false);
   const { getIdToken } = useAuth();
@@ -211,7 +212,12 @@ export const EntityListView: React.FC<EntityListViewProps> = ({
                     </td>
 
                     <td className="px-4 py-3 text-right">
-                      <button className="text-[11px] text-indigo-400 hover:text-indigo-300 font-medium cursor-pointer">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedRecord(r)}
+                        className="text-[11px] text-indigo-400 hover:text-indigo-300 font-medium cursor-pointer"
+                        aria-label={`View details for ${r.primaryIdentifier}`}
+                      >
                         View Details
                       </button>
                     </td>
@@ -222,6 +228,48 @@ export const EntityListView: React.FC<EntityListViewProps> = ({
           </table>
         </div>
       </div>
+
+      {/* Modal: Record Details */}
+      {selectedRecord && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => setSelectedRecord(null)}>
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="entity-record-details-title"
+            className="max-h-[85vh] w-full max-w-xl overflow-y-auto rounded-lg border border-neutral-800 bg-neutral-900 p-6 shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4 border-b border-neutral-800 pb-4">
+              <div className="min-w-0">
+                <p className="text-[10px] font-mono font-bold uppercase tracking-wider text-indigo-400">{capabilityId}</p>
+                <h2 id="entity-record-details-title" className="mt-1 truncate text-base font-bold text-white">{selectedRecord.primaryIdentifier}</h2>
+                {selectedRecord.secondaryIdentifier && <p className="mt-1 text-xs text-neutral-400">{selectedRecord.secondaryIdentifier}</p>}
+              </div>
+              <button type="button" onClick={() => setSelectedRecord(null)} className="rounded-lg px-3 py-2 text-xs font-semibold text-neutral-300 hover:bg-neutral-800">Close</button>
+            </div>
+            <dl className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="rounded border border-neutral-800 bg-neutral-950 p-3">
+                <dt className="text-[10px] font-mono uppercase text-neutral-500">Record status</dt>
+                <dd className="mt-1 text-xs font-semibold text-white">{selectedRecord.status || 'ACTIVE'}</dd>
+              </div>
+              {Object.entries(selectedRecord.attributes || {}).map(([key, value]) => (
+                <div key={key} className="min-w-0 rounded border border-neutral-800 bg-neutral-950 p-3">
+                  <dt className="text-[10px] font-mono uppercase text-neutral-500">{fields.find((field) => field.key === key)?.label || key}</dt>
+                  <dd className="mt-1 break-words text-xs text-neutral-200">{value === null || value === undefined || value === '' ? '—' : String(value)}</dd>
+                </div>
+              ))}
+              <div className="rounded border border-neutral-800 bg-neutral-950 p-3">
+                <dt className="text-[10px] font-mono uppercase text-neutral-500">Created</dt>
+                <dd className="mt-1 text-xs text-neutral-200">{selectedRecord.createdAt ? new Date(selectedRecord.createdAt).toLocaleString() : '—'}</dd>
+              </div>
+              <div className="rounded border border-neutral-800 bg-neutral-950 p-3">
+                <dt className="text-[10px] font-mono uppercase text-neutral-500">Last updated</dt>
+                <dd className="mt-1 text-xs text-neutral-200">{selectedRecord.updatedAt ? new Date(selectedRecord.updatedAt).toLocaleString() : '—'}</dd>
+              </div>
+            </dl>
+          </section>
+        </div>
+      )}
 
       {/* Modal: Create Entity */}
       {isCreateModalOpen && (
