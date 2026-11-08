@@ -18,7 +18,9 @@ export type ExperienceViewType =
   | 'SETTINGS'
   | 'REPORTS'
   | 'CUSTOM_CLASSROOM'
-  | 'EXPERIENCE_STUDIO';
+  | 'EXPERIENCE_STUDIO'
+  | 'CUSTOM_QUESTIONNAIRE'
+  | 'CUSTOM_WORKFLOW';
 
 export type ExperienceNavCategory =
   | 'OVERVIEW'
@@ -35,6 +37,7 @@ export interface ExperienceNavItem {
   iconName: string;
   category: ExperienceNavCategory;
   capabilityId?: string;
+  customTargetId?: string;
   route: string;
   viewType: ExperienceViewType;
   displayOrder: number;
