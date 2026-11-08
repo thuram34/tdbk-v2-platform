@@ -20,6 +20,7 @@ export class ExperienceCustomizationRepository {
   }
 
   private workflowRunPath(dbkId: string, runId: string): string {
+    if (!/^[a-zA-Z0-9_-]{1,120}$/.test(runId)) throw new Error('INVALID_WORKFLOW_RUN_ID');
     return `/tenants/${dbkId}/workflow_runs/${runId}`;
   }
 
