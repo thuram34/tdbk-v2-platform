@@ -63,13 +63,13 @@ export function validateStockMovementInput(input: RecordStockMovementInput, requ
   if (!['RECEIVE', 'ISSUE', 'ADJUST', 'TRANSFER'].includes(input.movementType)) {
     fail('Unsupported stock movement type.', requestId);
   }
-  if (!input.inventoryRecordId || !/^[A-Za-z0-9_-]{1,120}$/.test(input.inventoryRecordId)) {
+  if (typeof input.inventoryRecordId !== 'string' || !/^[A-Za-z0-9_-]{1,120}$/.test(input.inventoryRecordId)) {
     fail('inventoryRecordId is required and must be a valid record identifier.', requestId);
   }
   if (!Number.isSafeInteger(input.quantity) || input.quantity <= 0) {
     fail('quantity must be a positive safe integer.', requestId);
   }
-  if (!input.reason?.trim() || input.reason.trim().length > 500) {
+  if (typeof input.reason !== 'string' || !input.reason.trim() || input.reason.trim().length > 500) {
     fail('A reason of 1-500 characters is required for every stock movement.', requestId);
   }
   if (input.reference && input.reference.length > 120) fail('reference must not exceed 120 characters.', requestId);
@@ -77,11 +77,8 @@ export function validateStockMovementInput(input: RecordStockMovementInput, requ
     fail('ADJUST movements require adjustmentDirection INCREASE or DECREASE.', requestId);
   }
   if (input.movementType === 'TRANSFER') {
-    if (!input.destinationBranchId || !input.destinationInventoryRecordId) {
+    if (typeof input.destinationBranchId !== 'string' || !input.destinationBranchId.trim() || typeof input.destinationInventoryRecordId !== 'string' || !input.destinationInventoryRecordId.trim()) {
       fail('TRANSFER requires destinationBranchId and destinationInventoryRecordId.', requestId);
-    }
-    if (input.destinationBranchId === undefined || input.destinationBranchId.trim().length === 0) {
-      fail('destinationBranchId is required for a transfer.', requestId);
     }
     if (input.destinationInventoryRecordId === input.inventoryRecordId) {
       fail('A transfer must use distinct source and destination inventory records.', requestId);
