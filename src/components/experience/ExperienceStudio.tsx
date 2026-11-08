@@ -236,7 +236,7 @@ export const ExperienceStudio: React.FC<Props> = ({ experience, onRefresh, onOpe
           <select className={input} value={step.questionnaireId||''} onChange={e=>update({workflows:config.workflows.map(x=>x.id===flow.id?{...x,steps:x.steps.map(y=>y.id===step.id?{...y,questionnaireId:e.target.value||undefined}:y)}:x)})}><option value="">No questionnaire</option>{config.questionnaires.map(q=><option key={q.id} value={q.id}>{q.title}</option>)}</select>
           <button type="button" aria-label="Remove workflow step" onClick={()=>update({workflows:config.workflows.map(x=>x.id===flow.id?{...x,steps:x.steps.filter(y=>y.id!==step.id)}:x)})} className="p-2 text-rose-600"><Trash2 size={15}/></button>
         </div>)}
-        <div className="flex flex-wrap gap-2"><button type="button" className={button} onClick={()=>update({workflows:config.workflows.map(x=>x.id===flow.id?{...x,steps:[...x.steps,{id:crypto.randomUUID(),title:'New step'}]}:x)})}><Plus size={14}/>Add step</button><button type="button" className="text-xs font-bold text-neutral-500" onClick={()=>toggleWorkflow(flow.id)}>{flow.enabled ? "Disable new runs" : "Enable new runs"}</button></div>
+        <div className="flex flex-wrap gap-2"><button type="button" className={button} onClick={()=>update({workflows:config.workflows.map(x=>x.id===flow.id?{...x,steps:[...x.steps,{id:crypto.randomUUID(),title:'New step'}]}:x)})}><Plus size={14}/>Add step</button><p className="text-[10px] text-neutral-500">Existing runs keep their saved workflow version.</p></div>
       </div>)}
     </section>}
 
