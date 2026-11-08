@@ -75,6 +75,7 @@ Step transitions use a Firestore transaction and expected current step index. Qu
 ## Current UI
 
 The workspace receives an Experience Studio navigation entry for authorized administrators. The studio provides:
+- Framework overview showing the active sector blueprint, workspace, subscription, branches, terminology and capability catalogue. Framework selection remains part of tenant provisioning; Experience Studio customizes the active framework.
 - Menu designer with capability, questionnaire and workflow destinations.
 - Custom action button designer with target type and visual variant.
 - Questionnaire builder with typed fields and preview.
