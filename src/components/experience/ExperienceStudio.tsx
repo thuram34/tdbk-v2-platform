@@ -117,6 +117,14 @@ export const ExperienceStudio: React.FC<Props> = ({ experience, onRefresh }) => 
     update({ questionnaires: [...config.questionnaires, { id: crypto.randomUUID(), title: 'New questionnaire', description: '', targetCapabilityId: cap.capabilityId, submitLabel: 'Submit', enabled: true, fields: [{ id: crypto.randomUUID(), key: 'fullName', label: 'Full name', type: 'TEXT', required: true }] }] });
   };
   const addWorkflow = () => update({ workflows: [...config.workflows, { id: crypto.randomUUID(), name: 'New workflow', description: '', enabled: true, steps: [{ id: crypto.randomUUID(), title: 'Capture request', description: 'Collect the required information.' }] }] });
+  const toggleWorkflow = (workflowId: string) => {
+    const enabled = !config.workflows.find(item => item.id === workflowId)?.enabled;
+    update({
+      workflows: config.workflows.map(item => item.id === workflowId ? { ...item, enabled } : item),
+      menuItems: config.menuItems.map(item => item.targetType === 'WORKFLOW' && item.targetId === workflowId && !enabled ? { ...item, enabled: false } : item),
+      buttons: config.buttons.map(item => item.action.type === 'START_WORKFLOW' && item.action.targetId === workflowId && !enabled ? { ...item, enabled: false } : item),
+    });
+  };
 
   const tabs = [
     { id: 'menus', label: 'Menu items', icon: Menu },
@@ -202,9 +210,10 @@ export const ExperienceStudio: React.FC<Props> = ({ experience, onRefresh }) => 
     {tab === 'workflows' && <section className="space-y-3 rounded-2xl border border-neutral-200 bg-white p-4 sm:p-5">
       <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-bold">Structured workflow builder</h2><p className="text-xs text-neutral-500">Define the ordered steps, responsible role and questionnaire at each stage.</p></div><button type="button" className={button} onClick={addWorkflow}><Plus size={14}/>Add workflow</button></div>
       {config.workflows.map(flow=><div key={flow.id} className="space-y-3 rounded-xl border border-neutral-200 p-4">
+        <div className="flex items-center justify-between gap-3"><p className="text-xs font-bold text-neutral-500">Workflow definition</p><label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={flow.enabled} onChange={()=>toggleWorkflow(flow.id)}/>Enabled for new runs</label></div>
         <input className={input} value={flow.name} onChange={e=>update({workflows:config.workflows.map(x=>x.id===flow.id?{...x,name:e.target.value}:x)})}/>
         <textarea className={input} rows={2} placeholder="Workflow purpose" value={flow.description||''} onChange={e=>update({workflows:config.workflows.map(x=>x.id===flow.id?{...x,description:e.target.value}:x)})}/>
-        {flow.steps.map((step,index)=><div key={step.id} className="grid gap-2 rounded-lg bg-neutral-50 p-3 md:grid-cols-[auto_1fr_1fr_1fr_auto] md:items-center">
+        {flow.steps.map((step,index)=><div key={step.id} className="grid gap-2 rounded-lg bg-neutral-50 p-3 md:grid-cols-[auto_1fr_1fr_1fr_1fr_auto] md:items-center">
           <span className="flex h-7 w-7 items-center justify-center rounded-full bg-neutral-200 text-xs font-bold">{index+1}</span>
           <input className={input} value={step.title} aria-label="Workflow step" onChange={e=>update({workflows:config.workflows.map(x=>x.id===flow.id?{...x,steps:x.steps.map(y=>y.id===step.id?{...y,title:e.target.value}:y)}:x)})}/>
           <input className={input} placeholder="Step instructions" value={step.description||''} onChange={e=>update({workflows:config.workflows.map(x=>x.id===flow.id?{...x,steps:x.steps.map(y=>y.id===step.id?{...y,description:e.target.value}:y)}:x)})}/>
@@ -212,7 +221,7 @@ export const ExperienceStudio: React.FC<Props> = ({ experience, onRefresh }) => 
           <select className={input} value={step.questionnaireId||''} onChange={e=>update({workflows:config.workflows.map(x=>x.id===flow.id?{...x,steps:x.steps.map(y=>y.id===step.id?{...y,questionnaireId:e.target.value||undefined}:y)}:x)})}><option value="">No questionnaire</option>{config.questionnaires.map(q=><option key={q.id} value={q.id}>{q.title}</option>)}</select>
           <button type="button" aria-label="Remove workflow step" onClick={()=>update({workflows:config.workflows.map(x=>x.id===flow.id?{...x,steps:x.steps.filter(y=>y.id!==step.id)}:x)})} className="p-2 text-rose-600"><Trash2 size={15}/></button>
         </div>)}
-        <div className="flex flex-wrap gap-2"><button type="button" className={button} onClick={()=>update({workflows:config.workflows.map(x=>x.id===flow.id?{...x,steps:[...x.steps,{id:crypto.randomUUID(),title:'New step'}]}:x)})}><Plus size={14}/>Add step</button><button type="button" className="text-xs font-bold text-rose-600" onClick={()=>update({workflows:config.workflows.filter(x=>x.id!==flow.id)})}>Delete workflow</button></div>
+        <div className="flex flex-wrap gap-2"><button type="button" className={button} onClick={()=>update({workflows:config.workflows.map(x=>x.id===flow.id?{...x,steps:[...x.steps,{id:crypto.randomUUID(),title:'New step'}]}:x)})}><Plus size={14}/>Add step</button><button type="button" className="text-xs font-bold text-neutral-500" onClick={()=>toggleWorkflow(flow.id)}>{flow.enabled ? "Disable new runs" : "Enable new runs"}</button></div>
       </div>)}
     </section>}
 
