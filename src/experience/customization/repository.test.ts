@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { firestoreClient } from '../../persistence/firestore/firestoreClient';
 import { TestMemoryFirestoreDriver } from '../../persistence/firestore/driver/testMemoryFirestoreDriver';
 import { ExperienceCustomizationRepository } from './repository';
@@ -7,12 +7,18 @@ import type { CustomWorkflowRun } from './types';
 describe('ExperienceCustomizationRepository workflow runs', () => {
   let repository: ExperienceCustomizationRepository;
   let driver: TestMemoryFirestoreDriver;
+  let originalDriver: ReturnType<typeof firestoreClient.getDriver>;
 
   beforeEach(() => {
+    originalDriver = firestoreClient.getDriver();
     driver = new TestMemoryFirestoreDriver();
     driver.clearAllForTesting();
     firestoreClient.setDriverForTesting(driver);
     repository = ExperienceCustomizationRepository.getInstance();
+  });
+
+  afterEach(() => {
+    firestoreClient.setDriverForTesting(originalDriver);
   });
 
   const run: CustomWorkflowRun = {
