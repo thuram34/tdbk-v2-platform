@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { stockMovementService } from './stockMovementService';
-import { validateStockMovementInput } from './stockMovementService';
+import { stockMovementService, validateStockMovementInput } from './stockMovementService';
 import { firestoreClient } from '../../persistence/firestore/firestoreClient';
 import { outboxRepository } from '../../persistence/firestore/repositories/outboxRepository';
 import { branchRepository } from '../../persistence/firestore/repositories/branchRepository';
