@@ -59,7 +59,7 @@ export class ExperienceResolver {
         .filter(item => {
           const targetType = item.targetType || 'CAPABILITY';
           const targetId = item.targetId || item.capabilityId || '';
-          if (targetType === 'CAPABILITY') return workspace.enabledCapabilities.includes(targetId);
+          if (targetType === 'CAPABILITY') return navigation.some(navItem => navItem.capabilityId === targetId);
           if (targetType === 'QUESTIONNAIRE') return customization.questionnaires.some(form => form.id === targetId && form.enabled);
           if (targetType === 'WORKFLOW') return customization.workflows.some(flow => flow.id === targetId && flow.enabled);
           return false;
