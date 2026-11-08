@@ -97,10 +97,11 @@ export class ExperienceResolver {
     }
     const canManageExperience = masterAuthority.isMasterAdmin(context.principal)
       || masterAuthority.isBusinessOwner(context.principal)
+      || masterAuthority.isOwnerPortfolio(context.principal)
       || context.principal.permissions.includes('*')
       || context.principal.permissions.includes('admin:*')
       || context.principal.permissions.includes('experience:configure')
-      || ['TENANT_ADMIN','OWNER_OPERATOR','BUSINESS_OWNER','STORE_OWNER','SHOP_MANAGER','SCHOOL_PRINCIPAL','LOGISTICS_DIRECTOR','MEDICAL_DIRECTOR'].some(role => context.principal.roles.includes(role));
+      || ['TENANT_ADMIN','SYSTEM_ADMIN','OWNER_OPERATOR','BUSINESS_OWNER','STORE_OWNER','SHOP_MANAGER','SCHOOL_PRINCIPAL','LOGISTICS_DIRECTOR','MEDICAL_DIRECTOR'].some(role => context.principal.roles.includes(role));
     if (canManageExperience && !navigation.some(item => item.viewType === 'EXPERIENCE_STUDIO')) {
       navigation.push({
         id: 'nav_experience_studio',
