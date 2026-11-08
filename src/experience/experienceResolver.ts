@@ -291,7 +291,9 @@ export class ExperienceResolver {
         if (workflowRunId) {
           await experienceCustomizationService.assertWorkflowQuestionnaireStep(context, req.targetDbkId, workflowRunId, workflowStepId, questionnaire.id);
         }
-        const recordId = `form_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        const recordId = workflowRunId
+          ? `form_${workflowRunId}_${workflowStepId}`
+          : `form_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
         const record = {
           id: recordId,
           entityType: questionnaire.targetCapabilityId,
