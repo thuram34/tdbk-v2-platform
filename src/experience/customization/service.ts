@@ -41,10 +41,10 @@ export class ExperienceCustomizationService {
     input: ExperienceCustomizationInput,
     enabledCapabilities: string[],
   ) {
-    const menuItems = input.menuItems || [];
-    const buttons = input.buttons || [];
-    const forms = input.questionnaires || [];
-    const workflows = input.workflows || [];
+    const menuItems = Array.isArray(input.menuItems) ? input.menuItems : [];
+    const buttons = Array.isArray(input.buttons) ? input.buttons : [];
+    const forms = Array.isArray(input.questionnaires) ? input.questionnaires : [];
+    const workflows = Array.isArray(input.workflows) ? input.workflows : [];
 
     if (menuItems.length > 30 || buttons.length > 40 || forms.length > 25 || workflows.length > 25) {
       throw new KernelError('VALIDATION_ERROR', 'Customization limit exceeded.', 422);
@@ -85,7 +85,7 @@ export class ExperienceCustomizationService {
     for (const form of forms as CustomQuestionnaireDefinition[]) {
       if (!form.title?.trim() || !form.submitLabel?.trim()) throw new KernelError('VALIDATION_ERROR', 'Questionnaires require a title and submit label.', 422);
       requireCapability(form.targetCapabilityId);
-      if (!form.fields.length || form.fields.length > 40) throw new KernelError('VALIDATION_ERROR', 'A questionnaire must contain between 1 and 40 fields.', 422);
+      if (!Array.isArray(form.fields) || !form.fields.length || form.fields.length > 40) throw new KernelError('VALIDATION_ERROR', 'A questionnaire must contain between 1 and 40 fields.', 422);
       uniqueIds(form.fields, `field in questionnaire '${form.id}'`);
       const keys = form.fields.map(field => field.key);
       if (new Set(keys).size !== keys.length) throw new KernelError('VALIDATION_ERROR', 'Questionnaire field keys must be unique.', 422);
@@ -114,6 +114,7 @@ export class ExperienceCustomizationService {
     for (const button of buttons as CustomActionButton[]) {
       if (!button.label?.trim()) throw new KernelError('VALIDATION_ERROR', 'Buttons require a label.', 422);
       if (!['PRIMARY','SECONDARY','DANGER'].includes(button.variant)) throw new KernelError('VALIDATION_ERROR', 'Button variant is invalid.', 422);
+      if (!button.action || !['NAVIGATE_CAPABILITY','OPEN_QUESTIONNAIRE','START_WORKFLOW'].includes(button.action.type)) throw new KernelError('VALIDATION_ERROR', 'Button action is invalid.', 422);
       if (button.action.type === 'NAVIGATE_CAPABILITY') requireCapability(button.action.targetId);
       if (button.action.type === 'OPEN_QUESTIONNAIRE' && !forms.some(form => form.id === button.action.targetId && form.enabled)) {
         throw new KernelError('VALIDATION_ERROR', `Button references missing questionnaire '${button.action.targetId}'.`, 422);
@@ -132,21 +133,29 @@ export class ExperienceCustomizationService {
   public async save(context: SecurityContext, dbkId: string, input: ExperienceCustomizationInput): Promise<ExperienceCustomization> {
     await masterAuthority.assertTenantAuthority(context, dbkId, 'WRITE_EXPERIENCE_CUSTOMIZATION');
     this.assertCanConfigure(context, dbkId);
+    if (!Number.isInteger(input.expectedVersion) || input.expectedVersion < 0) throw new KernelError('VALIDATION_ERROR', 'expectedVersion must be a non-negative integer.', 422, context.requestId);
+    const normalized: ExperienceCustomizationInput = {
+      expectedVersion: input.expectedVersion,
+      menuItems: Array.isArray(input.menuItems) ? input.menuItems : [],
+      buttons: Array.isArray(input.buttons) ? input.buttons : [],
+      questionnaires: Array.isArray(input.questionnaires) ? input.questionnaires : [],
+      workflows: Array.isArray(input.workflows) ? input.workflows : [],
+    };
     const workspace = await workspaceManager.compileWorkspaceState(context, dbkId);
-    this.validate(input, workspace.enabledCapabilities);
+    this.validate(normalized, workspace.enabledCapabilities);
 
     const savedAt = new Date().toISOString();
     const value: ExperienceCustomization = {
       dbkId,
       version: input.expectedVersion + 1,
-      menuItems: input.menuItems,
-      buttons: input.buttons,
-      questionnaires: input.questionnaires,
-      workflows: input.workflows,
+      menuItems: normalized.menuItems,
+      buttons: normalized.buttons,
+      questionnaires: normalized.questionnaires,
+      workflows: normalized.workflows,
       updatedAt: savedAt,
       updatedBy: context.principal.id,
     };
-    const saved = await experienceCustomizationRepository.save(dbkId, value, input.expectedVersion);
+    const saved = await experienceCustomizationRepository.save(dbkId, value, normalized.expectedVersion);
 
     auditLogger.logEvent('SECURITY_CONFIGURATION_CHANGE', context.principal.id, 'EXPERIENCE_CUSTOMIZATION_UPDATED', `dbk:${dbkId}`, 'ALLOWED', {
       tenantId: dbkId,
