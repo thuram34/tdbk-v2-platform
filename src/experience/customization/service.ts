@@ -152,12 +152,15 @@ export class ExperienceCustomizationService {
       if (typeof button.enabled !== 'boolean' || !button.id || !/^[a-zA-Z0-9_-]{1,100}$/.test(button.id) || !button.label?.trim() || button.label.length > 80 || (button.iconName?.length || 0) > 50) throw new KernelError('VALIDATION_ERROR', 'Buttons require a label (max 80 characters) and valid icon.', 422);
       if (!['PRIMARY','SECONDARY','DANGER'].includes(button.variant)) throw new KernelError('VALIDATION_ERROR', 'Button variant is invalid.', 422);
       if (!button.action || !['NAVIGATE_CAPABILITY','OPEN_QUESTIONNAIRE','START_WORKFLOW'].includes(button.action.type)) throw new KernelError('VALIDATION_ERROR', 'Button action is invalid.', 422);
-      if (button.action.type === 'NAVIGATE_CAPABILITY') requireCapability(button.action.targetId);
-      if (button.action.type === 'OPEN_QUESTIONNAIRE' && !forms.some(form => form.id === button.action.targetId && form.enabled)) {
-        throw new KernelError('VALIDATION_ERROR', `Button references missing questionnaire '${button.action.targetId}'.`, 422);
+      if (button.action.type === 'NAVIGATE_CAPABILITY') {
+        if (button.enabled) requireCapability(button.action.targetId);
+        else if (!capabilityRegistry.getCapability(button.action.targetId)) throw new KernelError('VALIDATION_ERROR', 'Button references an unregistered capability.', 422);
       }
-      if (button.action.type === 'START_WORKFLOW' && !workflows.some(flow => flow.id === button.action.targetId && flow.enabled)) {
-        throw new KernelError('VALIDATION_ERROR', `Button references missing workflow '${button.action.targetId}'.`, 422);
+      if (button.action.type === 'OPEN_QUESTIONNAIRE' && !forms.some(form => form.id === button.action.targetId && (!button.enabled || form.enabled))) {
+        throw new KernelError('VALIDATION_ERROR', 'Button references a missing questionnaire.', 422);
+      }
+      if (button.action.type === 'START_WORKFLOW' && !workflows.some(flow => flow.id === button.action.targetId && (!button.enabled || flow.enabled))) {
+        throw new KernelError('VALIDATION_ERROR', 'Button references a missing workflow.', 422);
       }
     }
   }
