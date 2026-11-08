@@ -208,7 +208,7 @@ export class ExperienceCustomizationService {
       if (run.completedStepIds.includes(stepId)) return run;
       throw new KernelError('CONFLICT', 'This is not the current workflow step.', 409, context.requestId);
     }
-    const privileged = masterAuthority.isMasterAdmin(context.principal) || masterAuthority.isBusinessOwner(context.principal);
+    const privileged = masterAuthority.isMasterAdmin(context.principal) || masterAuthority.isOwnerPortfolio(context.principal) || masterAuthority.isBusinessOwner(context.principal);
     if (step.assigneeRole && !privileged && !context.principal.roles.includes(step.assigneeRole)) {
       throw new KernelError('AUTHORIZATION_ERROR', `This step is assigned to role '${step.assigneeRole}'.`, 403, context.requestId);
     }
