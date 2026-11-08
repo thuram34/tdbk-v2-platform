@@ -264,8 +264,19 @@ export class ExperienceResolver {
       } else if (req.commandType === 'SUBMIT_QUESTIONNAIRE') {
         const questionnaireId = String(req.payload?.questionnaireId || '');
         const answers = (req.payload?.answers || {}) as Record<string, unknown>;
-        const customization = await experienceCustomizationService.get(context, req.targetDbkId);
-        const questionnaire = customization.questionnaires.find(item => item.id === questionnaireId && item.enabled);
+        const workflowRunId = req.payload?.workflowRunId ? String(req.payload.workflowRunId) : '';
+        const workflowStepId = req.payload?.workflowStepId ? String(req.payload.workflowStepId) : '';
+        if (Boolean(workflowRunId) !== Boolean(workflowStepId)) {
+          throw new KernelError('VALIDATION_ERROR', 'workflowRunId and workflowStepId must be provided together.', 422, context.requestId);
+        }
+        const workflowRunSnapshot = workflowRunId
+          ? await experienceCustomizationService.getWorkflowRun(context, req.targetDbkId, workflowRunId)
+          : null;
+        if (workflowRunId && !workflowRunSnapshot) throw new KernelError('NOT_FOUND', 'Workflow run not found.', 404, context.requestId);
+        const customization = workflowRunId ? null : await experienceCustomizationService.get(context, req.targetDbkId);
+        const questionnaire = workflowRunId
+          ? workflowRunSnapshot?.questionnaireSnapshots.find(item => item.id === questionnaireId && item.enabled)
+          : customization?.questionnaires.find(item => item.id === questionnaireId && item.enabled);
         if (!questionnaire) {
           throw new KernelError('NOT_FOUND', 'The requested questionnaire is not available.', 404, context.requestId);
         }
@@ -300,11 +311,6 @@ export class ExperienceResolver {
           if (field.type === 'MULTI_SELECT' && (!Array.isArray(value) || value.some(entry => !field.options?.some(option => option.value === entry)))) {
             throw new KernelError('VALIDATION_ERROR', `'${field.label}' contains an invalid selection.`, 422, context.requestId);
           }
-        }
-        const workflowRunId = req.payload?.workflowRunId ? String(req.payload.workflowRunId) : '';
-        const workflowStepId = req.payload?.workflowStepId ? String(req.payload.workflowStepId) : '';
-        if (Boolean(workflowRunId) !== Boolean(workflowStepId)) {
-          throw new KernelError('VALIDATION_ERROR', 'workflowRunId and workflowStepId must be provided together.', 422, context.requestId);
         }
         if (workflowRunId) {
           await experienceCustomizationService.assertWorkflowQuestionnaireStep(context, req.targetDbkId, workflowRunId, workflowStepId, questionnaire.id);
