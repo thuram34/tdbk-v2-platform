@@ -4,7 +4,7 @@ import type { DbkExperienceResolved } from '../../experience/types';
 import type {
   CustomActionButton, CustomQuestionnaireField, ExperienceCustomization,
 } from '../../experience/customization/types';
-import { Plus, Save, Trash2, Eye, Menu, MousePointerClick, ClipboardList, Workflow } from 'lucide-react';
+import { Plus, Save, Trash2, Eye, Menu, MousePointerClick, ClipboardList, Workflow, Layers, ArrowUpRight } from 'lucide-react';
 
 interface Props {
   experience: DbkExperienceResolved;
@@ -18,7 +18,7 @@ const emptyConfig = (dbkId: string): ExperienceCustomization => ({
 const input = 'w-full rounded-xl border border-neutral-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-neutral-500';
 const button = 'inline-flex items-center gap-2 rounded-xl border border-neutral-200 px-3 py-2 text-xs font-bold hover:bg-neutral-50';
 
-export const ExperienceStudio: React.FC<Props> = ({ experience, onRefresh }) => {
+export const ExperienceStudio: React.FC<Props> = ({ experience, onRefresh, onOpenCapabilityCatalog }) => {
   const { getIdToken } = useAuth();
   const [config, setConfig] = useState<ExperienceCustomization>(() => emptyConfig(experience.dbkId));
   const [tab, setTab] = useState<'menus' | 'buttons' | 'forms' | 'workflows' | 'preview'>('menus');
@@ -127,6 +127,7 @@ export const ExperienceStudio: React.FC<Props> = ({ experience, onRefresh }) => 
   };
 
   const tabs = [
+    { id: 'framework', label: 'Framework', icon: Layers },
     { id: 'menus', label: 'Menu items', icon: Menu },
     { id: 'buttons', label: 'Custom buttons', icon: MousePointerClick },
     { id: 'forms', label: 'Questionnaires', icon: ClipboardList },
@@ -147,6 +148,20 @@ export const ExperienceStudio: React.FC<Props> = ({ experience, onRefresh }) => 
     {loading && <p className="text-sm text-neutral-500">Loading saved workspace configuration…</p>}
     {error && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{error}</p>}
     {success && <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">{success}</p>}
+
+    {tab === 'framework' && <section className="space-y-5 rounded-2xl border border-neutral-200 bg-white p-5">
+      <div><p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-600">Existing TDBK blueprint foundation</p><h2 className="mt-1 text-xl font-bold">Business framework</h2><p className="mt-1 text-sm text-neutral-500">This tenant runs on the TDBK sector and blueprint foundation. Experience Studio customizes its workspace without replacing the tenant framework.</p></div>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="rounded-xl bg-neutral-50 p-4"><p className="text-[10px] font-bold uppercase text-neutral-400">Sector framework</p><p className="mt-1 text-lg font-bold">{experience.sector}</p></div>
+        <div className="rounded-xl bg-neutral-50 p-4"><p className="text-[10px] font-bold uppercase text-neutral-400">Workspace</p><p className="mt-1 text-lg font-bold">{experience.displayName}</p></div>
+        <div className="rounded-xl bg-neutral-50 p-4"><p className="text-[10px] font-bold uppercase text-neutral-400">Subscription</p><p className="mt-1 text-lg font-bold">{experience.subscriptionTier}</p></div>
+        <div className="rounded-xl bg-neutral-50 p-4"><p className="text-[10px] font-bold uppercase text-neutral-400">Active branches</p><p className="mt-1 text-lg font-bold">{experience.availableBranches.length}</p></div>
+        <div className="rounded-xl bg-neutral-50 p-4"><p className="text-[10px] font-bold uppercase text-neutral-400">Enabled capabilities</p><p className="mt-1 text-lg font-bold">{experience.discoveryItems.filter(item=>item.isEnabled).length}</p></div>
+        <div className="rounded-xl bg-neutral-50 p-4"><p className="text-[10px] font-bold uppercase text-neutral-400">Framework version</p><p className="mt-1 text-lg font-bold">Workspace v{experience.workspaceVersion}</p></div>
+      </div>
+      <div className="rounded-xl border border-neutral-200 p-4"><h3 className="font-semibold">Business terminology</h3><p className="mt-1 text-xs text-neutral-500">Labels supplied by the active blueprint are reused by workspace screens.</p><div className="mt-3 grid gap-2 sm:grid-cols-2">{Object.entries(experience.terminology).map(([key,value])=><div key={key} className="flex items-center justify-between gap-3 rounded-lg bg-neutral-50 px-3 py-2"><span className="text-xs text-neutral-500">{key}</span><span className="text-xs font-semibold">{value}</span></div>)}</div></div>
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-neutral-950 p-4 text-white"><div><p className="font-semibold">Extend the framework</p><p className="mt-1 text-xs text-neutral-300">Discover and enable additional registered capabilities for this tenant.</p></div><button type="button" onClick={onOpenCapabilityCatalog} className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-xs font-black text-neutral-950">Open capability catalogue <ArrowUpRight size={14}/></button></div>
+    </section>}
 
     {tab === 'menus' && <section className="space-y-3 rounded-2xl border border-neutral-200 bg-white p-4 sm:p-5">
       <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-bold">Menu designer</h2><p className="text-xs text-neutral-500">Add, rename, order and show or hide capability destinations.</p></div><div className="flex flex-wrap gap-2"><button type="button" className={button} onClick={addMenu}><Plus size={14}/>Add capability</button><button type="button" className={button} onClick={addQuestionnaireMenu}><ClipboardList size={14}/>Add questionnaire</button><button type="button" className={button} onClick={addWorkflowMenu}><Workflow size={14}/>Add workflow</button></div></div>
