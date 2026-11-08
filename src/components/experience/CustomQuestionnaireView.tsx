@@ -30,7 +30,7 @@ export const CustomQuestionnaireView: React.FC<Props> = ({ questionnaire, onSubm
       <h1 className="mt-2 text-2xl font-bold">{questionnaire.title}</h1>
       {questionnaire.description && <p className="mt-2 text-sm text-neutral-300">{questionnaire.description}</p>}
     </header>
-    {success ? <div role="status" className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 text-sm text-emerald-800">Submission accepted and recorded by the TDBK runtime.</div> : <form onSubmit={submit} className="space-y-4 rounded-2xl border border-neutral-200 bg-white p-5">
+    {success ? <div role="status" className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 text-sm text-emerald-800"><p>Submission accepted and recorded by the TDBK runtime.</p><button type="button" onClick={onCancel} className="mt-3 rounded-xl border border-emerald-300 px-3 py-2 text-xs font-bold">Return to workspace</button></div> : <form onSubmit={submit} className="space-y-4 rounded-2xl border border-neutral-200 bg-white p-5">
       {questionnaire.fields.map(field => <label key={field.id} className="block space-y-1.5 text-sm font-semibold text-neutral-800">
         <span>{field.label}{field.required && <span className="ml-1 text-rose-600">*</span>}</span>
         {field.type === 'TEXTAREA' ? <textarea required={field.required} className="w-full rounded-xl border border-neutral-200 p-3 text-sm font-normal" rows={4} placeholder={field.placeholder} value={String(answers[field.key] ?? '')} onChange={e=>setAnswers(current=>({...current,[field.key]:e.target.value}))}/> :
