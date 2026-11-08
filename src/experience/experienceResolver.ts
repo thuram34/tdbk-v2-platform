@@ -242,7 +242,7 @@ export class ExperienceResolver {
           if (['TEXT','TEXTAREA','DATE'].includes(field.type) && typeof value !== 'string') {
             throw new KernelError('VALIDATION_ERROR', `'${field.label}' must be text.`, 422, context.requestId);
           }
-          if (field.type === 'DATE' && typeof value === 'string' && !/^\\d{4}-\\d{2}-\\d{2}$/.test(value)) {
+          if (field.type === 'DATE' && typeof value === 'string' && !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
             throw new KernelError('VALIDATION_ERROR', `'${field.label}' must be a valid date.`, 422, context.requestId);
           }
           if (field.type === 'NUMBER' && (typeof value !== 'number' || !Number.isFinite(value))) {
