@@ -12,6 +12,7 @@ import type {
   CustomWorkflowDefinition,
   ExperienceCustomization,
   ExperienceCustomizationInput,
+  CustomWorkflowRun,
 } from './types';
 
 const EMPTY = (dbkId: string): ExperienceCustomization => ({
@@ -123,6 +124,79 @@ export class ExperienceCustomizationService {
         throw new KernelError('VALIDATION_ERROR', `Button references missing workflow '${button.action.targetId}'.`, 422);
       }
     }
+  }
+
+  public async startWorkflow(context: SecurityContext, dbkId: string, workflowId: string): Promise<CustomWorkflowRun> {
+    await masterAuthority.assertTenantAuthority(context, dbkId, 'START_CUSTOM_WORKFLOW');
+    const customization = await experienceCustomizationRepository.get(dbkId);
+    const workflow = customization?.workflows.find(item => item.id === workflowId && item.enabled);
+    if (!workflow) throw new KernelError('NOT_FOUND', 'The selected workflow is not available.', 404, context.requestId);
+    const now = new Date().toISOString();
+    const run: CustomWorkflowRun = {
+      runId: `wfr_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+      dbkId,
+      workflowId,
+      status: 'IN_PROGRESS',
+      currentStepIndex: 0,
+      completedStepIds: [],
+      startedBy: context.principal.id,
+      startedAt: now,
+      updatedAt: now,
+    };
+    await experienceCustomizationRepository.createWorkflowRun(dbkId, run);
+    auditLogger.logEvent('WORKFLOW_EXECUTION', context.principal.id, 'CUSTOM_WORKFLOW_STARTED', `dbk:${dbkId}/workflow:${workflowId}`, 'ALLOWED', {
+      tenantId: dbkId, requestId: context.requestId, details: { runId: run.runId },
+    });
+    return run;
+  }
+
+  public async advanceWorkflow(
+    context: SecurityContext,
+    dbkId: string,
+    runId: string,
+    stepId: string,
+    completedQuestionnaireId?: string,
+  ): Promise<CustomWorkflowRun> {
+    await masterAuthority.assertTenantAuthority(context, dbkId, 'ADVANCE_CUSTOM_WORKFLOW');
+    const [run, customization] = await Promise.all([
+      experienceCustomizationRepository.getWorkflowRun(dbkId, runId),
+      experienceCustomizationRepository.get(dbkId),
+    ]);
+    if (!run || run.dbkId !== dbkId) throw new KernelError('NOT_FOUND', 'Workflow run not found.', 404, context.requestId);
+    const workflow = customization?.workflows.find(item => item.id === run.workflowId && item.enabled);
+    if (!workflow) throw new KernelError('NOT_FOUND', 'Workflow definition is no longer available.', 404, context.requestId);
+    if (run.status === 'COMPLETED') return run;
+    const step = workflow.steps[run.currentStepIndex];
+    if (!step || step.id !== stepId) {
+      if (run.completedStepIds.includes(stepId)) return run;
+      throw new KernelError('CONFLICT', 'This is not the current workflow step.', 409, context.requestId);
+    }
+    const privileged = masterAuthority.isMasterAdmin(context.principal) || masterAuthority.isBusinessOwner(context.principal);
+    if (step.assigneeRole && !privileged && !context.principal.roles.includes(step.assigneeRole)) {
+      throw new KernelError('AUTHORIZATION_ERROR', `This step is assigned to role '${step.assigneeRole}'.`, 403, context.requestId);
+    }
+    if (step.questionnaireId && step.questionnaireId !== completedQuestionnaireId) {
+      throw new KernelError('VALIDATION_ERROR', 'Complete the linked questionnaire before advancing this step.', 422, context.requestId);
+    }
+    if (!step.questionnaireId && completedQuestionnaireId) {
+      throw new KernelError('VALIDATION_ERROR', 'This workflow step does not accept a questionnaire submission.', 422, context.requestId);
+    }
+    const completedStepIds = [...run.completedStepIds, step.id];
+    const nextIndex = run.currentStepIndex + 1;
+    const now = new Date().toISOString();
+    const next: CustomWorkflowRun = {
+      ...run,
+      completedStepIds,
+      currentStepIndex: nextIndex,
+      status: nextIndex >= workflow.steps.length ? 'COMPLETED' : 'IN_PROGRESS',
+      updatedAt: now,
+      ...(nextIndex >= workflow.steps.length ? { completedAt: now } : {}),
+    };
+    const saved = await experienceCustomizationRepository.advanceWorkflowRun(dbkId, runId, run.currentStepIndex, next);
+    auditLogger.logEvent('WORKFLOW_EXECUTION', context.principal.id, 'CUSTOM_WORKFLOW_STEP_COMPLETED', `dbk:${dbkId}/workflow:${workflow.id}`, 'ALLOWED', {
+      tenantId: dbkId, requestId: context.requestId, details: { runId, stepId, status: saved.status, currentStepIndex: saved.currentStepIndex },
+    });
+    return saved;
   }
 
   public async get(context: SecurityContext, dbkId: string): Promise<ExperienceCustomization> {
