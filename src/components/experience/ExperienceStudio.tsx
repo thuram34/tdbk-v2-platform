@@ -33,7 +33,9 @@ export const ExperienceStudio: React.FC<Props> = ({ experience, onRefresh }) => 
     const fromDiscovery = experience.discoveryItems.filter(item => item.isEnabled).map(item => ({
       capabilityId: item.capabilityId, label: item.name, iconName: item.iconName, category: 'CORE_OPERATIONS' as const,
     }));
-    return Array.from(new Map([...fromNavigation, ...fromDiscovery].map(item => [item.capabilityId, item])).values());
+    const unique = new Map<string, (typeof fromNavigation)[number] | (typeof fromDiscovery)[number]>();
+    [...fromNavigation, ...fromDiscovery].forEach(item => unique.set(item.capabilityId, item));
+    return Array.from(unique.values());
   }, [experience.navigation, experience.discoveryItems]);
 
   useEffect(() => {
