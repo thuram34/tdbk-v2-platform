@@ -2,10 +2,9 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../../client/AuthContext';
 import type { DbkExperienceResolved } from '../../experience/types';
 import type {
-  CustomActionButton, CustomMenuItem, CustomQuestionnaireDefinition,
-  CustomQuestionnaireField, CustomWorkflowDefinition, ExperienceCustomization,
+  CustomActionButton, CustomQuestionnaireField, ExperienceCustomization,
 } from '../../experience/customization/types';
-import { Plus, Save, Trash2, Eye, Menu, MousePointerClick, ClipboardList, Workflow, Layers } from 'lucide-react';
+import { Plus, Save, Trash2, Eye, Menu, MousePointerClick, ClipboardList, Workflow } from 'lucide-react';
 
 interface Props {
   experience: DbkExperienceResolved;
@@ -51,7 +50,7 @@ export const ExperienceStudio: React.FC<Props> = ({ experience, onRefresh }) => 
         if (!response.ok) throw new Error(data.error?.message || 'Could not load workspace configuration.');
         if (!cancelled) {
           const loaded = data.customization || emptyConfig(experience.dbkId);
-          if (!loaded.menuItems?.length) {
+          if (loaded.version === 0 && !loaded.menuItems?.length) {
             loaded.menuItems = experience.navigation.filter(item => item.capabilityId).map((item, index) => ({
               id: `menu_${item.capabilityId}`, label: item.label, iconName: item.iconName,
               category: item.category, capabilityId: item.capabilityId!, displayOrder: index + 1, enabled: true,
