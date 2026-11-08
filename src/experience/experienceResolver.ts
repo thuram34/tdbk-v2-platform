@@ -58,18 +58,30 @@ export class ExperienceResolver {
         .filter(item => !item.requiredRoles?.length || item.requiredRoles.some(role => context.principal.roles.includes(role)))
         .filter(item => !item.requiredPermissions?.length || item.requiredPermissions.every(permission => context.principal.permissions.includes('*') || context.principal.permissions.includes(permission)))
         .map(item => {
-          const view = capabilityViewRegistry.getViewDefinition(item.capabilityId);
+          const targetType = item.targetType || 'CAPABILITY';
+          const targetId = item.targetId || item.capabilityId || '';
+          if (targetType === 'QUESTIONNAIRE') {
+            return {
+              id: `custom_nav_${item.id}`, label: item.label, iconName: item.iconName || 'ClipboardList',
+              category: item.category, customTargetId: targetId, route: `/dbk/${dbkId}/questionnaires/${targetId}`,
+              viewType: 'CUSTOM_QUESTIONNAIRE' as any, displayOrder: item.displayOrder,
+              requiredRoles: item.requiredRoles, requiredPermissions: item.requiredPermissions,
+            };
+          }
+          if (targetType === 'WORKFLOW') {
+            return {
+              id: `custom_nav_${item.id}`, label: item.label, iconName: item.iconName || 'Workflow',
+              category: item.category, customTargetId: targetId, route: `/dbk/${dbkId}/workflows/${targetId}`,
+              viewType: 'CUSTOM_WORKFLOW' as any, displayOrder: item.displayOrder,
+              requiredRoles: item.requiredRoles, requiredPermissions: item.requiredPermissions,
+            };
+          }
+          const view = capabilityViewRegistry.getViewDefinition(targetId);
           return {
-            id: `custom_nav_${item.id}`,
-            label: item.label,
-            iconName: item.iconName || view.iconName,
-            category: item.category,
-            capabilityId: item.capabilityId,
-            route: `/dbk/${dbkId}/${item.capabilityId}`,
-            viewType: view.viewType as any,
-            displayOrder: item.displayOrder,
-            requiredRoles: item.requiredRoles,
-            requiredPermissions: item.requiredPermissions,
+            id: `custom_nav_${item.id}`, label: item.label, iconName: item.iconName || view.iconName,
+            category: item.category, capabilityId: targetId, route: `/dbk/${dbkId}/${targetId}`,
+            viewType: view.viewType as any, displayOrder: item.displayOrder,
+            requiredRoles: item.requiredRoles, requiredPermissions: item.requiredPermissions,
           };
         });
       navigation = [...overview, ...configured, ...settings].sort((a,b) => a.displayOrder - b.displayOrder);
