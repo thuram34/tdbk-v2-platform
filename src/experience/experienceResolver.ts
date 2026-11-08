@@ -292,10 +292,13 @@ export class ExperienceResolver {
           const value = answers[field.key];
           const empty = value === undefined || value === null || value === '' || (Array.isArray(value) && value.length === 0);
           if (field.required && empty) throw new KernelError('VALIDATION_ERROR', `'${field.label}' is required.`, 422, context.requestId);
+          if (field.required && field.type === 'CHECKBOX' && value !== true) throw new KernelError('VALIDATION_ERROR', `'${field.label}' must be checked.`, 422, context.requestId);
+          if (field.required && ['TEXT','TEXTAREA'].includes(field.type) && typeof value === 'string' && !value.trim()) throw new KernelError('VALIDATION_ERROR', `'${field.label}' is required.`, 422, context.requestId);
           if (empty) continue;
           if (['TEXT','TEXTAREA','DATE'].includes(field.type) && typeof value !== 'string') {
             throw new KernelError('VALIDATION_ERROR', `'${field.label}' must be text.`, 422, context.requestId);
           }
+          if (['TEXT','TEXTAREA'].includes(field.type) && typeof value === 'string' && value.length > 5000) throw new KernelError('VALIDATION_ERROR', `'${field.label}' is too long.`, 422, context.requestId);
           if (field.type === 'DATE' && typeof value === 'string' && !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
             throw new KernelError('VALIDATION_ERROR', `'${field.label}' must be a valid date.`, 422, context.requestId);
           }
@@ -308,7 +311,7 @@ export class ExperienceResolver {
           if (field.type === 'SELECT' && !field.options?.some(option => option.value === value)) {
             throw new KernelError('VALIDATION_ERROR', `'${field.label}' contains an invalid selection.`, 422, context.requestId);
           }
-          if (field.type === 'MULTI_SELECT' && (!Array.isArray(value) || value.some(entry => !field.options?.some(option => option.value === entry)))) {
+          if (field.type === 'MULTI_SELECT' && (!Array.isArray(value) || new Set(value).size !== value.length || value.some(entry => !field.options?.some(option => option.value === entry)))) {
             throw new KernelError('VALIDATION_ERROR', `'${field.label}' contains an invalid selection.`, 422, context.requestId);
           }
         }
