@@ -98,6 +98,16 @@ export const ExperienceStudio: React.FC<Props> = ({ experience, onRefresh }) => 
     const id = crypto.randomUUID();
     update({ menuItems: [...config.menuItems, { id, label: cap.label, iconName: cap.iconName, category: cap.category, targetType: 'CAPABILITY', targetId: cap.capabilityId, capabilityId: cap.capabilityId, displayOrder: config.menuItems.length + 1, enabled: true }] });
   };
+  const addQuestionnaireMenu = () => {
+    const form = config.questionnaires.find(item => item.enabled && !config.menuItems.some(menu => menu.targetType === 'QUESTIONNAIRE' && menu.targetId === item.id));
+    if (!form) { setError('Create or enable a questionnaire before adding it to the menu.'); return; }
+    update({ menuItems: [...config.menuItems, { id: crypto.randomUUID(), label: form.title, iconName: 'ClipboardList', category: 'OPERATIONS', targetType: 'QUESTIONNAIRE', targetId: form.id, displayOrder: config.menuItems.length + 1, enabled: true }] });
+  };
+  const addWorkflowMenu = () => {
+    const flow = config.workflows.find(item => item.enabled && !config.menuItems.some(menu => menu.targetType === 'WORKFLOW' && menu.targetId === item.id));
+    if (!flow) { setError('Create or enable a workflow before adding it to the menu.'); return; }
+    update({ menuItems: [...config.menuItems, { id: crypto.randomUUID(), label: flow.name, iconName: 'Workflow', category: 'OPERATIONS', targetType: 'WORKFLOW', targetId: flow.id, displayOrder: config.menuItems.length + 1, enabled: true }] });
+  };
   const addButton = () => update({ buttons: [...config.buttons, { id: crypto.randomUUID(), label: 'New action', variant: 'PRIMARY', action: { type: 'NAVIGATE_CAPABILITY', targetId: capabilities[0]?.capabilityId || '' }, enabled: true }] });
   const addForm = () => {
     const cap = capabilities[0];
@@ -129,7 +139,7 @@ export const ExperienceStudio: React.FC<Props> = ({ experience, onRefresh }) => 
     {success && <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">{success}</p>}
 
     {tab === 'menus' && <section className="space-y-3 rounded-2xl border border-neutral-200 bg-white p-4 sm:p-5">
-      <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-bold">Menu designer</h2><p className="text-xs text-neutral-500">Add, rename, order and show or hide capability destinations.</p></div><button type="button" className={button} onClick={addMenu}><Plus size={14}/>Add menu item</button></div>
+      <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-bold">Menu designer</h2><p className="text-xs text-neutral-500">Add, rename, order and show or hide capability destinations.</p></div><div className="flex flex-wrap gap-2"><button type="button" className={button} onClick={addMenu}><Plus size={14}/>Add capability</button><button type="button" className={button} onClick={addQuestionnaireMenu}><ClipboardList size={14}/>Add questionnaire</button><button type="button" className={button} onClick={addWorkflowMenu}><Workflow size={14}/>Add workflow</button></div></div>
       {config.menuItems.map((item,index) => {
         const targetType = item.targetType || 'CAPABILITY';
         const targetId = item.targetId || item.capabilityId || '';
