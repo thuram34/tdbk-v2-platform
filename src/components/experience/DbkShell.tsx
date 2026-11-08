@@ -379,6 +379,8 @@ export const DbkShell: React.FC<DbkShellProps> = ({
                       {items.map((item) => {
                         const isActive = activeViewId === item.id ||
                           (item.capabilityId && activeViewId === item.capabilityId) ||
+                          (item.viewType === 'CUSTOM_QUESTIONNAIRE' && activeViewId === `custom_questionnaire:${item.customTargetId}`) ||
+                          (item.viewType === 'CUSTOM_WORKFLOW' && activeViewId === `custom_workflow:${item.customTargetId}`) ||
                           (item.route === '/dashboard' && activeViewId === 'nav_overview') ||
                           (item.route === '/discovery' && activeViewId === 'discovery') ||
                           (item.route === '/settings' && activeViewId === 'settings');
