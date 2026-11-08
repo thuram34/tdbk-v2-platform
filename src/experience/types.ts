@@ -222,6 +222,7 @@ export interface ExperienceCommandRequest {
     | 'EXECUTE_SALE'
   | 'INVOKE_ACTION'
     | 'SUBMIT_ENTITY'
+    | 'SUBMIT_QUESTIONNAIRE'
     | 'ENABLE_CAPABILITY'
     | 'CONFIGURE_CAPABILITY'
     | 'SUBMIT_SUPPLIER_INVOICE'
