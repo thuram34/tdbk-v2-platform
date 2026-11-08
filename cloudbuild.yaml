@@ -1,5 +1,4 @@
 substitutions:
-  _IMAGE: "africa-south1-docker.pkg.dev/$PROJECT_ID/tdbk/tdbk-v2"
   _SERVICE_NAME: "tdbk-v2"
   _DEPLOY_REGION: "africa-south1"
 
@@ -34,7 +33,8 @@ steps:
         set -euo pipefail
         test -n "$$VITE_FIREBASE_API_KEY"
         test -n "$$VITE_FIREBASE_PROJECT_ID"
-        docker build -t ${_IMAGE} \
+        IMAGE="africa-south1-docker.pkg.dev/${PROJECT_ID}/tdbk/tdbk-v2"
+        docker build -t "$$IMAGE" \
           --build-arg VITE_FIREBASE_API_KEY="$$VITE_FIREBASE_API_KEY" \
           --build-arg VITE_FIREBASE_AUTH_DOMAIN="$$VITE_FIREBASE_AUTH_DOMAIN" \
           --build-arg VITE_FIREBASE_PROJECT_ID="$$VITE_FIREBASE_PROJECT_ID" \
@@ -44,21 +44,23 @@ steps:
           .
 
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
-    entrypoint: 'gcloud'
+    entrypoint: 'bash'
     args:
-      - 'run'
-      - 'deploy'
-      - '${_SERVICE_NAME}'
-      - '--image=${_IMAGE}'
-      - '--region=${_DEPLOY_REGION}'
-      - '--platform=managed'
-      - '--service-account=tdbk-runtime@${PROJECT_ID}.iam.gserviceaccount.com'
-      - '--allow-unauthenticated'
-      - '--quiet'
+      - '-c'
+      - |-
+        set -euo pipefail
+        IMAGE="africa-south1-docker.pkg.dev/${PROJECT_ID}/tdbk/tdbk-v2"
+        gcloud run deploy "${_SERVICE_NAME}" \
+          --image="$$IMAGE" \
+          --region="${_DEPLOY_REGION}" \
+          --platform=managed \
+          --service-account="tdbk-runtime@${PROJECT_ID}.iam.gserviceaccount.com" \
+          --allow-unauthenticated \
+          --quiet
 
 options:
   dynamicSubstitutions: true
   logging: CLOUD_LOGGING_ONLY
 
 images:
-  - '${_IMAGE}'
+  - 'africa-south1-docker.pkg.dev/${PROJECT_ID}/tdbk/tdbk-v2'
