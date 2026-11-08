@@ -101,10 +101,12 @@ export class ExperienceCustomizationService {
       if (!['OVERVIEW','CORE_OPERATIONS','RECORDS','FINANCE','OPERATIONS','DISCOVERY','SETTINGS'].includes(item.category) || typeof item.enabled !== 'boolean' || !item.label?.trim() || item.label.length > 80 || !item.id || !/^[a-zA-Z0-9_-]{1,100}$/.test(item.id) || (item.iconName?.length || 0) > 50) throw new KernelError('VALIDATION_ERROR', 'Menu items require a valid ID, label (max 80 characters) and icon.', 422);
       const targetType = item.targetType || 'CAPABILITY';
       const targetId = item.targetId || item.capabilityId || '';
-      if (targetType === 'CAPABILITY') requireCapability(targetId);
-      else if (targetType === 'QUESTIONNAIRE' && !forms.some(form => form.id === targetId && form.enabled)) {
+      if (targetType === 'CAPABILITY') {
+        if (item.enabled) requireCapability(targetId);
+        else if (!capabilityRegistry.getCapability(targetId)) throw new KernelError('VALIDATION_ERROR', `Capability '${targetId}' is not registered.`, 422);
+      } else if (targetType === 'QUESTIONNAIRE' && !forms.some(form => form.id === targetId && (!item.enabled || form.enabled))) {
         throw new KernelError('VALIDATION_ERROR', `Menu item references missing questionnaire '${targetId}'.`, 422);
-      } else if (targetType === 'WORKFLOW' && !workflows.some(flow => flow.id === targetId && flow.enabled)) {
+      } else if (targetType === 'WORKFLOW' && !workflows.some(flow => flow.id === targetId && (!item.enabled || flow.enabled))) {
         throw new KernelError('VALIDATION_ERROR', `Menu item references missing workflow '${targetId}'.`, 422);
       } else if (!['CAPABILITY','QUESTIONNAIRE','WORKFLOW'].includes(targetType)) {
         throw new KernelError('VALIDATION_ERROR', 'Menu item destination type is invalid.', 422);
