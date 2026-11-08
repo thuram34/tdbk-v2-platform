@@ -117,7 +117,7 @@ export class ExperienceCustomizationService {
       }
       uniqueIds(workflow.steps, `step in workflow '${workflow.id}'`);
       for (const step of workflow.steps) {
-        if (!step.title?.trim() || step.title.length > 120 || (step.description?.length || 0) > 500 || (step.assigneeRole?.length || 0) > 64) throw new KernelError('VALIDATION_ERROR', 'Workflow steps require a title (max 120 characters).', 422);
+        if (!step.id || !/^[a-zA-Z0-9_-]{1,100}$/.test(step.id) || !step.title?.trim() || step.title.length > 120 || (step.description?.length || 0) > 500 || (step.assigneeRole?.length || 0) > 64) throw new KernelError('VALIDATION_ERROR', 'Workflow steps require a title (max 120 characters).', 422);
         if (step.questionnaireId && !forms.some(form => form.id === step.questionnaireId && form.enabled)) {
           throw new KernelError('VALIDATION_ERROR', `Workflow step references missing questionnaire '${step.questionnaireId}'.`, 422);
         }
