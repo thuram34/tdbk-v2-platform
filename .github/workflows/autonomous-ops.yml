@@ -48,7 +48,7 @@ jobs:
           set -euo pipefail
           title="Autonomous Ops: CI failure requires engineering action"
           existing="$(gh issue list --repo "$REPO" --state open --search "in:title $title" --json number --jq '.[0].number // empty')"
-          body="TDBK CI remains failed after its one automatic retry.\n\n- Workflow: $RUN_NAME\n- Branch: $RUN_BRANCH\n- Commit: $RUN_SHA\n- Run: $RUN_URL\n\nReview the failing job logs and record the root cause before any production change."
+          body="$(printf '%s\\n' "TDBK CI remains failed after its one automatic retry." "" "- Run ID: $RUN_ID" "- Workflow: $RUN_NAME" "- Branch: $RUN_BRANCH" "- Commit: $RUN_SHA" "- Run: $RUN_URL" "" "Review the failing job logs and record the root cause before any production change.")"
           if [ -n "$existing" ]; then
             gh issue comment "$existing" --repo "$REPO" --body "$body"
           else
