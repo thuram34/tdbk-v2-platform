@@ -90,6 +90,9 @@ export interface CustomWorkflowRun {
   runId: string;
   dbkId: string;
   workflowId: string;
+  configurationVersion: number;
+  workflowSnapshot: CustomWorkflowDefinition;
+  questionnaireSnapshots: CustomQuestionnaireDefinition[];
   status: CustomWorkflowRunStatus;
   currentStepIndex: number;
   completedStepIds: string[];
