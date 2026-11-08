@@ -50,6 +50,10 @@ export class ExperienceCustomizationService {
       throw new KernelError('VALIDATION_ERROR', 'Customization limit exceeded.', 422);
     }
     uniqueIds(menuItems, 'menu item');
+    const menuCapabilityIds = menuItems.map(item => item.capabilityId);
+    if (new Set(menuCapabilityIds).size !== menuCapabilityIds.length) {
+      throw new KernelError('VALIDATION_ERROR', 'A capability can appear only once in the customized menu.', 422);
+    }
     uniqueIds(buttons, 'button');
     uniqueIds(forms, 'questionnaire');
     uniqueIds(workflows, 'workflow');
