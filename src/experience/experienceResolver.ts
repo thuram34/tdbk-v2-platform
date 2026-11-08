@@ -212,7 +212,7 @@ export class ExperienceResolver {
         }
         for (const field of questionnaire.fields) {
           const value = answers[field.key];
-          const empty = value === undefined || value === null || value === '';
+          const empty = value === undefined || value === null || value === '' || (Array.isArray(value) && value.length === 0);
           if (field.required && empty) throw new KernelError('VALIDATION_ERROR', `'${field.label}' is required.`, 422, context.requestId);
           if (empty) continue;
           if (field.type === 'NUMBER' && (typeof value !== 'number' || !Number.isFinite(value))) {
