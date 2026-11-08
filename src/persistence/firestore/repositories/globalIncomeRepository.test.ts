@@ -57,7 +57,7 @@ describe('GlobalIncomeRepository', () => {
     const record: ApplicationRecord = {
       applicationId: 'app_1', tenantId, opportunityId: 'opp_first', channel: 'remote_job_board',
       kind: 'EMPLOYMENT', status: 'DRAFT', submittedAt: null, externalReference: null,
-      evidenceUrls: [], notes: null, createdAt: now, updatedAt: now,
+      evidenceUrls: [], notes: null, requiresApproval: false, approvalId: null, createdAt: now, updatedAt: now,
     };
     await globalIncomeRepository.createApplication(tenantId, record);
     expect(await globalIncomeRepository.listApplications(tenantId)).toEqual([record]);
