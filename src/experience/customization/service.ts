@@ -291,6 +291,11 @@ export class ExperienceCustomizationService {
       questionnaires: Array.isArray(input.questionnaires) ? input.questionnaires : [],
       workflows: Array.isArray(input.workflows) ? input.workflows : [],
     });
+    if (normalized.menuItems.length > 60 || normalized.buttons.length > 60 || normalized.questionnaires.length > 40 || normalized.workflows.length > 40) {
+      throw new KernelError('VALIDATION_ERROR', 'The workspace configuration exceeds the allowed number of components.', 422, context.requestId);
+    }
+    const payloadBytes = new TextEncoder().encode(JSON.stringify(normalized)).length;
+    if (payloadBytes > 750_000) throw new KernelError('VALIDATION_ERROR', 'Workspace configuration is too large to save safely.', 413, context.requestId);
     const workspace = await workspaceManager.compileWorkspaceState(context, dbkId);
     this.validate(normalized, workspace.enabledCapabilities, context.principal);
 
