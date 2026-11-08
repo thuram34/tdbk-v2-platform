@@ -44,7 +44,9 @@ export interface CustomMenuItem {
   label: string;
   iconName: string;
   category: ExperienceNavCategory;
-  capabilityId: string;
+  targetType?: 'CAPABILITY' | 'QUESTIONNAIRE' | 'WORKFLOW';
+  targetId?: string;
+  capabilityId?: string;
   displayOrder: number;
   requiredRoles?: string[];
   requiredPermissions?: string[];
