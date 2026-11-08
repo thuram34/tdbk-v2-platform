@@ -81,6 +81,7 @@ export class ExperienceCustomizationService {
       const keys = form.fields.map(field => field.key);
       if (new Set(keys).size !== keys.length) throw new KernelError('VALIDATION_ERROR', 'Questionnaire field keys must be unique.', 422);
       for (const field of form.fields) {
+        if (!['TEXT','TEXTAREA','NUMBER','DATE','SELECT','MULTI_SELECT','CHECKBOX'].includes(field.type)) throw new KernelError('VALIDATION_ERROR', `Unsupported questionnaire field type for '${field.label}'.`, 422);
         if (!/^[a-z][a-zA-Z0-9_]{0,63}$/.test(field.key) || !field.label?.trim()) throw new KernelError('VALIDATION_ERROR', 'Questionnaire fields require a valid key and label.', 422);
         if (['SELECT', 'MULTI_SELECT'].includes(field.type) && (!field.options || field.options.length === 0)) {
           throw new KernelError('VALIDATION_ERROR', `Field '${field.label}' requires selectable options.`, 422);
@@ -103,11 +104,12 @@ export class ExperienceCustomizationService {
 
     for (const button of buttons as CustomActionButton[]) {
       if (!button.label?.trim()) throw new KernelError('VALIDATION_ERROR', 'Buttons require a label.', 422);
+      if (!['PRIMARY','SECONDARY','DANGER'].includes(button.variant)) throw new KernelError('VALIDATION_ERROR', 'Button variant is invalid.', 422);
       if (button.action.type === 'NAVIGATE_CAPABILITY') requireCapability(button.action.targetId);
-      if (button.action.type === 'OPEN_QUESTIONNAIRE' && !forms.some(form => form.id === button.action.targetId)) {
+      if (button.action.type === 'OPEN_QUESTIONNAIRE' && !forms.some(form => form.id === button.action.targetId && form.enabled)) {
         throw new KernelError('VALIDATION_ERROR', `Button references missing questionnaire '${button.action.targetId}'.`, 422);
       }
-      if (button.action.type === 'START_WORKFLOW' && !workflows.some(flow => flow.id === button.action.targetId)) {
+      if (button.action.type === 'START_WORKFLOW' && !workflows.some(flow => flow.id === button.action.targetId && flow.enabled)) {
         throw new KernelError('VALIDATION_ERROR', `Button references missing workflow '${button.action.targetId}'.`, 422);
       }
     }
