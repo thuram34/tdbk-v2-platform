@@ -61,8 +61,18 @@ export class ExperienceResolver {
           const targetType = item.targetType || 'CAPABILITY';
           const targetId = item.targetId || item.capabilityId || '';
           if (targetType === 'CAPABILITY') return navigation.some(navItem => navItem.capabilityId === targetId);
-          if (targetType === 'QUESTIONNAIRE') return customization.questionnaires.some(form => form.id === targetId && form.enabled);
-          if (targetType === 'WORKFLOW') return customization.workflows.some(flow => flow.id === targetId && flow.enabled);
+          if (targetType === 'QUESTIONNAIRE') {
+            const form = customization.questionnaires.find(item => item.id === targetId && item.enabled);
+            return Boolean(form && workspace.enabledCapabilities.includes(form.targetCapabilityId) && navigation.some(navItem => navItem.capabilityId === form.targetCapabilityId));
+          }
+          if (targetType === 'WORKFLOW') {
+            const flow = customization.workflows.find(item => item.id === targetId && item.enabled);
+            return Boolean(flow && flow.steps.every(step => {
+              if (!step.questionnaireId) return true;
+              const form = customization.questionnaires.find(item => item.id === step.questionnaireId && item.enabled);
+              return Boolean(form && workspace.enabledCapabilities.includes(form.targetCapabilityId) && navigation.some(navItem => navItem.capabilityId === form.targetCapabilityId));
+            }));
+          }
           return false;
         })
         .filter(item => !item.requiredRoles?.length || item.requiredRoles.some(role => context.principal.roles.includes(role)))
