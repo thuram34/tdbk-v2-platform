@@ -150,6 +150,30 @@ export class ExperienceCustomizationService {
     return run;
   }
 
+  public async assertWorkflowQuestionnaireStep(
+    context: SecurityContext,
+    dbkId: string,
+    runId: string,
+    stepId: string,
+    questionnaireId: string,
+  ): Promise<void> {
+    await masterAuthority.assertTenantAuthority(context, dbkId, 'SUBMIT_WORKFLOW_QUESTIONNAIRE');
+    const [run, customization] = await Promise.all([
+      experienceCustomizationRepository.getWorkflowRun(dbkId, runId),
+      experienceCustomizationRepository.get(dbkId),
+    ]);
+    if (!run || run.dbkId !== dbkId || run.status !== 'IN_PROGRESS') throw new KernelError('NOT_FOUND', 'Active workflow run not found.', 404, context.requestId);
+    const workflow = customization?.workflows.find(item => item.id === run.workflowId && item.enabled);
+    const step = workflow?.steps[run.currentStepIndex];
+    if (!step || step.id !== stepId || step.questionnaireId !== questionnaireId) {
+      throw new KernelError('CONFLICT', 'The questionnaire does not match the current workflow step.', 409, context.requestId);
+    }
+    const privileged = masterAuthority.isMasterAdmin(context.principal) || masterAuthority.isBusinessOwner(context.principal);
+    if (step.assigneeRole && !privileged && !context.principal.roles.includes(step.assigneeRole)) {
+      throw new KernelError('AUTHORIZATION_ERROR', `This step is assigned to role '${step.assigneeRole}'.`, 403, context.requestId);
+    }
+  }
+
   public async advanceWorkflow(
     context: SecurityContext,
     dbkId: string,
