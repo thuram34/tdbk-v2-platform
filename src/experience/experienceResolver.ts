@@ -198,6 +198,69 @@ export class ExperienceResolver {
         }
         await entityEngine.savePersistentRecord(context, req.targetDbkId, String(capabilityId), record as any);
         updatedExperience = await this.resolveExperience(context, req.targetDbkId);
+      } else if (req.commandType === 'SUBMIT_QUESTIONNAIRE') {
+        const questionnaireId = String(req.payload?.questionnaireId || '');
+        const answers = (req.payload?.answers || {}) as Record<string, unknown>;
+        const customization = await experienceCustomizationService.get(context, req.targetDbkId);
+        const questionnaire = customization.questionnaires.find(item => item.id === questionnaireId && item.enabled);
+        if (!questionnaire) {
+          throw new KernelError('NOT_FOUND', 'The requested questionnaire is not available.', 404, context.requestId);
+        }
+        const expectedKeys = new Set(questionnaire.fields.map(field => field.key));
+        for (const key of Object.keys(answers)) {
+          if (!expectedKeys.has(key)) throw new KernelError('VALIDATION_ERROR', `Unexpected questionnaire field '${key}'.`, 422, context.requestId);
+        }
+        for (const field of questionnaire.fields) {
+          const value = answers[field.key];
+          const empty = value === undefined || value === null || value === '';
+          if (field.required && empty) throw new KernelError('VALIDATION_ERROR', `'${field.label}' is required.`, 422, context.requestId);
+          if (empty) continue;
+          if (field.type === 'NUMBER' && (typeof value !== 'number' || !Number.isFinite(value))) {
+            throw new KernelError('VALIDATION_ERROR', `'${field.label}' must be a valid number.`, 422, context.requestId);
+          }
+          if (field.type === 'CHECKBOX' && typeof value !== 'boolean') {
+            throw new KernelError('VALIDATION_ERROR', `'${field.label}' must be true or false.`, 422, context.requestId);
+          }
+          if (field.type === 'SELECT' && !field.options?.some(option => option.value === value)) {
+            throw new KernelError('VALIDATION_ERROR', `'${field.label}' contains an invalid selection.`, 422, context.requestId);
+          }
+          if (field.type === 'MULTI_SELECT' && (!Array.isArray(value) || value.some(entry => !field.options?.some(option => option.value === entry)))) {
+            throw new KernelError('VALIDATION_ERROR', `'${field.label}' contains an invalid selection.`, 422, context.requestId);
+          }
+        }
+        const recordId = `form_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        const record = {
+          id: recordId,
+          entityType: questionnaire.targetCapabilityId,
+          primaryIdentifier: String(answers[questionnaire.fields[0]?.key] || recordId),
+          secondaryIdentifier: questionnaire.title,
+          status: 'SUBMITTED',
+          attributes: {
+            ...answers,
+            _questionnaireId: questionnaire.id,
+            _questionnaireTitle: questionnaire.title,
+            _submittedBy: context.principal.id,
+            _submittedAt: timestamp,
+          },
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        };
+        await entityEngine.savePersistentRecord(context, req.targetDbkId, questionnaire.targetCapabilityId, record as any);
+        await auditLogger.persistEvent(auditLogger.logAuditEvent(context, {
+          action: 'QUESTIONNAIRE_SUBMITTED',
+          targetResource: `dbk:${req.targetDbkId}/capability:${questionnaire.targetCapabilityId}`,
+          outcome: 'ALLOWED',
+          details: { questionnaireId, recordId, fieldCount: questionnaire.fields.length },
+        }));
+        updatedExperience = await this.resolveExperience(context, req.targetDbkId);
+        return {
+          success: true,
+          commandType: req.commandType,
+          targetDbkId: req.targetDbkId,
+          result: { recordId, questionnaireId, status: 'SUBMITTED' },
+          updatedResolvedExperience: updatedExperience,
+          serverTimestamp: timestamp,
+        };
       } else if (req.commandType === 'ENABLE_CAPABILITY') {
         const { capabilityId } = req.payload || {};
         if (!capabilityId) {
