@@ -131,6 +131,7 @@ export class ExperienceCustomizationService {
   }
 
   public async save(context: SecurityContext, dbkId: string, input: ExperienceCustomizationInput): Promise<ExperienceCustomization> {
+    if (!input || typeof input !== 'object') throw new KernelError('VALIDATION_ERROR', 'A customization payload is required.', 422, context.requestId);
     await masterAuthority.assertTenantAuthority(context, dbkId, 'WRITE_EXPERIENCE_CUSTOMIZATION');
     this.assertCanConfigure(context, dbkId);
     if (!Number.isInteger(input.expectedVersion) || input.expectedVersion < 0) throw new KernelError('VALIDATION_ERROR', 'expectedVersion must be a non-negative integer.', 422, context.requestId);
