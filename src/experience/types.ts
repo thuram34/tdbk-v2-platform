@@ -221,7 +221,8 @@ export interface ExperienceCommandRequest {
     | 'ENABLE_CAPABILITY'
     | 'CONFIGURE_CAPABILITY'
     | 'SUBMIT_SUPPLIER_INVOICE'
-    | 'APPROVE_SUPPLIER_INVOICE';
+    | 'APPROVE_SUPPLIER_INVOICE'
+    | 'RECORD_STOCK_MOVEMENT';
   targetDbkId: string;
   payload: Record<string, unknown>;
 }
