@@ -175,6 +175,7 @@ export class ExperienceCustomizationService {
     stepId: string,
     questionnaireId: string,
   ): Promise<void> {
+    if (!/^[a-zA-Z0-9_-]{1,120}$/.test(runId)) throw new KernelError('VALIDATION_ERROR', 'Invalid workflow run ID.', 422, context.requestId);
     await masterAuthority.assertTenantAuthority(context, dbkId, 'SUBMIT_WORKFLOW_QUESTIONNAIRE');
     const run = await experienceCustomizationRepository.getWorkflowRun(dbkId, runId);
     if (!run || run.dbkId !== dbkId || run.status !== 'IN_PROGRESS') throw new KernelError('NOT_FOUND', 'Active workflow run not found.', 404, context.requestId);
@@ -196,6 +197,7 @@ export class ExperienceCustomizationService {
     stepId: string,
     completedQuestionnaireId?: string,
   ): Promise<CustomWorkflowRun> {
+    if (!/^[a-zA-Z0-9_-]{1,120}$/.test(runId)) throw new KernelError('VALIDATION_ERROR', 'Invalid workflow run ID.', 422, context.requestId);
     await masterAuthority.assertTenantAuthority(context, dbkId, 'ADVANCE_CUSTOM_WORKFLOW');
     const run = await experienceCustomizationRepository.getWorkflowRun(dbkId, runId);
     if (!run || run.dbkId !== dbkId || !run.workflowSnapshot) throw new KernelError('NOT_FOUND', 'Workflow run not found.', 404, context.requestId);
@@ -235,6 +237,7 @@ export class ExperienceCustomizationService {
   }
 
   public async getWorkflowRun(context: SecurityContext, dbkId: string, runId: string): Promise<CustomWorkflowRun | null> {
+    if (!/^[a-zA-Z0-9_-]{1,120}$/.test(runId)) throw new KernelError('VALIDATION_ERROR', 'Invalid workflow run ID.', 422, context.requestId);
     await masterAuthority.assertTenantAuthority(context, dbkId, 'READ_CUSTOM_WORKFLOW_RUN');
     const run = await experienceCustomizationRepository.getWorkflowRun(dbkId, runId);
     if (!run || run.dbkId !== dbkId) return null;
