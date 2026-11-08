@@ -1169,6 +1169,46 @@ async function startServer() {
     res.json({ status: 'SUCCESS', summary });
   });
 
+  app.get('/api/experience/customization/:dbkId', async (req: Request, res: Response) => {
+    try {
+      const { dbkId } = req.params;
+      const context = await securityContextFactory.createSecurityContext({
+        authHeader: req.headers.authorization,
+        targetTenantId: dbkId,
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+      });
+      const { experienceCustomizationService } = await import('./src/experience/customization/service');
+      const customization = await experienceCustomizationService.get(context, dbkId);
+      return res.json({ status: 'SUCCESS', customization });
+    } catch (err) {
+      if (err instanceof KernelError) return res.status(err.statusCode).json(err.toJSON());
+      return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Unable to load workspace customization.' } });
+    }
+  });
+
+  app.put('/api/experience/customization/:dbkId', async (req: Request, res: Response) => {
+    try {
+      const { dbkId } = req.params;
+      const context = await securityContextFactory.createSecurityContext({
+        authHeader: req.headers.authorization,
+        targetTenantId: dbkId,
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+      });
+      const { experienceCustomizationService } = await import('./src/experience/customization/service');
+      const customization = await experienceCustomizationService.save(context, dbkId, req.body);
+      return res.json({ status: 'SUCCESS', customization });
+    } catch (err) {
+      if (err instanceof KernelError) return res.status(err.statusCode).json(err.toJSON());
+      const message = err instanceof Error ? err.message : 'Unable to save workspace customization.';
+      const conflict = message.startsWith('CONFIGURATION_CONFLICT:');
+      return res.status(conflict ? 409 : 500).json({
+        error: { code: conflict ? 'CONFIGURATION_CONFLICT' : 'INTERNAL_ERROR', message },
+      });
+    }
+  });
+
   app.get('/api/experience/resolve/:dbkId', async (req: Request, res: Response) => {
     try {
       const authHeader = req.headers.authorization;
