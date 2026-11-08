@@ -72,12 +72,12 @@ export function validateStockMovementInput(input: RecordStockMovementInput, requ
   if (typeof input.reason !== 'string' || !input.reason.trim() || input.reason.trim().length > 500) {
     fail('A reason of 1-500 characters is required for every stock movement.', requestId);
   }
-  if (input.reference && input.reference.length > 120) fail('reference must not exceed 120 characters.', requestId);
+  if (input.reference !== undefined && (typeof input.reference !== 'string' || input.reference.length > 120)) fail('reference must be a string of at most 120 characters.', requestId);
   if (input.movementType === 'ADJUST' && !['INCREASE', 'DECREASE'].includes(String(input.adjustmentDirection))) {
     fail('ADJUST movements require adjustmentDirection INCREASE or DECREASE.', requestId);
   }
   if (input.movementType === 'TRANSFER') {
-    if (typeof input.destinationBranchId !== 'string' || !input.destinationBranchId.trim() || typeof input.destinationInventoryRecordId !== 'string' || !input.destinationInventoryRecordId.trim()) {
+    if (typeof input.destinationBranchId !== 'string' || !/^[A-Za-z0-9_-]{1,120}$/.test(input.destinationBranchId) || typeof input.destinationInventoryRecordId !== 'string' || !/^[A-Za-z0-9_-]{1,120}$/.test(input.destinationInventoryRecordId)) {
       fail('TRANSFER requires destinationBranchId and destinationInventoryRecordId.', requestId);
     }
     if (input.destinationInventoryRecordId === input.inventoryRecordId) {
