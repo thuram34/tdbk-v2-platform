@@ -9,6 +9,7 @@ import { Plus, Save, Trash2, Eye, Menu, MousePointerClick, ClipboardList, Workfl
 interface Props {
   experience: DbkExperienceResolved;
   onRefresh: () => Promise<void>;
+  onOpenCapabilityCatalog: () => void;
 }
 
 const emptyConfig = (dbkId: string): ExperienceCustomization => ({
