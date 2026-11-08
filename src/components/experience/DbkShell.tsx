@@ -12,6 +12,7 @@ import { OwnerPortfolioView } from './OwnerPortfolioView';
 import { SmartClassroomView } from '../classroom/SmartClassroomView';
 import { ExperienceStudio } from './ExperienceStudio';
 import { CustomQuestionnaireView } from './CustomQuestionnaireView';
+import { CustomWorkflowView } from './CustomWorkflowView';
 import {
   AlertTriangle,
   ArrowLeft,
@@ -506,7 +507,8 @@ export const DbkShell: React.FC<DbkShellProps> = ({
                 (() => {
                   const workflowId = activeViewId.slice('custom_workflow:'.length);
                   const workflow = experience.customization?.workflows.find(item => item.id === workflowId && item.enabled);
-                  return <div className="rounded-2xl border border-neutral-200 bg-white p-6"><h2 className="text-xl font-bold">{workflow?.name || 'Workflow unavailable'}</h2><p className="mt-2 text-sm text-neutral-500">{workflow?.description || 'The selected workflow is not configured.'}</p><div className="mt-5 space-y-3">{workflow?.steps.map((step,index)=><div key={step.id} className="flex gap-3 rounded-xl bg-neutral-50 p-4"><span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-neutral-200 text-xs font-bold">{index+1}</span><div><p className="text-sm font-semibold">{step.title}</p>{step.description && <p className="mt-1 text-xs text-neutral-500">{step.description}</p>}{step.assigneeRole && <p className="mt-1 text-[10px] text-neutral-400">Assigned role: {step.assigneeRole}</p>}{step.questionnaireId && <button type="button" onClick={()=>setActiveViewId('custom_questionnaire:'+step.questionnaireId)} className="mt-2 rounded-lg bg-neutral-950 px-3 py-2 text-xs font-bold text-white">Open step questionnaire</button>}</div></div>)}</div><p className="mt-4 text-xs text-neutral-500">This is the configured workflow guide. Durable workflow execution, task assignment and step approvals are a separate runtime capability.</p><button type="button" onClick={()=>setActiveViewId('nav_overview')} className="mt-4 rounded-xl border border-neutral-200 px-4 py-2 text-xs font-bold">Close workflow</button></div>;
+                  if (!workflow) return <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-800">This workflow is unavailable in the current workspace configuration.</div>;
+                  return <CustomWorkflowView experience={experience} workflow={workflow} onDispatchCommand={handleDispatchCommand} onClose={() => setActiveViewId('nav_overview')} />;
                 })()
               ) : activeViewId === 'view_doc_ai' ? (
                 <DocumentAiShellPanel tenantId={selectedDbkId} />
