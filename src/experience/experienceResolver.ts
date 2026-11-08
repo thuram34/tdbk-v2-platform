@@ -218,6 +218,29 @@ export class ExperienceResolver {
         }
         await entityEngine.savePersistentRecord(context, req.targetDbkId, String(capabilityId), record as any);
         updatedExperience = await this.resolveExperience(context, req.targetDbkId);
+      } else if (req.commandType === 'START_WORKFLOW') {
+        const workflowId = String(req.payload?.workflowId || '');
+        if (!workflowId) throw new KernelError('VALIDATION_ERROR', 'workflowId is required.', 422, context.requestId);
+        const workflowRun = await experienceCustomizationService.startWorkflow(context, req.targetDbkId, workflowId);
+        return {
+          success: true,
+          commandType: req.commandType,
+          targetDbkId: req.targetDbkId,
+          result: { workflowRun },
+          serverTimestamp: timestamp,
+        };
+      } else if (req.commandType === 'ADVANCE_WORKFLOW') {
+        const workflowRunId = String(req.payload?.workflowRunId || '');
+        const stepId = String(req.payload?.stepId || '');
+        if (!workflowRunId || !stepId) throw new KernelError('VALIDATION_ERROR', 'workflowRunId and stepId are required.', 422, context.requestId);
+        const workflowRun = await experienceCustomizationService.advanceWorkflow(context, req.targetDbkId, workflowRunId, stepId);
+        return {
+          success: true,
+          commandType: req.commandType,
+          targetDbkId: req.targetDbkId,
+          result: { workflowRun },
+          serverTimestamp: timestamp,
+        };
       } else if (req.commandType === 'SUBMIT_QUESTIONNAIRE') {
         const questionnaireId = String(req.payload?.questionnaireId || '');
         const answers = (req.payload?.answers || {}) as Record<string, unknown>;
@@ -275,7 +298,15 @@ export class ExperienceResolver {
           createdAt: timestamp,
           updatedAt: timestamp,
         };
+        const workflowRunId = req.payload?.workflowRunId ? String(req.payload.workflowRunId) : '';
+        const workflowStepId = req.payload?.workflowStepId ? String(req.payload.workflowStepId) : '';
+        if (Boolean(workflowRunId) !== Boolean(workflowStepId)) {
+          throw new KernelError('VALIDATION_ERROR', 'workflowRunId and workflowStepId must be provided together.', 422, context.requestId);
+        }
         await entityEngine.savePersistentRecord(context, req.targetDbkId, questionnaire.targetCapabilityId, record as any);
+        const workflowRun = workflowRunId
+          ? await experienceCustomizationService.advanceWorkflow(context, req.targetDbkId, workflowRunId, workflowStepId, questionnaire.id)
+          : undefined;
         await auditLogger.persistEvent(auditLogger.logAuditEvent(context, {
           action: 'QUESTIONNAIRE_SUBMITTED',
           targetResource: `dbk:${req.targetDbkId}/capability:${questionnaire.targetCapabilityId}`,
@@ -287,7 +318,7 @@ export class ExperienceResolver {
           success: true,
           commandType: req.commandType,
           targetDbkId: req.targetDbkId,
-          result: { recordId, questionnaireId, status: 'SUBMITTED' },
+          result: { recordId, questionnaireId, status: 'SUBMITTED', workflowRun },
           updatedResolvedExperience: updatedExperience,
           serverTimestamp: timestamp,
         };
