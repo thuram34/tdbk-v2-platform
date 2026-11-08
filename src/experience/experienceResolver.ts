@@ -14,6 +14,8 @@ import { KernelError } from '../kernel/errors/kernelErrors';
 import { saleTransactionService } from '../business/sales/saleTransactionService';
 import { mpesaBridge } from '../orchestration/bridge/adapters/mpesaBridge';
 import { supplierInvoiceService } from '../business/procurement/supplierInvoiceService';
+import { capabilityViewRegistry } from './registry/viewRegistry';
+import { experienceCustomizationService } from './customization/service';
 
 export class ExperienceResolver {
   private static instance: ExperienceResolver;
@@ -46,7 +48,49 @@ export class ExperienceResolver {
     }
 
     // 4. Build navigation & dashboard
-    const navigation = dynamicNavigationEngine.buildNavigation(workspace, context);
+    const customization = await experienceCustomizationService.get(context, dbkId);
+    let navigation = dynamicNavigationEngine.buildNavigation(workspace, context);
+    if (customization.menuItems.length > 0) {
+      const overview = navigation.filter(item => item.isDefault);
+      const settings = navigation.filter(item => item.category === 'SETTINGS');
+      const configured = customization.menuItems
+        .filter(item => item.enabled)
+        .filter(item => !item.requiredRoles?.length || item.requiredRoles.some(role => context.principal.roles.includes(role)))
+        .filter(item => !item.requiredPermissions?.length || item.requiredPermissions.every(permission => context.principal.permissions.includes('*') || context.principal.permissions.includes(permission)))
+        .map(item => {
+          const view = capabilityViewRegistry.getViewDefinition(item.capabilityId);
+          return {
+            id: `custom_nav_${item.id}`,
+            label: item.label,
+            iconName: item.iconName || view.iconName,
+            category: item.category,
+            capabilityId: item.capabilityId,
+            route: `/dbk/${dbkId}/${item.capabilityId}`,
+            viewType: view.viewType as any,
+            displayOrder: item.displayOrder,
+            requiredRoles: item.requiredRoles,
+            requiredPermissions: item.requiredPermissions,
+          };
+        });
+      navigation = [...overview, ...configured, ...settings].sort((a,b) => a.displayOrder - b.displayOrder);
+    }
+    const canManageExperience = masterAuthority.isMasterAdmin(context.principal)
+      || masterAuthority.isBusinessOwner(context.principal)
+      || context.principal.permissions.includes('*')
+      || context.principal.permissions.includes('admin:*')
+      || context.principal.permissions.includes('experience:configure')
+      || ['TENANT_ADMIN','OWNER_OPERATOR','BUSINESS_OWNER','STORE_OWNER','SHOP_MANAGER','SCHOOL_PRINCIPAL','LOGISTICS_DIRECTOR','MEDICAL_DIRECTOR'].some(role => context.principal.roles.includes(role));
+    if (canManageExperience && !navigation.some(item => item.viewType === 'EXPERIENCE_STUDIO')) {
+      navigation.push({
+        id: 'nav_experience_studio',
+        label: 'Experience Studio',
+        iconName: 'SlidersHorizontal',
+        category: 'SETTINGS',
+        route: `/dbk/${dbkId}/experience-studio`,
+        viewType: 'EXPERIENCE_STUDIO',
+        displayOrder: 101,
+      });
+    }
     const dashboardWidgets = dashboardComposer.composeDashboard(workspace);
 
     // 5. Build discovery items
@@ -81,6 +125,7 @@ export class ExperienceResolver {
     });
 
     const resolved: DbkExperienceResolved = {
+      customization,
       dbkId: workspace.dbkId,
       legalName: dbkRecord?.legalName || workspace.displayName,
       displayName: workspace.displayName,
