@@ -21,6 +21,7 @@ export const CustomWorkflowView: React.FC<Props> = ({ experience, workflow, onDi
   const start = async () => {
     setBusy(true); setError('');
     try {
+      if (!workflow.enabled) throw new Error('This workflow has been disabled for new runs.');
       const result = await onDispatchCommand('START_WORKFLOW', { workflowId: workflow.id });
       const nextRun = result?.commandResponse?.result?.workflowRun as CustomWorkflowRun | undefined;
       if (!nextRun) throw new Error('The TDBK runtime did not return a workflow run.');
@@ -63,7 +64,7 @@ export const CustomWorkflowView: React.FC<Props> = ({ experience, workflow, onDi
       <p className="mt-3 text-xs text-neutral-400">{experience.displayName} · {activeWorkflow.steps.length} steps</p>
     </header>
 
-    {!run ? <div className="rounded-2xl border border-neutral-200 bg-white p-6">
+    {!run ? !workflow.enabled ? <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-800">This workflow is disabled for new runs.</div> : <div className="rounded-2xl border border-neutral-200 bg-white p-6">
       <h2 className="font-bold">Ready to begin?</h2>
       <p className="mt-1 text-sm text-neutral-500">Starting creates a tenant-scoped workflow run. Each step is recorded as it is completed.</p>
       <button type="button" onClick={start} disabled={busy} className="mt-4 inline-flex items-center gap-2 rounded-xl bg-neutral-950 px-4 py-3 text-xs font-black text-white disabled:opacity-50"><Play size={14}/>{busy?'Starting…':'Start workflow'}</button>
