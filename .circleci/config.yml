@@ -1,0 +1,57 @@
+version: 2.1
+
+jobs:
+  verify:
+    docker:
+      - image: cimg/node:22.14
+    resource_class: medium
+    working_directory: ~/tdbk-v2-platform
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - npm-v1-{{ checksum "package-lock.json" }}
+            - npm-v1-
+      - run:
+          name: Install locked dependencies
+          command: npm ci
+      - save_cache:
+          key: npm-v1-{{ checksum "package-lock.json" }}
+          paths:
+            - ~/.npm
+      - run:
+          name: TypeScript typecheck
+          command: npm run typecheck
+      - run:
+          name: ESLint
+          command: npm run lint
+      - run:
+          name: Capability engineering tests
+          command: npm run test:capabilities
+      - run:
+          name: Flow orchestration tests
+          command: npm run test:flow
+      - run:
+          name: Full test suite
+          command: npm test
+      - run:
+          name: Production build
+          command: npm run build
+      - setup_remote_docker:
+          docker_layer_caching: false
+      - run:
+          name: Validate production Docker image
+          command: |
+            docker build \
+              --build-arg VITE_FIREBASE_API_KEY=ci-placeholder \
+              --build-arg VITE_FIREBASE_AUTH_DOMAIN=ci-placeholder.firebaseapp.com \
+              --build-arg VITE_FIREBASE_PROJECT_ID=ci-placeholder \
+              --build-arg VITE_FIREBASE_STORAGE_BUCKET=ci-placeholder.firebasestorage.app \
+              --build-arg VITE_FIREBASE_MESSAGING_SENDER_ID=000000000000 \
+              --build-arg VITE_FIREBASE_APP_ID=ci-placeholder \
+              -t tdbk-v2-ci .
+
+workflows:
+  tdbk-v2-verification:
+    jobs:
+      - verify
