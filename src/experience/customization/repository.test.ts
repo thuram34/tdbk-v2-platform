@@ -33,6 +33,21 @@ describe('ExperienceCustomizationRepository workflow runs', () => {
     updatedAt: '2026-11-08T10:00:00.000Z',
   };
 
+  it('version-checks tenant experience configuration writes', async () => {
+    const config = {
+      dbkId: 'dbk_test',
+      version: 1,
+      menuItems: [],
+      buttons: [],
+      questionnaires: [],
+      workflows: [],
+      updatedAt: '2026-11-08T10:00:00.000Z',
+      updatedBy: 'user_test',
+    };
+    await expect(repository.save('dbk_test', config, 0)).resolves.toMatchObject({ version: 1 });
+    await expect(repository.save('dbk_test', { ...config, version: 2 }, 0)).rejects.toThrow('CONFIGURATION_CONFLICT');
+  });
+
   it('persists workflow runs within the owning tenant path', async () => {
     await repository.createWorkflowRun(run.dbkId, run);
 
