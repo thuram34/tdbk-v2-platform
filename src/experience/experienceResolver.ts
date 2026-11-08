@@ -16,6 +16,7 @@ import { mpesaBridge } from '../orchestration/bridge/adapters/mpesaBridge';
 import { supplierInvoiceService } from '../business/procurement/supplierInvoiceService';
 import { capabilityViewRegistry } from './registry/viewRegistry';
 import { experienceCustomizationService } from './customization/service';
+import { rbacEngine } from '../kernel/authorization/rbacEngine';
 
 export class ExperienceResolver {
   private static instance: ExperienceResolver;
@@ -120,6 +121,10 @@ export class ExperienceResolver {
     const discoveryItems: ExperienceDiscoveryItem[] = discoverySurface.items.map((item) => {
       const cap = item.capability;
       const isEnabled = workspace.enabledCapabilities.includes(cap.capabilityId);
+      const ownerOverride = masterAuthority.isMasterAdmin(context.principal) || masterAuthority.isOwnerPortfolio(context.principal);
+      const roleAllowed = cap.requiredRoles.length === 0 || cap.requiredRoles.some(role => context.principal.roles.includes(role));
+      const permissionAllowed = cap.requiredPermissions.length === 0 || cap.requiredPermissions.every(permission => rbacEngine.hasPermission(context.principal, permission));
+      const canAccess = isEnabled && (ownerOverride || (roleAllowed && permissionAllowed));
       let status: 'OPERATIONAL' | 'DISCOVERABLE' | 'UPGRADE_REQUIRED' | 'CONFIGURATION_REQUIRED' | 'SUSPENDED' =
         'DISCOVERABLE';
 
@@ -141,6 +146,7 @@ export class ExperienceResolver {
         minimumTier: cap.entitlementRequirements.minimumTier,
         isEntitled: item.entitlementStatus === 'ENTITLED' || isEnabled,
         isEnabled,
+        canAccess,
         status,
         iconName: cap.category === 'FINANCE' ? 'DollarSign' : cap.category === 'INVENTORY' ? 'Package' : 'Sparkles',
         requiredRoles: cap.requiredRoles,
