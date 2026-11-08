@@ -420,13 +420,16 @@ export class EtimsBridge implements Bridge<EtimsInvoiceRequest, any, any> {
     return normalized;
   }
 
-  public async verifyCallback(rawCallback: any, signatureHeader?: string): Promise<CallbackVerificationResult> {
-    const verified = signatureHeader !== 'INVALID_SIG' && rawCallback?.signature !== 'INVALID_SIG';
+  public async verifyCallback(rawCallback: any, _signatureHeader?: string): Promise<CallbackVerificationResult> {
+    // The current eTIMS VSCU adapter has no configured provider-verifiable
+    // callback authentication contract. A caller-supplied "signature" field
+    // or sentinel value is not proof of KRA origin. Fail closed until an
+    // authoritative KRA callback-signing contract is implemented and tested.
     return {
-      verified,
+      verified: false,
       providerIdentity: this.provider,
-      reason: verified ? undefined : 'Invalid eTIMS callback credential',
-      replayProtectionPassed: verified,
+      reason: 'ETIMS_CALLBACK_AUTHENTICATION_NOT_CONFIGURED',
+      replayProtectionPassed: false,
       tenantId: rawCallback?.tenantId,
       correlationId: rawCallback?.correlationId,
     };
