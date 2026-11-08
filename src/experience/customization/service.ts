@@ -239,7 +239,15 @@ export class ExperienceCustomizationService {
       updatedAt: now,
       ...(nextIndex >= workflow.steps.length ? { completedAt: now } : {}),
     };
-    const saved = await experienceCustomizationRepository.advanceWorkflowRun(dbkId, runId, run.currentStepIndex, next);
+    let saved: CustomWorkflowRun;
+    try {
+      saved = await experienceCustomizationRepository.advanceWorkflowRun(dbkId, runId, run.currentStepIndex, next);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '';
+      if (message === 'WORKFLOW_STEP_CONFLICT') throw new KernelError('CONFLICT', 'Another user has already advanced this workflow step. Refresh the workflow.', 409, context.requestId);
+      if (message === 'WORKFLOW_RUN_NOT_FOUND') throw new KernelError('NOT_FOUND', 'Workflow run not found.', 404, context.requestId);
+      throw error;
+    }
     auditLogger.logEvent('WORKFLOW_EXECUTION', context.principal.id, 'CUSTOM_WORKFLOW_STEP_COMPLETED', `dbk:${dbkId}/workflow:${workflow.id}`, 'ALLOWED', {
       tenantId: dbkId, requestId: context.requestId, details: { runId, stepId, status: saved.status, currentStepIndex: saved.currentStepIndex },
     });
