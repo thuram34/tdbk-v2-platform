@@ -143,6 +143,8 @@ export class ExperienceResolver {
         isEnabled,
         status,
         iconName: cap.category === 'FINANCE' ? 'DollarSign' : cap.category === 'INVENTORY' ? 'Package' : 'Sparkles',
+        requiredRoles: cap.requiredRoles,
+        requiredPermissions: cap.requiredPermissions,
       };
     });
 
