@@ -20,7 +20,7 @@ describe('eTIMS callback tenant authorization', () => {
     ).rejects.toThrow('eTIMS callback tenant conflicts with authoritative tenant context');
   });
 
-  it('uses the authoritative tenant when callback metadata omits tenantId', async () => {
+  it('fails closed when no provider-verifiable callback authentication contract is configured', async () => {
     const bridge = new EtimsBridge();
     const context = {
       requestId: 'req_etims_2',
@@ -28,15 +28,20 @@ describe('eTIMS callback tenant authorization', () => {
       tenantContext: { tenantId: 'tenant_authoritative' },
     } as any;
 
-    const result = await bridge.handleCallback(context, {
+    const callback = {
       kraIcn: 'KRA-002',
       amount: 2500,
       status: 'SUCCESS',
+      signature: 'VALID_SIG',
       correlationId: 'corr_002',
-    });
+    };
 
-    expect(result.providerReference).toBe('KRA-002');
-    expect(result.amount).toBe(2500);
-    expect(result.currency).toBe('KES');
+    const verification = await bridge.verifyCallback(callback, 'VALID_SIG');
+    expect(verification.verified).toBe(false);
+    expect(verification.reason).toBe('ETIMS_CALLBACK_AUTHENTICATION_NOT_CONFIGURED');
+
+    await expect(bridge.handleCallback(context, callback)).rejects.toThrow(
+      'ETIMS_CALLBACK_AUTHENTICATION_NOT_CONFIGURED',
+    );
   });
 });
