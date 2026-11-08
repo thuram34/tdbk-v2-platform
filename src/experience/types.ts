@@ -164,7 +164,7 @@ export interface ExperienceDiscoveryItem {
   minimumTier: SubscriptionTier;
   isEntitled: boolean;
   isEnabled: boolean;
-  canAccess: boolean;
+  canAccess?: boolean;
   status: 'OPERATIONAL' | 'DISCOVERABLE' | 'UPGRADE_REQUIRED' | 'CONFIGURATION_REQUIRED' | 'SUSPENDED';
   iconName: string;
   requiredRoles?: string[];
