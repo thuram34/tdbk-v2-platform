@@ -203,3 +203,13 @@ The following source-level runtime paths were inspected after the initial regist
 - #640 and #641 merged after full verification runs.
 - #625 Experience Studio remains draft: its branch has a Vercel preview that reported Ready, but a later Vercel deployment attempt was blocked by the account's daily deployment limit. It also explicitly excludes workflow resume across devices, conditional branches, SLA timers, notifications/escalation and arbitrary screen layouts. Do not merge until current-base CI and deployment evidence are re-established.
 - #609, #608, #605, #598, #593, #567, #542, #537, #390, #291, #229, #225, #222, #224, #161, #131 and #6 remain open and require individual diff reconciliation. Their presence is not evidence of implementation in main.
+
+
+## 10. Cross-repository PR and build findings — 2026-11-09
+
+- **AquaFlow PR #1** (`codex/aquaflow-production-hardening`) had a failing test: the migrated seed PIN hash was generated using a hex-decoded salt, while `security.ts` passed the salt's hex text as UTF-8 to Node scrypt. Corrected both hash generation and verification to decode the salt consistently with `Buffer.from(salt, 'hex')` in commit `fe4ea28cbb72674890d77351c5e4856d72086f36`. A fresh CI run 42529022511 started; it was still in progress at the time of this ledger update. Keep the PR draft until the test and build pipeline passes and the persistent-storage / deployment architecture is reviewed.
+- **Chemist Pro PRs #3 and #4** remain draft and GitHub reports them not mergeable. PR #3 adds Firebase Functions artifact cleanup policy; PR #4 adds CircleCI verification. Reconcile against current main and verify deployment workflow before promotion.
+- **TRAIL-PHARMACY PRs #10 and #12** are open and GitHub reports them not mergeable. They change staff login and PPB/cloud sync UI respectively. Do not merge either independently until conflicts and authentication/authorization impacts are reviewed together.
+- **Ugatuzi** and **Sajid-intergrayed** currently have no open PRs visible in the connected account. This is not proof that their main branches are production-ready.
+- **my-home-electronics** currently has no open PRs visible; package manifest defines Vite build and TypeScript lint only. No test script was present in the inspected package manifest.
+- **TDBK main deployment:** `cloudbuild.yaml` deploys Cloud Run service `tdbk-v2` in `africa-south1` using Secret Manager references and the `tdbk-runtime` service account. The repository connector did not expose a current Cloud Build production revision or live health-check result for the latest main commits. Production deployment is therefore **unverified**, despite passing PR CI and preview deployments.
