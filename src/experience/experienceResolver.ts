@@ -14,6 +14,7 @@ import { KernelError } from '../kernel/errors/kernelErrors';
 import { saleTransactionService } from '../business/sales/saleTransactionService';
 import { mpesaBridge } from '../orchestration/bridge/adapters/mpesaBridge';
 import { supplierInvoiceService } from '../business/procurement/supplierInvoiceService';
+import { stockMovementService } from '../business/inventory/stockMovementService';
 import { capabilityViewRegistry } from './registry/viewRegistry';
 import { experienceCustomizationService } from './customization/service';
 import { rbacEngine } from '../kernel/authorization/rbacEngine';
@@ -432,6 +433,25 @@ export class ExperienceResolver {
           commandType: req.commandType,
           targetDbkId: req.targetDbkId,
           result: { ...invoiceResult },
+          serverTimestamp: timestamp,
+        };
+      } else if (req.commandType === 'RECORD_STOCK_MOVEMENT') {
+        const movementResult = await stockMovementService.recordMovement(
+          context,
+          req.targetDbkId,
+          req.payload as any,
+        );
+        await auditLogger.persistEvent(auditLogger.logAuditEvent(context, {
+          action: 'STOCK_MOVEMENT_POSTED',
+          targetResource: `dbk:${req.targetDbkId}`,
+          outcome: 'ALLOWED',
+          details: { ...movementResult },
+        }));
+        return {
+          success: true,
+          commandType: req.commandType,
+          targetDbkId: req.targetDbkId,
+          result: { ...movementResult },
           serverTimestamp: timestamp,
         };
       } else if (req.commandType === 'INVOKE_ACTION') {
