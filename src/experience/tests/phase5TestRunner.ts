@@ -372,42 +372,29 @@ export async function runPhase5TestSuite(): Promise<Phase5TestSummary> {
   // -------------------------------------------------------------
   // SECTION 4: DYNAMIC DASHBOARD COMPOSITION
   // -------------------------------------------------------------
-  await runTest('P5_TEST_15', 'School DBK dashboard composes student enrollment and fee metrics', async () => {
-    const resolved = await experienceResolver.resolveExperience(masterCtx, schoolDbkId);
-    const enrollmentWidget = resolved.dashboardWidgets.find((w) => w.id === 'widget_school_enrollment');
-    const feeWidget = resolved.dashboardWidgets.find((w) => w.id === 'widget_school_fees');
+  await runTest('P5_TEST_15', 'Business dashboards expose authoritative workspace metrics without fabricated vertical KPIs', async () => {
+    for (const dbkId of [schoolDbkId, hardwareDbkId, clinicDbkId]) {
+      const resolved = await experienceResolver.resolveExperience(masterCtx, dbkId);
+      const widgetIds = new Set(resolved.dashboardWidgets.map((widget) => widget.id));
 
-    if (!enrollmentWidget) {
-      throw new Error('widget_school_enrollment missing from School DBK dashboard');
-    }
-    if (!feeWidget) {
-      throw new Error('widget_school_fees missing from School DBK dashboard');
-    }
-  });
+      for (const requiredId of ['widget_workspace', 'widget_branches', 'widget_connections', 'widget_capabilities']) {
+        if (!widgetIds.has(requiredId)) {
+          throw new Error(`Authoritative dashboard widget '${requiredId}' missing for DBK '${dbkId}'.`);
+        }
+      }
 
-  await runTest('P5_TEST_16', 'Hardware DBK dashboard composes yard turnover and low stock alerts', async () => {
-    const resolved = await experienceResolver.resolveExperience(masterCtx, hardwareDbkId);
-    const salesWidget = resolved.dashboardWidgets.find((w) => w.id === 'widget_hardware_sales');
-    const alertWidget = resolved.dashboardWidgets.find((w) => w.id === 'widget_hardware_low_stock');
-
-    if (!salesWidget) {
-      throw new Error('widget_hardware_sales missing from Hardware DBK dashboard');
-    }
-    if (!alertWidget) {
-      throw new Error('widget_hardware_low_stock missing from Hardware DBK dashboard');
-    }
-  });
-
-  await runTest('P5_TEST_17', 'Clinic DBK dashboard composes triage queue and pharmacy metrics', async () => {
-    const resolved = await experienceResolver.resolveExperience(masterCtx, clinicDbkId);
-    const queueWidget = resolved.dashboardWidgets.find((w) => w.id === 'widget_clinic_queue');
-    const rxWidget = resolved.dashboardWidgets.find((w) => w.id === 'widget_pharmacy_metrics');
-
-    if (!queueWidget) {
-      throw new Error('widget_clinic_queue missing from Clinic DBK dashboard');
-    }
-    if (!rxWidget) {
-      throw new Error('widget_pharmacy_metrics missing from Clinic DBK dashboard');
+      const fabricatedIds = [
+        'widget_school_enrollment',
+        'widget_school_fees',
+        'widget_hardware_sales',
+        'widget_hardware_low_stock',
+        'widget_clinic_queue',
+        'widget_pharmacy_metrics',
+      ];
+      const fabricatedWidget = fabricatedIds.find((id) => widgetIds.has(id));
+      if (fabricatedWidget) {
+        throw new Error(`Dashboard must not emit unsupported or fabricated KPI widget '${fabricatedWidget}'.`);
+      }
     }
   });
 
