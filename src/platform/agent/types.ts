@@ -4,28 +4,12 @@ import { SecurityContext } from '../../kernel/types';
 export type AgentAuthority = 'OBSERVE' | 'DIAGNOSE' | 'SAFE_REPAIR' | 'WORKFLOW' | 'BUSINESS' | 'CONNECTOR' | 'ADMIN' | 'MASTER';
 
 export type AgentActionKind =
-  | 'INSPECT_PLATFORM'
-  | 'INSPECT_DBKS'
-  | 'INSPECT_BUSINESS_STATE'
-  | 'INSPECT_WORKFLOWS'
-  | 'INSPECT_CONNECTORS'
-  | 'ACTIVATE_CONNECTOR'
-  | 'PLAN_SAFE_REPAIR'
-  | 'PROVISION_DBK'
-  | 'COMPOSE_BUSINESS'
-  | 'ACTIVATE_BUSINESS'
-  | 'REBUILD_BUSINESS_STATE'
-  | 'ENABLE_CAPABILITY'
-  | 'DISABLE_CAPABILITY'
-  | 'ENSURE_HEADQUARTERS_BRANCH'
-  | 'REFRESH_DBK_TOPOLOGY'
-  | 'RECOMPILE_WORKSPACE'
-  | 'SUSPEND_DBK'
-  | 'REACTIVATE_DBK'
-  | 'ARCHIVE_DBK'
-  | 'RESTORE_DBK'
-  | 'RECOVER_WORKFLOWS'
-  | 'EXECUTE_WORKFLOW';
+  | 'INSPECT_PLATFORM' | 'INSPECT_DBKS' | 'INSPECT_BUSINESS_STATE' | 'INSPECT_WORKFLOWS'
+  | 'INSPECT_CONNECTORS' | 'ACTIVATE_CONNECTOR' | 'PLAN_SAFE_REPAIR' | 'PROVISION_DBK'
+  | 'COMPOSE_BUSINESS' | 'ACTIVATE_BUSINESS' | 'REBUILD_BUSINESS_STATE' | 'ENABLE_CAPABILITY'
+  | 'DISABLE_CAPABILITY' | 'ENSURE_HEADQUARTERS_BRANCH' | 'REFRESH_DBK_TOPOLOGY'
+  | 'RECOMPILE_WORKSPACE' | 'SUSPEND_DBK' | 'REACTIVATE_DBK' | 'ARCHIVE_DBK'
+  | 'RESTORE_DBK' | 'RECOVER_WORKFLOWS' | 'EXECUTE_WORKFLOW';
 
 export interface AgentInstruction {
   instructionId: string;
@@ -51,11 +35,20 @@ export interface AgentAction {
   requiresAuthorization: boolean;
 }
 
+export interface AgentAssignment {
+  actionId: string;
+  leadAgentId: string;
+  collaboratorAgentIds: string[];
+  rationale: string;
+  executionBoundary: 'SHARED_RUNTIME' | 'GOVERNED_ADVISORY';
+}
+
 export interface AgentPlan {
   instructionId: string;
   intent: string;
   actions: AgentAction[];
   generatedAt: string;
+  teamAssignments?: AgentAssignment[];
 }
 
 export interface AgentVerification {
