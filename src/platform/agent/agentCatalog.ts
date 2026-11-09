@@ -15,7 +15,7 @@ export interface SpecialistAgent {
   name: string;
   domain: AgentDomain;
   mission: string;
-  supportedActions: AgentActionKind[];
+  supportedActions: readonly AgentActionKind[];
   authorityCeiling: AgentAuthority;
   executionMode: 'COORDINATOR' | 'SHARED_RUNTIME' | 'GOVERNED_ADVISORY';
   requiresHumanApprovalFor: string[];
