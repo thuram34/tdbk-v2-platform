@@ -24,7 +24,7 @@ function makeContext(overrides: Partial<SecurityContext> = {}): SecurityContext 
       tenantId,
       branchId: sourceBranchId,
       roles: ['STORE_OWNER'],
-      permissions: ['manage:inventory'],
+      permissions: ['manage:inventory', 'manage:stock'],
       authTime: Date.now(),
       tokenSource: 'JWT',
     },
