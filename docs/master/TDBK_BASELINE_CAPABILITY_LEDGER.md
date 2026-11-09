@@ -132,3 +132,25 @@ The authenticated GitHub account currently exposes seven repositories owned by `
 4. Record CI health and deployment provider/state for each repository.
 5. Decide canonical product per vertical only after code and operational evidence.
 6. Create integration contracts and migration plans without disrupting standalone deployments.
+
+
+## 7. Cross-repository CI evidence (latest runs observed during this audit)
+
+| Repository | Latest observed main-branch workflow | Result | Failure stage / evidence | Classification |
+|---|---|---|---|---|
+| `tdbk-v2-platform` | Run `42587821578` on feature branch commit `a53c69c` | IN PROGRESS at last poll; typecheck, lint, capability and flow gates passed; tests running | Full tests, production build and Docker validation had not yet completed. A subsequent documentation commit was pushed after this run began. | BLOCKED pending full run and current-head verification. |
+| `my-home-electronics` | Run `38849483433` (2026-10-16) | FAILURE | Typecheck and production build passed; Google Cloud authentication failed because service account `github-firebase-deploy@project-d966df20-6e50-477b-8e2.iam.gserviceaccount.com` lacked `iam.serviceAccounts.getAccessToken`. Firebase deploy was skipped. | External IAM configuration blocker; not a TypeScript/build defect. |
+| `ugatuzi-hospital-management-system` | Run `37052933228` (2026-10-02) | SUCCESS | Historical workflow success. No recent run was returned in the latest query. | Stale CI evidence; rerun and validate current head before production claims. |
+| `Sajid-intergrayed` | No run returned for main in latest query | NOT VERIFIED | No workflow run evidence returned. | Inspect workflow configuration and establish CI. |
+| `chemist-pro` | Run `42528963769` (2026-11-08) | PARTIAL FAILURE | Main app typecheck, tests and build passed. Separate Functions build failed at `functions/src/index.ts:269`: callback parameter `ref` implicitly has `any` type (TS7006). | Code-level type defect in Functions package; inspect installed Firestore types and annotate callback precisely. |
+| `TRAIL-PHARMACY` | Run `42264784272` (2026-11-06) | FAILURE | Typecheck failed because `src/__tests__/posAndStockReceiving.test.ts` imports `STARTER_CATEGORIES` from `src/services/pharmacyService.ts`, but that module does not export it (TS2305). Production build was skipped. | Code/test contract mismatch; decide whether constant belongs in service or whether test should target the real catalogue contract. |
+| `Aquaflow` | No run returned for main in latest query | NOT VERIFIED | No workflow run evidence returned. | Inspect workflow configuration and establish CI. |
+
+### 7.1 Immediate follow-up order
+
+1. Finish TDBK V2 PR #644 verification on the latest branch head; resolve any new failures.
+2. Fix Chemist Pro Functions TypeScript error in an isolated branch, then run the Functions build and full app checks.
+3. Fix TRAIL-PHARMACY's missing starter-category export/test contract in an isolated branch, then run typecheck, tests and production build.
+4. Resolve My Home Electronics deployment IAM with the minimum required service-account impersonation/token-creation permission through the authorized Google Cloud administrator; do not weaken IAM or change credentials in source code.
+5. Establish CI for Sajid Integrated and AquaFlow and run current-head checks for Ugatuzi.
+6. Keep all six product repositories separate until the product parity and shared-platform integration review is complete.
