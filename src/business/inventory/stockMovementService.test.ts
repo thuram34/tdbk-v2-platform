@@ -161,6 +161,7 @@ describe('StockMovementService', () => {
       principal: {
         ...makeContext().principal,
         roles: ['TENANT_ADMIN', 'STORE_OWNER'],
+        permissions: ['manage:inventory', 'manage:stock', 'manage:stock:transfer'],
       },
     });
     const result = await stockMovementService.recordMovement(tenantWideContext, tenantId, {
@@ -190,6 +191,7 @@ describe('StockMovementService', () => {
       principal: {
         ...makeContext().principal,
         roles: ['TENANT_ADMIN', 'STORE_OWNER'],
+        permissions: ['manage:inventory', 'manage:stock', 'manage:stock:transfer'],
       },
     });
     await expect(stockMovementService.recordMovement(tenantWideContext, tenantId, {
