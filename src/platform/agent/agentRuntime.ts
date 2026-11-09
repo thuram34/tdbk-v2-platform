@@ -7,6 +7,7 @@ import { agentRepairPlanner } from './repairPlanner';
 import { controlPlaneTool } from './tools/controlPlaneTool';
 import { businessStateTool } from './tools/businessStateTool';
 import { workflowTool } from './tools/workflowTool';
+import { tdbkAgentTeamCoordinator } from './agentTeamCoordinator';
 import { agentExecutionRepository } from '../../persistence/firestore/repositories/agentExecutionRepository';
 import { agentActionExecutionRepository } from '../../persistence/firestore/repositories/agentActionExecutionRepository';
 import { AgentInstruction, AgentRunResult } from './types';
@@ -24,7 +25,13 @@ export class TdbkAgentRuntime {
     const startedAt = new Date().toISOString();
     agentAudit.instruction(instruction);
     const parsed = instructionParser.parse(instruction);
-    const plan = { instructionId: instruction.instructionId, intent: parsed.intent, actions: parsed.actions, generatedAt: startedAt };
+    const plan = {
+      instructionId: instruction.instructionId,
+      intent: parsed.intent,
+      actions: parsed.actions,
+      generatedAt: startedAt,
+      teamAssignments: tdbkAgentTeamCoordinator.coordinate(parsed.actions),
+    };
     const leaseOwner = `${instruction.context.principal.id}:${Date.now()}:${Math.random().toString(36).slice(2, 10)}`;
 
     // Replay binding is a security gate and must run before any action can be
@@ -40,38 +47,28 @@ export class TdbkAgentRuntime {
         existing.branchId === branchId &&
         existing.principalId === instruction.context.principal.id &&
         existing.instruction === instruction.text.slice(0, 2000);
-
-      if (!sameIdentity) {
-        throw new Error('Agent instruction replay conflict: executionId is already bound to a different principal, scope, or instruction.');
-      }
+      if (!sameIdentity) throw new Error('Agent instruction replay conflict: executionId is already bound to a different principal, scope, or instruction.');
     }
 
     const claim = await agentExecutionRepository.claim({
-      executionId: instruction.instructionId,
-      instructionId: instruction.instructionId,
-      tenantId,
-      branchId,
-      principalId: instruction.context.principal.id,
-      instruction: instruction.text.slice(0, 2000),
-      intent: plan.intent,
-      status: 'PLANNED',
-      plan,
-      results: [],
-      createdAt: startedAt,
-      completedAt: startedAt,
+      executionId: instruction.instructionId, instructionId: instruction.instructionId, tenantId, branchId,
+      principalId: instruction.context.principal.id, instruction: instruction.text.slice(0, 2000),
+      intent: plan.intent, status: 'PLANNED', plan, results: [], createdAt: startedAt, completedAt: startedAt,
     }, leaseOwner);
 
     if (claim.status === 'COMPLETED') {
+      const savedPlan = claim.record.plan;
       return {
         instructionId: claim.record.instructionId,
-        plan: claim.record.plan,
+        plan: {
+          ...savedPlan,
+          teamAssignments: savedPlan.teamAssignments || tdbkAgentTeamCoordinator.coordinate(savedPlan.actions),
+        },
         results: claim.record.results,
         completedAt: claim.record.completedAt,
       };
     }
-    if (claim.status === 'IN_PROGRESS') {
-      throw new Error('Agent instruction is already executing under an active durable lease.');
-    }
+    if (claim.status === 'IN_PROGRESS') throw new Error('Agent instruction is already executing under an active durable lease.');
 
     const results = [] as AgentRunResult['results'];
     for (const action of plan.actions) {
@@ -83,33 +80,17 @@ export class TdbkAgentRuntime {
       try {
         const actionExecutionId = instruction.instructionId + ':' + action.actionId;
         const targetFingerprint = JSON.stringify({
-          tenantId: action.tenantId || tenantId,
-          branchId,
-          principalId: instruction.context.principal.id,
-          kind: action.kind,
-          workflowId: action.workflowId || null,
-          capabilityId: action.capabilityId || null,
-          bridgeId: action.bridgeId || null,
-          blueprintId: action.blueprintId || null,
+          tenantId: action.tenantId || tenantId, branchId, principalId: instruction.context.principal.id,
+          kind: action.kind, workflowId: action.workflowId || null, capabilityId: action.capabilityId || null,
+          bridgeId: action.bridgeId || null, blueprintId: action.blueprintId || null,
         });
         const actionClaim = await agentActionExecutionRepository.claim({
-          executionId: actionExecutionId,
-          instructionId: instruction.instructionId,
-          actionId: action.actionId,
-          tenantId,
-          branchId,
-          principalId: instruction.context.principal.id,
-          actionKind: action.kind,
-          targetFingerprint,
-          leaseOwner,
+          executionId: actionExecutionId, instructionId: instruction.instructionId, actionId: action.actionId,
+          tenantId, branchId, principalId: instruction.context.principal.id, actionKind: action.kind,
+          targetFingerprint, leaseOwner,
         });
-
         if (actionClaim.status === 'IN_PROGRESS') {
-          const result = {
-            actionId: action.actionId,
-            status: 'FAILED' as const,
-            error: 'Agent action is already executing under an active durable lease.',
-          };
+          const result = { actionId: action.actionId, status: 'FAILED' as const, error: 'Agent action is already executing under an active durable lease.' };
           results.push(result); agentAudit.action(instruction, action, result); continue;
         }
 
@@ -132,17 +113,16 @@ export class TdbkAgentRuntime {
           result = { actionId: action.actionId, status: 'COMPLETED' as const, data };
         }
 
-        // Persist the action result before running postcondition verification.
-        // After a process crash, this result is the replay boundary: verification
-        // may run again, but the action itself must not execute again.
+        // Persist the action result before postcondition verification: replay must
+        // never execute a completed mutation twice after a process crash.
         if (actionClaim.status === 'ACQUIRED') {
           if (result.status === 'COMPLETED') await agentActionExecutionRepository.complete(actionExecutionId, leaseOwner, result);
           else await agentActionExecutionRepository.fail(actionExecutionId, leaseOwner, result);
         }
-
         if (result.status === 'COMPLETED') {
           const verification = await agentVerificationEngine.verify(instruction, action, result.data);
-          result = { ...result, verification }; if (!verification.verified) result.status = 'FAILED';
+          result = { ...result, verification };
+          if (!verification.verified) result.status = 'FAILED';
         }
         results.push(result); agentAudit.action(instruction, action, result);
       } catch (error) {
