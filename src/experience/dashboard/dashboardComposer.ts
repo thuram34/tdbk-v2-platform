@@ -13,119 +13,80 @@ export class DashboardComposer {
     return DashboardComposer.instance;
   }
 
+  /**
+   * Build dashboard widgets only from authoritative workspace projection data.
+   * Transactional KPIs belong to domain read models; never substitute sample figures.
+   */
   public composeDashboard(workspace: DbkWorkspaceState): ExperienceWidget[] {
+    const activeBranches = workspace.activeBranches || [];
+    const enabledCapabilities = workspace.enabledCapabilities || [];
+    const connections = workspace.connections || [];
+    const readyConnections = connections.filter((connection) => connection.ready);
+    const setupConnections = connections.filter((connection) => !connection.ready);
+
     const widgets: ExperienceWidget[] = [
       {
-        id: 'widget_overview',
-        title: `${workspace.displayName} Overview`,
+        id: 'widget_workspace',
+        title: 'Workspace status',
         widgetType: 'METRIC_CARD',
         span: 2,
         data: {
           primaryValue: workspace.status,
-          secondaryValue: `Subscription Tier: ${workspace.subscriptionTier}`,
-          trend: { direction: 'UP', percentage: 100, label: 'Authoritative Workspace Active' },
+          secondaryValue: `${workspace.subscriptionTier} plan · Workspace version ${workspace.workspaceVersion}`,
+        },
+      },
+      {
+        id: 'widget_branches',
+        title: 'Active locations',
+        widgetType: 'METRIC_CARD',
+        data: {
+          primaryValue: activeBranches.length,
+          secondaryValue: activeBranches.map((branch) => branch.name).join(', ') || 'No active locations',
+        },
+      },
+      {
+        id: 'widget_connections',
+        title: 'Integration readiness',
+        widgetType: 'METRIC_CARD',
+        data: {
+          primaryValue: `${readyConnections.length} / ${connections.length}`,
+          secondaryValue: connections.length === 0
+            ? 'No integrations registered for this workspace'
+            : setupConnections.length === 0
+              ? 'All registered integrations report ready'
+              : `${setupConnections.length} integration(s) need configuration or attention`,
+        },
+      },
+      {
+        id: 'widget_capabilities',
+        title: 'Enabled capabilities',
+        widgetType: 'QUEUE_LIST',
+        span: 2,
+        data: {
+          items: enabledCapabilities.map((capabilityId) => ({
+            id: capabilityId,
+            title: capabilityId.split('_').map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(' '),
+            subtitle: 'Enabled in this workspace',
+            status: 'ENABLED',
+          })),
         },
       },
     ];
 
-    const sector = workspace.sector as string;
-
-    if (sector === 'EDUCATION' || workspace.blueprintId.includes('school')) {
-      widgets.push(
-        {
-          id: 'widget_school_enrollment',
-          title: 'Student Enrollment',
-          widgetType: 'METRIC_CARD',
-          span: 2,
-          data: {
-            primaryValue: '480 Active Students',
-            secondaryValue: 'Capacity: 500 (96%)',
-            trend: { direction: 'UP', percentage: 4.2, label: 'Term-on-Term Growth' },
+    if (setupConnections.length > 0) {
+      widgets.push({
+        id: 'widget_connection_attention',
+        title: 'Integration setup required',
+        widgetType: 'ALERT_BANNER',
+        span: 3,
+        data: {
+          alert: {
+            level: 'WARNING',
+            message: setupConnections.map((connection) => `${connection.provider}: ${connection.blockers.join(', ') || connection.status}`).join(' · '),
           },
         },
-        {
-          id: 'widget_school_fees',
-          title: 'Fee Collection & Arrears',
-          widgetType: 'FINANCIAL_SUMMARY',
-          span: 2,
-          data: {
-            primaryValue: 'KES 4,250,000',
-            secondaryValue: 'Arrears: KES 320,000 (7.5%)',
-            trend: { direction: 'UP', percentage: 12.8, label: 'M-Pesa Collections' },
-          },
-        }
-      );
-    } else if (sector === 'HARDWARE' || workspace.blueprintId.includes('hardware')) {
-      widgets.push(
-        {
-          id: 'widget_hardware_sales',
-          title: 'Daily POS Sales',
-          widgetType: 'FINANCIAL_SUMMARY',
-          span: 2,
-          data: {
-            primaryValue: 'KES 840,000',
-            secondaryValue: '142 Cash & M-Pesa Invoices',
-            trend: { direction: 'UP', percentage: 8.5, label: 'vs Yesterday' },
-          },
-        },
-        {
-          id: 'widget_hardware_low_stock',
-          title: 'Low Stock Alerts',
-          widgetType: 'ALERT_FEED',
-          span: 2,
-          data: {
-            primaryValue: '8 SKUs Below Reorder Point',
-            secondaryValue: 'Cement 50kg, Deformed Bars 12mm',
-            items: [
-              { sku: 'CEM-50KG', name: 'Simba Cement 50kg', qty: 14, min: 50 },
-              { sku: 'STL-12MM', name: 'Deformed Bar 12mm', qty: 8, min: 30 },
-            ],
-          },
-        }
-      );
-    } else if (sector === 'HEALTHCARE' || sector === 'CLINIC' || workspace.blueprintId.includes('clinic')) {
-      widgets.push(
-        {
-          id: 'widget_clinic_queue',
-          title: 'Triage & Outpatient Queue',
-          widgetType: 'QUEUE_LIST',
-          span: 2,
-          data: {
-            primaryValue: '12 Patients Waiting',
-            secondaryValue: 'Average wait: 14 mins',
-            items: [
-              { id: 'Q-01', patient: 'OPD-8821', priority: 'URGENT', waitTime: '4m' },
-              { id: 'Q-02', patient: 'OPD-8822', priority: 'ROUTINE', waitTime: '12m' },
-            ],
-          },
-        },
-        {
-          id: 'widget_pharmacy_metrics',
-          title: 'Pharmacy Dispensing',
-          widgetType: 'METRIC_CARD',
-          span: 2,
-          data: {
-            primaryValue: '84 Prescriptions Filled',
-            secondaryValue: 'Stock coverage: 98.4%',
-          },
-        }
-      );
+      });
     }
-
-    widgets.push({
-      id: 'widget_capabilities',
-      title: 'Enabled Capabilities',
-      widgetType: 'QUEUE_LIST',
-      span: 2,
-      data: {
-        items: workspace.enabledCapabilities.map((c) => ({
-          id: c,
-          title: c.split('_').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
-          subtitle: 'Active Capability Module',
-          status: 'OPERATIONAL',
-        })),
-      },
-    });
 
     return widgets;
   }

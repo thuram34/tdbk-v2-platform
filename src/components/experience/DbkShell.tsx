@@ -219,15 +219,37 @@ export const DbkShell: React.FC<DbkShellProps> = ({
     setViewMode('WORKSPACE');
   };
 
-  const categories = [
-    { key: 'OVERVIEW', label: 'Overview' },
-    { key: 'CORE_OPERATIONS', label: 'Core operations' },
-    { key: 'RECORDS', label: 'Records' },
-    { key: 'FINANCE', label: 'Finance' },
-    { key: 'OPERATIONS', label: 'Operations' },
-    { key: 'DISCOVERY', label: 'Discovery' },
-    { key: 'SETTINGS', label: 'Settings' },
-  ];
+  const categoryLabels: Record<string, string> = {
+    OVERVIEW: 'Overview',
+    CORE_OPERATIONS: 'Core operations',
+    RECORDS: 'Records',
+    FINANCE: 'Finance',
+    OPERATIONS: 'Operations',
+    INVENTORY: 'Inventory',
+    SALES: 'Sales',
+    POS: 'Point of sale',
+    PURCHASING: 'Purchasing',
+    SUPPLIERS: 'Suppliers',
+    SCHOOL: 'School',
+    HEALTHCARE: 'Healthcare',
+    COMMUNICATION: 'Communication',
+    DISCOVERY: 'Discovery',
+    SETTINGS: 'Settings',
+  };
+  const categoryOrder = Object.keys(categoryLabels);
+  const categories = Array.from(new Set((experience?.navigation || []).map((item) => item.category)))
+    .sort((a, b) => {
+      const aOrder = categoryOrder.indexOf(a);
+      const bOrder = categoryOrder.indexOf(b);
+      if (aOrder === -1 && bOrder === -1) return a.localeCompare(b);
+      if (aOrder === -1) return 1;
+      if (bOrder === -1) return -1;
+      return aOrder - bOrder;
+    })
+    .map((key) => ({
+      key,
+      label: categoryLabels[key] || key.toLowerCase().split('_').map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(' '),
+    }));
 
   if (viewMode === 'PORTFOLIO') {
     return (
@@ -343,6 +365,27 @@ export const DbkShell: React.FC<DbkShellProps> = ({
           </div>
         </div>
       </header>
+
+      {experience?.availableBranches?.length > 1 && (
+        <div className="border-b border-neutral-200 bg-white px-4 py-2 sm:hidden">
+          <label className="mx-auto flex max-w-7xl items-center gap-2 text-xs font-semibold text-neutral-600">
+            <GitBranch className="h-4 w-4 shrink-0 text-emerald-600" />
+            <span className="shrink-0">Location</span>
+            <select
+              aria-label="Switch location"
+              value={experience.activeBranch.branchId}
+              onChange={(event) => handleBranchSwitch(event.target.value)}
+              className="min-w-0 flex-1 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-xs font-semibold text-neutral-900 outline-none focus:border-neutral-500"
+            >
+              {experience.availableBranches.map((branch) => (
+                <option key={branch.branchId} value={branch.branchId}>
+                  {branch.name}{branch.isHeadquarters ? ' · Main' : ''}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      )}
 
       <div className="mx-auto flex w-full max-w-7xl flex-1">
         <div className="pointer-events-none fixed inset-x-0 top-[65px] z-20 mx-auto hidden max-w-7xl px-4 sm:px-6 md:block">
