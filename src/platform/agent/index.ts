@@ -6,3 +6,5 @@ export * from './agentAudit';
 export * from './actionExecutor';
 export * from './verificationEngine';
 export * from './repairPlanner';
+export * from './agentCatalog';
+export * from './agentTeamCoordinator';
