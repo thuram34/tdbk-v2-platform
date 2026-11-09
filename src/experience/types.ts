@@ -17,7 +17,10 @@ export type ExperienceViewType =
   | 'DISCOVERY'
   | 'SETTINGS'
   | 'REPORTS'
-  | 'CUSTOM_CLASSROOM';
+  | 'CUSTOM_CLASSROOM'
+  | 'EXPERIENCE_STUDIO'
+  | 'CUSTOM_QUESTIONNAIRE'
+  | 'CUSTOM_WORKFLOW';
 
 export type ExperienceNavCategory =
   | 'OVERVIEW'
@@ -34,6 +37,7 @@ export interface ExperienceNavItem {
   iconName: string;
   category: ExperienceNavCategory;
   capabilityId?: string;
+  customTargetId?: string;
   route: string;
   viewType: ExperienceViewType;
   displayOrder: number;
@@ -160,11 +164,17 @@ export interface ExperienceDiscoveryItem {
   minimumTier: SubscriptionTier;
   isEntitled: boolean;
   isEnabled: boolean;
+  canAccess?: boolean;
   status: 'OPERATIONAL' | 'DISCOVERABLE' | 'UPGRADE_REQUIRED' | 'CONFIGURATION_REQUIRED' | 'SUSPENDED';
   iconName: string;
+  requiredRoles?: string[];
+  requiredPermissions?: string[];
 }
 
+import type { ExperienceCustomization } from './customization/types';
+
 export interface DbkExperienceResolved {
+  customization?: ExperienceCustomization;
   dbkId: string;
   legalName: string;
   displayName: string;
@@ -218,6 +228,9 @@ export interface ExperienceCommandRequest {
     | 'EXECUTE_SALE'
   | 'INVOKE_ACTION'
     | 'SUBMIT_ENTITY'
+    | 'SUBMIT_QUESTIONNAIRE'
+    | 'START_WORKFLOW'
+    | 'ADVANCE_WORKFLOW'
     | 'ENABLE_CAPABILITY'
     | 'CONFIGURE_CAPABILITY'
     | 'SUBMIT_SUPPLIER_INVOICE'

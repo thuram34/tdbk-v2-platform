@@ -14,6 +14,9 @@ import { KernelError } from '../kernel/errors/kernelErrors';
 import { saleTransactionService } from '../business/sales/saleTransactionService';
 import { mpesaBridge } from '../orchestration/bridge/adapters/mpesaBridge';
 import { supplierInvoiceService } from '../business/procurement/supplierInvoiceService';
+import { capabilityViewRegistry } from './registry/viewRegistry';
+import { experienceCustomizationService } from './customization/service';
+import { rbacEngine } from '../kernel/authorization/rbacEngine';
 
 export class ExperienceResolver {
   private static instance: ExperienceResolver;
@@ -46,7 +49,81 @@ export class ExperienceResolver {
     }
 
     // 4. Build navigation & dashboard
-    const navigation = dynamicNavigationEngine.buildNavigation(workspace, context);
+    const customization = await experienceCustomizationService.get(context, dbkId);
+    let navigation = dynamicNavigationEngine.buildNavigation(workspace, context);
+    if (customization.menuItems.length > 0) {
+      const overview = navigation.filter(item => item.isDefault);
+      const settings = navigation.filter(item => item.category === 'SETTINGS');
+      const discovery = navigation.filter(item => item.category === 'DISCOVERY');
+      const configured = customization.menuItems
+        .filter(item => item.enabled)
+        .filter(item => {
+          const targetType = item.targetType || 'CAPABILITY';
+          const targetId = item.targetId || item.capabilityId || '';
+          if (targetType === 'CAPABILITY') return navigation.some(navItem => navItem.capabilityId === targetId);
+          if (targetType === 'QUESTIONNAIRE') {
+            const form = customization.questionnaires.find(item => item.id === targetId && item.enabled);
+            return Boolean(form && workspace.enabledCapabilities.includes(form.targetCapabilityId) && navigation.some(navItem => navItem.capabilityId === form.targetCapabilityId));
+          }
+          if (targetType === 'WORKFLOW') {
+            const flow = customization.workflows.find(item => item.id === targetId && item.enabled);
+            return Boolean(flow && flow.steps.every(step => {
+              if (!step.questionnaireId) return true;
+              const form = customization.questionnaires.find(item => item.id === step.questionnaireId && item.enabled);
+              return Boolean(form && workspace.enabledCapabilities.includes(form.targetCapabilityId) && navigation.some(navItem => navItem.capabilityId === form.targetCapabilityId));
+            }));
+          }
+          return false;
+        })
+        .filter(item => !item.requiredRoles?.length || item.requiredRoles.some(role => context.principal.roles.includes(role)))
+        .filter(item => !item.requiredPermissions?.length || item.requiredPermissions.every(permission => context.principal.permissions.includes('*') || context.principal.permissions.includes(permission)))
+        .map(item => {
+          const targetType = item.targetType || 'CAPABILITY';
+          const targetId = item.targetId || item.capabilityId || '';
+          if (targetType === 'QUESTIONNAIRE') {
+            return {
+              id: `custom_nav_${item.id}`, label: item.label, iconName: item.iconName || 'ClipboardList',
+              category: item.category, customTargetId: targetId, route: `/dbk/${dbkId}/questionnaires/${targetId}`,
+              viewType: 'CUSTOM_QUESTIONNAIRE' as any, displayOrder: item.displayOrder,
+              requiredRoles: item.requiredRoles, requiredPermissions: item.requiredPermissions,
+            };
+          }
+          if (targetType === 'WORKFLOW') {
+            return {
+              id: `custom_nav_${item.id}`, label: item.label, iconName: item.iconName || 'Workflow',
+              category: item.category, customTargetId: targetId, route: `/dbk/${dbkId}/workflows/${targetId}`,
+              viewType: 'CUSTOM_WORKFLOW' as any, displayOrder: item.displayOrder,
+              requiredRoles: item.requiredRoles, requiredPermissions: item.requiredPermissions,
+            };
+          }
+          const view = capabilityViewRegistry.getViewDefinition(targetId);
+          return {
+            id: `custom_nav_${item.id}`, label: item.label, iconName: item.iconName || view.iconName,
+            category: item.category, capabilityId: targetId, route: `/dbk/${dbkId}/${targetId}`,
+            viewType: view.viewType as any, displayOrder: item.displayOrder,
+            requiredRoles: item.requiredRoles, requiredPermissions: item.requiredPermissions,
+          };
+        });
+      navigation = [...overview, ...configured, ...discovery, ...settings].sort((a,b) => a.displayOrder - b.displayOrder);
+    }
+    const canManageExperience = masterAuthority.isMasterAdmin(context.principal)
+      || masterAuthority.isBusinessOwner(context.principal)
+      || masterAuthority.isOwnerPortfolio(context.principal)
+      || context.principal.permissions.includes('*')
+      || context.principal.permissions.includes('admin:*')
+      || context.principal.permissions.includes('experience:configure')
+      || ['TENANT_ADMIN','SYSTEM_ADMIN','OWNER_OPERATOR','BUSINESS_OWNER','STORE_OWNER','SHOP_MANAGER','SCHOOL_PRINCIPAL','LOGISTICS_DIRECTOR','MEDICAL_DIRECTOR'].some(role => context.principal.roles.includes(role));
+    if (canManageExperience && !navigation.some(item => item.viewType === 'EXPERIENCE_STUDIO')) {
+      navigation.push({
+        id: 'nav_experience_studio',
+        label: 'Frameworks & Customization',
+        iconName: 'SlidersHorizontal',
+        category: 'SETTINGS',
+        route: `/dbk/${dbkId}/experience-studio`,
+        viewType: 'EXPERIENCE_STUDIO',
+        displayOrder: 101,
+      });
+    }
     const dashboardWidgets = dashboardComposer.composeDashboard(workspace);
 
     // 5. Build discovery items
@@ -54,6 +131,10 @@ export class ExperienceResolver {
     const discoveryItems: ExperienceDiscoveryItem[] = discoverySurface.items.map((item) => {
       const cap = item.capability;
       const isEnabled = workspace.enabledCapabilities.includes(cap.capabilityId);
+      const ownerOverride = masterAuthority.isMasterAdmin(context.principal) || masterAuthority.isOwnerPortfolio(context.principal);
+      const roleAllowed = cap.requiredRoles.length === 0 || cap.requiredRoles.some(role => context.principal.roles.includes(role));
+      const permissionAllowed = cap.requiredPermissions.length === 0 || cap.requiredPermissions.every(permission => rbacEngine.hasPermission(context.principal, permission));
+      const canAccess = isEnabled && (ownerOverride || (roleAllowed && permissionAllowed));
       let status: 'OPERATIONAL' | 'DISCOVERABLE' | 'UPGRADE_REQUIRED' | 'CONFIGURATION_REQUIRED' | 'SUSPENDED' =
         'DISCOVERABLE';
 
@@ -75,12 +156,16 @@ export class ExperienceResolver {
         minimumTier: cap.entitlementRequirements.minimumTier,
         isEntitled: item.entitlementStatus === 'ENTITLED' || isEnabled,
         isEnabled,
+        canAccess,
         status,
         iconName: cap.category === 'FINANCE' ? 'DollarSign' : cap.category === 'INVENTORY' ? 'Package' : 'Sparkles',
+        requiredRoles: cap.requiredRoles,
+        requiredPermissions: cap.requiredPermissions,
       };
     });
 
     const resolved: DbkExperienceResolved = {
+      customization,
       dbkId: workspace.dbkId,
       legalName: dbkRecord?.legalName || workspace.displayName,
       displayName: workspace.displayName,
@@ -153,6 +238,125 @@ export class ExperienceResolver {
         }
         await entityEngine.savePersistentRecord(context, req.targetDbkId, String(capabilityId), record as any);
         updatedExperience = await this.resolveExperience(context, req.targetDbkId);
+      } else if (req.commandType === 'START_WORKFLOW') {
+        const workflowId = String(req.payload?.workflowId || '');
+        if (!workflowId) throw new KernelError('VALIDATION_ERROR', 'workflowId is required.', 422, context.requestId);
+        const workflowRun = await experienceCustomizationService.startWorkflow(context, req.targetDbkId, workflowId);
+        return {
+          success: true,
+          commandType: req.commandType,
+          targetDbkId: req.targetDbkId,
+          result: { workflowRun },
+          serverTimestamp: timestamp,
+        };
+      } else if (req.commandType === 'ADVANCE_WORKFLOW') {
+        const workflowRunId = String(req.payload?.workflowRunId || '');
+        const stepId = String(req.payload?.stepId || '');
+        if (!workflowRunId || !stepId) throw new KernelError('VALIDATION_ERROR', 'workflowRunId and stepId are required.', 422, context.requestId);
+        const workflowRun = await experienceCustomizationService.advanceWorkflow(context, req.targetDbkId, workflowRunId, stepId);
+        return {
+          success: true,
+          commandType: req.commandType,
+          targetDbkId: req.targetDbkId,
+          result: { workflowRun },
+          serverTimestamp: timestamp,
+        };
+      } else if (req.commandType === 'SUBMIT_QUESTIONNAIRE') {
+        const questionnaireId = String(req.payload?.questionnaireId || '');
+        const answers = (req.payload?.answers || {}) as Record<string, unknown>;
+        const workflowRunId = req.payload?.workflowRunId ? String(req.payload.workflowRunId) : '';
+        const workflowStepId = req.payload?.workflowStepId ? String(req.payload.workflowStepId) : '';
+        if (Boolean(workflowRunId) !== Boolean(workflowStepId)) {
+          throw new KernelError('VALIDATION_ERROR', 'workflowRunId and workflowStepId must be provided together.', 422, context.requestId);
+        }
+        const workflowRunSnapshot = workflowRunId
+          ? await experienceCustomizationService.getWorkflowRun(context, req.targetDbkId, workflowRunId)
+          : null;
+        if (workflowRunId && !workflowRunSnapshot) throw new KernelError('NOT_FOUND', 'Workflow run not found.', 404, context.requestId);
+        const customization = workflowRunId ? null : await experienceCustomizationService.get(context, req.targetDbkId);
+        const questionnaire = workflowRunId
+          ? workflowRunSnapshot?.questionnaireSnapshots.find(item => item.id === questionnaireId && item.enabled)
+          : customization?.questionnaires.find(item => item.id === questionnaireId && item.enabled);
+        if (!questionnaire) {
+          throw new KernelError('NOT_FOUND', 'The requested questionnaire is not available.', 404, context.requestId);
+        }
+        const submissionWorkspace = await workspaceManager.compileWorkspaceState(context, req.targetDbkId);
+        if (!submissionWorkspace.enabledCapabilities.includes(questionnaire.targetCapabilityId)) {
+          throw new KernelError('AUTHORIZATION_ERROR', 'The questionnaire target capability is no longer enabled.', 403, context.requestId);
+        }
+        const expectedKeys = new Set(questionnaire.fields.map(field => field.key));
+        for (const key of Object.keys(answers)) {
+          if (!expectedKeys.has(key)) throw new KernelError('VALIDATION_ERROR', `Unexpected questionnaire field '${key}'.`, 422, context.requestId);
+        }
+        for (const field of questionnaire.fields) {
+          const value = answers[field.key];
+          const empty = value === undefined || value === null || value === '' || (Array.isArray(value) && value.length === 0);
+          if (field.required && empty) throw new KernelError('VALIDATION_ERROR', `'${field.label}' is required.`, 422, context.requestId);
+          if (field.required && field.type === 'CHECKBOX' && value !== true) throw new KernelError('VALIDATION_ERROR', `'${field.label}' must be checked.`, 422, context.requestId);
+          if (field.required && ['TEXT','TEXTAREA'].includes(field.type) && typeof value === 'string' && !value.trim()) throw new KernelError('VALIDATION_ERROR', `'${field.label}' is required.`, 422, context.requestId);
+          if (empty) continue;
+          if (['TEXT','TEXTAREA','DATE'].includes(field.type) && typeof value !== 'string') {
+            throw new KernelError('VALIDATION_ERROR', `'${field.label}' must be text.`, 422, context.requestId);
+          }
+          if (['TEXT','TEXTAREA'].includes(field.type) && typeof value === 'string' && value.length > 5000) throw new KernelError('VALIDATION_ERROR', `'${field.label}' is too long.`, 422, context.requestId);
+          if (field.type === 'DATE' && typeof value === 'string' && (!/^\d{4}-\d{2}-\d{2}$/.test(value) || Number.isNaN(new Date(`${value}T00:00:00Z`).getTime()) || new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) !== value)) {
+            throw new KernelError('VALIDATION_ERROR', `'${field.label}' must be a valid date.`, 422, context.requestId);
+          }
+          if (field.type === 'NUMBER' && (typeof value !== 'number' || !Number.isFinite(value))) {
+            throw new KernelError('VALIDATION_ERROR', `'${field.label}' must be a valid number.`, 422, context.requestId);
+          }
+          if (field.type === 'CHECKBOX' && typeof value !== 'boolean') {
+            throw new KernelError('VALIDATION_ERROR', `'${field.label}' must be true or false.`, 422, context.requestId);
+          }
+          if (field.type === 'SELECT' && !field.options?.some(option => option.value === value)) {
+            throw new KernelError('VALIDATION_ERROR', `'${field.label}' contains an invalid selection.`, 422, context.requestId);
+          }
+          if (field.type === 'MULTI_SELECT' && (!Array.isArray(value) || new Set(value).size !== value.length || value.some(entry => !field.options?.some(option => option.value === entry)))) {
+            throw new KernelError('VALIDATION_ERROR', `'${field.label}' contains an invalid selection.`, 422, context.requestId);
+          }
+        }
+        if (workflowRunId) {
+          await experienceCustomizationService.assertWorkflowQuestionnaireStep(context, req.targetDbkId, workflowRunId, workflowStepId, questionnaire.id);
+        }
+        const recordId = workflowRunId
+          ? `form_${workflowRunId}_${workflowStepId}`
+          : `form_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        const record = {
+          id: recordId,
+          entityType: questionnaire.targetCapabilityId,
+          primaryIdentifier: String(answers[questionnaire.fields[0]?.key] || recordId),
+          secondaryIdentifier: questionnaire.title,
+          status: 'SUBMITTED',
+          attributes: {
+            ...answers,
+            _questionnaireId: questionnaire.id,
+            _questionnaireTitle: questionnaire.title,
+            _submittedBy: context.principal.id,
+            _submittedAt: timestamp,
+            ...(workflowRunId ? { _workflowRunId: workflowRunId, _workflowStepId: workflowStepId } : {}),
+          },
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        };
+        await entityEngine.savePersistentRecord(context, req.targetDbkId, questionnaire.targetCapabilityId, record as any);
+        const workflowRun = workflowRunId
+          ? await experienceCustomizationService.advanceWorkflow(context, req.targetDbkId, workflowRunId, workflowStepId, questionnaire.id)
+          : undefined;
+        await auditLogger.persistEvent(auditLogger.logAuditEvent(context, {
+          action: 'QUESTIONNAIRE_SUBMITTED',
+          targetResource: `dbk:${req.targetDbkId}/capability:${questionnaire.targetCapabilityId}`,
+          outcome: 'ALLOWED',
+          details: { questionnaireId, recordId, fieldCount: questionnaire.fields.length },
+        }));
+        updatedExperience = await this.resolveExperience(context, req.targetDbkId);
+        return {
+          success: true,
+          commandType: req.commandType,
+          targetDbkId: req.targetDbkId,
+          result: { recordId, questionnaireId, status: 'SUBMITTED', workflowRun },
+          updatedResolvedExperience: updatedExperience,
+          serverTimestamp: timestamp,
+        };
       } else if (req.commandType === 'ENABLE_CAPABILITY') {
         const { capabilityId } = req.payload || {};
         if (!capabilityId) {
