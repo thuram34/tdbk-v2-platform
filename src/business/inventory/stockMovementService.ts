@@ -5,6 +5,7 @@ import { firestoreClient } from '../../persistence/firestore/firestoreClient';
 import { outboxEngine } from '../../orchestration/outbox/outboxEngine';
 import { rbacEngine } from '../../kernel/authorization/rbacEngine';
 import { dbkCapabilityManager } from '../../capability/dbkCapabilityManager';
+import { branchRepository } from '../../persistence/firestore/repositories/branchRepository';
 
 export type StockMovementType = 'RECEIVE' | 'ISSUE' | 'ADJUST' | 'TRANSFER';
 export type StockAdjustmentDirection = 'INCREASE' | 'DECREASE';
@@ -128,14 +129,27 @@ export class StockMovementService {
       fail('A stock transfer must target a different branch.', context.requestId);
     }
     if (input.movementType === 'TRANSFER') {
+      // Cross-branch transfers require an explicit tenant-wide transfer permission.
+      // The caller still needs an active source branch above; destination access is
+      // validated against the durable tenant-owned branch record, not the caller's
+      // currently selected branch.
       const destinationAuthorization = await rbacEngine.authorizeAsync(
         context.principal,
         'manage',
         'inventory:movement',
-        { tenantId, branchId: input.destinationBranchId!, requiredPermission: 'manage:inventory', requestId: context.requestId },
+        { tenantId, requiredPermission: 'manage:stock:transfer', requestId: context.requestId },
       );
       if (!destinationAuthorization.allowed) {
-        throw new KernelError('AUTHORIZATION_ERROR', 'The principal is not authorized to receive stock in the destination branch.', 403, context.requestId);
+        throw new KernelError('AUTHORIZATION_ERROR', 'The principal is not authorized to transfer stock across branches.', 403, context.requestId);
+      }
+      const destinationBranch = await branchRepository.getBranch(tenantId, input.destinationBranchId!);
+      if (
+        !destinationBranch ||
+        destinationBranch.dbkId !== tenantId ||
+        destinationBranch.branchId !== input.destinationBranchId ||
+        destinationBranch.status !== 'ACTIVE'
+      ) {
+        throw new KernelError('NOT_FOUND', 'The destination branch is not an active branch of this business.', 404, context.requestId);
       }
     }
 
