@@ -1,14 +1,6 @@
 /** Deterministic team assignment for the TDBK command runtime. */
-import { AgentAction } from './types';
+import { AgentAction, AgentAssignment } from './types';
 import { TDBK_AGENT_CATALOG } from './agentCatalog';
-
-export interface AgentAssignment {
-  actionId: string;
-  leadAgentId: string;
-  collaboratorAgentIds: string[];
-  rationale: string;
-  executionBoundary: 'SHARED_RUNTIME' | 'GOVERNED_ADVISORY';
-}
 
 const ACTION_OWNERS: Record<AgentAction['kind'], { lead: string; collaborators: string[]; rationale: string }> = {
   INSPECT_PLATFORM: { lead: 'infrastructure', collaborators: ['security', 'quality-assurance'], rationale: 'Platform health requires infrastructure inspection with security and verification review.' },
