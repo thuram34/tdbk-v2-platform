@@ -101,3 +101,34 @@ Required sequence:
 ## 5. Completion rule
 
 No row becomes COMPLETE without code-level evidence, passing relevant tests, production configuration evidence where applicable, and a verified end-to-end business outcome. Missing repository access or external credentials must be recorded as a blocker, not silently assumed successful.
+
+
+## 6. Connected GitHub repository inventory
+
+The authenticated GitHub account currently exposes seven repositories owned by `thuram34` in this inventory call. All seven were enumerated at their `main` branch roots; product source top-level directories and package manifests were inspected where available. This is a repository inventory, not proof of deployment or customer usage.
+
+| Repository | Initial product/domain classification | Evidence inspected | Baseline / next action |
+|---|---|---|---|
+| `thuram34/tdbk-v2-platform` | Shared multi-tenant platform and control plane | Root, package manifest, agent, AI, persistence, event, workflow and connector source paths | Primary platform repository. Continue platform security, agent runtime and production-readiness audit. |
+| `thuram34/my-home-electronics` | Electronics retail / e-commerce | Root, package manifest, `src/App.tsx`, `CartContext.tsx`, catalogue data and pages structure | No README found at root. Inspect checkout, inventory authority, payment, order fulfilment, admin, persistence and deployed state. |
+| `thuram34/ugatuzi-hospital-management-system` | Hospital management / healthcare | Root, architecture/README, package manifest and `src` structure | README explicitly describes mock M-Pesa frontend by default and SHA deterministic development adapter; live SHA remains UAT-gated. Verify live integrations, clinical access controls, deployment and complete patient-to-billing workflow. |
+| `thuram34/Sajid-intergrayed` | School management / education | Root, package manifest and `src` structure | No README found at root. Inspect admissions, academics, attendance, fee ledger, parent portal, roles, persistence and deployment. |
+| `thuram34/chemist-pro` | Standalone pharmacy POS | Root, package manifest, README, `src` structure and integration documentation | README explicitly says independent of TDBK production and lists subscription, M-Pesa, FEFO/lot workflow, deployment and eTIMS gaps. Treat as separate standalone product until architecture/integration decision is made. |
+| `thuram34/TRAIL-PHARMACY` | Pharmacy application / alternative pharmacy product | Root, package manifest, README and `src` structure | README describes a different single-user pharmacy OS and makes production/compliance claims. Those claims are not independently verified. Compare its actual code, tests and deployment with Chemist Pro before deciding whether this is a separate product, successor or duplicate. |
+| `thuram34/Aquaflow` | Water business operating application | Root, package manifest and `src` structure | No README found at root. Inspect receiving/production, stock movements, orders, sales, delivery, payments, customer accounts, reporting and deployment against the active AquaFlow scope. |
+
+### 6.1 Cross-repository architecture decisions
+
+- Do not merge standalone product repositories into the TDBK platform by default. First identify which domain services should remain standalone, which should integrate through versioned APIs/events, and which shared platform services are actually reusable.
+- Do not assume Chemist Pro and TRAIL-PHARMACY are interchangeable. They have different package manifests, source layouts and README product claims. Conduct a parity/security/release comparison before selecting a canonical pharmacy product.
+- Do not assume the product names imply completeness. For every application, verify a full user journey against real persistence, authorization, provider integrations, audit and recovery.
+- Repository inventory pagination was requested with a 100-item page; seven owned repositories were returned. Re-run the inventory if repositories are transferred, newly created or shared through another account.
+
+### 6.2 Next cross-repository audit batch
+
+1. Inspect every product's routes, server functions, Firestore rules, indexes, payment services, subscription model and tests.
+2. Compare product workflows with the platform's capability registry and tenant/branch model.
+3. Identify shared contracts versus duplicated domain logic.
+4. Record CI health and deployment provider/state for each repository.
+5. Decide canonical product per vertical only after code and operational evidence.
+6. Create integration contracts and migration plans without disrupting standalone deployments.
