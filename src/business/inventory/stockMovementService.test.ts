@@ -154,10 +154,18 @@ describe('StockMovementService', () => {
     expect(item.attributes.quantityOnHand).toBe(7);
   });
 
-  it('transfers stock between branch-owned records in one atomic transaction', async () => {
+  it('transfers stock between branch-owned records in one atomic transaction for an authorised tenant-wide stock manager', async () => {
     await seedItem(sourceItemId, sourceBranchId, 8);
     await seedItem(destinationItemId, destinationBranchId, 1);
-    const result = await stockMovementService.recordMovement(makeContext(), tenantId, {
+    const tenantWideContext = makeContext({
+      principal: {
+        ...makeContext().principal,
+        branchId: null,
+        roles: ['TENANT_ADMIN', 'STORE_OWNER'],
+      },
+      branchContext: null,
+    });
+    const result = await stockMovementService.recordMovement(tenantWideContext, tenantId, {
       movementId: 'move_transfer_001', movementType: 'TRANSFER', inventoryRecordId: sourceItemId,
       destinationBranchId, destinationInventoryRecordId: destinationItemId, quantity: 3,
       reason: 'Rebalance branch stock',
@@ -180,7 +188,15 @@ describe('StockMovementService', () => {
     await firestoreClient.update(`/tenants/${tenantId}/entities/stock_control/records/${destinationItemId}`, {
       attributes: { skuCode: 'OTHER-SKU', quantityOnHand: 1 },
     });
-    await expect(stockMovementService.recordMovement(makeContext(), tenantId, {
+    const tenantWideContext = makeContext({
+      principal: {
+        ...makeContext().principal,
+        branchId: null,
+        roles: ['TENANT_ADMIN', 'STORE_OWNER'],
+      },
+      branchContext: null,
+    });
+    await expect(stockMovementService.recordMovement(tenantWideContext, tenantId, {
       movementId: 'move_wrong_sku', movementType: 'TRANSFER', inventoryRecordId: sourceItemId,
       destinationBranchId, destinationInventoryRecordId: destinationItemId, quantity: 1,
       reason: 'Wrong SKU',
