@@ -160,10 +160,8 @@ describe('StockMovementService', () => {
     const tenantWideContext = makeContext({
       principal: {
         ...makeContext().principal,
-        branchId: null,
         roles: ['TENANT_ADMIN', 'STORE_OWNER'],
       },
-      branchContext: null,
     });
     const result = await stockMovementService.recordMovement(tenantWideContext, tenantId, {
       movementId: 'move_transfer_001', movementType: 'TRANSFER', inventoryRecordId: sourceItemId,
@@ -191,10 +189,8 @@ describe('StockMovementService', () => {
     const tenantWideContext = makeContext({
       principal: {
         ...makeContext().principal,
-        branchId: null,
         roles: ['TENANT_ADMIN', 'STORE_OWNER'],
       },
-      branchContext: null,
     });
     await expect(stockMovementService.recordMovement(tenantWideContext, tenantId, {
       movementId: 'move_wrong_sku', movementType: 'TRANSFER', inventoryRecordId: sourceItemId,
