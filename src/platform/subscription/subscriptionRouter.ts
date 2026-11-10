@@ -8,7 +8,7 @@ import { KernelError } from '../../kernel/errors/kernelErrors';
 import { subscriptionService } from './subscriptionService';
 import { subscriptionRepository } from '../../persistence/firestore/repositories/subscriptionRepository';
 import { dbkRegistry } from '../dbkRegistry';
-import { mpesaBridge } from '../../orchestration/bridge/adapters/mpesaBridge';
+import { connectionHub } from '../../orchestration/bridge/connectionHub';
 
 export const subscriptionRouter = Router();
 
@@ -55,7 +55,7 @@ subscriptionRouter.post('/:dbkId/:subscriptionId/pay', async (req, res) => {
       return res.status(409).json({ error: { code: 'ALREADY_PAID', message: 'Subscription is already active and paid' } });
     }
     const phoneNumber = String(req.body?.phoneNumber || '');
-    const result = await mpesaBridge.execute(context, 'STK_PUSH', {
+    const result = await connectionHub.execute(context, 'bridge_mpesa', 'STK_PUSH', {
       phoneNumber,
       amount: subscription.amount,
       accountReference: `TDBK-${dbkId}-${subscriptionId}`,
