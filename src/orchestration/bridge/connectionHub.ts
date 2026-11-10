@@ -70,6 +70,8 @@ class ConnectionHubService {
     operation: string,
     payload: unknown,
   ): Promise<NormalizedBridgeResult<T>> {
+    const tenantId = this.tenantId(context);
+    await masterAuthority.assertTenantAuthority(context, tenantId, 'EXECUTE_BRIDGE_OPERATION');
     const connection = await this.requireConfigured(context, bridgeId);
     const definition = bridgeRegistry.getBridgeDefinition(bridgeId);
     if (!definition) {
