@@ -13,7 +13,7 @@ import { connectorConnectionRepository } from '../../persistence/firestore/repos
 import { bridgeRegistry } from './registry';
 import { masterAuthority } from '../../kernel/master/masterAuthority';
 import { auditLogger } from '../../kernel/audit/auditLogger';
-import { Bridge } from './types';
+import { Bridge, NormalizedBridgeResult } from './types';
 import { rbacEngine } from '../../kernel/authorization/rbacEngine';
 
 export interface ConnectionHealthResult {
@@ -58,6 +58,67 @@ class ConnectionHubService {
     const adapter = bridgeRegistry.getBridgeInstance(bridgeId);
     if (!adapter) throw new KernelError('INTEGRATION_UNAVAILABLE', `Bridge adapter '${bridgeId}' is not registered`, 503, context.requestId);
     return adapter;
+  }
+
+  /**
+   * Executes a provider operation through the single tenant-scoped bridge boundary.
+   * Product and platform callers must use this method instead of importing adapters.
+   */
+  public async execute<T = unknown>(
+    context: SecurityContext,
+    bridgeId: string,
+    operation: string,
+    payload: unknown,
+  ): Promise<NormalizedBridgeResult<T>> {
+    const tenantId = this.tenantId(context);
+    await masterAuthority.assertTenantAuthority(context, tenantId, 'EXECUTE_BRIDGE_OPERATION');
+    const connection = await this.requireConfigured(context, bridgeId);
+    const definition = bridgeRegistry.getBridgeDefinition(bridgeId);
+    if (!definition) {
+      throw new KernelError('VALIDATION_ERROR', `Unknown bridge '${bridgeId}'`, 404, context.requestId);
+    }
+    if (!definition.supportedOperations.includes(operation)) {
+      throw new KernelError('VALIDATION_ERROR', `Operation '${operation}' is not supported by bridge '${bridgeId}'`, 400, context.requestId);
+    }
+
+    const adapter = bridgeRegistry.getBridgeInstance(bridgeId);
+    if (!adapter) {
+      throw new KernelError('INTEGRATION_UNAVAILABLE', `Bridge adapter '${bridgeId}' is not registered`, 503, context.requestId);
+    }
+
+    try {
+      const result = await adapter.execute(context, operation, payload) as NormalizedBridgeResult<T>;
+      auditLogger.logAuditEvent(context, {
+        action: 'BRIDGE_OPERATION_EXECUTED',
+        targetResource: `bridge:${bridgeId}`,
+        outcome: 'ALLOWED',
+        details: {
+          tenantId: connection.tenantId,
+          branchId: context.branchContext?.branchId || null,
+          operation,
+          provider: definition.provider,
+          providerReference: result.providerReference,
+          resultStatus: result.status,
+          configurationVersion: connection.configurationVersion,
+        },
+      });
+      return result;
+    } catch (error) {
+      auditLogger.logAuditEvent(context, {
+        action: 'BRIDGE_OPERATION_FAILED',
+        targetResource: `bridge:${bridgeId}`,
+        outcome: 'ERROR',
+        details: {
+          tenantId: connection.tenantId,
+          branchId: context.branchContext?.branchId || null,
+          operation,
+          provider: definition.provider,
+          configurationVersion: connection.configurationVersion,
+          error: error instanceof Error ? error.message : String(error),
+        },
+      });
+      throw error;
+    }
   }
 
   public async health(context: SecurityContext, bridgeId: string): Promise<ConnectionHealthResult> {

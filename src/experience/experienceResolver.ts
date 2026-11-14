@@ -12,7 +12,7 @@ import { dbkCapabilityManager } from '../capability/dbkCapabilityManager';
 import { discoveryEngine } from '../capability/discovery';
 import { KernelError } from '../kernel/errors/kernelErrors';
 import { saleTransactionService } from '../business/sales/saleTransactionService';
-import { mpesaBridge } from '../orchestration/bridge/adapters/mpesaBridge';
+import { connectionHub } from '../orchestration/bridge/connectionHub';
 import { supplierInvoiceService } from '../business/procurement/supplierInvoiceService';
 import { stockMovementService } from '../business/inventory/stockMovementService';
 import { capabilityViewRegistry } from './registry/viewRegistry';
@@ -484,7 +484,7 @@ export class ExperienceResolver {
               throw new KernelError('VALIDATION_ERROR', `Payment action '${actionName}' requires reference`, 400, context.requestId);
             }
 
-            const bridgeRes = await mpesaBridge.execute(context, 'STK_PUSH', {
+            const bridgeRes = await connectionHub.execute(context, 'bridge_mpesa', 'STK_PUSH', {
               phoneNumber,
               amount,
               accountReference: reference,
