@@ -9,7 +9,6 @@ describe('M-Pesa production callback verification gate', () => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
     delete process.env.TDBK_PERSISTENCE_DRIVER;
-    vi.stubEnv('NODE_ENV', 'test');
   });
 
   it('does not mutate financial truth when a production callback cannot be authenticated', async () => {
