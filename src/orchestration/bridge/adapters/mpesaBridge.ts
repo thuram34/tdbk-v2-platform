@@ -396,10 +396,21 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
     rawCallback: MpesaRawCallback,
     signatureHeader?: string
   ): Promise<CallbackVerificationResult> {
-    // Daraja's current public callback contract does not document an application-level
-    // signature header. Do not invent a signature scheme or treat a caller-supplied
-    // string as proof of Safaricom origin. Authenticity is established later by the
-    // durable provider-reference correlation + idempotency boundary.
+    // Safaricom's STK callback contract does not provide a cryptographic signature
+    // that this adapter can independently verify. A caller-supplied signature string,
+    // provider reference, tenant field or timestamp is not proof of provider origin.
+    // Production callbacks must remain non-authoritative until a provider-side status
+    // query/correlation flow is implemented and verified. This prevents forged HTTP
+    // callbacks from posting financial ledger entries.
+    if (process.env.NODE_ENV === 'production') {
+      return {
+        verified: false,
+        providerIdentity: this.provider,
+        reason: 'PRODUCTION_CALLBACK_VERIFICATION_UNAVAILABLE: provider-side transaction verification is required before financial mutation',
+        replayProtectionPassed: false,
+      };
+    }
+
     if (signatureHeader === 'INVALID_SIG' || rawCallback.signature === 'INVALID_SIG') {
       return {
         verified: false,
@@ -422,6 +433,8 @@ export class MpesaBridge implements Bridge<MpesaSTKPushRequest, any, MpesaRawCal
       }
     }
 
+    // Non-production callbacks are simulation-only. The result is never evidence
+    // that a live Safaricom payment has settled.
     return {
       verified: true,
       providerIdentity: this.provider,
