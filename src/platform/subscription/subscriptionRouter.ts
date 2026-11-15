@@ -71,14 +71,6 @@ subscriptionRouter.post('/:dbkId/:subscriptionId/pay', async (req, res) => {
   } catch (error) { return sendError(res, error); }
 });
 
-subscriptionRouter.post('/:dbkId/:subscriptionId/activate', async (req, res) => {
-  try {
-    const context = await contextFor(req);
-    const subscription = await subscriptionService.activateSubscription(context, req.params.subscriptionId, req.params.dbkId);
-    return res.json({ subscription });
-  } catch (error) { return sendError(res, error); }
-});
-
 subscriptionRouter.post('/:dbkId/:subscriptionId/cancel', async (req, res) => {
   try {
     const context = await contextFor(req);
