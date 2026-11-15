@@ -97,19 +97,26 @@ export class ProvisioningService {
       };
     });
 
-    // Helper for mock master context during provisioning steps
+    // Tenant-scoped internal service identity for workflow steps. It is not a
+    // synthetic platform administrator and cannot perform cross-tenant actions.
     const createStepContext = (workflow: any, dbkId: string): SecurityContext => ({
       requestId: `req_${workflow.workflowId}`,
       timestamp: new Date().toISOString(),
       principal: {
-        id: 'usr_master_provisioner',
+        id: 'TDBK_INTERNAL_PROVISIONING',
         tenantId: dbkId,
         branchId: null,
-        roles: ['TDBK_MASTER_ADMIN'],
-        permissions: ['*'],
+        roles: ['TDBK_PROVISIONING_SERVICE'],
+        permissions: [
+          'DBK_DNA_BIND',
+          'DBK_CAPABILITY_INITIALIZE',
+          'DBK_BRANCH_CREATE',
+          'DBK_WORKSPACE_COMPILE',
+          'DBK_PROVISIONING_COMPLETE',
+        ],
         authTime: Date.now(),
         tokenSource: 'SERVICE_KEY',
-        isMaster: true,
+        isMaster: false,
       },
       tenantContext: {
         tenantId: dbkId,
