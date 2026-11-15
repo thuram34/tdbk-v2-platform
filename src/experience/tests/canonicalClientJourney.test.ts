@@ -203,6 +203,8 @@ describe('TDBK canonical client journey acceptance', () => {
       source: 'CanonicalJourneyTest',
       payload: {
         provider: 'SAFARICOM_MPESA',
+        amount: 2500,
+        currency: 'KES',
         data: { checkoutRequestId: 'canonical-subscription-payment-001' },
       },
       metadata: {},
