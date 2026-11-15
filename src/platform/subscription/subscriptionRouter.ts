@@ -59,6 +59,15 @@ subscriptionRouter.post('/:dbkId/:subscriptionId/pay', async (req, res) => {
     if (subscription.currency !== 'KES' || !Number.isInteger(subscription.amount)) {
       return res.status(422).json({ error: { code: 'PAYMENT_CURRENCY_UNSUPPORTED', message: 'M-Pesa STK Push currently supports whole-KES subscription amounts only.' } });
     }
+    if (subscription.paymentStatus === 'PENDING' && subscription.paymentReference) {
+      return res.status(409).json({
+        error: {
+          code: 'PAYMENT_ALREADY_PENDING',
+          message: 'A payment request is already pending. Reconcile its provider reference before starting another STK Push.',
+        },
+        paymentReference: subscription.paymentReference,
+      });
+    }
     if (subscription.paymentStatus === 'PAID' && subscription.status === 'ACTIVE') {
       return res.status(409).json({ error: { code: 'ALREADY_PAID', message: 'Subscription is already active and paid' } });
     }
