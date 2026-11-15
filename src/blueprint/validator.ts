@@ -93,6 +93,11 @@ export class BlueprintValidator {
       if (!identityVal.valid) {
         errors.push(...identityVal.errors);
       }
+      // Persistence contract: /tenants/{tenantId}/... where tenantId === dbkId.
+      // The nested identity must refer to the same business as the aggregate root.
+      if (dna.dbkId && dna.identity.dbkId && dna.dbkId !== dna.identity.dbkId) {
+        errors.push('Business DNA dbkId must match BusinessIdentity dbkId');
+      }
     }
 
     if (!dna.branchTopology) {
@@ -100,14 +105,39 @@ export class BlueprintValidator {
     } else if (!dna.branchTopology.branches || dna.branchTopology.branches.length === 0) {
       errors.push('Branch topology must contain at least one branch');
     } else {
-      const hqCount = dna.branchTopology.branches.filter((b) => b.isHeadquarters).length;
+      const branches = dna.branchTopology.branches;
+      const hqCount = branches.filter((b) => b.isHeadquarters).length;
       if (hqCount !== 1) {
         errors.push('Branch topology must contain exactly one Headquarters branch');
+      }
+
+      const branchIds = branches.map((branch) => branch.branchId);
+      if (branchIds.some((id) => !id || id.trim() === '')) {
+        errors.push('Every branch must have a non-empty branchId');
+      }
+      if (new Set(branchIds).size !== branchIds.length) {
+        errors.push('Branch topology must not contain duplicate branchId values');
+      }
+      if (branches.some((branch) => !branch.name || branch.name.trim() === '')) {
+        errors.push('Every branch must have a non-empty name');
+      }
+      if (dna.branchTopology.type === 'SINGLE_BRANCH' && branches.length !== 1) {
+        errors.push('SINGLE_BRANCH topology must contain exactly one branch');
+      }
+      if (dna.branchTopology.type === 'MULTI_BRANCH' && branches.length < 2) {
+        errors.push('MULTI_BRANCH topology must contain at least two branches');
       }
     }
 
     if (!dna.enabledCapabilityIds || !Array.isArray(dna.enabledCapabilityIds)) {
       errors.push('Business DNA enabledCapabilityIds array is required');
+    } else {
+      if (dna.enabledCapabilityIds.some((id) => typeof id !== 'string' || id.trim() === '')) {
+        errors.push('Business DNA capability IDs must be non-empty strings');
+      }
+      if (new Set(dna.enabledCapabilityIds).size !== dna.enabledCapabilityIds.length) {
+        errors.push('Business DNA must not contain duplicate enabled capability IDs');
+      }
     }
 
     return {
@@ -126,13 +156,18 @@ export class BlueprintValidator {
 
     const { principal } = securityContext;
 
-    // Master Admins or Business Owners possess portfolio/platform-wide administrative authority
-    if (principal.isMaster || (principal.roles || []).includes('BUSINESS_OWNER') || (principal.roles || []).includes('TDBK_MASTER_ADMIN')) {
+    // Synchronous cache-backed methods cannot verify portfolio ownership against
+    // the authoritative DBK Registry. Only the persistent path may grant a
+    // Business Owner access to another business in their portfolio.
+    const roles = Array.isArray(principal.roles) ? principal.roles : [];
+    const isMasterAdmin = principal.isMaster === true && roles.includes('TDBK_MASTER_ADMIN');
+    if (isMasterAdmin) {
       return;
     }
 
-    // Tenant Isolation Assertion: User must belong to targetDbkId
-    if (!principal.tenantId || principal.tenantId !== targetDbkId) {
+    // All non-master synchronous access is restricted to the exact tenant claim.
+    // Business Owner role alone is not proof of ownership of the requested DBK.
+    if (!principal.tenantId || principal.tenantId !== targetDbkId || roles.length === 0) {
       throw new Error(
         `Tenant Isolation Violation: Principal '${principal.id}' from tenant '${principal.tenantId}' cannot ${actionName} for DBK '${targetDbkId}'`
       );
