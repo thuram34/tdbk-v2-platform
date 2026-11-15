@@ -32,14 +32,19 @@ subscriptionRouter.get('/:dbkId', async (req, res) => {
   } catch (error) { return sendError(res, error); }
 });
 
-subscriptionRouter.post('/', async (req, res) => {
+subscriptionRouter.post('/:dbkId/from-plan', async (req, res) => {
   try {
     const context = await contextFor(req);
-    const subscription = await subscriptionService.createSubscription(context, req.body);
+    const subscription = await subscriptionService.createSubscriptionFromPlan(
+      context,
+      req.params.dbkId,
+      String(req.body?.planId || ''),
+      Number(req.body?.priceBookVersion),
+      String(req.body?.correlationId || context.correlationId || context.requestId),
+    );
     return res.status(201).json({ subscription });
   } catch (error) { return sendError(res, error); }
 });
-
 
 subscriptionRouter.post('/:dbkId/:subscriptionId/pay', async (req, res) => {
   try {
@@ -50,6 +55,18 @@ subscriptionRouter.post('/:dbkId/:subscriptionId/pay', async (req, res) => {
     if (!subscription) return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Subscription not found' } });
     if (subscription.dbkId !== context.tenantContext?.tenantId) {
       return res.status(403).json({ error: { code: 'TENANT_ISOLATION_ERROR', message: 'Subscription tenant mismatch' } });
+    }
+    if (subscription.currency !== 'KES' || !Number.isInteger(subscription.amount)) {
+      return res.status(422).json({ error: { code: 'PAYMENT_CURRENCY_UNSUPPORTED', message: 'M-Pesa STK Push currently supports whole-KES subscription amounts only.' } });
+    }
+    if (subscription.paymentStatus === 'PENDING' && subscription.paymentReference) {
+      return res.status(409).json({
+        error: {
+          code: 'PAYMENT_ALREADY_PENDING',
+          message: 'A payment request is already pending. Reconcile its provider reference before starting another STK Push.',
+        },
+        paymentReference: subscription.paymentReference,
+      });
     }
     if (subscription.paymentStatus === 'PAID' && subscription.status === 'ACTIVE') {
       return res.status(409).json({ error: { code: 'ALREADY_PAID', message: 'Subscription is already active and paid' } });
@@ -68,14 +85,6 @@ subscriptionRouter.post('/:dbkId/:subscriptionId/pay', async (req, res) => {
       status: 'TRIAL',
     });
     return res.status(202).json({ subscriptionId, payment: result });
-  } catch (error) { return sendError(res, error); }
-});
-
-subscriptionRouter.post('/:dbkId/:subscriptionId/activate', async (req, res) => {
-  try {
-    const context = await contextFor(req);
-    const subscription = await subscriptionService.activateSubscription(context, req.params.subscriptionId, req.params.dbkId);
-    return res.json({ subscription });
   } catch (error) { return sendError(res, error); }
 });
 

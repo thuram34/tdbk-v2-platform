@@ -5,7 +5,7 @@
 
 import { EventEnvelope, EventRegistration, EventHandler, EventPublishResult } from './types';
 import { KernelError } from '../../kernel/errors/kernelErrors';
-import { handleSubscriptionPaymentConfirmed } from '../../platform/subscription/subscriptionPaymentHandler';
+import { handleSubscriptionPaymentConfirmed, handleSubscriptionPaymentFailed } from '../../platform/subscription/subscriptionPaymentHandler';
 import { idempotencyRepository } from '../../persistence/firestore/repositories/idempotencyRepository';
 import { createHash } from 'node:crypto';
 
@@ -19,6 +19,7 @@ class EventBusService {
   constructor() {
     this.seedDefaultEventRegistry();
     this.subscribe('payment.confirmed.v1', handleSubscriptionPaymentConfirmed);
+    this.subscribe('payment.failed.v1', handleSubscriptionPaymentFailed);
   }
 
   /**

@@ -3,16 +3,41 @@ import { EventEnvelope } from '../../orchestration/events/types';
 import { SecurityContext } from '../../kernel/types';
 import { subscriptionRepository } from '../../persistence/firestore/repositories/subscriptionRepository';
 import { dbkRegistry } from '../dbkRegistry';
+import { financialLedgerRepository } from '../../persistence/firestore/repositories/financialLedgerRepository';
 
 export async function handleSubscriptionPaymentConfirmed(event: EventEnvelope): Promise<void> {
+  if (event.eventType !== 'payment.confirmed.v1') throw new Error('Subscription payment handler received an unsupported event type.');
   const dbkId = event.tenantId;
   const payload = (event.payload || {}) as Record<string, any>;
   const providerReference = String(payload.data?.checkoutRequestId || event.causationId || '');
   if (!dbkId || !providerReference) throw new Error('Subscription payment event missing DBK or provider reference.');
+  if (payload.status !== undefined && payload.status !== 'SUCCESS') throw new Error('Subscription activation requires a successful payment event.');
 
   const subscriptions = await subscriptionRepository.listSubscriptions(dbkId);
   const subscription = subscriptions.find((candidate) => candidate.paymentReference === providerReference);
   if (!subscription) return;
+
+  // Event delivery alone is not financial evidence. Activation requires the
+  // matching tenant transaction to have been durably posted to the ledger.
+  const transactionId = 'mpesa_' + providerReference;
+  const transaction = await financialLedgerRepository.getTransaction(dbkId, transactionId);
+  if (
+    !transaction ||
+    transaction.tenantId !== dbkId ||
+    transaction.status !== 'POSTED' ||
+    transaction.providerReference !== providerReference ||
+    Number(transaction.amount) !== Number(subscription.amount) ||
+    transaction.currency !== subscription.currency
+  ) {
+    throw new Error('Subscription activation rejected: matching posted financial transaction was not found.');
+  }
+
+  const entries = await financialLedgerRepository.listEntries(dbkId, transactionId);
+  const debitTotal = entries.filter((entry) => entry.entryType === 'DEBIT').reduce((sum, entry) => sum + Number(entry.amount), 0);
+  const creditTotal = entries.filter((entry) => entry.entryType === 'CREDIT').reduce((sum, entry) => sum + Number(entry.amount), 0);
+  if (entries.length < 2 || entries.some((entry) => entry.immutable !== true || entry.currency !== subscription.currency) || debitTotal !== Number(subscription.amount) || creditTotal !== Number(subscription.amount)) {
+    throw new Error('Subscription activation rejected: balanced immutable ledger entries are missing.');
+  }
 
   const result = await subscriptionRepository.activateIfPending(
     dbkId,
@@ -21,8 +46,10 @@ export async function handleSubscriptionPaymentConfirmed(event: EventEnvelope): 
     payload.provider || 'SAFARICOM_MPESA',
   );
 
-  if (!result.transitioned) return;
+  if (result.subscription.status !== 'ACTIVE' || result.subscription.paymentStatus !== 'PAID') return;
 
+  // Always refresh the entitlement projection, including on event replay after
+  // a prior attempt activated the subscription but failed before projection.
   const context: SecurityContext = {
     requestId: `subpay_${event.eventId}`,
     correlationId: event.correlationId,
@@ -54,4 +81,36 @@ export async function handleSubscriptionPaymentConfirmed(event: EventEnvelope): 
     result.subscription.tier,
     'Subscription payment confirmed',
   );
+}
+
+
+export async function handleSubscriptionPaymentFailed(event: EventEnvelope): Promise<void> {
+  if (event.eventType !== 'payment.failed.v1') throw new Error('Subscription payment failure handler received an unsupported event type.');
+  const dbkId = event.tenantId;
+  const payload = (event.payload || {}) as Record<string, any>;
+  const providerReference = String(payload.data?.checkoutRequestId || event.causationId || '');
+  if (!dbkId || !providerReference) throw new Error('Failed subscription payment event missing DBK or provider reference.');
+
+  const subscriptions = await subscriptionRepository.listSubscriptions(dbkId);
+  const subscription = subscriptions.find((candidate) => candidate.paymentReference === providerReference);
+  if (!subscription) return;
+
+  const transaction = await financialLedgerRepository.getTransaction(dbkId, 'mpesa_' + providerReference);
+  if (
+    !transaction ||
+    transaction.tenantId !== dbkId ||
+    transaction.status !== 'FAILED' ||
+    transaction.providerReference !== providerReference
+  ) {
+    throw new Error('Subscription failure update rejected: matching failed financial transaction was not found.');
+  }
+
+  if (subscription.status === 'ACTIVE' || subscription.paymentStatus === 'PAID') {
+    throw new Error('A paid subscription cannot be downgraded by a failed-payment event.');
+  }
+
+  await subscriptionRepository.updateSubscriptionForDbk(dbkId, subscription.subscriptionId, {
+    status: 'TRIAL',
+    paymentStatus: 'FAILED',
+  });
 }

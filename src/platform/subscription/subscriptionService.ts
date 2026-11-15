@@ -10,6 +10,7 @@ import { ValidationError } from '../../kernel/errors/kernelErrors';
 import { masterAuthority } from '../../kernel/master/masterAuthority';
 import { dbkRegistry } from '../dbkRegistry';
 import { subscriptionRepository } from '../../persistence/firestore/repositories/subscriptionRepository';
+import { priceBookService } from '../commerce/priceBookService';
 
 export interface CreateSubscriptionInput {
   dbkId: string;
@@ -25,6 +26,18 @@ export interface CreateSubscriptionInput {
   correlationId: string;
 }
 
+function calculatePeriodEnd(start: Date, interval: 'MONTHLY' | 'ANNUAL' | 'NONE'): string | null {
+  if (interval === 'NONE') return null;
+  const dayOfMonth = start.getUTCDate();
+  const end = new Date(start);
+  end.setUTCDate(1);
+  if (interval === 'MONTHLY') end.setUTCMonth(end.getUTCMonth() + 1);
+  else end.setUTCFullYear(end.getUTCFullYear() + 1);
+  const lastDay = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth() + 1, 0)).getUTCDate();
+  end.setUTCDate(Math.min(dayOfMonth, lastDay));
+  return end.toISOString();
+}
+
 export class SubscriptionService {
   public async createSubscription(context: SecurityContext, input: CreateSubscriptionInput): Promise<DbkSubscription> {
     masterAuthority.assertMasterAuthority(context.principal, 'createSubscription', context.requestId);
@@ -33,10 +46,10 @@ export class SubscriptionService {
 
     const now = new Date().toISOString();
     const paymentStatus = input.paymentStatus || 'PENDING';
-    const status = input.status || (paymentStatus === 'PAID' ? 'ACTIVE' : 'TRIAL');
-    if (status === 'ACTIVE' && paymentStatus !== 'PAID') {
+    const status = input.status || 'TRIAL';
+    if (status !== 'TRIAL' || paymentStatus !== 'PENDING') {
       throw new ValidationError(
-        'An ACTIVE subscription must have PAID payment status. Pending subscriptions must remain TRIAL until payment confirmation.',
+        'New subscriptions must remain TRIAL/PENDING. Only the verified payment event handler may activate a subscription.',
         context.requestId,
       );
     }
@@ -63,13 +76,67 @@ export class SubscriptionService {
     return subscription;
   }
 
-  public async activateSubscription(context: SecurityContext, subscriptionId: string, dbkId: string): Promise<DbkSubscription> {
-    masterAuthority.assertMasterAuthority(context.principal, 'activateSubscription', context.requestId);
-    const subscription = await subscriptionRepository.getSubscriptionForDbk(dbkId, subscriptionId);
-    if (!subscription) throw new Error(`Subscription '${subscriptionId}' not found.`);
-    const updated = await subscriptionRepository.updateSubscriptionForDbk(dbkId, subscriptionId, { status: 'ACTIVE', paymentStatus: 'PAID' });
-    await dbkRegistry.changeSubscriptionTier(context, dbkId, updated.tier, 'Subscription activated');
-    return updated;
+
+
+  public async createSubscriptionFromPlan(
+    context: SecurityContext,
+    dbkId: string,
+    planId: string,
+    expectedPriceBookVersion: number,
+    correlationId: string,
+  ): Promise<DbkSubscription> {
+    await masterAuthority.assertTenantAuthority(context, dbkId, 'createSubscriptionFromPlan', context.requestId);
+    const canManageSubscription = masterAuthority.isMasterAdmin(context.principal) || context.principal.roles.some((role) => ['BUSINESS_OWNER', 'OWNER_OPERATOR', 'TENANT_ADMIN'].includes(role));
+    if (!canManageSubscription) throw new ValidationError('Only the business owner or tenant administrator may purchase a subscription.', context.requestId);
+    if (!masterAuthority.isMasterAdmin(context.principal) && context.tenantContext?.tenantId !== dbkId) {
+      throw new ValidationError('Subscription tenant context does not match the authenticated tenant.', context.requestId);
+    }
+    if (!planId || typeof planId !== 'string' || !Number.isSafeInteger(expectedPriceBookVersion) || expectedPriceBookVersion < 1) {
+      throw new ValidationError('A valid planId and published price book version are required.', context.requestId);
+    }
+    const dbk = await dbkRegistry.getDbkInternal(dbkId);
+    if (!dbk) throw new ValidationError('The requested tenant does not exist.', context.requestId);
+    const priceBook = await priceBookService.getPublished(context);
+    if (!priceBook || priceBook.version !== expectedPriceBookVersion) {
+      throw new ValidationError('The selected price book version is no longer current. Refresh plans and try again.', context.requestId);
+    }
+    const plan = priceBook.plans.find((item) => item.planId === planId && item.active);
+    if (!plan) throw new ValidationError('The selected plan is unavailable.', context.requestId);
+    if (plan.amountMinor <= 0) throw new ValidationError('Zero-price plans are assigned through provisioning; subscription checkout is for paid plans.', context.requestId);
+    const existingSubscriptions = await subscriptionRepository.listSubscriptions(dbkId);
+    if (existingSubscriptions.some((item) => item.status === 'ACTIVE' || (item.status === 'TRIAL' && item.paymentStatus === 'PENDING'))) {
+      throw new ValidationError('This tenant already has an active or pending subscription. Resolve it before creating another.', context.requestId);
+    }
+
+    const exponent = ['BIF', 'CLP', 'DJF', 'GNF', 'ISK', 'JPY', 'KMF', 'KRW', 'PYG', 'RWF', 'UGX', 'VND', 'VUV', 'XAF', 'XOF', 'XPF'].includes(plan.currency)
+      ? 0
+      : ['BHD', 'IQD', 'JOD', 'KWD', 'LYD', 'OMR', 'TND'].includes(plan.currency) ? 3 : 2;
+    const nowDate = new Date();
+    const now = nowDate.toISOString();
+    const subscription: DbkSubscription = {
+      subscriptionId: 'sub_' + crypto.randomUUID(),
+      dbkId,
+      tier: plan.tier,
+      status: 'TRIAL',
+      paymentStatus: 'PENDING',
+      currency: plan.currency,
+      amount: plan.amountMinor / (10 ** exponent),
+      amountMinor: plan.amountMinor,
+      planId: plan.planId,
+      priceBookVersion: priceBook.version,
+      interval: plan.interval,
+      startedAt: now,
+      currentPeriodStart: now,
+      currentPeriodEnd: calculatePeriodEnd(nowDate, plan.interval),
+      cancelledAt: null,
+      paymentReference: null,
+      provider: null,
+      createdAt: now,
+      updatedAt: now,
+      correlationId: correlationId || context.correlationId || context.requestId,
+    };
+    await subscriptionRepository.saveSubscription(subscription);
+    return subscription;
   }
 
   public async cancelSubscription(context: SecurityContext, subscriptionId: string, dbkId: string, reason?: string): Promise<DbkSubscription> {
