@@ -46,8 +46,10 @@ export async function handleSubscriptionPaymentConfirmed(event: EventEnvelope): 
     payload.provider || 'SAFARICOM_MPESA',
   );
 
-  if (!result.transitioned) return;
+  if (result.subscription.status !== 'ACTIVE' || result.subscription.paymentStatus !== 'PAID') return;
 
+  // Always refresh the entitlement projection, including on event replay after
+  // a prior attempt activated the subscription but failed before projection.
   const context: SecurityContext = {
     requestId: `subpay_${event.eventId}`,
     correlationId: event.correlationId,
