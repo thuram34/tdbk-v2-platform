@@ -108,7 +108,7 @@ export interface RecordAssetValuationInput {
 const ASSET_PERMISSION = 'manage:assets';
 const READ_PERMISSION = 'view:assets';
 const ID_PATTERN = /^[A-Za-z0-9_-]{3,120}$/;
-const CURRENCY_PATTERN = /^[A-Z]{3}$/;
+const CURRENCY_PATTERN = /^[A-Z]{3}$/;\nconst ASSET_CLASSES: readonly string[] = ['SOFTWARE', 'DOMAIN', 'CONTENT', 'EQUIPMENT', 'PROPERTY_INTEREST', 'CONTRACT', 'RECEIVABLE', 'OTHER'];\nconst OWNER_TYPES: readonly string[] = ['TENANT', 'PERSON', 'ORGANIZATION', 'THIRD_PARTY'];\nconst OWNERSHIP_BASES: readonly string[] = ['LEGAL_TITLE', 'ASSIGNMENT', 'LICENCE', 'CONTRACT', 'CUSTODY', 'INTERNAL_RECORD'];\nconst VALUATION_METHODS: readonly string[] = ['COST', 'MARKET', 'INCOME', 'REPLACEMENT_COST', 'OTHER'];
 
 function fail(message: string, requestId: string): never {
   throw new KernelError('VALIDATION_ERROR', message, 400, requestId);
@@ -131,7 +131,7 @@ export class DigitalAssetRegistryService {
     return `${this.assetPath(tenantId, assetId)}/valuations/${valuationId}`;
   }
 
-  private async authorize(context: SecurityContext, tenantId: string, permission: string, action: string): Promise<void> {
+  private assertBranchAccess(context: SecurityContext, asset: DigitalAssetRecord): void {\n    const principalBranchId = context.branchContext?.branchId ?? context.principal.branchId;\n    if (principalBranchId && asset.branchId !== principalBranchId) {\n      throw new KernelError('AUTHORIZATION_ERROR', 'Asset is outside the caller branch scope.', 403, context.requestId);\n    }\n  }\n\n  private async authorize(context: SecurityContext, tenantId: string, permission: string, action: string): Promise<void> {
     const contextTenantId = context.tenantContext?.tenantId ?? context.principal.tenantId;
     if (!contextTenantId || contextTenantId !== tenantId) {
       throw new KernelError('TENANT_ISOLATION_ERROR', 'Digital asset operation denied: tenant context mismatch.', 403, context.requestId);
@@ -140,7 +140,7 @@ export class DigitalAssetRegistryService {
       context.principal,
       action,
       'digital-assets:registry',
-      { tenantId, branchId: context.branchContext?.branchId ?? undefined, requiredPermission: permission, requestId: context.requestId },
+      { tenantId, branchId: context.branchContext?.branchId ?? context.principal.branchId ?? undefined, requiredPermission: permission, requestId: context.requestId },
     );
     if (!result.allowed) throw new KernelError('AUTHORIZATION_ERROR', result.reason, 403, context.requestId);
   }
@@ -158,7 +158,7 @@ export class DigitalAssetRegistryService {
     const asset: DigitalAssetRecord = {
       assetId: input.assetId,
       tenantId,
-      branchId: context.branchContext?.branchId ?? null,
+      branchId: context.branchContext?.branchId ?? context.principal.branchId ?? null,
       assetClass: input.assetClass,
       name: input.name.trim(),
       description: input.description?.trim() ?? '',
@@ -311,7 +311,7 @@ export class DigitalAssetRegistryService {
   async listAssets(context: SecurityContext, tenantId: string): Promise<DigitalAssetRecord[]> {
     await this.authorize(context, tenantId, READ_PERMISSION, 'list-digital-assets');
     const assets = await firestoreClient.listCollection<DigitalAssetRecord>(`/tenants/${tenantId}/digitalAssets`);
-    return assets.filter((asset) => asset.tenantId === tenantId);
+    const principalBranchId = context.branchContext?.branchId ?? context.principal.branchId;\n    return assets.filter((asset) => asset.tenantId === tenantId && (!principalBranchId || asset.branchId === principalBranchId));
   }
 }
 
