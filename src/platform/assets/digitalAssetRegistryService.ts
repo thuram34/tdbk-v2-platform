@@ -108,7 +108,15 @@ export interface RecordAssetValuationInput {
 const ASSET_ROLE = 'TENANT_ADMIN';
 const READ_ROLE = 'TENANT_ADMIN';
 const ID_PATTERN = /^[A-Za-z0-9_-]{3,120}$/;
-const CURRENCY_PATTERN = /^[A-Z]{3}$/;\nconst ASSET_CLASSES: readonly string[] = ['SOFTWARE', 'DOMAIN', 'CONTENT', 'EQUIPMENT', 'PROPERTY_INTEREST', 'CONTRACT', 'RECEIVABLE', 'OTHER'];\nconst OWNER_TYPES: readonly string[] = ['TENANT', 'PERSON', 'ORGANIZATION', 'THIRD_PARTY'];\nconst OWNERSHIP_BASES: readonly string[] = ['LEGAL_TITLE', 'ASSIGNMENT', 'LICENCE', 'CONTRACT', 'CUSTODY', 'INTERNAL_RECORD'];\nconst VALUATION_METHODS: readonly string[] = ['COST', 'MARKET', 'INCOME', 'REPLACEMENT_COST', 'OTHER'];
+const CURRENCY_PATTERN = /^[A-Z]{3}$/;
+const ASSET_CLASSES: readonly string[] = ['SOFTWARE', 'DOMAIN', 'CONTENT', 'EQUIPMENT', 'PROPERTY_INTEREST', 'CONTRACT', 'RECEIVABLE', 'OTHER'];
+const OWNER_TYPES: readonly string[] = ['TENANT', 'PERSON', 'ORGANIZATION', 'THIRD_PARTY'];
+const OWNERSHIP_BASES: readonly string[] = ['LEGAL_TITLE', 'ASSIGNMENT', 'LICENCE', 'CONTRACT', 'CUSTODY', 'INTERNAL_RECORD'];
+const VALUATION_METHODS: readonly string[] = ['COST', 'MARKET', 'INCOME', 'REPLACEMENT_COST', 'OTHER'];
+const ASSET_CLASSES: readonly string[] = ['SOFTWARE', 'DOMAIN', 'CONTENT', 'EQUIPMENT', 'PROPERTY_INTEREST', 'CONTRACT', 'RECEIVABLE', 'OTHER'];
+const OWNER_TYPES: readonly string[] = ['TENANT', 'PERSON', 'ORGANIZATION', 'THIRD_PARTY'];
+const OWNERSHIP_BASES: readonly string[] = ['LEGAL_TITLE', 'ASSIGNMENT', 'LICENCE', 'CONTRACT', 'CUSTODY', 'INTERNAL_RECORD'];
+const VALUATION_METHODS: readonly string[] = ['COST', 'MARKET', 'INCOME', 'REPLACEMENT_COST', 'OTHER'];
 
 function fail(message: string, requestId: string): never {
   throw new KernelError('VALIDATION_ERROR', message, 400, requestId);
@@ -144,7 +152,14 @@ export class DigitalAssetRegistryService {
     return `${this.assetPath(tenantId, assetId)}/valuations/${valuationId}`;
   }
 
-  private assertBranchAccess(context: SecurityContext, asset: DigitalAssetRecord): void {\n    const principalBranchId = context.branchContext?.branchId ?? context.principal.branchId;\n    if (principalBranchId && asset.branchId !== principalBranchId) {\n      throw new KernelError('AUTHORIZATION_ERROR', 'Asset is outside the caller branch scope.', 403, context.requestId);\n    }\n  }\n\n  private async authorize(context: SecurityContext, tenantId: string, requiredRole: string, action: string): Promise<void> {
+  private assertBranchAccess(context: SecurityContext, asset: DigitalAssetRecord): void {
+    const principalBranchId = context.branchContext?.branchId ?? context.principal.branchId;
+    if (principalBranchId && asset.branchId !== principalBranchId) {
+      throw new KernelError('AUTHORIZATION_ERROR', 'Asset is outside the caller branch scope.', 403, context.requestId);
+    }
+  }
+
+  private async authorize(context: SecurityContext, tenantId: string, requiredRole: string, action: string): Promise<void> {
     const contextTenantId = context.tenantContext?.tenantId ?? context.principal.tenantId;
     if (!contextTenantId || contextTenantId !== tenantId) {
       throw new KernelError('TENANT_ISOLATION_ERROR', 'Digital asset operation denied: tenant context mismatch.', 403, context.requestId);
@@ -160,6 +175,8 @@ export class DigitalAssetRegistryService {
 
   async registerAsset(context: SecurityContext, tenantId: string, input: RegisterDigitalAssetInput): Promise<{ asset: DigitalAssetRecord; idempotent: boolean }> {
     await this.authorize(context, tenantId, ASSET_ROLE, 'register-digital-asset');
+    if (!input || typeof input !== 'object') fail('Asset registration input is required.', context.requestId);
+    if (!ASSET_CLASSES.includes(input.assetClass) || !OWNER_TYPES.includes(input.ownerType) || !OWNERSHIP_BASES.includes(input.ownershipBasis)) fail('Asset class, owner type or ownership basis is invalid.', context.requestId);
     assertId(input.assetId, 'assetId', context.requestId);
     assertId(input.ownerId, 'ownerId', context.requestId);
     if (typeof input.name !== 'string' || !input.name.trim() || input.name.trim().length > 160) fail('Asset name is required and must not exceed 160 characters.', context.requestId);
@@ -205,9 +222,8 @@ export class DigitalAssetRegistryService {
       const path = this.assetPath(tenantId, input.assetId);
       const existing = await tx.get<DigitalAssetRecord>(path);
       if (existing) {
-        if (existing.tenantId !== tenantId || existing.assetId !== input.assetId) {
-          throw new KernelError('TENANT_ISOLATION_ERROR', 'Asset identity collision.', 403, context.requestId);
-        }
+        if (existing.tenantId !== tenantId || existing.assetId !== input.assetId) throw new KernelError('TENANT_ISOLATION_ERROR', 'Asset identity collision.', 403, context.requestId);
+        if (existing.name !== asset.name || existing.assetClass !== asset.assetClass || existing.currentOwnerId !== asset.currentOwnerId) throw new KernelError('OPTIMISTIC_LOCK_ERROR', 'Asset ID is already registered with different attributes.', 409, context.requestId);
         return { asset: existing, idempotent: true };
       }
       await tx.set(path, asset as unknown as Record<string, unknown>);
@@ -217,7 +233,10 @@ export class DigitalAssetRegistryService {
   }
 
   async recordOwnershipChange(context: SecurityContext, tenantId: string, assetId: string, input: TransferDigitalAssetInput): Promise<DigitalAssetRecord> {
-    await this.authorize(context, tenantId, ASSET_PERMISSION, 'change-digital-asset-ownership');
+    await this.authorize(context, tenantId, ASSET_ROLE, 'change-digital-asset-ownership');
+    if (!input || typeof input !== 'object') fail('Ownership change input is required.', context.requestId);
+    if (!OWNER_TYPES.includes(input.newOwnerType) || !OWNERSHIP_BASES.includes(input.basis)) fail('New owner type or ownership basis is invalid.', context.requestId);
+    if (input.eventType !== undefined && !['TRANSFERRED', 'LICENCE_GRANTED', 'LICENCE_REVOKED'].includes(input.eventType)) fail('Ownership event type is invalid.', context.requestId);
     assertId(assetId, 'assetId', context.requestId);
     assertId(input.eventId, 'eventId', context.requestId);
     assertId(input.expectedCurrentOwnerId, 'expectedCurrentOwnerId', context.requestId);
@@ -230,9 +249,15 @@ export class DigitalAssetRegistryService {
       const asset = await tx.get<DigitalAssetRecord>(path);
       if (!asset) throw new KernelError('NOT_FOUND', 'Digital asset not found.', 404, context.requestId);
       if (asset.tenantId !== tenantId) throw new KernelError('TENANT_ISOLATION_ERROR', 'Asset tenant mismatch.', 403, context.requestId);
+      this.assertBranchAccess(context, asset);
       const eventPath = this.ownershipPath(tenantId, assetId, input.eventId);
       const priorEvent = await tx.get<DigitalAssetOwnershipEvent>(eventPath);
-      if (priorEvent) {\n        if (priorEvent.ownerId !== input.newOwnerId || priorEvent.previousOwnerId !== input.expectedCurrentOwnerId || priorEvent.basis !== input.basis) {\n          throw new KernelError('OPTIMISTIC_LOCK_ERROR', 'Ownership event ID was already used for a different change.', 409, context.requestId);\n        }\n        return asset;\n      }
+      if (priorEvent) {
+        if (priorEvent.ownerId !== input.newOwnerId || priorEvent.previousOwnerId !== input.expectedCurrentOwnerId || priorEvent.basis !== input.basis) {
+          throw new KernelError('OPTIMISTIC_LOCK_ERROR', 'Ownership event ID was already used for a different change.', 409, context.requestId);
+        }
+        return asset;
+      }
 
       const event: DigitalAssetOwnershipEvent = {
         eventId: input.eventId,
@@ -290,9 +315,15 @@ export class DigitalAssetRegistryService {
       const asset = await tx.get<DigitalAssetRecord>(path);
       if (!asset) throw new KernelError('NOT_FOUND', 'Digital asset not found.', 404, context.requestId);
       if (asset.tenantId !== tenantId) throw new KernelError('TENANT_ISOLATION_ERROR', 'Asset tenant mismatch.', 403, context.requestId);
+      this.assertBranchAccess(context, asset);
       const valuationPath = this.valuationPath(tenantId, assetId, input.valuationId);
       const existingValuation = await tx.get<DigitalAssetValuation>(valuationPath);
-      if (existingValuation) {\n        if (existingValuation.amountMinor !== valuation.amountMinor || existingValuation.currency !== valuation.currency || existingValuation.method !== valuation.method) {\n          throw new KernelError('OPTIMISTIC_LOCK_ERROR', 'Valuation ID was already used for a different valuation.', 409, context.requestId);\n        }\n        return asset;\n      }
+      if (existingValuation) {
+        if (existingValuation.amountMinor !== valuation.amountMinor || existingValuation.currency !== valuation.currency || existingValuation.method !== valuation.method) {
+          throw new KernelError('OPTIMISTIC_LOCK_ERROR', 'Valuation ID was already used for a different valuation.', 409, context.requestId);
+        }
+        return asset;
+      }
       const updated: DigitalAssetRecord = {
         ...asset,
         latestValuation: {
@@ -316,13 +347,15 @@ export class DigitalAssetRegistryService {
     assertId(assetId, 'assetId', context.requestId);
     const asset = await firestoreClient.get<DigitalAssetRecord>(this.assetPath(tenantId, assetId));
     if (asset && asset.tenantId !== tenantId) throw new KernelError('TENANT_ISOLATION_ERROR', 'Asset tenant mismatch.', 403, context.requestId);
+    if (asset) this.assertBranchAccess(context, asset);
     return asset;
   }
 
   async listAssets(context: SecurityContext, tenantId: string): Promise<DigitalAssetRecord[]> {
-    await this.authorize(context, tenantId, READ_PERMISSION, 'list-digital-assets');
+    await this.authorize(context, tenantId, READ_ROLE, 'list-digital-assets');
     const assets = await firestoreClient.listCollection<DigitalAssetRecord>(`/tenants/${tenantId}/digitalAssets`);
-    const principalBranchId = context.branchContext?.branchId ?? context.principal.branchId;\n    return assets.filter((asset) => asset.tenantId === tenantId && (!principalBranchId || asset.branchId === principalBranchId));
+    const principalBranchId = context.branchContext?.branchId ?? context.principal.branchId;
+    return assets.filter((asset) => asset.tenantId === tenantId && (!principalBranchId || asset.branchId === principalBranchId));
   }
 }
 
