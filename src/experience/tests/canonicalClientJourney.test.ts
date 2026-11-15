@@ -190,6 +190,46 @@ describe('TDBK canonical client journey acceptance', () => {
       correlationId: 'canonical-subscription-correlation',
     });
 
+    await expect(handleSubscriptionPaymentConfirmed({
+      eventId: 'canonical-subscription-payment-wrong-amount',
+      eventType: 'payment.confirmed.v1',
+      eventVersion: 'v1',
+      occurredAt: new Date().toISOString(),
+      tenantId: dbkId,
+      branchId,
+      principalId: 'canonical-owner',
+      correlationId: 'canonical-subscription-correlation',
+      causationId: 'canonical-subscription-payment-001',
+      source: 'CanonicalJourneyTest',
+      payload: {
+        provider: 'SAFARICOM_MPESA',
+        amount: 2499,
+        currency: 'KES',
+        data: { checkoutRequestId: 'canonical-subscription-payment-001' },
+      },
+      metadata: {},
+    })).rejects.toThrow('Subscription payment amount does not match');
+
+    await expect(handleSubscriptionPaymentConfirmed({
+      eventId: 'canonical-subscription-payment-wrong-currency',
+      eventType: 'payment.confirmed.v1',
+      eventVersion: 'v1',
+      occurredAt: new Date().toISOString(),
+      tenantId: dbkId,
+      branchId,
+      principalId: 'canonical-owner',
+      correlationId: 'canonical-subscription-correlation',
+      causationId: 'canonical-subscription-payment-001',
+      source: 'CanonicalJourneyTest',
+      payload: {
+        provider: 'SAFARICOM_MPESA',
+        amount: 2500,
+        currency: 'USD',
+        data: { checkoutRequestId: 'canonical-subscription-payment-001' },
+      },
+      metadata: {},
+    })).rejects.toThrow('Subscription payment currency does not match');
+
     await handleSubscriptionPaymentConfirmed({
       eventId: 'canonical-subscription-payment-event',
       eventType: 'payment.confirmed.v1',
