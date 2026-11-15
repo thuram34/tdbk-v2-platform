@@ -288,7 +288,7 @@ export class DigitalAssetRegistryService {
   }
 
   async recordValuation(context: SecurityContext, tenantId: string, assetId: string, input: RecordAssetValuationInput): Promise<DigitalAssetRecord> {
-    await this.authorize(context, tenantId, ASSET_PERMISSION, 'record-digital-asset-valuation');
+    await this.authorize(context, tenantId, ASSET_ROLE, 'record-digital-asset-valuation');
     assertId(assetId, 'assetId', context.requestId);
     assertId(input.valuationId, 'valuationId', context.requestId);
     if (!Number.isSafeInteger(input.amountMinor) || input.amountMinor < 0) fail('Valuation must be a non-negative integer in minor currency units.', context.requestId);
