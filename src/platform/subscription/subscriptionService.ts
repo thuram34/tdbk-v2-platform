@@ -96,7 +96,11 @@ export class SubscriptionService {
     const exponent = ['BIF', 'CLP', 'DJF', 'GNF', 'ISK', 'JPY', 'KMF', 'KRW', 'PYG', 'RWF', 'UGX', 'VND', 'VUV', 'XAF', 'XOF', 'XPF'].includes(plan.currency)
       ? 0
       : ['BHD', 'IQD', 'JOD', 'KWD', 'LYD', 'OMR', 'TND'].includes(plan.currency) ? 3 : 2;
-    const now = new Date().toISOString();
+    const nowDate = new Date();
+    const now = nowDate.toISOString();
+    const periodEndDate = new Date(nowDate);
+    if (plan.interval === 'MONTHLY') periodEndDate.setUTCMonth(periodEndDate.getUTCMonth() + 1);
+    if (plan.interval === 'ANNUAL') periodEndDate.setUTCFullYear(periodEndDate.getUTCFullYear() + 1);
     const subscription: DbkSubscription = {
       subscriptionId: 'sub_' + crypto.randomUUID(),
       dbkId,
@@ -111,7 +115,7 @@ export class SubscriptionService {
       interval: plan.interval,
       startedAt: now,
       currentPeriodStart: now,
-      currentPeriodEnd: null,
+      currentPeriodEnd: plan.interval === 'NONE' ? null : periodEndDate.toISOString(),
       cancelledAt: null,
       paymentReference: null,
       provider: null,
