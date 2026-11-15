@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { SecurityContext } from '../../kernel/types';
+import { masterAuthority } from '../../kernel/master/masterAuthority';
 import { dbkRegistry } from '../dbkRegistry';
 import { provisioningService } from '../provisioning/provisioningService';
 
@@ -44,6 +45,30 @@ function ownerContext(): SecurityContext {
 }
 
 describe('DBK guardrails', () => {
+  it('recognizes only a tenant-bound provisioning service identity', () => {
+    const servicePrincipal = {
+      id: 'TDBK_INTERNAL_PROVISIONING',
+      tenantId: 'tenant_scope_a',
+      branchId: null,
+      roles: ['TDBK_PROVISIONING_SERVICE'],
+      permissions: [
+        'DBK_DNA_BIND',
+        'DBK_CAPABILITY_INITIALIZE',
+        'DBK_BRANCH_CREATE',
+        'DBK_WORKSPACE_COMPILE',
+        'DBK_PROVISIONING_COMPLETE',
+      ],
+      authTime: Date.now(),
+      tokenSource: 'SERVICE_KEY' as const,
+      isMaster: false,
+    };
+    expect(masterAuthority.isProvisioningServiceForTenant(servicePrincipal, 'tenant_scope_a')).toBe(true);
+    expect(masterAuthority.isProvisioningServiceForTenant(servicePrincipal, 'tenant_scope_b')).toBe(false);
+    expect(masterAuthority.isProvisioningServiceForTenant({ ...servicePrincipal, isMaster: true }, 'tenant_scope_a')).toBe(false);
+    expect(masterAuthority.isProvisioningServiceForTenant({ ...servicePrincipal, permissions: ['*'] }, 'tenant_scope_a')).toBe(false);
+    expect(masterAuthority.isProvisioningServiceForTenant({ ...servicePrincipal, tokenSource: 'JWT' }, 'tenant_scope_a')).toBe(false);
+  });
+
   beforeEach(async () => {
     dbkRegistry.clearStoreForTesting();
     provisioningService.clearStoreForTesting();
