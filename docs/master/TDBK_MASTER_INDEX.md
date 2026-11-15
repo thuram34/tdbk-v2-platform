@@ -19,6 +19,10 @@ Use this index as the entry point for the TDBK platform architecture and operati
 - [Baseline Capability Ledger](./TDBK_BASELINE_CAPABILITY_LEDGER.md) — evidence-backed capability inventory and operational risks.
 - [Engineering Implementation Ledger](../engineering/TDBK_IMPLEMENTATION_LEDGER.md) — capability-by-capability implementation declarations and audit verdicts.
 
+## Latest engineering audit
+
+- [Identity & Business DNA Code Audit — 2026-11-15](../audits/TDBK_IDENTITY_DNA_CODE_AUDIT_2026-11-15.md) — verified identity mapping, security boundary findings, committed validator hardening, new tests and remaining compiler/capability risks.
+
 ## Change-control rules
 
 - Do not silently replace or contradict existing architecture documents. Record and resolve discrepancies in the gap register.
