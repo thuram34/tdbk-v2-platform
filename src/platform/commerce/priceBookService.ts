@@ -108,7 +108,8 @@ export class PriceBookService {
 
   async publish(context: SecurityContext, input: { plans: PriceBookPlan[]; expectedVersion?: number }): Promise<PriceBookSnapshot> {
     masterAuthority.assertMasterAuthority(context.principal, 'publishPriceBook', context.requestId);
-    const plans = validatePlans(input?.plans, context.requestId);
+    if (!input || typeof input !== 'object') invalid('Price book publication payload is required.', context.requestId);
+    const plans = validatePlans(input.plans, context.requestId);
     const now = new Date().toISOString();
     const versionId = 'pricebook_' + crypto.randomUUID();
     return firestoreClient.runTransaction(async (tx) => {
