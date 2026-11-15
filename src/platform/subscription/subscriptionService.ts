@@ -63,14 +63,6 @@ export class SubscriptionService {
     return subscription;
   }
 
-  public async activateSubscription(context: SecurityContext, subscriptionId: string, dbkId: string): Promise<DbkSubscription> {
-    masterAuthority.assertMasterAuthority(context.principal, 'activateSubscription', context.requestId);
-    const subscription = await subscriptionRepository.getSubscriptionForDbk(dbkId, subscriptionId);
-    if (!subscription) throw new Error(`Subscription '${subscriptionId}' not found.`);
-    const updated = await subscriptionRepository.updateSubscriptionForDbk(dbkId, subscriptionId, { status: 'ACTIVE', paymentStatus: 'PAID' });
-    await dbkRegistry.changeSubscriptionTier(context, dbkId, updated.tier, 'Subscription activated');
-    return updated;
-  }
 
   public async cancelSubscription(context: SecurityContext, subscriptionId: string, dbkId: string, reason?: string): Promise<DbkSubscription> {
     masterAuthority.assertMasterAuthority(context.principal, 'cancelSubscription', context.requestId);
