@@ -77,6 +77,28 @@ export class MasterAuthorityService {
   }
 
   /**
+   * Recognizes the narrowly scoped, in-process provisioning workflow identity.
+   * It is tenant-bound, service-key sourced, non-master and carries one explicit
+   * lifecycle capability. It cannot be used for cross-tenant or platform actions.
+   */
+  public isProvisioningServiceForTenant(principal?: Principal | null, tenantId?: string): boolean {
+    return !!principal &&
+      principal.id === 'TDBK_INTERNAL_PROVISIONING' &&
+      principal.isMaster === false &&
+      principal.tokenSource === 'SERVICE_KEY' &&
+      principal.tenantId === tenantId &&
+      Array.isArray(principal.roles) && principal.roles.length === 1 &&
+      principal.roles[0] === 'TDBK_PROVISIONING_SERVICE' &&
+      Array.isArray(principal.permissions) &&
+      principal.permissions.length === 5 &&
+      principal.permissions.includes('DBK_PROVISIONING_COMPLETE') &&
+      principal.permissions.includes('DBK_DNA_BIND') &&
+      principal.permissions.includes('DBK_CAPABILITY_INITIALIZE') &&
+      principal.permissions.includes('DBK_BRANCH_CREATE') &&
+      principal.permissions.includes('DBK_WORKSPACE_COMPILE');
+  }
+
+  /**
    * Universal Tenant-Scoped Authority Assertion Primitive.
    * Enforces:
    * - TDBK_MASTER_ADMIN: Allowed globally across all tenants.
