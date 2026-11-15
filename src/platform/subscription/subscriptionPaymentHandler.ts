@@ -80,3 +80,35 @@ export async function handleSubscriptionPaymentConfirmed(event: EventEnvelope): 
     'Subscription payment confirmed',
   );
 }
+
+
+export async function handleSubscriptionPaymentFailed(event: EventEnvelope): Promise<void> {
+  if (event.eventType !== 'payment.failed.v1') throw new Error('Subscription payment failure handler received an unsupported event type.');
+  const dbkId = event.tenantId;
+  const payload = (event.payload || {}) as Record<string, any>;
+  const providerReference = String(payload.data?.checkoutRequestId || event.causationId || '');
+  if (!dbkId || !providerReference) throw new Error('Failed subscription payment event missing DBK or provider reference.');
+
+  const subscriptions = await subscriptionRepository.listSubscriptions(dbkId);
+  const subscription = subscriptions.find((candidate) => candidate.paymentReference === providerReference);
+  if (!subscription) return;
+
+  const transaction = await financialLedgerRepository.getTransaction(dbkId, 'mpesa_' + providerReference);
+  if (
+    !transaction ||
+    transaction.tenantId !== dbkId ||
+    transaction.status !== 'FAILED' ||
+    transaction.providerReference !== providerReference
+  ) {
+    throw new Error('Subscription failure update rejected: matching failed financial transaction was not found.');
+  }
+
+  if (subscription.status === 'ACTIVE' || subscription.paymentStatus === 'PAID') {
+    throw new Error('A paid subscription cannot be downgraded by a failed-payment event.');
+  }
+
+  await subscriptionRepository.updateSubscriptionForDbk(dbkId, subscription.subscriptionId, {
+    status: 'TRIAL',
+    paymentStatus: 'FAILED',
+  });
+}
