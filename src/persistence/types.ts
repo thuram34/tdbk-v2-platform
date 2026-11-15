@@ -184,6 +184,10 @@ export interface DbkSubscription {
   createdAt: string;
   updatedAt: string;
   correlationId: string;
+  /** Immutable commercial terms captured from the published price book. */
+  planId?: string;
+  priceBookVersion?: number;
+  amountMinor?: number;
 }
 
 export interface ISubscriptionRepository {
