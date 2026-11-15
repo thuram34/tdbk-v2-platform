@@ -3,6 +3,7 @@ import { EventEnvelope } from '../../orchestration/events/types';
 import { SecurityContext } from '../../kernel/types';
 import { subscriptionRepository } from '../../persistence/firestore/repositories/subscriptionRepository';
 import { dbkRegistry } from '../dbkRegistry';
+import { financialLedgerRepository } from '../../persistence/firestore/repositories/financialLedgerRepository';
 
 export async function handleSubscriptionPaymentConfirmed(event: EventEnvelope): Promise<void> {
   const dbkId = event.tenantId;
@@ -13,6 +14,21 @@ export async function handleSubscriptionPaymentConfirmed(event: EventEnvelope): 
   const subscriptions = await subscriptionRepository.listSubscriptions(dbkId);
   const subscription = subscriptions.find((candidate) => candidate.paymentReference === providerReference);
   if (!subscription) return;
+
+  // Event delivery alone is not financial evidence. Activation requires the
+  // matching tenant transaction to have been durably posted to the ledger.
+  const transactionId = 'mpesa_' + providerReference;
+  const transaction = await financialLedgerRepository.getTransaction(dbkId, transactionId);
+  if (
+    !transaction ||
+    transaction.tenantId !== dbkId ||
+    transaction.status !== 'POSTED' ||
+    transaction.providerReference !== providerReference ||
+    Number(transaction.amount) !== Number(subscription.amount) ||
+    transaction.currency !== subscription.currency
+  ) {
+    throw new Error('Subscription activation rejected: matching posted financial transaction was not found.');
+  }
 
   const result = await subscriptionRepository.activateIfPending(
     dbkId,
