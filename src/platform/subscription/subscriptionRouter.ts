@@ -41,6 +41,20 @@ subscriptionRouter.post('/', async (req, res) => {
 });
 
 
+subscriptionRouter.post('/:dbkId/from-plan', async (req, res) => {
+  try {
+    const context = await contextFor(req);
+    const subscription = await subscriptionService.createSubscriptionFromPlan(
+      context,
+      req.params.dbkId,
+      String(req.body?.planId || ''),
+      Number(req.body?.priceBookVersion),
+      String(req.body?.correlationId || context.correlationId || context.requestId),
+    );
+    return res.status(201).json({ subscription });
+  } catch (error) { return sendError(res, error); }
+});
+
 subscriptionRouter.post('/:dbkId/:subscriptionId/pay', async (req, res) => {
   try {
     const context = await contextFor(req);
@@ -50,6 +64,9 @@ subscriptionRouter.post('/:dbkId/:subscriptionId/pay', async (req, res) => {
     if (!subscription) return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Subscription not found' } });
     if (subscription.dbkId !== context.tenantContext?.tenantId) {
       return res.status(403).json({ error: { code: 'TENANT_ISOLATION_ERROR', message: 'Subscription tenant mismatch' } });
+    }
+    if (subscription.currency !== 'KES' || !Number.isInteger(subscription.amount)) {
+      return res.status(422).json({ error: { code: 'PAYMENT_CURRENCY_UNSUPPORTED', message: 'M-Pesa STK Push currently supports whole-KES subscription amounts only.' } });
     }
     if (subscription.paymentStatus === 'PAID' && subscription.status === 'ACTIVE') {
       return res.status(409).json({ error: { code: 'ALREADY_PAID', message: 'Subscription is already active and paid' } });
