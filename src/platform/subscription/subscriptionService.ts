@@ -26,6 +26,18 @@ export interface CreateSubscriptionInput {
   correlationId: string;
 }
 
+function calculatePeriodEnd(start: Date, interval: 'MONTHLY' | 'ANNUAL' | 'NONE'): string | null {
+  if (interval === 'NONE') return null;
+  const dayOfMonth = start.getUTCDate();
+  const end = new Date(start);
+  end.setUTCDate(1);
+  if (interval === 'MONTHLY') end.setUTCMonth(end.getUTCMonth() + 1);
+  else end.setUTCFullYear(end.getUTCFullYear() + 1);
+  const lastDay = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth() + 1, 0)).getUTCDate();
+  end.setUTCDate(Math.min(dayOfMonth, lastDay));
+  return end.toISOString();
+}
+
 export class SubscriptionService {
   public async createSubscription(context: SecurityContext, input: CreateSubscriptionInput): Promise<DbkSubscription> {
     masterAuthority.assertMasterAuthority(context.principal, 'createSubscription', context.requestId);
@@ -98,9 +110,6 @@ export class SubscriptionService {
       : ['BHD', 'IQD', 'JOD', 'KWD', 'LYD', 'OMR', 'TND'].includes(plan.currency) ? 3 : 2;
     const nowDate = new Date();
     const now = nowDate.toISOString();
-    const periodEndDate = new Date(nowDate);
-    if (plan.interval === 'MONTHLY') periodEndDate.setUTCMonth(periodEndDate.getUTCMonth() + 1);
-    if (plan.interval === 'ANNUAL') periodEndDate.setUTCFullYear(periodEndDate.getUTCFullYear() + 1);
     const subscription: DbkSubscription = {
       subscriptionId: 'sub_' + crypto.randomUUID(),
       dbkId,
@@ -115,7 +124,7 @@ export class SubscriptionService {
       interval: plan.interval,
       startedAt: now,
       currentPeriodStart: now,
-      currentPeriodEnd: plan.interval === 'NONE' ? null : periodEndDate.toISOString(),
+      currentPeriodEnd: calculatePeriodEnd(nowDate, plan.interval),
       cancelledAt: null,
       paymentReference: null,
       provider: null,
