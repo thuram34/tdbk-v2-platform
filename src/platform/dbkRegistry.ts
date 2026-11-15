@@ -173,9 +173,15 @@ export class DbkRegistryService {
 
     const previousStatus = dbk.status;
 
+    const isProvisioningCompletion =
+      previousStatus === 'PROVISIONING' &&
+      newStatus === 'ACTIVE' &&
+      masterAuthority.isProvisioningServiceForTenant(context.principal, dbkId);
+
     if (
       newStatus !== 'PROVISIONING_FAILED' &&
-      !masterAuthority.isMasterAdmin(context.principal)
+      !masterAuthority.isMasterAdmin(context.principal) &&
+      !isProvisioningCompletion
     ) {
       throw new KernelError(
         'AUTHORIZATION_ERROR',
