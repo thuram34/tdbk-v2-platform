@@ -14,6 +14,20 @@ export async function handleSubscriptionPaymentConfirmed(event: EventEnvelope): 
   const subscription = subscriptions.find((candidate) => candidate.paymentReference === providerReference);
   if (!subscription) return;
 
+  // The event is only a payment claim. Bind it to the exact amount and currency
+  // persisted on the subscription before changing commercial entitlement state.
+  const confirmedAmount = Number(payload.amount);
+  const confirmedCurrency = String(payload.currency || '');
+  if (!Number.isFinite(confirmedAmount) || confirmedAmount <= 0) {
+    throw new Error('Subscription payment event is missing a valid confirmed amount.');
+  }
+  if (!confirmedCurrency || confirmedCurrency !== subscription.currency) {
+    throw new Error('Subscription payment currency does not match the persisted subscription.');
+  }
+  if (confirmedAmount !== Number(subscription.amount)) {
+    throw new Error('Subscription payment amount does not match the persisted subscription.');
+  }
+
   const result = await subscriptionRepository.activateIfPending(
     dbkId,
     subscription.subscriptionId,
