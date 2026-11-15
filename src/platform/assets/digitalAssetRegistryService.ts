@@ -93,7 +93,7 @@ export interface TransferDigitalAssetInput {
   newOwnerType: AssetOwnerType;
   basis: OwnershipBasis;
   evidenceReferences?: string[];
-  eventType?: 'TRANSFERRED' | 'LICENCE_GRANTED' | 'LICENCE_REVOKED';
+  eventType?: 'TRANSFERRED';
 }
 
 export interface RecordAssetValuationInput {
