@@ -46,10 +46,10 @@ export class SubscriptionService {
 
     const now = new Date().toISOString();
     const paymentStatus = input.paymentStatus || 'PENDING';
-    const status = input.status || (paymentStatus === 'PAID' ? 'ACTIVE' : 'TRIAL');
-    if (status === 'ACTIVE' && paymentStatus !== 'PAID') {
+    const status = input.status || 'TRIAL';
+    if (status !== 'TRIAL' || paymentStatus !== 'PENDING') {
       throw new ValidationError(
-        'An ACTIVE subscription must have PAID payment status. Pending subscriptions must remain TRIAL until payment confirmation.',
+        'New subscriptions must remain TRIAL/PENDING. Only the verified payment event handler may activate a subscription.',
         context.requestId,
       );
     }
