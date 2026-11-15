@@ -86,6 +86,8 @@ export class SubscriptionService {
     correlationId: string,
   ): Promise<DbkSubscription> {
     await masterAuthority.assertTenantAuthority(context, dbkId, 'createSubscriptionFromPlan', context.requestId);
+    const canManageSubscription = masterAuthority.isMasterAdmin(context.principal) || context.principal.roles.some((role) => ['BUSINESS_OWNER', 'OWNER_OPERATOR', 'TENANT_ADMIN'].includes(role));
+    if (!canManageSubscription) throw new ValidationError('Only the business owner or tenant administrator may purchase a subscription.', context.requestId);
     if (!masterAuthority.isMasterAdmin(context.principal) && context.tenantContext?.tenantId !== dbkId) {
       throw new ValidationError('Subscription tenant context does not match the authenticated tenant.', context.requestId);
     }
