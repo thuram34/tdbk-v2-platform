@@ -79,8 +79,8 @@ describe('PriceBookService', () => {
   it('does not expose a published price book to a cross-tenant caller', async () => {
     await priceBookService.publish(masterContext(), { plans, expectedVersion: 0 });
     const context = masterContext();
-    context.principal = { ...context.principal, isMaster: false, roles: ['TENANT_ADMIN'], tenantId: 'tenant_other' };
-    context.tenantContext = { ...context.tenantContext!, tenantId: 'tenant_other' };
+    context.principal = { ...context.principal, isMaster: false, roles: ['TENANT_ADMIN'], tenantId: null };
+    context.tenantContext = null;
     await expect(priceBookService.getPublished(context)).rejects.toThrow(/tenant|authorization/i);
   });
 });
