@@ -115,7 +115,20 @@ function fail(message: string, requestId: string): never {
 }
 
 function assertId(value: string, label: string, requestId: string): void {
-  if (!value || !ID_PATTERN.test(value)) fail(`${label} must be 3-120 characters using letters, numbers, "_" or "-".`, requestId);
+  if (typeof value !== 'string' || !value || !ID_PATTERN.test(value)) fail(label + ' must be 3-120 characters using letters, numbers, underscore or hyphen.', requestId);
+}
+
+function normalizeEvidenceReferences(value: unknown, requestId: string): string[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) fail('evidenceReferences must be an array.', requestId);
+  const references: string[] = [];
+  for (const item of value) {
+    if (typeof item !== 'string') fail('Every evidence reference must be a string.', requestId);
+    const normalized = item.trim();
+    if (normalized.length > 500) fail('An evidence reference exceeds 500 characters.', requestId);
+    if (normalized) references.push(normalized);
+  }
+  return [...new Set(references)];
 }
 
 export class DigitalAssetRegistryService {
@@ -149,10 +162,10 @@ export class DigitalAssetRegistryService {
     await this.authorize(context, tenantId, ASSET_PERMISSION, 'register-digital-asset');
     assertId(input.assetId, 'assetId', context.requestId);
     assertId(input.ownerId, 'ownerId', context.requestId);
-    if (!input.name?.trim() || input.name.trim().length > 160) fail('Asset name is required and must not exceed 160 characters.', context.requestId);
+    if (typeof input.name !== 'string' || !input.name.trim() || input.name.trim().length > 160) fail('Asset name is required and must not exceed 160 characters.', context.requestId);
+    if (input.description !== undefined && typeof input.description !== 'string') fail('Asset description must be a string.', context.requestId);
     if (input.description && input.description.length > 4000) fail('Asset description must not exceed 4000 characters.', context.requestId);
-    const evidenceReferences = [...new Set((input.evidenceReferences ?? []).map((item) => item.trim()).filter(Boolean))];
-    if (evidenceReferences.some((item) => item.length > 500)) fail('An evidence reference exceeds 500 characters.', context.requestId);
+    const evidenceReferences = normalizeEvidenceReferences(input.evidenceReferences, context.requestId);
 
     const now = new Date().toISOString();
     const asset: DigitalAssetRecord = {
@@ -209,7 +222,7 @@ export class DigitalAssetRegistryService {
     assertId(input.eventId, 'eventId', context.requestId);
     assertId(input.expectedCurrentOwnerId, 'expectedCurrentOwnerId', context.requestId);
     assertId(input.newOwnerId, 'newOwnerId', context.requestId);
-    const evidenceReferences = [...new Set((input.evidenceReferences ?? []).map((item) => item.trim()).filter(Boolean))];
+    const evidenceReferences = normalizeEvidenceReferences(input.evidenceReferences, context.requestId);
     const now = new Date().toISOString();
 
     return firestoreClient.runTransaction(async (tx) => {
@@ -217,9 +230,6 @@ export class DigitalAssetRegistryService {
       const asset = await tx.get<DigitalAssetRecord>(path);
       if (!asset) throw new KernelError('NOT_FOUND', 'Digital asset not found.', 404, context.requestId);
       if (asset.tenantId !== tenantId) throw new KernelError('TENANT_ISOLATION_ERROR', 'Asset tenant mismatch.', 403, context.requestId);
-      if (asset.currentOwnerId !== input.expectedCurrentOwnerId) {
-        throw new KernelError('OPTIMISTIC_LOCK_ERROR', 'Asset ownership changed since the caller last read it.', 409, context.requestId);
-      }
       const eventPath = this.ownershipPath(tenantId, assetId, input.eventId);
       const priorEvent = await tx.get<DigitalAssetOwnershipEvent>(eventPath);
       if (priorEvent) {\n        if (priorEvent.ownerId !== input.newOwnerId || priorEvent.previousOwnerId !== input.expectedCurrentOwnerId || priorEvent.basis !== input.basis) {\n          throw new KernelError('OPTIMISTIC_LOCK_ERROR', 'Ownership event ID was already used for a different change.', 409, context.requestId);\n        }\n        return asset;\n      }
@@ -257,8 +267,9 @@ export class DigitalAssetRegistryService {
     assertId(assetId, 'assetId', context.requestId);
     assertId(input.valuationId, 'valuationId', context.requestId);
     if (!Number.isSafeInteger(input.amountMinor) || input.amountMinor < 0) fail('Valuation must be a non-negative integer in minor currency units.', context.requestId);
-    if (!CURRENCY_PATTERN.test(input.currency)) fail('Currency must be a three-letter ISO currency code.', context.requestId);
-    if (!Number.isFinite(Date.parse(input.effectiveAt))) fail('effectiveAt must be a valid date.', context.requestId);
+    if (typeof input.currency !== 'string' || !CURRENCY_PATTERN.test(input.currency)) fail('Currency must be a three-letter ISO currency code.', context.requestId);
+    if (input.sourceReference !== undefined && input.sourceReference !== null && typeof input.sourceReference !== 'string') fail('sourceReference must be a string.', context.requestId);
+    if (typeof input.effectiveAt !== 'string' || !Number.isFinite(Date.parse(input.effectiveAt))) fail('effectiveAt must be a valid date.', context.requestId);
     const now = new Date().toISOString();
     const valuation: DigitalAssetValuation = {
       valuationId: input.valuationId,
