@@ -154,7 +154,7 @@ export class DigitalAssetRegistryService {
 
   private assertBranchAccess(context: SecurityContext, asset: DigitalAssetRecord): void {
     const principalBranchId = context.branchContext?.branchId ?? context.principal.branchId;
-    if (principalBranchId && asset.branchId !== principalBranchId) {
+    if (principalBranchId && asset.branchId && asset.branchId !== principalBranchId) {
       throw new KernelError('AUTHORIZATION_ERROR', 'Asset is outside the caller branch scope.', 403, context.requestId);
     }
   }
@@ -236,7 +236,7 @@ export class DigitalAssetRegistryService {
     await this.authorize(context, tenantId, ASSET_ROLE, 'change-digital-asset-ownership');
     if (!input || typeof input !== 'object') fail('Ownership change input is required.', context.requestId);
     if (!OWNER_TYPES.includes(input.newOwnerType) || !OWNERSHIP_BASES.includes(input.basis)) fail('New owner type or ownership basis is invalid.', context.requestId);
-    if (input.eventType !== undefined && !['TRANSFERRED', 'LICENCE_GRANTED', 'LICENCE_REVOKED'].includes(input.eventType)) fail('Ownership event type is invalid.', context.requestId);
+    if (input.eventType !== undefined && input.eventType !== 'TRANSFERRED') fail('Only ownership transfers are supported by this registry operation.', context.requestId);
     assertId(assetId, 'assetId', context.requestId);
     assertId(input.eventId, 'eventId', context.requestId);
     assertId(input.expectedCurrentOwnerId, 'expectedCurrentOwnerId', context.requestId);
@@ -355,7 +355,7 @@ export class DigitalAssetRegistryService {
     await this.authorize(context, tenantId, READ_ROLE, 'list-digital-assets');
     const assets = await firestoreClient.listCollection<DigitalAssetRecord>(`/tenants/${tenantId}/digitalAssets`);
     const principalBranchId = context.branchContext?.branchId ?? context.principal.branchId;
-    return assets.filter((asset) => asset.tenantId === tenantId && (!principalBranchId || asset.branchId === principalBranchId));
+    return assets.filter((asset) => asset.tenantId === tenantId && (!principalBranchId || !asset.branchId || asset.branchId === principalBranchId));
   }
 }
 
