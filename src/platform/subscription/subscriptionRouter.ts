@@ -32,15 +32,6 @@ subscriptionRouter.get('/:dbkId', async (req, res) => {
   } catch (error) { return sendError(res, error); }
 });
 
-subscriptionRouter.post('/', async (req, res) => {
-  try {
-    const context = await contextFor(req);
-    const subscription = await subscriptionService.createSubscription(context, req.body);
-    return res.status(201).json({ subscription });
-  } catch (error) { return sendError(res, error); }
-});
-
-
 subscriptionRouter.post('/:dbkId/from-plan', async (req, res) => {
   try {
     const context = await contextFor(req);
