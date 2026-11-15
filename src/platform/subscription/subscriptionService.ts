@@ -74,6 +74,9 @@ export class SubscriptionService {
     correlationId: string,
   ): Promise<DbkSubscription> {
     await masterAuthority.assertTenantAuthority(context, dbkId, 'createSubscriptionFromPlan', context.requestId);
+    if (!masterAuthority.isMasterAdmin(context.principal) && context.tenantContext?.tenantId !== dbkId) {
+      throw new ValidationError('Subscription tenant context does not match the authenticated tenant.', context.requestId);
+    }
     if (!planId || typeof planId !== 'string' || !Number.isSafeInteger(expectedPriceBookVersion) || expectedPriceBookVersion < 1) {
       throw new ValidationError('A valid planId and published price book version are required.', context.requestId);
     }
@@ -85,8 +88,10 @@ export class SubscriptionService {
     }
     const plan = priceBook.plans.find((item) => item.planId === planId && item.active);
     if (!plan) throw new ValidationError('The selected plan is unavailable.', context.requestId);
-    const active = await subscriptionRepository.getActiveSubscription(dbkId);
-    if (active) throw new ValidationError('This tenant already has an active subscription.', context.requestId);
+    const existingSubscriptions = await subscriptionRepository.listSubscriptions(dbkId);
+    if (existingSubscriptions.some((item) => item.status === 'ACTIVE' || (item.status === 'TRIAL' && item.paymentStatus === 'PENDING'))) {
+      throw new ValidationError('This tenant already has an active or pending subscription. Resolve it before creating another.', context.requestId);
+    }
 
     const exponent = ['BIF', 'CLP', 'DJF', 'GNF', 'ISK', 'JPY', 'KMF', 'KRW', 'PYG', 'RWF', 'UGX', 'VND', 'VUV', 'XAF', 'XOF', 'XPF'].includes(plan.currency)
       ? 0
