@@ -6,10 +6,12 @@ import { dbkRegistry } from '../dbkRegistry';
 import { financialLedgerRepository } from '../../persistence/firestore/repositories/financialLedgerRepository';
 
 export async function handleSubscriptionPaymentConfirmed(event: EventEnvelope): Promise<void> {
+  if (event.eventType !== 'payment.confirmed.v1') throw new Error('Subscription payment handler received an unsupported event type.');
   const dbkId = event.tenantId;
   const payload = (event.payload || {}) as Record<string, any>;
   const providerReference = String(payload.data?.checkoutRequestId || event.causationId || '');
   if (!dbkId || !providerReference) throw new Error('Subscription payment event missing DBK or provider reference.');
+  if (payload.status !== undefined && payload.status !== 'SUCCESS') throw new Error('Subscription activation requires a successful payment event.');
 
   const subscriptions = await subscriptionRepository.listSubscriptions(dbkId);
   const subscription = subscriptions.find((candidate) => candidate.paymentReference === providerReference);
@@ -28,6 +30,13 @@ export async function handleSubscriptionPaymentConfirmed(event: EventEnvelope): 
     transaction.currency !== subscription.currency
   ) {
     throw new Error('Subscription activation rejected: matching posted financial transaction was not found.');
+  }
+
+  const entries = await financialLedgerRepository.listEntries(dbkId, transactionId);
+  const debitTotal = entries.filter((entry) => entry.entryType === 'DEBIT').reduce((sum, entry) => sum + Number(entry.amount), 0);
+  const creditTotal = entries.filter((entry) => entry.entryType === 'CREDIT').reduce((sum, entry) => sum + Number(entry.amount), 0);
+  if (entries.length < 2 || entries.some((entry) => entry.immutable !== true || entry.currency !== subscription.currency) || debitTotal !== Number(subscription.amount) || creditTotal !== Number(subscription.amount)) {
+    throw new Error('Subscription activation rejected: balanced immutable ledger entries are missing.');
   }
 
   const result = await subscriptionRepository.activateIfPending(
