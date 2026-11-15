@@ -14,6 +14,20 @@ export async function handleSubscriptionPaymentConfirmed(event: EventEnvelope): 
   const subscription = subscriptions.find((candidate) => candidate.paymentReference === providerReference);
   if (!subscription) return;
 
+  // The event is only a payment claim. Bind it to the exact amount and currency
+  // persisted on the subscription before changing commercial entitlement state.
+  const confirmedAmount = Number(payload.amount);
+  const confirmedCurrency = String(payload.currency || '');
+  if (!Number.isFinite(confirmedAmount) || confirmedAmount <= 0) {
+    throw new Error('Subscription payment event is missing a valid confirmed amount.');
+  }
+  if (!confirmedCurrency || confirmedCurrency !== subscription.currency) {
+    throw new Error('Subscription payment currency does not match the persisted subscription.');
+  }
+  if (confirmedAmount !== Number(subscription.amount)) {
+    throw new Error('Subscription payment amount does not match the persisted subscription.');
+  }
+
   const result = await subscriptionRepository.activateIfPending(
     dbkId,
     subscription.subscriptionId,
@@ -21,7 +35,12 @@ export async function handleSubscriptionPaymentConfirmed(event: EventEnvelope): 
     payload.provider || 'SAFARICOM_MPESA',
   );
 
-  if (!result.transitioned) return;
+  // Subscription activation and DBK tier projection are separate durable writes.
+  // On event retry, repair the tier projection even if the subscription was already
+  // marked PAID by an earlier attempt that failed before this second write.
+  const currentDbk = await dbkRegistry.getDbkInternal(dbkId);
+  if (!currentDbk) throw new Error(`DBK '${dbkId}' not found while applying confirmed subscription payment.`);
+  if (currentDbk.subscriptionTier === result.subscription.tier) return;
 
   const context: SecurityContext = {
     requestId: `subpay_${event.eventId}`,
