@@ -113,10 +113,6 @@ const ASSET_CLASSES: readonly string[] = ['SOFTWARE', 'DOMAIN', 'CONTENT', 'EQUI
 const OWNER_TYPES: readonly string[] = ['TENANT', 'PERSON', 'ORGANIZATION', 'THIRD_PARTY'];
 const OWNERSHIP_BASES: readonly string[] = ['LEGAL_TITLE', 'ASSIGNMENT', 'LICENCE', 'CONTRACT', 'CUSTODY', 'INTERNAL_RECORD'];
 const VALUATION_METHODS: readonly string[] = ['COST', 'MARKET', 'INCOME', 'REPLACEMENT_COST', 'OTHER'];
-const ASSET_CLASSES: readonly string[] = ['SOFTWARE', 'DOMAIN', 'CONTENT', 'EQUIPMENT', 'PROPERTY_INTEREST', 'CONTRACT', 'RECEIVABLE', 'OTHER'];
-const OWNER_TYPES: readonly string[] = ['TENANT', 'PERSON', 'ORGANIZATION', 'THIRD_PARTY'];
-const OWNERSHIP_BASES: readonly string[] = ['LEGAL_TITLE', 'ASSIGNMENT', 'LICENCE', 'CONTRACT', 'CUSTODY', 'INTERNAL_RECORD'];
-const VALUATION_METHODS: readonly string[] = ['COST', 'MARKET', 'INCOME', 'REPLACEMENT_COST', 'OTHER'];
 
 function fail(message: string, requestId: string): never {
   throw new KernelError('VALIDATION_ERROR', message, 400, requestId);
