@@ -223,7 +223,7 @@ Canonical conceptual hierarchy:
 
 `Platform → Portfolio Owner → Business → Branch/Site → Department/Operational Unit → Workspace Context → Capability Data`
 
-The actual persisted path and identity claim must follow the repository's established authoritative contract. Current code contains both `dbkId` domain identity and a Business DNA repository path using `tenantId`; do not perform a blind global rename. Resolve this with a migration decision, compatibility plan and cross-tenant tests.
+The repository establishes one identifier under two context-specific names: `dbkId` in domain objects and `tenantId` in persistence paths, auth claims and security rules. `src/persistence/types.ts` explicitly states `tenantId === dbkId`. Preserve this mapping; do not globally rename either term. Enforce equality at aggregate and API boundaries and verify cross-tenant behavior with negative tests.
 
 Minimum controls:
 - Server-side authentication and authorisation on every command/query
@@ -295,7 +295,7 @@ Every transition must identify its source file/function, contract, authority bou
 
 1. Ratify this architecture and terminology baseline.
 2. Map current types, registries, repositories and provisioning code to the DNA standard.
-3. Resolve identity/path contract (`dbkId` / `tenantId`) before schema expansion.
+3. Enforce and test the established identity mapping (`tenantId === dbkId`) across all API, auth, persistence and domain boundaries before schema expansion.
 4. Build schema-backed DNA domains incrementally with backward-compatible migrations.
 5. Govern industry → archetype → blueprint registry and validation.
 6. Reconcile capability IDs, aliases, dependencies, entitlements and runtime evidence.
