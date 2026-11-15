@@ -16,7 +16,7 @@ Current code seed: `src/blueprint/types.ts` defines `BusinessIdentity`, `BranchT
 - A portfolio owner may manage multiple businesses; each business remains isolated.
 - Blueprint identity and version are explicit and immutable on each DNA revision.
 - Do not treat a branch ID, portfolio ID, user ID or workspace ID as interchangeable with the business ID.
-- Do not resolve the current `dbkId` / `tenantId` discrepancy through a blind rename. Establish one canonical domain identifier and a documented mapping to storage/auth claims.
+- The established identity invariant is `tenantId === dbkId`: `dbkId` is the domain-object name; `tenantId` is the persistence path and auth-claim name. Preserve this mapping rather than globally renaming either field.
 
 ## 3. DNA domains
 
