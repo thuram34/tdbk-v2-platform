@@ -10,7 +10,6 @@ import {
   Wrench,
   GraduationCap,
   Users,
-  CheckCircle2,
   Headphones,
   LifeBuoy,
   Clock,
@@ -69,7 +68,7 @@ export const CommercialBridge: React.FC<CommercialBridgeProps> = ({
   const [consultationPhone, setConsultationPhone] = useState('');
   const [consultationSector, setConsultationSector] = useState<string>('Retail & Shops');
   const [consultationNotes, setConsultationNotes] = useState('');
-  const [consultationSuccess, setConsultationSuccess] = useState(false);
+  const [consultationNotice, setConsultationNotice] = useState('');
   const [quoteService, setQuoteService] = useState('SEO & Digital Growth');
   const [quoteQuantity, setQuoteQuantity] = useState(1);
   const [quoteScope, setQuoteScope] = useState('Implementation');
@@ -103,7 +102,7 @@ export const CommercialBridge: React.FC<CommercialBridgeProps> = ({
       alert('Please provide your phone or M-Pesa contact number.');
       return;
     }
-    setConsultationSuccess(true);
+    setConsultationNotice('Consultation requests are not connected to the TDBK intake service yet. Your details have not been submitted. Please use the published TDBK contact channel instead.');
   };
 
   return (
@@ -1383,29 +1382,12 @@ export const CommercialBridge: React.FC<CommercialBridgeProps> = ({
             </div>
 
             <div className="lg:col-span-5 bg-neutral-900 rounded-2xl p-6 sm:p-7 border border-neutral-800">
-              {consultationSuccess ? (
-                <div className="text-center py-8">
-                  <div className="w-12 h-12 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto mb-4">
-                    <CheckCircle2 className="w-6 h-6" />
-                  </div>
-                  <h3 className="text-lg font-bold text-white mb-2">Request Received</h3>
-                  <p className="text-xs text-neutral-300 leading-relaxed mb-6">
-                    A TDBK technology specialist will contact you shortly via call or WhatsApp at <span className="text-white font-mono font-bold">{consultationPhone}</span> to review your requirements.
-                  </p>
-                  <button
-                    onClick={() => {
-                      setConsultationSuccess(false);
-                      setConsultationPhone('');
-                      setConsultationName('');
-                      setConsultationNotes('');
-                    }}
-                    className="px-4 py-2 rounded-xl bg-neutral-800 text-white text-xs font-semibold hover:bg-neutral-700 transition cursor-pointer"
-                  >
-                    Submit Another Inquiry
-                  </button>
-                </div>
-              ) : (
-                <form onSubmit={handleConsultationSubmit} className="space-y-4">
+              <form onSubmit={handleConsultationSubmit} className="space-y-4">
+                  {consultationNotice && (
+                    <div role="alert" className="rounded-xl border border-amber-700/60 bg-amber-950/50 px-4 py-3 text-xs leading-5 text-amber-100">
+                      {consultationNotice}
+                    </div>
+                  )}
                   <div>
                     <label className="block text-xs font-semibold text-neutral-300 uppercase tracking-wider mb-1.5">
                       Business / Institution Name
@@ -1473,7 +1455,6 @@ export const CommercialBridge: React.FC<CommercialBridgeProps> = ({
                     <ArrowRight className="w-4 h-4" />
                   </button>
                 </form>
-              )}
             </div>
           </div>
         </div>
