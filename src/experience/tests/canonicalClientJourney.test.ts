@@ -7,6 +7,7 @@ import { experienceResolver } from '../../experience/experienceResolver';
 import { outboxRepository } from '../../persistence/firestore/repositories/outboxRepository';
 import { subscriptionService } from '../../platform/subscription/subscriptionService';
 import { handleSubscriptionPaymentConfirmed } from '../../platform/subscription/subscriptionPaymentHandler';
+import { financialLedgerRepository } from '../../persistence/firestore/repositories/financialLedgerRepository';
 
 const dbkId = 'canonical_journey_hardware_01';
 const inventoryRecordId = 'canonical_stock_001';
@@ -189,6 +190,47 @@ describe('TDBK canonical client journey acceptance', () => {
       paymentStatus: 'PENDING',
       correlationId: 'canonical-subscription-correlation',
     });
+
+    const paymentPostedAt = new Date().toISOString();
+    const paymentTransactionId = 'mpesa_canonical-subscription-payment-001';
+    await financialLedgerRepository.postTransaction({
+      transactionId: paymentTransactionId,
+      tenantId: dbkId,
+      branchId,
+      source: 'MPESA',
+      providerReference: 'canonical-subscription-payment-001',
+      amount: 2500,
+      currency: 'KES',
+      status: 'POSTED',
+      description: 'Canonical subscription payment',
+      correlationId: 'canonical-subscription-correlation',
+      createdAt: paymentPostedAt,
+      postedAt: paymentPostedAt,
+      reversedAt: null,
+    }, [
+      {
+        entryId: paymentTransactionId + '_debit',
+        transactionId: paymentTransactionId,
+        tenantId: dbkId,
+        account: 'CASH:MPESA',
+        entryType: 'DEBIT',
+        amount: 2500,
+        currency: 'KES',
+        createdAt: paymentPostedAt,
+        immutable: true,
+      },
+      {
+        entryId: paymentTransactionId + '_credit',
+        transactionId: paymentTransactionId,
+        tenantId: dbkId,
+        account: 'RECEIVABLES:PAYMENTS',
+        entryType: 'CREDIT',
+        amount: 2500,
+        currency: 'KES',
+        createdAt: paymentPostedAt,
+        immutable: true,
+      },
+    ]);
 
     await handleSubscriptionPaymentConfirmed({
       eventId: 'canonical-subscription-payment-event',
