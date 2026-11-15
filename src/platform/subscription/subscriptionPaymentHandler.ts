@@ -35,7 +35,12 @@ export async function handleSubscriptionPaymentConfirmed(event: EventEnvelope): 
     payload.provider || 'SAFARICOM_MPESA',
   );
 
-  if (!result.transitioned) return;
+  // Subscription activation and DBK tier projection are separate durable writes.
+  // On event retry, repair the tier projection even if the subscription was already
+  // marked PAID by an earlier attempt that failed before this second write.
+  const currentDbk = await dbkRegistry.getDbkInternal(dbkId);
+  if (!currentDbk) throw new Error(`DBK '${dbkId}' not found while applying confirmed subscription payment.`);
+  if (currentDbk.subscriptionTier === result.subscription.tier) return;
 
   const context: SecurityContext = {
     requestId: `subpay_${event.eventId}`,
