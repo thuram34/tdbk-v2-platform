@@ -8,8 +8,10 @@
 
 - `src/blueprint/types.ts` currently defines nine `SectorType` values and compact `BusinessDNA` / `Blueprint` interfaces.
 - `src/blueprint/catalog.ts` contains initial blueprints including school, hardware and retail archetypes.
-- `src/persistence/firestore/repositories/businessDnaRepository.ts` accepts a parameter named `tenantId` and persists at `/tenants/{tenantId}/configuration/business_dna`.
-- DNA interfaces expose `dbkId` in the current type contract.
+- `src/persistence/types.ts` explicitly defines the invariant `tenantId === dbkId` for tenant boundaries.
+- `src/persistence/firestore/firestoreClient.ts` enforces `/tenants/{tenantId}/...` as the canonical server persistence namespace.
+- `BusinessDnaRepository` persists DNA at `/tenants/{tenantId}/configuration/business_dna`; Firebase custom claims and Firestore rules use the top-level `tenantId` claim.
+- Therefore `tenantId` is the storage/security-boundary name and `dbkId` is the domain name for the same identifier. This is an established mapping, not an unresolved ID mismatch.
 - Existing journey documentation traces authentication, business discovery, provisioning, workspace experience resolution and a sale transaction path.
 - Existing capability ledger records 83 catalogue entries: 10 labelled IMPLEMENTED, 28 DEFINED and 45 SPECIFIED at the ledger's stated baseline. These are not production-readiness counts.
 - Existing implementation and capability ledgers explicitly require production, tenant-isolation, provider, workflow and deployment evidence.
@@ -18,7 +20,7 @@
 
 | ID | Gap / ambiguity | Risk | Required action | Closure evidence | Priority |
 |---|---|---|---|---|---|
-| G-01 | `dbkId` vs `tenantId` naming and identity mapping | Cross-tenant data leakage or broken lookups | Inventory auth claims, APIs, provisioning, repositories, rules and persisted records; define canonical business ID and compatibility mapping | ADR, migration/rollback plan, cross-tenant tests | P0 |
+| G-01 | Enforce the established `tenantId === dbkId` invariant consistently across all APIs, auth claims, repositories, rules and domain objects | Cross-tenant data leakage or broken lookups if any boundary accepts a divergent identifier | Preserve `dbkId` as domain terminology and `tenantId` as storage/security terminology; add boundary assertions and route-level negative tests | Identity contract tests, cross-tenant API tests, Firestore rule tests | P0 |
 | G-02 | DNA is a compact aggregate, not the full 16-domain model | Missing operational context and untyped config | Introduce domain schemas/repositories incrementally; keep sensitive data and secrets out of root DNA | Schema validation, provenance, revision and migration tests | P1 |
 | G-03 | Sector enum narrower than market archetype map | Industry-specific branching and catalogue gaps | Separate industry/subsector/archetype from implementation enum; publish archetype registry | Registry validation and representative archetype tests | P1 |
 | G-04 | Blueprint fields do not yet express all workflow/rule/entity/compliance contracts | Incomplete generated workspaces | Expand schema in a backward-compatible versioned contract | Blueprint validator and publish gate | P1 |
@@ -50,7 +52,7 @@
 ## 4. Immediate execution order
 
 ### P0 — protect correctness
-- G-01 identity and tenant boundary audit
+- G-01 enforce and verify the established identity mapping across every boundary
 - G-10 provider integration evidence
 - G-11 durable workflow and event failure tests
 - G-12 AI provider fallback safety
