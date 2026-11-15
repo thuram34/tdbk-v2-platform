@@ -55,6 +55,7 @@ import { eventBus } from './src/orchestration/events/eventBus';
 import { pubSubConsumer } from './src/orchestration/events/pubsubConsumer';
 import { subscriptionRouter } from './src/platform/subscription/subscriptionRouter';
 import { digitalAssetRouter } from './src/platform/assets/digitalAssetRouter';
+import { priceBookRouter } from './src/platform/commerce/priceBookRouter';
 import { tdbkAgentRuntime } from './src/platform/agent/agentRuntime';
 import { agentExecutionRepository } from './src/persistence/firestore/repositories/agentExecutionRepository';
 import { flowOrchestrator } from './src/platform/flow/flowOrchestrator';
@@ -78,6 +79,7 @@ async function startServer() {
 
   // Tenant-scoped digital asset registry; server-side authorization is enforced by the service.
   app.use('/api/digital-assets', digitalAssetRouter);
+  app.use('/api/price-book', priceBookRouter);
 
   // Global Income Engine — authenticated, tenant-scoped acquisition and application ledger.
   app.use('/api/global-income', globalIncomeRouter);
