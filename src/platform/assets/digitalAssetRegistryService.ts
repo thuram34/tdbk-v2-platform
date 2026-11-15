@@ -218,11 +218,11 @@ export class DigitalAssetRegistryService {
       if (!asset) throw new KernelError('NOT_FOUND', 'Digital asset not found.', 404, context.requestId);
       if (asset.tenantId !== tenantId) throw new KernelError('TENANT_ISOLATION_ERROR', 'Asset tenant mismatch.', 403, context.requestId);
       if (asset.currentOwnerId !== input.expectedCurrentOwnerId) {
-        throw new KernelError('CONFLICT', 'Asset ownership changed since the caller last read it.', 409, context.requestId);
+        throw new KernelError('OPTIMISTIC_LOCK_ERROR', 'Asset ownership changed since the caller last read it.', 409, context.requestId);
       }
       const eventPath = this.ownershipPath(tenantId, assetId, input.eventId);
       const priorEvent = await tx.get<DigitalAssetOwnershipEvent>(eventPath);
-      if (priorEvent) return asset;
+      if (priorEvent) {\n        if (priorEvent.ownerId !== input.newOwnerId || priorEvent.previousOwnerId !== input.expectedCurrentOwnerId || priorEvent.basis !== input.basis) {\n          throw new KernelError('OPTIMISTIC_LOCK_ERROR', 'Ownership event ID was already used for a different change.', 409, context.requestId);\n        }\n        return asset;\n      }
 
       const event: DigitalAssetOwnershipEvent = {
         eventId: input.eventId,
@@ -281,7 +281,7 @@ export class DigitalAssetRegistryService {
       if (asset.tenantId !== tenantId) throw new KernelError('TENANT_ISOLATION_ERROR', 'Asset tenant mismatch.', 403, context.requestId);
       const valuationPath = this.valuationPath(tenantId, assetId, input.valuationId);
       const existingValuation = await tx.get<DigitalAssetValuation>(valuationPath);
-      if (existingValuation) return asset;
+      if (existingValuation) {\n        if (existingValuation.amountMinor !== valuation.amountMinor || existingValuation.currency !== valuation.currency || existingValuation.method !== valuation.method) {\n          throw new KernelError('OPTIMISTIC_LOCK_ERROR', 'Valuation ID was already used for a different valuation.', 409, context.requestId);\n        }\n        return asset;\n      }
       const updated: DigitalAssetRecord = {
         ...asset,
         latestValuation: {
