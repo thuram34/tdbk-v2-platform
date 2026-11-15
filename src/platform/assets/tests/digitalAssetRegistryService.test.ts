@@ -5,7 +5,7 @@ import { digitalAssetRegistryService } from '../digitalAssetRegistryService';
 
 const tenantId = 'tenant_asset_test';
 
-function makeContext(targetTenantId = tenantId): SecurityContext {
+function makeContext(targetTenantId = tenantId, branchId: string | null = null): SecurityContext {
   return {
     requestId: 'req_asset_test',
     correlationId: 'corr_asset_test',
@@ -14,7 +14,7 @@ function makeContext(targetTenantId = tenantId): SecurityContext {
       id: 'test-master',
       isMaster: true,
       tenantId: targetTenantId,
-      branchId: null,
+      branchId,
       roles: ['TDBK_MASTER_ADMIN'],
       permissions: ['*'],
       authTime: Math.floor(Date.now() / 1000),
@@ -26,7 +26,7 @@ function makeContext(targetTenantId = tenantId): SecurityContext {
       blueprintId: 'TEST',
       status: 'ACTIVE',
     },
-    branchContext: null,
+    branchContext: branchId ? { branchId, name: 'Test Branch', isHeadquarters: false, status: 'ACTIVE' } : null,
   };
 }
 
@@ -82,6 +82,15 @@ describe('DigitalAssetRegistryService', () => {
       evidenceReferences: ['contract:assignment-001'],
     });
     expect(updated.currentOwnerId).toBe('partner-company-001');
+    const replayed = await digitalAssetRegistryService.recordOwnershipChange(makeContext(), tenantId, 'content-asset-001', {
+      eventId: 'ownership-transfer-001',
+      expectedCurrentOwnerId: tenantId,
+      newOwnerId: 'partner-company-001',
+      newOwnerType: 'ORGANIZATION',
+      basis: 'ASSIGNMENT',
+      evidenceReferences: ['contract:assignment-001'],
+    });
+    expect(replayed.currentOwnerId).toBe('partner-company-001');
     await expect(digitalAssetRegistryService.recordOwnershipChange(makeContext(), tenantId, 'content-asset-001', {
       eventId: 'ownership-transfer-002',
       expectedCurrentOwnerId: tenantId,
@@ -114,4 +123,18 @@ describe('DigitalAssetRegistryService', () => {
   it('rejects cross-tenant access even for a caller with a mismatched request target', async () => {
     await expect(digitalAssetRegistryService.listAssets(makeContext('tenant_other'), tenantId)).rejects.toThrow(/tenant context mismatch/i);
   });
+  it('enforces branch scope for branch-owned assets', async () => {
+    await digitalAssetRegistryService.registerAsset(makeContext(tenantId, 'branch_north_001'), tenantId, {
+      assetId: 'branch-asset-001',
+      assetClass: 'EQUIPMENT',
+      name: 'Branch Router',
+      ownerId: tenantId,
+      ownerType: 'TENANT',
+      ownershipBasis: 'INTERNAL_RECORD',
+    });
+    await expect(
+      digitalAssetRegistryService.getAsset(makeContext(tenantId, 'branch_south_001'), tenantId, 'branch-asset-001'),
+    ).rejects.toThrow(/outside the caller branch scope/i);
+  });
+
 });
