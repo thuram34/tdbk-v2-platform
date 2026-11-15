@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { SecurityContext } from '../../kernel/types';
+import { masterAuthority } from '../../kernel/master/masterAuthority';
 import { dbkRegistry } from '../dbkRegistry';
 import { provisioningService } from '../provisioning/provisioningService';
 
