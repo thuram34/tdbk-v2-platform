@@ -8,6 +8,8 @@ import { outboxRepository } from '../../persistence/firestore/repositories/outbo
 import { subscriptionService } from '../../platform/subscription/subscriptionService';
 import { handleSubscriptionPaymentConfirmed } from '../../platform/subscription/subscriptionPaymentHandler';
 import { financialLedgerRepository } from '../../persistence/firestore/repositories/financialLedgerRepository';
+import { subscriptionRepository } from '../../persistence/firestore/repositories/subscriptionRepository';
+import { priceBookService } from '../../platform/commerce/priceBookService';
 
 const dbkId = 'canonical_journey_hardware_01';
 const inventoryRecordId = 'canonical_stock_001';
@@ -178,17 +180,45 @@ describe('TDBK canonical client journey acceptance', () => {
       status: 'COMPLETED',
     });
 
-    await subscriptionService.createSubscription(masterContext(), {
+    const publishedPriceBook = await priceBookService.publish(masterContext(), {
+      expectedVersion: 0,
+      plans: [{
+        planId: 'foundation-monthly',
+        name: 'Foundation Monthly',
+        description: 'Canonical journey acceptance plan.',
+        tier: 'FOUNDATION',
+        amountMinor: 250000,
+        currency: 'KES',
+        interval: 'MONTHLY',
+        features: ['sales_counter', 'stock_control'],
+        active: true,
+      }],
+    });
+    const subscriptionOwner = masterContext();
+    subscriptionOwner.principal = {
+      ...subscriptionOwner.principal,
+      id: 'canonical-owner',
+      isMaster: false,
+      tenantId: dbkId,
+      roles: ['BUSINESS_OWNER'],
+      permissions: ['*'],
+    };
+    subscriptionOwner.tenantContext = {
+      tenantId: dbkId,
+      name: 'Canonical Hardware Test',
+      blueprintId: 'hardware_v1',
+      status: 'ACTIVE',
+    };
+    const pendingSubscription = await subscriptionService.createSubscriptionFromPlan(
+      subscriptionOwner,
       dbkId,
-      tier: 'FOUNDATION',
-      amount: 2500,
-      currency: 'KES',
-      interval: 'MONTHLY',
+      'foundation-monthly',
+      publishedPriceBook.version,
+      'canonical-subscription-correlation',
+    );
+    await subscriptionRepository.updateSubscriptionForDbk(dbkId, pendingSubscription.subscriptionId, {
       paymentReference: 'canonical-subscription-payment-001',
       provider: 'SAFARICOM_MPESA',
-      status: 'TRIAL',
-      paymentStatus: 'PENDING',
-      correlationId: 'canonical-subscription-correlation',
     });
 
     const paymentPostedAt = new Date().toISOString();
