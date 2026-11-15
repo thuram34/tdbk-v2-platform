@@ -119,7 +119,7 @@ Current source `src/blueprint/types.ts` has a narrower `SectorType` union and `s
 
 | Existing asset | Role in target standard | Follow-up |
 |---|---|---|
-| `src/blueprint/types.ts` | Type seed for Blueprint, BusinessDNA and compiled workspace | Add schema-backed versioned domain contracts after identity/path decision |
+| `src/blueprint/types.ts` | Type seed for Blueprint, BusinessDNA and compiled workspace | Add schema-backed versioned domain contracts while preserving and enforcing `tenantId === dbkId` |
 | `src/blueprint/catalog.ts` | Initial blueprint catalogue | Validate references and separate archetypes from sector enum |
 | `src/blueprint/registry.ts` | Blueprint lookup/registration | Verify immutable versions, publication and deprecation semantics |
 | `src/blueprint/compiler.ts` | Compile blueprint and DNA into workspace projection | Ensure compiler does not grant authority or bypass entitlement |
