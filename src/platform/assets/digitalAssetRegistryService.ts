@@ -105,8 +105,8 @@ export interface RecordAssetValuationInput {
   sourceReference?: string | null;
 }
 
-const ASSET_PERMISSION = 'manage:assets';
-const READ_PERMISSION = 'view:assets';
+const ASSET_ROLE = 'TENANT_ADMIN';
+const READ_ROLE = 'TENANT_ADMIN';
 const ID_PATTERN = /^[A-Za-z0-9_-]{3,120}$/;
 const CURRENCY_PATTERN = /^[A-Z]{3}$/;\nconst ASSET_CLASSES: readonly string[] = ['SOFTWARE', 'DOMAIN', 'CONTENT', 'EQUIPMENT', 'PROPERTY_INTEREST', 'CONTRACT', 'RECEIVABLE', 'OTHER'];\nconst OWNER_TYPES: readonly string[] = ['TENANT', 'PERSON', 'ORGANIZATION', 'THIRD_PARTY'];\nconst OWNERSHIP_BASES: readonly string[] = ['LEGAL_TITLE', 'ASSIGNMENT', 'LICENCE', 'CONTRACT', 'CUSTODY', 'INTERNAL_RECORD'];\nconst VALUATION_METHODS: readonly string[] = ['COST', 'MARKET', 'INCOME', 'REPLACEMENT_COST', 'OTHER'];
 
@@ -144,7 +144,7 @@ export class DigitalAssetRegistryService {
     return `${this.assetPath(tenantId, assetId)}/valuations/${valuationId}`;
   }
 
-  private assertBranchAccess(context: SecurityContext, asset: DigitalAssetRecord): void {\n    const principalBranchId = context.branchContext?.branchId ?? context.principal.branchId;\n    if (principalBranchId && asset.branchId !== principalBranchId) {\n      throw new KernelError('AUTHORIZATION_ERROR', 'Asset is outside the caller branch scope.', 403, context.requestId);\n    }\n  }\n\n  private async authorize(context: SecurityContext, tenantId: string, permission: string, action: string): Promise<void> {
+  private assertBranchAccess(context: SecurityContext, asset: DigitalAssetRecord): void {\n    const principalBranchId = context.branchContext?.branchId ?? context.principal.branchId;\n    if (principalBranchId && asset.branchId !== principalBranchId) {\n      throw new KernelError('AUTHORIZATION_ERROR', 'Asset is outside the caller branch scope.', 403, context.requestId);\n    }\n  }\n\n  private async authorize(context: SecurityContext, tenantId: string, requiredRole: string, action: string): Promise<void> {
     const contextTenantId = context.tenantContext?.tenantId ?? context.principal.tenantId;
     if (!contextTenantId || contextTenantId !== tenantId) {
       throw new KernelError('TENANT_ISOLATION_ERROR', 'Digital asset operation denied: tenant context mismatch.', 403, context.requestId);
@@ -153,13 +153,13 @@ export class DigitalAssetRegistryService {
       context.principal,
       action,
       'digital-assets:registry',
-      { tenantId, branchId: context.branchContext?.branchId ?? context.principal.branchId ?? undefined, requiredPermission: permission, requestId: context.requestId },
+      { tenantId, branchId: context.branchContext?.branchId ?? context.principal.branchId ?? undefined, requiredRole, requestId: context.requestId },
     );
     if (!result.allowed) throw new KernelError('AUTHORIZATION_ERROR', result.reason, 403, context.requestId);
   }
 
   async registerAsset(context: SecurityContext, tenantId: string, input: RegisterDigitalAssetInput): Promise<{ asset: DigitalAssetRecord; idempotent: boolean }> {
-    await this.authorize(context, tenantId, ASSET_PERMISSION, 'register-digital-asset');
+    await this.authorize(context, tenantId, ASSET_ROLE, 'register-digital-asset');
     assertId(input.assetId, 'assetId', context.requestId);
     assertId(input.ownerId, 'ownerId', context.requestId);
     if (typeof input.name !== 'string' || !input.name.trim() || input.name.trim().length > 160) fail('Asset name is required and must not exceed 160 characters.', context.requestId);
@@ -312,7 +312,7 @@ export class DigitalAssetRegistryService {
   }
 
   async getAsset(context: SecurityContext, tenantId: string, assetId: string): Promise<DigitalAssetRecord | null> {
-    await this.authorize(context, tenantId, READ_PERMISSION, 'read-digital-asset');
+    await this.authorize(context, tenantId, READ_ROLE, 'read-digital-asset');
     assertId(assetId, 'assetId', context.requestId);
     const asset = await firestoreClient.get<DigitalAssetRecord>(this.assetPath(tenantId, assetId));
     if (asset && asset.tenantId !== tenantId) throw new KernelError('TENANT_ISOLATION_ERROR', 'Asset tenant mismatch.', 403, context.requestId);
