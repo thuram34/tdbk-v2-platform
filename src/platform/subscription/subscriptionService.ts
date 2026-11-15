@@ -100,6 +100,7 @@ export class SubscriptionService {
     }
     const plan = priceBook.plans.find((item) => item.planId === planId && item.active);
     if (!plan) throw new ValidationError('The selected plan is unavailable.', context.requestId);
+    if (plan.amountMinor <= 0) throw new ValidationError('Zero-price plans are assigned through provisioning; subscription checkout is for paid plans.', context.requestId);
     const existingSubscriptions = await subscriptionRepository.listSubscriptions(dbkId);
     if (existingSubscriptions.some((item) => item.status === 'ACTIVE' || (item.status === 'TRIAL' && item.paymentStatus === 'PENDING'))) {
       throw new ValidationError('This tenant already has an active or pending subscription. Resolve it before creating another.', context.requestId);
