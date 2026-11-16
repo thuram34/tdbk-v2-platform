@@ -255,6 +255,15 @@ export class DigitalAssetRegistryService {
         return asset;
       }
 
+      if (asset.currentOwnerId !== input.expectedCurrentOwnerId) {
+        throw new KernelError(
+          'OPTIMISTIC_LOCK_ERROR',
+          'Asset ownership changed since the transfer was prepared.',
+          409,
+          context.requestId,
+        );
+      }
+
       const event: DigitalAssetOwnershipEvent = {
         eventId: input.eventId,
         tenantId,
