@@ -147,7 +147,10 @@ export class DbkCapabilityManagerService {
     await this.assertPersistentTenant(securityContext, dbkId, 'hydratePersistentCapabilities');
     const isTestRuntime = process.env.NODE_ENV === 'test' || process.env.VITEST === 'true' || process.env.TDBK_PERSISTENCE_DRIVER === 'test_memory';
 
-    const inMemoryRecords = this.getDbkCapabilityRecords(securityContext, dbkId);
+    // Persistent tenant authority has already been verified above. Read the cache
+    // directly rather than re-entering the synchronous exact-tenant guard: a
+    // portfolio owner may legitimately manage several DBKs through this path.
+    const inMemoryRecords = Array.from(this.dbkCapabilityStore.get(dbkId)?.values() ?? []);
     if (isTestRuntime) {
       return inMemoryRecords;
     }
