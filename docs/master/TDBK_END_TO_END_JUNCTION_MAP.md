@@ -192,3 +192,58 @@ Tenant/user → medicine catalogue and batch records → prescription/dispensing
 6. **Only then** decide shared modules, migration boundaries and implementation slices.
 
 **Stage 1 remains IN PROGRESS.** The new Pride findings improve source-level traceability but do not certify live deployment, client acceptance, production storage or live payment.
+
+
+## 10. Deep trace: SOKONI and public discovery boundary
+
+### 10.1 Engine public organization projection
+`docs/ENGINE_PUBLIC_DISCOVERY_CONTRACT.md` defines an Engine-owned public-safe organization projection derived from canonical `DbkIdentity` and branch topology. It excludes private/legal/owner/subscription/permission/financial state. It defines public eligibility from DBK lifecycle, but explicitly says **eligibility is not publication state** and no public unauthenticated HTTP/API path is authorized until publication authority exists. It does not establish public product/service/provider masters, marketplace search, service coverage or availability.
+
+### 10.2 SOKONI Phase 1 contract
+`docs/sokoni/PHASE1_EXPERIENCE_CONTRACT.md` states SOKONI owns public discovery/marketplace presentation while TDBK Engine owns authoritative identity, tenancy, business/provider/product/service truth, capabilities, workflows, transactions, payments, receipts, events, security and audit. It explicitly distinguishes DBK capability discovery from public marketplace discovery. It identifies public search, product/service/provider projection, requests, quotes, publication and trust as missing or master-review dependencies; it directs SOKONI to reuse existing Engine sale/payment/receipt authority rather than build parallel financial truth.
+
+### 10.3 Current SOKONI status is not the same as Engine integration
+`docs/master/SOKONI-STATUS.md` (last updated 2026-09-23) records a participation-first SOKONI implementation with Firestore `sokoniParticipants`, participant media in Firebase Storage, public discovery of persisted ACTIVE participants, and product/service listings containing name, description and media references. It records real payment initiation/confirmation and paid-offering activation as unimplemented; discovery is area-filtered and does not claim proximity, coverage or availability. It also says TDBK relationship is persisted as `NOT_ENROLLED`, with no DBK/Business DNA/entitlement/Engine workflow created.
+
+**Junction S01 — SOKONI participant Firestore → Engine organization/product authority:** **PARTIAL / DOMAIN BOUNDARY UNRESOLVED.** A SOKONI-owned participant dataset exists per status document, while the Engine public contract forbids a second public organization master and expects the canonical DBK identity projection. Need reconcile which entity types are independent marketplace participants versus DBK-registered businesses, and define a one-way governed projection/handoff without duplicating Engine-owned identity or product truth.
+
+**Junction S02 — SOKONI listing → public discovery:** **PARTIAL.** Persisted participant discovery is documented; authoritative product stock/price/availability and transaction-ready listings are not part of the recorded listing model. Do not infer an orderable catalogue from the current product/service listing record.
+
+**Junction S03 — SOKONI discovery → request/quote/order/payment:** **MISSING / NOT IMPLEMENTED PER STATUS.** Real payment initiation/confirmation and request/quote flows require the Engine contract and must not be created as a parallel financial path.
+
+## 11. Deep trace: pharmacy and hospital identity boundaries
+
+### 11.1 Chemist Pro
+- The repository contains a TDBK integration payment router and a Cloud Functions/server API direction. Its Firestore rules are globally deny-by-default, stating browser SDK data access is denied and tenant data is accessed through the authenticated Cloud Functions API.
+- Its operational release checklist requires backend verification of Firebase ID token, active tenant membership, role/permission and tenant scoping on every endpoint, with cross-tenant denial tests.
+- The checklist is an acceptance target, not proof that all functions and tests currently pass. The repository README has previously stated it is not approved for live pharmacy trading.
+
+### 11.2 TRAIL-PHARMACY
+- The inspected domain types and service layer use `pharmacyId` for pharmacy, member, product, batch, stock, supplier, purchasing, sale and prescription records.
+- Initial owner lookup uses a top-level `pharmacies` collection and ownerUid/email matching. The model is pharmacy-scoped, but no Master Engine tenant identity contract was verified in the inspected source.
+- Pharmacy data is richer than the initial Chemist Pro slice in batch expiry, prescription, purchasing and supplier lifecycle vocabulary. This is not enough to conclude it is safer or more complete overall.
+
+**Junction PH01 — Master tenant → pharmacyId/tenantId:** **UNKNOWN / MASTER REVIEW REQUIRED.** Need explicit mapping, trusted identity propagation, server authority, role mapping, audit and migration proof. Do not simply rename `pharmacyId` to `tenantId` without a controlled migration.
+
+### 11.3 Ugatuzi hospital
+- The hospital architecture document describes a shared multi-tenant target, but `docs/ACCESS_CONTROL.md` explicitly states the current product is a **single-hospital system** for `ugatuzi-national`, with no second hospital workspace and no hospital switching.
+- The inspected Firestore rules globally deny by default and then define role/module helpers, but the helper `isUgatuzi(hospitalId)` and validation functions hardcode `ugatuzi-national`.
+- The frontend `TenantProvider` constructs a tenant context from the authenticated hospital/profile, but that client context is not itself a server authorization proof.
+
+**Junction H01 — Multi-tenant target → current Ugatuzi implementation:** **PARTIAL / SINGLE-TENANT IN PRACTICE PER ACCESS CONTRACT.** The architecture target must not be mistaken for a proven multi-hospital deployment. The second-facility acceptance test remains outstanding.
+
+## 12. Current CI and environment evidence snapshot (2026-11-17)
+- Pride workflow run [44153835044](https://github.com/thuram34/Aquaflow/actions/runs/44153835044), **AquaFlow quality checks**, completed successfully. Its job steps show dependency installation, TypeScript check, automated regression tests and production frontend build all completed successfully on `main`.
+- Pride workflow run [44152962857](https://github.com/thuram34/Aquaflow/actions/runs/44152962857), Google Cloud OIDC authentication check, completed successfully.
+- Pride workflow run [44153835617](https://github.com/thuram34/Aquaflow/actions/runs/44153835617), read-only staging resource inventory, was still **in progress** at the time of inspection. Authentication, API inventory and Cloud Run inventory steps had passed; Firebase Hosting site inspection was still running. No resource inventory result is claimed here.
+- These CI checks prove source checks and test/build execution on the referenced commits; they do not prove production deployment, durable volume, domain, real payment, off-host backup or client acceptance.
+
+## 13. Cross-branch integration rule
+The inspected repositories do not currently demonstrate one common tenant identity implementation:
+- Master platform uses `tenantId`, principal/security context and branch context.
+- Pride uses local staff sessions, branch identity and JSON operational database.
+- TRAIL pharmacy uses `pharmacyId` in its Firestore domain model.
+- Ugatuzi currently hardcodes `ugatuzi-national` in access rules and documents itself as single-hospital.
+- SOKONI status records a SOKONI-owned participant identity and explicitly `NOT_ENROLLED` TDBK relationship.
+
+Therefore, the next integration layer must be an explicit **identity and domain mapping contract**, not a direct database merge. It must define canonical entity ID, local ID, tenant ID, branch/facility ID, principal/member mapping, role mapping, data ownership, event contract, deprovisioning and migration/rollback. Preserve each branch's working domain until this contract and its adversarial tests exist.
