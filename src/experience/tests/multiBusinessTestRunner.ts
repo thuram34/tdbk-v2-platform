@@ -326,8 +326,8 @@ export async function runMultiBusinessTestSuite(): Promise<MultiBusinessTestSumm
     const dbkAId = `school_premier_${runId}`;
     const dbkBId = `pharmacy_thuram_${runId}`;
 
-    const capsA = dbkCapabilityManager.getDbkCapabilityRecords(ownerContext, dbkAId);
-    const capsB = dbkCapabilityManager.getDbkCapabilityRecords(ownerContext, dbkBId);
+    const capsA = await dbkCapabilityManager.hydratePersistentCapabilities(ownerContext, dbkAId);
+    const capsB = await dbkCapabilityManager.hydratePersistentCapabilities(ownerContext, dbkBId);
 
     const passed = capsA.length > 0 && capsB.length > 0;
     results.push({
@@ -350,7 +350,7 @@ export async function runMultiBusinessTestSuite(): Promise<MultiBusinessTestSumm
   // MULTI_BUSINESS_11: Branches remain scoped to their DBK
   try {
     const dbkAId = `school_premier_${runId}`;
-    const branchesA = branchManager.getBranchesForDbk(ownerContext, dbkAId);
+    const branchesA = await branchManager.listPersistentBranches(ownerContext, dbkAId);
     const passed = branchesA.length > 0 && branchesA.every(b => b.dbkId === dbkAId);
     results.push({
       id: 'MULTI_BUSINESS_11',
