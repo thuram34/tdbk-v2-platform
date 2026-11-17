@@ -258,3 +258,81 @@ The completed run [44153835617](https://github.com/thuram34/Aquaflow/actions/run
 - The workflow still concluded success because these inventory commands are not configured to fail the job on those errors.
 
 **Interpretation:** OIDC authentication to the staging project succeeds, but the deployer identity's read permissions are insufficient to inventory services, Cloud Run, Firestore and Hosting. The green workflow status is not evidence that those resources were found or that they do not exist. The staging environment remains **UNKNOWN**. A project owner/admin must grant the minimum required read permissions (including Service Usage visibility and product-specific read/list roles) or adjust the inventory workflow to fail visibly when required reads are denied. No IAM changes were made.
+
+
+
+## 14. Product-family scope and configurable business operating model
+
+### 14.1 TDBK product-family scope (whole-tree, not Master Engine only)
+The Stage 1 audit and subsequent implementation roadmap must cover the full product family as independently deployable/configurable business branches governed by shared TDBK contracts:
+
+- **Chemist Pro** — pharmacy operations.
+- **Hardware Pro** — hardware/building-materials retail and trade operations.
+- **School Pro** — school administration and operations.
+- **Hospital Pro** — hospital/clinical operations.
+- **Pride Industries** — manufacturing, distribution, water and cleaning-products operations.
+- **Electronics Pro** — electronics retail/service operations (existing repository: `my-home-electronics`; product branding/canonical name requires confirmation).
+- **SOKONI** — public marketplace, discovery and commerce.
+- **DBK Operations** — internal organisational control, workforce, duties and governance.
+
+This is the intended product-family scope. It is not a claim that every named product is already implemented or production-ready. For each branch, Stage 1 must distinguish existing source, implemented workflows, test evidence, deployment evidence, missing capability and future product definition.
+
+### 14.2 Configuration-first invariant
+All business-specific values and operating rules must be data/configuration, not hardcoded assumptions. At minimum, each tenant/branch needs governed configuration for:
+
+- Business identity, legal/contact details, branches/facilities and operating hours.
+- Currency, tax/VAT, invoice/receipt numbering and financial rounding.
+- Product/service catalogue, categories, units, sizes, variants, bundles, price lists and price effective dates.
+- Stock locations, reorder thresholds, batch/serial/expiry rules, reservations and valuation policy where applicable.
+- Customer/supplier types, credit limits, payment terms, deposits and refunds.
+- Roles, permissions, approval thresholds and segregation of duties.
+- Order, quotation, procurement, delivery, returns and complaint lifecycles.
+- Notification channels, templates, language, consent and escalation.
+- Subscription plan, licensed modules, usage limits and feature entitlements.
+- Industry-specific fields and workflows through versioned schemas/extensions, not global hardcoded conditionals.
+
+Configuration must be validated, versioned, audited, tenant-scoped, permission-controlled and safely defaulted. Runtime must resolve configuration from the authoritative tenant/branch context. Changes should have effective dates, rollback/version history and tests. Secrets/credentials must live in a secret manager, not tenant-editable plain settings.
+
+### 14.3 Shared kernel versus industry-specific extensions
+Shared platform services should provide identity, tenant/branch context, permissions, audit, workflow orchestration, event delivery, files/media, notifications, subscription/entitlements, payment/ledger authority and integration contracts.
+
+Industry branches should own their domain records and specialised rules. Examples:
+- Pharmacy: medicines, batches, expiry, prescriptions and dispensing controls.
+- Hardware: configurable building-material units, dimensions, grades, brands, bulk/retail price lists, stock and delivery.
+- School: academic years, terms, classes, streams, learners, guardians, fees, attendance and assessment.
+- Hospital: facilities, departments, clinicians, encounters, appointments, clinical records and billing.
+- Pride/manufacturing: formulations, packaging, production batches, container deposits, distribution and returns.
+- Electronics: devices, models, serial/IMEI where relevant, warranties, repairs and accessories.
+
+These are domain requirements to validate against each product; they are not assertions that all are already implemented.
+
+### 14.4 Evidence update: Electronics branch
+Repository inspected: `thuram34/my-home-electronics`.
+- `package.json` identifies a Vite/React frontend with Firebase Auth, Firestore and Storage dependencies; the package scripts expose frontend build and TypeScript lint, but no server build/start workflow.
+- `src/lib/firebase.ts` initializes Firebase Auth, Firestore and Storage using `firebase-applet-config.json`.
+- Current `firestore.rules` allows public reads of products, gallery, settings and category images; any authenticated user can write these collections. Inquiry creation is public; any authenticated user can read/update/delete inquiries.
+- Current `storage.rules` allows public reads and any authenticated user to write all object paths.
+- No tenantId, branch scoping, role-based authorization or per-tenant storage boundary was established by these inspected files.
+- These rules are a **high-priority security finding** if this repository is intended for multi-tenant or production use. They must be replaced only after the actual admin identity model and public catalogue requirements are confirmed; do not lock out the legitimate storefront or administrator during remediation.
+- This source inspection does not establish current deployment, active Firebase project, production data or business acceptance.
+
+**Electronics junction E01 — Firebase Auth → catalogue/admin write authority:** **UNSAFE RULES / ROLE BOUNDARY NOT ESTABLISHED** based on current rules. Require server-authorized admin roles, tenant/branch ownership checks, validated public inquiry creation, rate limiting/abuse controls, and constrained Storage paths/content types/sizes.
+
+### 14.5 Evidence update: School branch
+Repository inspected: `thuram34/Sajid-intergrayed`.
+- `package.json` identifies the project as `sajid-integrated-school`, using React/Vite and an Express server entry point (`server.ts`), with build output bundling the server.
+- The expected root `README.md`, `firestore.rules` and `src/lib/firebase.ts` were not found at those paths in this inspection. No claim is made about persistence, school data schema, authentication, authorization, tenant isolation or deployment until the actual source paths are enumerated and inspected.
+- School Pro must be evaluated as a configurable school operating system, not assumed to be a generic dashboard. Required configuration domains include academic calendar, years/terms, classes/streams, grading scales, fee structures, subjects, attendance policies, admission rules, roles, campuses and notification preferences.
+
+**School junction SCH01 — School app → persistent school record authority:** **UNKNOWN / SOURCE TREE INSPECTION REQUIRED.** Need inspect server routes, storage/database adapter, auth/session model, student/guardian/staff scoping, finance and fee-payment lifecycle, rules and deployment workflows.
+
+### 14.6 Configuration acceptance tests (required for every product branch)
+1. Create two tenants with different currencies, tax rates, price lists and workflows; prove no configuration leakage.
+2. Add a product size/variant/unit/price in configuration without code changes; prove POS, catalogue, order, invoice and reports use the same effective values.
+3. Change a tenant rule and verify version history, audit actor, effective time and rollback.
+4. Deny a user without the relevant permission from editing configuration or crossing branch boundaries.
+5. Verify API/server enforcement independently of hidden/disabled frontend controls.
+6. Verify exports, receipts, integrations and background jobs consume the same versioned configuration.
+7. Verify missing/invalid configuration fails safely and never silently invents a price, tax, stock quantity or entitlement.
+
+**Stage 1 remains IN PROGRESS.** Product-family scope is now explicit. Electronics security rules require remediation planning; School Pro persistence and identity remain unknown pending full source-tree inspection. No production code, Firebase rules, deployments or IAM settings were changed by this audit update.
