@@ -39,7 +39,7 @@ export class BranchManagerService {
     name: string = 'Headquarters',
     location?: DbkBranch['location']
   ): Promise<DbkBranch> {
-    this.assertTenantAccess(context, dbkId, 'createHeadquartersBranch');
+    await this.assertPersistentTenantAccess(context, dbkId, 'createHeadquartersBranch');
 
     const branchId = `${dbkId}_hq`;
     const existingDurable = await branchRepository.getBranch(dbkId, branchId);
@@ -105,7 +105,7 @@ export class BranchManagerService {
       location?: DbkBranch['location'];
     }
   ): Promise<DbkBranch> {
-    this.assertTenantAccess(context, dbkId, 'createSecondaryBranch');
+    await this.assertPersistentTenantAccess(context, dbkId, 'createSecondaryBranch');
 
     const existingDurable = await branchRepository.getBranch(dbkId, branchData.branchId);
     if (existingDurable) {
@@ -192,7 +192,7 @@ export class BranchManagerService {
    * The synchronous cache methods above are retained for deterministic test isolation.
    */
   public async listPersistentBranches(context: SecurityContext, dbkId: string): Promise<DbkBranch[]> {
-    this.assertTenantAccess(context, dbkId, 'listPersistentBranches');
+    await this.assertPersistentTenantAccess(context, dbkId, 'listPersistentBranches');
     return await branchRepository.listBranches(dbkId);
   }
 
@@ -201,12 +201,25 @@ export class BranchManagerService {
     dbkId: string,
     branchId: string
   ): Promise<DbkBranch | null> {
-    this.assertTenantAccess(context, dbkId, 'getPersistentBranch');
+    await this.assertPersistentTenantAccess(context, dbkId, 'getPersistentBranch');
     return await branchRepository.getBranch(dbkId, branchId);
   }
 
   /**
-   * Asserts tenant boundary for branch operations.
+   * Persistent branch operations use authoritative portfolio/tenant checks.
+   * Synchronous cache access below intentionally remains exact-tenant only.
+   */
+  private async assertPersistentTenantAccess(
+    context: SecurityContext,
+    targetDbkId: string,
+    action: string
+  ): Promise<void> {
+    await masterAuthority.assertTenantAuthority(context, targetDbkId, action, context.requestId);
+  }
+
+  /**
+   * Synchronous cache methods are restricted to an exact tenant claim because
+   * they cannot consult the authoritative DBK Registry.
    */
   private assertTenantAccess(context: SecurityContext, targetDbkId: string, action: string): void {
     if (!masterAuthority.isMasterAdmin(context.principal)) {
