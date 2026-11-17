@@ -105,3 +105,90 @@ Tenant/user → medicine catalogue and batch records → prescription/dispensing
 - Continue by inspecting complete source trees and tests for DBK, SOKONI, Pride, pharmacy, hospital, school and logistics; then inspect deployment/cloud evidence and test the critical journeys.
 - Update each junction only when the exact source path, contract, tests and runtime evidence are recorded.
 - Stage 1 remains **IN PROGRESS**. Freeze only after critical junctions have owners, evidence, status and explicit unknowns.
+
+
+## 7. Deep trace: Pride Industries (Aquaflow repository, main)
+
+**Repository inspected:** `thuram34/Aquaflow`, default branch `main`, tree SHA `792db417d12c8b10d6dff6f73fbdc6a8464c8d49`. This is source inspection, not a production environment inspection.
+
+### 7.1 Actual runtime and data authority
+- `server.ts` starts an Express API under `/api`, serves the Vite SPA and exposes `/api/health`.
+- `src/server/api.ts` initializes `Database.getInstance()`; operational routes read and mutate this database.
+- `src/server/db.ts` persists the full operational schema as JSON at `AQUAFLOW_DATA_DIR/water_business_db.json` (default production directory `/var/data/aquaflow`). It enforces that the configured data directory is inside `AQUAFLOW_PERSISTENT_ROOT` and refuses startup if persistent storage is not mounted or the database schema is unknown/corrupt.
+- The schema includes business config, staff, products, stock receiving/ledger/allocations, customers, sales, credit, containers, deliveries, expenses, audit, QuickBooks queue, M-Pesa transactions, sessions and login attempts.
+- `src/lib/firestoreSync.ts` separately writes selected workspace/public-storefront/public-order projections to Firestore. Its existence does **not** make Firestore the authoritative operational database: README, database implementation and client handover explicitly state that the operational app still uses JSON persistence and the Firestore migration is incomplete.
+
+**Junction P01 — Operational UI/API → JSON database:** **SOURCE VERIFIED / DURABILITY ENVIRONMENT UNKNOWN.** The API uses JSON as operational truth. A persistent mount and off-host backup are mandatory. No live mount, backup destination or restore rehearsal was verified in this audit.
+
+### 7.2 Identity, staff and branch authority
+- `src/server/security.ts` stores session token hashes and login-throttle hashes in the same JSON database; API routes resolve sessions and permission checks.
+- `src/server/branch.ts` enforces branch matching and reconstructs branch stock only from stock-ledger movements attributed to the staff member's branch.
+- `src/server/api.ts` applies permission middleware to staff, control-panel, product and other operational routes; business configuration and shared product catalogue changes are restricted to enterprise administrators.
+- `src/server/branch.integration.test.ts` and branch unit tests are included in the configured test command; source-level integration tests include cross-branch denial assertions.
+- Firestore rules constrain the optional Firestore projection and public ordering collections, but these rules do not replace the Express API's operational authorization boundary.
+
+**Junction P02 — Staff identity → role/branch permissions → operational records:** **PARTIAL.** Branch isolation logic and tests exist. This is an independent Pride staff/branch identity model, not yet proven federated to TDBK Master identity/tenant context. Do not describe it as TDBK-wide SSO or master tenancy.
+
+### 7.3 Catalogue → POS → stock
+- The JSON schema stores dynamic categories, packaging types and product records. Product configuration is runtime data, not a fixed catalogue list.
+- API routes expose product and stock receiving operations; branch stock is reconstructed from stock ledger movements.
+- Control Panel configuration includes branches, payment methods, tax, container and credit rules.
+- The current product catalogue is shared across branches and edits require enterprise administrator authority.
+
+**Junction P03 — Configured product → POS/sales → stock ledger:** **PARTIAL / SOURCE PRESENT.** The repository has the relevant models and operational routes. Full sales-to-ledger consistency, concurrent stock mutation, and end-to-end physical stock reconciliation still require test/runtime evidence.
+
+### 7.4 Public ordering → fulfilment
+- The public-order integration test explicitly exercises catalogue gating, owner enabling public ordering through Control Panel, branch validation, public order submission, status lookup by order number plus phone, driver assignment, dispatch, delivery and collection.
+- The test explicitly asserts that public order submission does **not** deduct stock at order creation. This means order acceptance and stock reservation are separate lifecycle events; do not assume a reservation has happened merely because an order was accepted.
+- `src/server/delivery.ts` defines delivery transitions, dispatch stock validation, partial-delivery settlement, container issuance/collection, invoice totals and collection validation.
+- `src/server/delivery.integration.test.ts` exercises once-only cash collection, invoice/customer credit reconciliation, duplicate reference handling, over-collection rejection, unverified M-Pesa rejection and cross-branch denial.
+
+**Junction P04 — Public order → stock commitment → delivery:** **PARTIAL.** Public order and delivery lifecycle have meaningful integration tests. The public-order test's no-stock-deduction assertion makes a later explicit allocation/reservation step a required operational control. Need inspect and prove that acceptance/dispatch path cannot oversell under concurrent orders, and verify customer-facing order confirmation and actual delivery evidence in the deployed system.
+
+### 7.5 Payment → reconciliation → ledger
+- `src/server/mpesa.ts` implements Daraja token acquisition, STK initiation, callback-token validation, callback normalization and STK transaction query.
+- Config requires credentials, a long callback token and HTTPS APP_URL.
+- The delivery collection planner deliberately permits Cash or Bank Transfer only and instructs M-Pesa to be reconciled through the Safaricom workflow.
+- The test suite includes M-Pesa normalization/query tests and the delivery integration test rejects an unverified M-Pesa collection.
+- Source presence and mocked tests are not proof of successful Pride client Daraja credentials, public callback reachability, provider-confirmed settlement or production reconciliation.
+
+**Junction P05 — Daraja → transaction truth → customer balance/invoice:** **PARTIAL / LIVE NOT VERIFIED.** The implementation has a query path, but no Pride production UAT evidence, deployed callback evidence or reconciled live transaction was inspected. Keep live M-Pesa disabled until the actual client's credentials, callback, query-result mapping, duplicate/failure/timeout handling and ledger reconciliation are proven.
+
+### 7.6 Deployment, storage and recovery
+- `vercel.json` contains SPA rewrites; `server.ts` requires the Express process for API routes. A static frontend deployment alone is not the complete application runtime.
+- `.github/workflows/google-cloud-staging-inventory.yml` inspects a Google Cloud staging project and lists Firestore databases and Firebase Hosting sites. It is an inventory workflow, not evidence that the operational JSON API is deployed or that a production volume is mounted.
+- The README and handover explicitly require durable storage, off-host encrypted backups and isolated restore verification. Backup utility tests cover encryption, integrity, schema validation and isolated restore, but do not prove an off-host destination or production recovery.
+- Render is not required by the repository. Hosting must support the long-running Express API, persistent storage, HTTPS and private secrets. Firebase Hosting by itself does not supply the JSON database volume or run this Express process.
+
+**Junction P06 — Application runtime → durable data → recovery:** **BLOCKING ACCEPTANCE EVIDENCE.** Source guards are good, but live hosting/provider, mounted volume, off-host backup, restart persistence and restore rehearsal remain unverified. Do not cut over or hand over as production-ready until evidenced.
+
+### 7.7 Client handover scope boundary
+`docs/CLIENT_HANDOVER.md` explicitly lists complete supplier/procurement lifecycle, full stock reservation/public-order-to-invoice lifecycle, production M-Pesa checkout/reconciliation, production WhatsApp worker/templates/monitoring, QuickBooks OAuth/sync, complete Firestore migration and complete financial container-deposit ledger/reconciliation as items not to promise without additional implementation and environment testing.
+
+**Pride branch conclusion:** The repository contains a substantial internal operations foundation with staff/branch controls, dynamic catalogue, POS/inventory, public ordering, delivery/credit/container workflows, M-Pesa adapter and backup utilities. It is **not proven production-ready**. The largest immediate risk is the split between operational JSON authority and optional Firestore projections, followed by unverified durable hosting/recovery and incomplete external integration certification.
+
+## 8. Other branch findings from initial source inspection
+
+### Pharmacy: chemist-pro vs TRAIL-PHARMACY
+- `chemist-pro` contains a TDBK integration file at `tdbk-integration/chemistPaymentRouter.ts`, Firebase Functions/server entry points, Firestore rules, and an operational release checklist. Its current README states that it is not approved for live pharmacy trading.
+- `TRAIL-PHARMACY` contains a broad pharmacy domain model and Firebase-backed service layer. The inspected types include pharmacy/owner identity, members, categories, products, batches, stock movements, purchase orders, goods receipts, supplier invoices/payments, sales, prescriptions, customer receipts and audit records. Product and batch records are scoped by pharmacyId; stock is batch-aware.
+- The TRAIL service's initial owner lookup queries top-level `pharmacies` by deterministic ID or ownerUid/email; this is a different identity and tenancy model from the Master Engine's tenant context. Firestore rules and every service method must be examined before deciding isolation is sufficient.
+- The two repositories are not yet proven to be duplicates or interoperable. Preserve both pending domain coverage, data migration, regulatory, security, deployment and tenant-isolation comparison.
+
+**Pharmacy junction status:** **UNKNOWN / PARTIAL.** Do not merge repositories or select a canonical implementation yet.
+
+### Hospital: Ugatuzi
+- `docs/MULTITENANT_HMIS_ARCHITECTURE.md` describes a target shared platform with facility tenants, tenant-aware identity/membership/RBAC, subscriptions, audit and integration hub. It explicitly requires authenticated tenant context and tenant isolation, and proposes a second-facility acceptance test without cloning a repository.
+- This is an architecture contract, not proof that all routes, Firestore rules, clinical workflows or deployments satisfy it. The actual code and CI tests still need to be mapped against the contract.
+
+**Hospital junction status:** **CONTRACT FOUND / IMPLEMENTATION PARTIAL OR UNKNOWN.**
+
+## 9. Updated priority sequence based on source evidence
+1. **Pride production truth first:** identify the actual deployed Express host, verify persistent volume and data path, create and verify an off-host encrypted backup, perform an isolated restore, and complete client-accepted internal workflows. Keep M-Pesa/WhatsApp/QuickBooks/public promises gated until their specific tests pass.
+2. **Master-to-branch contract:** define the tenant/branch identity handoff for Pride without prematurely replacing its working staff/branch model or duplicating financial truth.
+3. **SOKONI commerce contract:** establish authoritative seller/product/publication/order records and explicitly connect the catalogue to fulfilment and payment truth.
+4. **Pharmacy comparison:** complete side-by-side feature/security/data/deployment matrix for chemist-pro and TRAIL before any consolidation.
+5. **Ugatuzi verification:** map actual tenant context, RBAC, subscription, audit and facility workflows to its architecture contract.
+6. **Only then** decide shared modules, migration boundaries and implementation slices.
+
+**Stage 1 remains IN PROGRESS.** The new Pride findings improve source-level traceability but do not certify live deployment, client acceptance, production storage or live payment.
