@@ -247,3 +247,14 @@ The inspected repositories do not currently demonstrate one common tenant identi
 - SOKONI status records a SOKONI-owned participant identity and explicitly `NOT_ENROLLED` TDBK relationship.
 
 Therefore, the next integration layer must be an explicit **identity and domain mapping contract**, not a direct database merge. It must define canonical entity ID, local ID, tenant ID, branch/facility ID, principal/member mapping, role mapping, data ownership, event contract, deprovisioning and migration/rollback. Preserve each branch's working domain until this contract and its adversarial tests exist.
+
+
+### 13.1 Staging resource inventory log inspection — important qualification
+The completed run [44153835617](https://github.com/thuram34/Aquaflow/actions/runs/44153835617) reported workflow/job conclusion `success`, but inspection of its actual job logs shows the individual resource-list commands did **not** have sufficient permissions:
+- `gcloud services list --enabled` returned permission denied for `serviceusage.services.list`.
+- Cloud Run listing reported `run.googleapis.com` disabled or unavailable and returned `SERVICE_DISABLED`.
+- Firestore database listing returned permission denied.
+- Firebase Hosting site listing returned HTTP 403 permission denied.
+- The workflow still concluded success because these inventory commands are not configured to fail the job on those errors.
+
+**Interpretation:** OIDC authentication to the staging project succeeds, but the deployer identity's read permissions are insufficient to inventory services, Cloud Run, Firestore and Hosting. The green workflow status is not evidence that those resources were found or that they do not exist. The staging environment remains **UNKNOWN**. A project owner/admin must grant the minimum required read permissions (including Service Usage visibility and product-specific read/list roles) or adjust the inventory workflow to fail visibly when required reads are denied. No IAM changes were made.
