@@ -336,3 +336,85 @@ Repository inspected: `thuram34/Sajid-intergrayed`.
 7. Verify missing/invalid configuration fails safely and never silently invents a price, tax, stock quantity or entitlement.
 
 **Stage 1 remains IN PROGRESS.** Product-family scope is now explicit. Electronics security rules require remediation planning; School Pro persistence and identity remain unknown pending full source-tree inspection. No production code, Firebase rules, deployments or IAM settings were changed by this audit update.
+
+
+## 15. Deep trace: School Pro and Electronics Pro candidates (2026-11-18)
+
+### 15.1 School Pro candidate — `thuram34/Sajid-intergrayed`
+
+**Inspected:** repository tree, `package.json`, `server.ts`, `src/components/ConfigPanel.tsx`, `src/components/AdminDashboard.tsx` and related UI source. The repository is a React/Vite application with an Express server entry point.
+
+**Actual data authority and domain model**
+- `server.ts` defines a broad school data model: school details, users, academic years, terms, classes, streams, subjects, students, fee structures, student charges, payments, expenses, CBC assessments, attendance, notices, transport and audit logs.
+- Runtime persistence is a JSON file at `data/school_db.json`, relative to the server directory. If it does not exist, the server seeds `DEFAULT_DB`, which contains demonstration users, students, fee structures, payments, expenses and attendance.
+- `readDB()` catches read/parse errors and returns `DEFAULT_DB`; `writeDB()` catches write errors and logs them rather than propagating failure to the API caller. This creates a material risk that a caller sees apparent success while persistence failed, and that a damaged/unreadable database falls back to seed data.
+- No database transaction/concurrency mechanism, mounted persistent volume, off-host backup, restore rehearsal or production deployment was verified in this inspection.
+
+**Identity and access**
+- The app has its own local user model and HMAC-signed eight-hour cookie session. Passwords use scrypt hashes. Production startup requires `SAJID_SESSION_SECRET`.
+- API middleware checks roles for selected writes and protects selected parent endpoints. However, the inspected student statement handler returns student details, charges and payments to any authenticated user unless the caller is a Parent with an unlinked student ID. Teacher class scope and transport assignment scope are not applied to this statement endpoint.
+- The `GET /api/students` handler filters Teachers by assigned class and Transport users to students with a transport assignment, but other authenticated roles receive the full student list.
+- Student document upload has no role/ownership check in the inspected route. The source labels this as a mock upload and stores a supplied URL rather than demonstrating secure document storage.
+- Attendance GET applies parent-linked-child and teacher-class filters; attendance POST is role-gated to teaching roles but the inspected code does not independently validate each submitted student belongs to the teacher's assigned class.
+- These are source-level authorization findings; no live exploit test was performed.
+
+**Configuration**
+- School details, academic years, terms, classes, streams, subjects and transport have configurable UI/API paths.
+- The domain model still encodes a fixed set of fee components (tuition, activity, lunch, transport), CBC grading enum values, role names and a single school-level configuration record.
+- This is useful product configuration, but not yet a tenant-configurable multi-school architecture. It needs configurable fee heads, currencies/tax/payment rules, grading schemes, academic calendars, campuses/branches, roles and permissions.
+
+**Junction SCH01 — School Pro data → API → persistence:** **SOURCE VERIFIED / DURABILITY UNKNOWN.** JSON file is the operational authority; durability and transactional safety are unverified.
+
+**Junction SCH02 — School identity/role → student/finance/attendance records:** **PARTIAL WITH P0 AUTHORIZATION GAPS.** Local sessions and selected role checks exist; tenant isolation is absent from inspected model, and student statement/document/attendance write scopes need correction and adversarial tests.
+
+**Junction SCH03 — School configuration → academic/fee/transport workflows:** **PARTIAL.** Configurable entities exist, but several domain rules remain fixed in code and there is no verified versioned configuration contract.
+
+**School Pro remediation priority**
+1. P0: restrict student statements, document access and attendance writes to assigned/linked records at the API layer; add adversarial role tests.
+2. P0: replace silent persistence failure and seed-data fallback behavior with explicit fail-closed health/error handling; implement transactional durable storage and backup/restore.
+3. P1: introduce tenantId and branch/campus context derived from trusted identity; migrate existing local school identity without exposing data.
+4. P1: externalize fee heads, grading, academic calendars, roles, currency and other school rules into validated versioned tenant configuration.
+5. P1: implement secure document upload/storage and real payment verification/reconciliation before financial production use.
+
+### 15.2 Electronics Pro candidate — `thuram34/my-home-electronics`
+
+**Inspected:** repository tree, `package.json`, `src/App.tsx`, `src/pages/Admin.tsx`, `src/components/OperatorAccessModal.tsx`, `src/lib/firebase.ts`, `src/data.ts`, `firestore.rules`, `storage.rules`, `firebase.json` and `.github/workflows/ci.yml`.
+
+**Actual data and runtime paths**
+- This is a React/Vite storefront using Firebase Authentication, Firestore and Firebase Storage.
+- Product, gallery, settings, category image and inquiry data are read/written directly through the Firebase client SDK. Gallery writes use Firestore batch operations; store settings are written to Firestore. Cart/wishlist and some fallback/default catalogue state use browser localStorage.
+- Product defaults are compiled into `src/data.ts`; these are fallback/demo catalogue records, not a tenant-configurable authoritative product master.
+- `firebase.json` configures Firebase Hosting for the built `dist` SPA and references Firestore and Storage rules.
+- CI performs npm install, TypeScript check and production build. On pushes to main it authenticates using Google Workload Identity Federation and deploys Firebase Hosting. This proves a deployment workflow is defined, not that the latest deployment succeeded or that the live site is healthy.
+
+**Authentication and authorization**
+- Operator login uses Firebase `signInWithEmailAndPassword`; this is stronger than the earlier assumption that there was no authentication.
+- However, Firestore rules permit any authenticated user to write all documents in products, gallery, mediaLibrary, settings and categoryImages. Storage rules permit any authenticated user to write any object path. No tenant/branch or admin-role claim is checked in these rules.
+- Public inquiry creation is allowed. Any authenticated user can read/update/delete inquiries.
+- The app's UI authentication state is reflected in sessionStorage, but the security boundary must be enforced by Firebase rules or trusted backend authorization; a UI state flag cannot protect data.
+- No custom-claims/role provisioning, tenant ownership model, per-store data boundary, server-side publication approval or adversarial rules test was verified.
+
+**Junction E01 — Firebase Auth → catalogue/settings/media write authority:** **PARTIAL / P0 SECURITY GAP.** Authentication exists, but broad authenticated-user write rules do not distinguish store administrators from ordinary signed-in users.
+
+**Junction E02 — Storefront catalogue → Firestore/local fallback → public customer view:** **PARTIAL.** Firestore-backed records and local defaults exist; canonical product ownership, price/stock authority and multi-tenant catalogue behavior are not established.
+
+**Junction E03 — Source → CI → Firebase Hosting:** **WORKFLOW SOURCE VERIFIED / LIVE DEPLOYMENT NOT VERIFIED.** Build and Hosting deploy workflow exist; current run/deployment and live smoke test still required.
+
+**Electronics Pro remediation priority**
+1. P0: replace broad authenticated-write rules with admin-role/tenant/branch-scoped rules or trusted server APIs; add emulator tests for anonymous, ordinary authenticated and authorized admin actors.
+2. P0: secure inquiry read/update/delete and Storage paths; retain only the intended public create/read experience.
+3. P1: define canonical product, price, stock, variant, warranty and publication records; distinguish fallback/demo content from authoritative inventory.
+4. P1: introduce tenant/store and branch ownership, server-enforced permissions and auditable configuration.
+5. P1: verify current Firebase project ownership, Hosting deployment, Firestore database and Storage bucket against live read-only inventory.
+
+### 15.3 Product family distinction — Hardware Pro vs Electronics Pro
+
+The inspected `my-home-electronics` repository represents a home-electronics retail storefront and related operator tools. It does not establish a construction-materials/hardware trade system. Therefore Electronics Pro and Hardware Pro remain separate product candidates. No dedicated Hardware Pro repository has been identified in the inspected repository set; do not rename or repurpose Electronics Pro as Hardware Pro without source evidence and product-owner confirmation.
+
+### 15.4 Updated Stage 1 evidence status
+
+- School Pro candidate source and route-level authorization risks: **inspected; critical gaps recorded**.
+- Electronics Pro candidate source, Firebase rules and CI workflow: **inspected; critical gaps recorded**.
+- Hardware Pro repository/product implementation: **UNKNOWN — repository discovery still required**.
+- No production code, Firebase rules, IAM, billing, deployment or live data was changed.
+- Stage 1 remains **IN PROGRESS**. Remaining high-priority work includes full Master Engine provisioning/tenant tests, SOKONI and branch API contracts, pharmacy comparison, Pride production durability and delivery evidence, Hardware Pro discovery, and authenticated deployment/runtime inventory.
