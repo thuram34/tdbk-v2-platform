@@ -13,6 +13,23 @@ export class AgentVerificationEngine {
   ): Promise<AgentVerification> {
     const tenantId = action.tenantId || instruction.context.tenantContext?.tenantId || instruction.context.principal.tenantId;
 
+    if (action.kind === 'RUN_BROWSER_AUTOMATION') {
+      const job = data as { jobId?: string; status?: string; tenantId?: string; requestId?: string } | undefined;
+      const verified = Boolean(
+        job?.jobId &&
+        job.tenantId === tenantId &&
+        job.requestId === instruction.instructionId &&
+        ['QUEUED', 'RUNNING', 'COMPLETED'].includes(job.status || ''),
+      );
+      return {
+        verified,
+        summary: verified
+          ? `Verified Browser Lab accepted job '${job?.jobId}' for tenant '${tenantId}'. Job status is ${job?.status}; browser completion is tracked separately by job polling.`
+          : 'Browser Lab did not return a valid tenant-bound job acceptance record.',
+        data: { jobId: job?.jobId ?? null, jobStatus: job?.status ?? null, executionResult: data },
+      };
+    }
+
     if (action.kind === 'PROVISION_DBK') {
       if (!tenantId) return { verified: false, summary: 'Provisioning verification requires an authoritative DBK target.' };
       const dbk = await dbkRegistry.getDbk(instruction.context, tenantId);
