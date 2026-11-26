@@ -1,6 +1,5 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createServer as createHttpServer } from "node:http";
 import type { Browser } from "playwright";
 import { createBrowserLabServer } from "../src/server.js";
 
