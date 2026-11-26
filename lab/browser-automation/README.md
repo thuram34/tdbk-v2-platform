@@ -79,4 +79,4 @@ npm test
 npm run typecheck
 ```
 
-The automated suite exercises policy validation, tenant/task payload validation, authorization gates, job execution, status polling and screenshot evidence using an injected fake browser. Live Chromium smoke tests require an installed browser and a configured allowlisted test hostname.
+The automated suite exercises policy validation, tenant/task payload validation, authorization gates, job execution, status polling and screenshot evidence using an injected fake browser. CI also installs Chromium and runs a real headless browser smoke test against an in-memory page; it does not yet test a live TDBK hostname.
