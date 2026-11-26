@@ -1,0 +1,37 @@
+name: TDBK LAB Core
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "lab/registry/**"
+      - "lab/architecture/**"
+      - "lab/README.md"
+      - ".github/workflows/lab-core.yml"
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "lab/registry/**"
+      - "lab/architecture/**"
+      - "lab/README.md"
+      - ".github/workflows/lab-core.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  registry:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Validate project registry
+        run: node lab/registry/validate.mjs
+      - name: Test registry validation
+        run: node --test lab/registry/validate.test.mjs
