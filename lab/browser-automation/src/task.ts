@@ -44,14 +44,21 @@ export function parseBrowserJobInput(value: unknown): BrowserJobInput {
         return { type: raw.type };
       case "assertText":
         return { type: "assertText", text: requiredText(raw.text, `steps[${index}].text`, 2000) };
-      case "click":
-        return { type: "click", selector: requiredText(raw.selector, `steps[${index}].selector`, 500) };
-      case "fill":
-        return {
-          type: "fill",
-          selector: requiredText(raw.selector, `steps[${index}].selector`, 500),
-          value: typeof raw.value === "string" && raw.value.length <= 4000 ? raw.value : (() => { throw new Error(`Invalid steps[${index}].value`); })(),
-        };
+      case "click": {
+        const selector = requiredText(raw.selector, `steps[${index}].selector`, 500);
+        if (/submit|checkout|purchase|delete|remove|archive|transfer|approve|publish|payment|pay-now/i.test(selector)) {
+          throw new Error("High-impact browser controls are disabled in v1.0");
+        }
+        return { type: "click", selector };
+      }
+      case "fill": {
+        const selector = requiredText(raw.selector, `steps[${index}].selector`, 500);
+        if (/password|passcode|otp|one[-_ ]?time|secret|token|pin|credit[-_ ]?card|cvv|cvc|mpesa|bank[-_ ]?account/i.test(selector)) {
+          throw new Error("Sensitive form fields require the future credential vault and are disabled in v1.0");
+        }
+        const value = typeof raw.value === "string" && raw.value.length <= 4000 ? raw.value : (() => { throw new Error(`Invalid steps[${index}].value`); })();
+        return { type: "fill", selector, value };
+      }
       default:
         throw new Error(`Unsupported browser step at index ${index}`);
     }
