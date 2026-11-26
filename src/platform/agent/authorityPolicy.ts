@@ -145,6 +145,32 @@ export class AgentAuthorityPolicy {
         : { allowed: false, reason: result.reason };
     }
 
+    if (action.kind === 'RUN_BROWSER_AUTOMATION') {
+      if (!tenantId || !action.browserTask) {
+        return { allowed: false, reason: 'Tenant context and a structured browser task are required.' };
+      }
+      const result = await rbacEngine.authorizeAsync(
+        instruction.context.principal,
+        'execute',
+        'workflow:execute',
+        {
+          tenantId,
+          branchId: instruction.context.branchContext?.branchId || instruction.context.principal.branchId,
+          requiredPermission: 'workflow:execute',
+          requestId: instruction.context.requestId,
+        },
+      );
+      if (!result.allowed) return { allowed: false, reason: result.reason };
+      const hasInteractions = action.browserTask.steps.some(step => step.type === 'click' || step.type === 'fill');
+      const interactionRoles = ['TENANT_ADMIN', 'OWNER_OPERATOR', 'BUSINESS_OWNER'];
+      const canApproveInteractions = masterAuthority.isMasterAdmin(instruction.context.principal) ||
+        instruction.context.principal.roles.some(role => interactionRoles.includes(role));
+      if (hasInteractions && (!action.browserTask.allowInteractions || !canApproveInteractions)) {
+        return { allowed: false, reason: 'Interactive browser steps require explicit approval and elevated tenant authority.' };
+      }
+      return { allowed: true, reason: 'Tenant workflow authority and browser interaction policy verified.' };
+    }
+
     if (!action.requiresAuthorization) {
       return { allowed: true, reason: 'Action is within the agent observation boundary.' };
     }
