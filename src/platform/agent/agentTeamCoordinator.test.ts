@@ -25,7 +25,7 @@ describe('TDBK coordinated specialist workforce', () => {
       'COMPOSE_BUSINESS', 'ACTIVATE_BUSINESS', 'REBUILD_BUSINESS_STATE', 'ENABLE_CAPABILITY',
       'DISABLE_CAPABILITY', 'ENSURE_HEADQUARTERS_BRANCH', 'REFRESH_DBK_TOPOLOGY',
       'RECOMPILE_WORKSPACE', 'SUSPEND_DBK', 'REACTIVATE_DBK', 'ARCHIVE_DBK',
-      'RESTORE_DBK', 'RECOVER_WORKFLOWS', 'EXECUTE_WORKFLOW',
+      'RESTORE_DBK', 'RECOVER_WORKFLOWS', 'EXECUTE_WORKFLOW', 'RUN_BROWSER_AUTOMATION',
     ];
     const coordinator = new TdbkAgentTeamCoordinator();
     const assignments = coordinator.coordinate(kinds.map(action));
