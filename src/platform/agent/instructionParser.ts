@@ -35,6 +35,18 @@ export class TdbkInstructionParser {
       });
     };
 
+    if (instruction.browserTask) {
+      add(
+        'RUN_BROWSER_AUTOMATION',
+        'WORKFLOW',
+        'Run the authorized browser task against ' + instruction.browserTask.url + ' with ' + instruction.browserTask.steps.length + ' bounded step(s).',
+        true,
+        targetTenantId,
+      );
+      actions[actions.length - 1].browserTask = instruction.browserTask;
+      return { intent: 'BROWSER_AUTOMATION', actions };
+    }
+
     if (/\b(connect|activate|enable|configure)\b.*\b(mpesa|etims|whatsapp|email|sms|bank|bridge|connector|integration)\b/.test(text)) {
       const bridgeId = this.extractBridgeId(text);
       add(
