@@ -312,8 +312,12 @@ export function createBrowserLabServer(options: LabOptions = {}): Server {
         if (req.method === "POST" && action === "fill") {
           if (!current.allowInteractions) return send(res, 403, { error: "Session was not created with explicit interaction approval" });
           const input = await readBody(req) as Record<string, unknown>;
+          const selector = requiredString(input.selector, "selector", 500);
+          if (/password|passcode|otp|one[-_ ]?time|secret|token|pin|credit[-_ ]?card|cvv|cvc|mpesa|bank[-_ ]?account/i.test(selector)) {
+            return send(res, 400, { error: "Sensitive form fields require the future credential vault and are disabled in v1.0" });
+          }
           const value = typeof input.value === "string" && input.value.length <= 4000 ? input.value : "";
-          await current.page.locator(requiredString(input.selector, "selector", 500)).first().fill(value);
+          await current.page.locator(selector).first().fill(value);
           return send(res, 200, { ok: true });
         }
         if (req.method === "POST" && action === "screenshot") {
