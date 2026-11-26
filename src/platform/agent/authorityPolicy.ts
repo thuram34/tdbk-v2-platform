@@ -149,6 +149,11 @@ export class AgentAuthorityPolicy {
       if (!tenantId || !action.browserTask) {
         return { allowed: false, reason: 'Tenant context and a structured browser task are required.' };
       }
+      try {
+        await masterAuthority.assertTenantAuthority(instruction.context, tenantId, 'agent.browserAutomation', instruction.context.requestId);
+      } catch (error) {
+        return { allowed: false, reason: error instanceof Error ? error.message : 'Tenant authority required for browser automation.' };
+      }
       const result = await rbacEngine.authorizeAsync(
         instruction.context.principal,
         'execute',
