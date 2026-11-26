@@ -44,7 +44,9 @@ Content-Type: application/json
 }
 ```
 
-Poll: `GET /api/lab/browser/jobs/:jobId?tenantId=your-tenant-id`\n\nRead screenshot evidence: `GET /api/lab/browser/jobs/:jobId/evidence/:stepIndex?tenantId=your-tenant-id`
+Poll: `GET /api/lab/browser/jobs/:jobId?tenantId=your-tenant-id`
+
+Read screenshot evidence: `GET /api/lab/browser/jobs/:jobId/evidence/:stepIndex?tenantId=your-tenant-id`
 
 Supported task steps:
 - `navigate` — navigate to another allowlisted URL
@@ -53,9 +55,11 @@ Supported task steps:
 - `screenshot` — capture PNG evidence
 - `click` and `fill` — interactive steps; require elevated authorization and explicit `allowInteractions: true`. Submit, checkout, payment, delete, publish and other high-impact controls are blocked; password, OTP, token, PIN and financial credential fields are blocked until a credential vault exists.
 
-The agent execution record stores the task plan and job acceptance result. Worker retries use the agent instruction ID as an idempotency key, preventing duplicate browser jobs after an interrupted response. Job state and screenshot bytes remain in-memory in this v1.0 worker.\n\nDirect worker endpoints (private network only):
+The agent execution record stores the task plan and job acceptance result. Worker retries use the agent instruction ID as an idempotency key, preventing duplicate browser jobs after an interrupted response. Job state and screenshot bytes remain in-memory in this v1.0 worker.
+
+Direct worker endpoints (private network only):
 - `POST /v1/jobs`, `GET /v1/jobs/:jobId`, `GET /v1/jobs/:jobId/evidence/:stepIndex`
-- Session endpoints remain available for controlled manual sessions.
+- Session endpoints remain available for controlled manual sessions; sessions must be created with `allowInteractions: true` before click/fill calls are accepted.
 
 ## Limits and security
 
