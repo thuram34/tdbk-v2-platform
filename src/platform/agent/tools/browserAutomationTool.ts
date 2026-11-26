@@ -1,18 +1,12 @@
 import type { SecurityContext } from "../../../kernel/types";
-export type BrowserStep =
-  | { type: "navigate"; url: string }
-  | { type: "inspect" }
-  | { type: "assertText"; text: string }
-  | { type: "screenshot" }
-  | { type: "click"; selector: string }
-  | { type: "fill"; selector: string; value: string };
+import type { BrowserAutomationStep } from "../types";
 
 export interface BrowserJobSubmission {
   tenantId: string;
   requestId: string;
   createdBy: string;
   url: string;
-  steps: BrowserStep[];
+  steps: BrowserAutomationStep[];
   allowInteractions?: boolean;
 }
 
