@@ -15,7 +15,7 @@ import { AgentInstruction, AgentRunResult } from './types';
 const EXECUTABLE_ACTIONS = new Set([
   'SUSPEND_DBK','REACTIVATE_DBK','ARCHIVE_DBK','RESTORE_DBK','RECOVER_WORKFLOWS','EXECUTE_WORKFLOW','REBUILD_BUSINESS_STATE',
   'ENABLE_CAPABILITY','DISABLE_CAPABILITY','PROVISION_DBK','COMPOSE_BUSINESS','ACTIVATE_BUSINESS','INSPECT_CONNECTORS',
-  'ACTIVATE_CONNECTOR','ENSURE_HEADQUARTERS_BRANCH','REFRESH_DBK_TOPOLOGY','RECOMPILE_WORKSPACE',
+  'ACTIVATE_CONNECTOR','ENSURE_HEADQUARTERS_BRANCH','REFRESH_DBK_TOPOLOGY','RECOMPILE_WORKSPACE','RUN_BROWSER_AUTOMATION',
 ]);
 
 export class TdbkAgentRuntime {
@@ -46,7 +46,9 @@ export class TdbkAgentRuntime {
         existing.tenantId === tenantId &&
         existing.branchId === branchId &&
         existing.principalId === instruction.context.principal.id &&
-        existing.instruction === instruction.text.slice(0, 2000);
+        existing.instruction === instruction.text.slice(0, 2000) &&
+        JSON.stringify((existing.plan as { actions?: Array<{ kind?: string; browserTask?: unknown }> } | undefined)?.actions?.find(action => action.kind === 'RUN_BROWSER_AUTOMATION')?.browserTask ?? null) ===
+          JSON.stringify(instruction.browserTask ?? null);
       if (!sameIdentity) throw new Error('Agent instruction replay conflict: executionId is already bound to a different principal, scope, or instruction.');
     }
 
@@ -82,7 +84,7 @@ export class TdbkAgentRuntime {
         const targetFingerprint = JSON.stringify({
           tenantId: action.tenantId || tenantId, branchId, principalId: instruction.context.principal.id,
           kind: action.kind, workflowId: action.workflowId || null, capabilityId: action.capabilityId || null,
-          bridgeId: action.bridgeId || null, blueprintId: action.blueprintId || null,
+          bridgeId: action.bridgeId || null, blueprintId: action.blueprintId || null, browserTask: action.browserTask || null,
         });
         const actionClaim = await agentActionExecutionRepository.claim({
           executionId: actionExecutionId, instructionId: instruction.instructionId, actionId: action.actionId,

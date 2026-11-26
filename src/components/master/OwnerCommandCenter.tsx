@@ -26,6 +26,8 @@ interface OwnerCommandCenterProps {
   onAddOrganization: () => void;
   onOpenOrganization: (dbkId: string) => void;
   onOpenSokoni: () => void;
+  isMaster?: boolean;
+  onOpenLab: () => void;
   onOpenIncomeEngine: () => void;
   onLogout: () => Promise<void> | void;
 }
@@ -56,6 +58,8 @@ export const OwnerCommandCenter: React.FC<OwnerCommandCenterProps> = ({
   onAddOrganization,
   onOpenOrganization,
   onOpenSokoni,
+  isMaster = false,
+  onOpenLab,
   onOpenIncomeEngine,
   onLogout,
 }) => {
@@ -129,6 +133,7 @@ export const OwnerCommandCenter: React.FC<OwnerCommandCenterProps> = ({
               <p className="text-xs font-semibold text-neutral-900">{userEmail || 'Your account'}</p>
               <p className="mt-0.5 text-[11px] text-neutral-500">Signed in</p>
             </div>
+            {isMaster && <button type="button" onClick={onOpenLab} className="inline-flex items-center gap-2 rounded-xl border border-cyan-200 bg-cyan-50 px-3 py-2.5 text-xs font-bold text-cyan-900 hover:border-cyan-400"><Activity className="h-4 w-4" /> LAB</button>}
             <button type="button" onClick={onOpenIncomeEngine} disabled={!dbks.some((dbk) => dbk.status === 'ACTIVE')} className="inline-flex items-center gap-2 rounded-xl border border-neutral-200 bg-white px-3 py-2.5 text-xs font-bold text-neutral-800 hover:border-neutral-400 disabled:opacity-40"><Activity className="h-4 w-4" /> Income engine</button>
             <button type="button" onClick={onOpenSokoni} className="inline-flex items-center gap-2 rounded-xl border border-neutral-200 bg-white px-3 py-2.5 text-xs font-bold text-neutral-800 hover:border-neutral-400"><Store className="h-4 w-4" /> Sokoni</button>
             <button type="button" onClick={() => void onLogout()} className="inline-flex items-center gap-2 rounded-xl bg-neutral-950 px-3 py-2.5 text-xs font-bold text-white hover:bg-neutral-800"><LogOut className="h-4 w-4" /> Sign out</button>

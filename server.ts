@@ -58,6 +58,7 @@ import { tdbkAgentRuntime } from './src/platform/agent/agentRuntime';
 import { agentExecutionRepository } from './src/persistence/firestore/repositories/agentExecutionRepository';
 import { flowOrchestrator } from './src/platform/flow/flowOrchestrator';
 import { globalIncomeRouter } from './src/platform/globalIncome/globalIncomeRouter';
+import { browserAutomationTool } from './src/platform/agent/tools/browserAutomationTool';
 
 async function startServer() {
   // Explicit bootstrap boundary: Seed demo DBKs only in development, preview, or explicit flag
@@ -235,6 +236,109 @@ async function startServer() {
   });
 
   // -------------------------------------------------------------
+  // TDBK LAB — GOVERNED BROWSER AUTOMATION
+  // Browser tasks are tenant-scoped, flow-audited and delegated to the
+  // separately isolated Playwright worker. Mutating interactions are opt-in.
+  // -------------------------------------------------------------
+  app.post('/api/lab/browser/jobs', async (req: Request, res: Response) => {
+    try {
+      const context = await securityContextFactory.createSecurityContext({
+        authHeader: req.headers.authorization,
+        targetTenantId: req.body?.tenantId,
+        targetBranchId: req.body?.branchId,
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+      });
+      const tenantId = context.tenantContext?.tenantId || context.principal.tenantId;
+      if (!tenantId) return res.status(400).json({ error: { code: 'TENANT_REQUIRED', message: 'A tenant context is required for Browser Lab jobs.' } });
+
+      await masterAuthority.assertTenantAuthority(context, tenantId, 'browserLab.execute', context.requestId);
+      const permission = await rbacEngine.authorizeAsync(context.principal, 'execute', 'workflow:execute', {
+        tenantId,
+        branchId: context.branchContext?.branchId || context.principal.branchId,
+        requiredPermission: 'workflow:execute',
+        requestId: context.requestId,
+      });
+      if (!permission.allowed) return res.status(403).json({ error: { code: 'AUTHORIZATION_ERROR', message: permission.reason } });
+
+      const steps = Array.isArray(req.body?.steps) ? req.body.steps : [];
+      const hasInteractions = steps.some((step: any) => step?.type === 'click' || step?.type === 'fill');
+      const interactionRoles = ['TENANT_ADMIN', 'OWNER_OPERATOR', 'BUSINESS_OWNER', 'OWNER'];
+      const canApproveInteractions = masterAuthority.isMasterAdmin(context.principal) ||
+        context.principal.roles.some((role: string) => interactionRoles.includes(role));
+      if (hasInteractions && (req.body?.allowInteractions !== true || !canApproveInteractions)) {
+        return res.status(403).json({
+          error: { code: 'INTERACTION_APPROVAL_REQUIRED', message: 'Browser click/fill actions require allowInteractions=true and an elevated tenant or TDBK administrator role.' },
+        });
+      }
+
+      const flow = await flowOrchestrator.execute({
+        flowId: `browser_lab_${context.requestId}`,
+        name: 'tdbk-browser-lab-job',
+        context,
+        execute: async (_state, advance) => advance('RUNTIME', async () => ({
+          stage: 'RUNTIME',
+          status: 'COMPLETED',
+          output: await tdbkAgentRuntime.run({
+            instructionId: context.requestId,
+            text: 'Execute the submitted TDBK Browser Lab task.',
+            context,
+            requestedAuthority: 'WORKFLOW',
+            browserTask: {
+              url: req.body?.url,
+              steps,
+              allowInteractions: req.body?.allowInteractions === true,
+            },
+          }),
+        })),
+      });
+      return res.status(202).json({ status: 'ACCEPTED', job: flow.output, flow: flow.state });
+    } catch (err) {
+      if (err instanceof KernelError) return res.status(err.statusCode).json(err.toJSON());
+      return res.status(500).json({ error: { code: 'BROWSER_LAB_ERROR', message: (err as Error).message } });
+    }
+  });
+
+  app.get('/api/lab/browser/jobs/:jobId/evidence/:stepIndex', async (req: Request, res: Response) => {
+    try {
+      const context = await securityContextFactory.createSecurityContext({
+        authHeader: req.headers.authorization,
+        targetTenantId: req.query.tenantId as string,
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+      });
+      const tenantId = context.tenantContext?.tenantId || context.principal.tenantId;
+      if (!tenantId) return res.status(400).json({ error: { code: 'TENANT_REQUIRED', message: 'A tenant context is required to read Browser Lab evidence.' } });
+      await masterAuthority.assertTenantAuthority(context, tenantId, 'browserLab.readEvidence', context.requestId);
+      const stepIndex = Number(req.params.stepIndex);
+      const evidence = await browserAutomationTool.getEvidence(context, req.params.jobId, tenantId, stepIndex);
+      return res.json({ status: 'SUCCESS', evidence });
+    } catch (err) {
+      if (err instanceof KernelError) return res.status(err.statusCode).json(err.toJSON());
+      return res.status(500).json({ error: { code: 'BROWSER_LAB_ERROR', message: (err as Error).message } });
+    }
+  });
+
+  app.get('/api/lab/browser/jobs/:jobId', async (req: Request, res: Response) => {
+    try {
+      const context = await securityContextFactory.createSecurityContext({
+        authHeader: req.headers.authorization,
+        targetTenantId: req.query.tenantId as string,
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+      });
+      const tenantId = context.tenantContext?.tenantId || context.principal.tenantId;
+      if (!tenantId) return res.status(400).json({ error: { code: 'TENANT_REQUIRED', message: 'A tenant context is required to read Browser Lab jobs.' } });
+      await masterAuthority.assertTenantAuthority(context, tenantId, 'browserLab.read', context.requestId);
+      const job = await browserAutomationTool.get(context, req.params.jobId, tenantId);
+      return res.json({ status: 'SUCCESS', job });
+    } catch (err) {
+      if (err instanceof KernelError) return res.status(err.statusCode).json(err.toJSON());
+      return res.status(500).json({ error: { code: 'BROWSER_LAB_ERROR', message: (err as Error).message } });
+    }
+  });
+
+  // -------------------------------------------------------------
   // TDBK CONNECTOR CONFIGURATION PLANE
   // Configuration accepts only non-secret parameters and secret references.
   // Raw secret material is rejected by the configuration service.
@@ -308,6 +412,74 @@ async function startServer() {
       } else {
         res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: (err as Error).message } });
       }
+    }
+  });
+
+  // -------------------------------------------------------------
+  // TDBK LAB — MASTER-ONLY ENGINEERING WORKBENCH STATUS
+  // Read-only status endpoint; all project and operational mutations
+  // remain behind separately authorized job/release APIs.
+  // -------------------------------------------------------------
+  app.get('/api/lab/status', async (req: Request, res: Response) => {
+    try {
+      const context = await securityContextFactory.createSecurityContext({
+        authHeader: req.headers.authorization,
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+      });
+      masterAuthority.assertMasterAuthority(context.principal, 'LAB_READ_STATUS', context.requestId);
+
+      const workerUrl = process.env.TDBK_BROWSER_LAB_URL;
+      const workerToken = process.env.TDBK_BROWSER_LAB_TOKEN;
+      let workerStatus: 'NOT_CONFIGURED' | 'ONLINE' | 'UNREACHABLE' = 'NOT_CONFIGURED';
+      let workerDetails: Record<string, unknown> = {};
+      if (workerUrl && workerToken) {
+        workerStatus = 'UNREACHABLE';
+        try {
+          const healthUrl = new URL('/health', workerUrl);
+          const response = await fetch(healthUrl, { signal: AbortSignal.timeout(1800) });
+          if (response.ok) {
+            const health = await response.json() as Record<string, unknown>;
+            workerStatus = 'ONLINE';
+            workerDetails = {
+              version: health.version,
+              browser: health.browser,
+              activeJobs: health.activeJobs,
+              activeSessions: health.activeSessions,
+              allowlistConfigured: health.allowlistConfigured,
+            };
+          }
+        } catch {
+          workerStatus = 'UNREACHABLE';
+        }
+      }
+
+      return res.json({
+        status: 'SUCCESS',
+        checkedAt: new Date().toISOString(),
+        platform: {
+          environment: process.env.NODE_ENV || 'development',
+          nodeVersion: process.version,
+          health: healthMonitoring.getLiveStatus(),
+        },
+        browserWorker: {
+          status: workerStatus,
+          details: workerDetails,
+        },
+        capabilities: {
+          projectRegistry: 'AVAILABLE',
+          browserAutomation: 'IMPLEMENTED',
+          buildAndTestOrchestration: 'PLANNED',
+          durableJobHistory: 'PLANNED',
+          artifactStore: 'PLANNED',
+          releaseOperations: 'PLANNED',
+          selfHostedObservability: 'PLANNED',
+          localAiRuntime: 'PLANNED',
+        },
+      });
+    } catch (err) {
+      if (err instanceof KernelError) return res.status(err.statusCode).json(err.toJSON());
+      return res.status(500).json({ error: { code: 'LAB_STATUS_ERROR', message: (err as Error).message } });
     }
   });
 

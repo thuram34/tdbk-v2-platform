@@ -10,13 +10,17 @@ import { SokoniBusinessRegistration } from './sokoni/SokoniBusinessRegistration'
 import { GlobalIncomeDashboard } from './components/globalIncome/GlobalIncomeDashboard';
 import { useAuth } from './client/AuthContext';
 import { listDbks } from './client/masterControlApi';
+import { verifyMasterAuthority } from './client/masterApi';
+import { LabWorkbench } from './components/lab/LabWorkbench';
 import type { DbkIdentity } from './platform/types';
 
 type PublicView = 'FLOW' | 'LOGIN';
 
 export default function App() {
   const { user, loading, signOutUser } = useAuth();
-  const [publicView, setPublicView] = useState<PublicView>('FLOW');
+  const [publicView, setPublicView] = useState<PublicView>(() => typeof window !== 'undefined' && window.location.pathname === '/lab' ? 'LOGIN' : 'FLOW');
+  const [showLab, setShowLab] = useState(() => typeof window !== 'undefined' && window.location.pathname === '/lab');
+  const [masterStatus, setMasterStatus] = useState<'checking' | 'verified' | 'denied'>('checking');
   const [showBusinessDiscovery, setShowBusinessDiscovery] = useState(false);
   const [dbkId, setDbkId] = useState<string | null>(null);
   const [justProvisioned, setJustProvisioned] = useState(false);
@@ -27,6 +31,24 @@ export default function App() {
   const [incomeTenantId, setIncomeTenantId] = useState<string | null>(null);
   const [showSokoni, setShowSokoni] = useState(() => typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('sokoni') === '1');
   const [showSokoniBusiness, setShowSokoniBusiness] = useState(() => typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('sokoniBusiness') === '1');
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!user) {
+      setMasterStatus('denied');
+      return () => { cancelled = true; };
+    }
+    setMasterStatus('checking');
+    void user.getIdToken().then(async (token) => {
+      if (cancelled) return;
+      setIdToken(token);
+      const result = await verifyMasterAuthority(token);
+      if (!cancelled) setMasterStatus(result.isMaster ? 'verified' : 'denied');
+    }).catch(() => {
+      if (!cancelled) setMasterStatus('denied');
+    });
+    return () => { cancelled = true; };
+  }, [user]);
 
   const loadDbks = useCallback(async () => {
     if (!user) {
@@ -164,6 +186,16 @@ export default function App() {
     );
   }
 
+  if (showLab) {
+    if (masterStatus === 'checking') {
+      return <div className="min-h-screen bg-[#080D18] flex items-center justify-center text-sm text-slate-300">Verifying TDBK Master authority…</div>;
+    }
+    if (masterStatus !== 'verified') {
+      return <div className="min-h-screen bg-[#080D18] px-6 flex items-center justify-center text-center text-slate-100"><div className="max-w-md"><h1 className="text-2xl font-bold">LAB access restricted</h1><p className="mt-3 text-sm text-slate-400">TDBK Master Administrator authority is required to enter the engineering environment.</p><button type="button" onClick={() => { setShowLab(false); window.history.pushState({}, '', '/'); }} className="mt-6 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-slate-950">Return to TDBK</button></div></div>;
+    }
+    return <LabWorkbench idToken={idToken} onExit={() => { setShowLab(false); window.history.pushState({}, '', '/'); }} onSignOut={async () => { await signOutUser(); setShowLab(false); window.history.replaceState({}, '', '/'); }} />;
+  }
+
   if (showBusinessDiscovery) {
     return (
       <BusinessDiscovery
@@ -220,6 +252,8 @@ export default function App() {
       onRefresh={loadDbks}
       onAddOrganization={addOrganization}
       onOpenOrganization={openOrganization}
+      isMaster={masterStatus === 'verified'}
+      onOpenLab={() => { setShowLab(true); window.history.pushState({}, '', '/lab'); }}
       onOpenSokoni={enterSokoni}
       onOpenIncomeEngine={() => {
         const firstActive = dbks.find((dbk) => dbk.status === 'ACTIVE');
