@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { lookup } from "node:dns/promises";
 import { randomUUID } from "node:crypto";
@@ -60,7 +61,7 @@ async function readBody(req: IncomingMessage): Promise<unknown> {
 function routeError(error: unknown): { status: number; message: string } {
   const message = error instanceof Error ? error.message : "Unexpected error";
   if (message === "Session not found" || message === "Job not found") return { status: 404, message };
-  if (message.startsWith("Invalid ") || message.includes("exceeds") || message.startsWith("Unsupported ")) return { status: 400, message };
+  if (message.startsWith("Invalid ") || message.includes("exceeds") || message.startsWith("Unsupported ") || message.includes("explicit approval")) return { status: 400, message };
   return { status: 500, message };
 }
 function requiredString(value: unknown, name: string, max = 4000): string {
@@ -78,7 +79,7 @@ export function createBrowserLabServer(options: LabOptions = {}): Server {
   const allowedHosts = options.allowedHosts ?? (process.env.LAB_ALLOWED_HOSTS || "").split(",").map(v => v.trim()).filter(Boolean);
   const launchBrowser = options.launchBrowser || (() => chromium.launch({ headless: process.env.LAB_HEADLESS !== "false", args: ["--no-sandbox"] }));
   const resolveHost = options.resolveHost || (async (hostname: string) => (await lookup(hostname, { all: true, verbatim: true })).map(item => item.address));
-  const sessions = new Map<string, { context: BrowserContext; page: Page; createdAt: string }>();
+  const sessions = new Map<string, { context: BrowserContext; page: Page; createdAt: string; allowInteractions: boolean }>();
   const jobs = new Map<string, BrowserJobRecord>();
   const evidence = new Map<string, Buffer>();
   let browser: Browser | undefined;
@@ -232,7 +233,7 @@ export function createBrowserLabServer(options: LabOptions = {}): Server {
         const page = await context.newPage();
         page.setDefaultTimeout(10_000);
         const id = randomUUID();
-        sessions.set(id, { context, page, createdAt: new Date().toISOString() });
+        sessions.set(id, { context, page, createdAt: new Date().toISOString(), allowInteractions: input.allowInteractions === true });
         if (startUrl) await page.goto(startUrl, { waitUntil: "domcontentloaded", timeout: 20_000 });
         return send(res, 201, { sessionId: id, createdAt: new Date().toISOString(), url: page.url() });
       }
@@ -250,11 +251,13 @@ export function createBrowserLabServer(options: LabOptions = {}): Server {
           return send(res, 200, { ok: true, url: current.page.url(), title: await current.page.title() });
         }
         if (req.method === "POST" && action === "click") {
+          if (!current.allowInteractions) return send(res, 403, { error: "Session was not created with explicit interaction approval" });
           const input = await readBody(req) as Record<string, unknown>;
           await current.page.locator(requiredString(input.selector, "selector", 500)).first().click();
           return send(res, 200, { ok: true, url: current.page.url() });
         }
         if (req.method === "POST" && action === "fill") {
+          if (!current.allowInteractions) return send(res, 403, { error: "Session was not created with explicit interaction approval" });
           const input = await readBody(req) as Record<string, unknown>;
           const value = typeof input.value === "string" && input.value.length <= 4000 ? input.value : "";
           await current.page.locator(requiredString(input.selector, "selector", 500)).first().fill(value);
