@@ -10,9 +10,10 @@ test("browser job API authenticates, runs a read-only workflow and exposes scree
     async goto(url: string) { currentUrl = url; },
     async title() { return "TDBK LAB Test"; },
     url() { return currentUrl; },
-    locator() {
+    locator(selector: string) {
       return {
         first() { return this; },
+        async evaluate() { return { type: "button", label: "save", insideForm: selector === "#inside-form" }; },
         async click() {},
         async fill() {},
         async innerText() { return "Thuram Digital Bridge Kenya"; },
@@ -77,6 +78,28 @@ test("browser job API authenticates, runs a read-only workflow and exposes scree
     assert.equal(result?.status, "COMPLETED");
     assert.equal(result?.results.length, 3);
     assert.ok(result?.results[2].evidenceId);
+
+    const guardedInteraction = await fetch(`${base}/v1/jobs`, {
+      method: "POST",
+      headers: { authorization: "Bearer test-secret", "content-type": "application/json" },
+      body: JSON.stringify({
+        tenantId: "tdbk", requestId: "req_guarded_click", createdBy: "owner", url: "https://example.test",
+        allowInteractions: true, steps: [{ type: "click", selector: "#inside-form" }],
+      }),
+    });
+    const guardedJob = await guardedInteraction.json() as { jobId: string };
+    let guardedStatus = "QUEUED";
+    for (let attempt = 0; attempt < 30; attempt++) {
+      const response = await fetch(`${base}/v1/jobs/${guardedJob.jobId}`, { headers: { authorization: "Bearer test-secret" } });
+      const state = await response.json() as { status: string; error?: string };
+      guardedStatus = state.status;
+      if (state.status === "FAILED" || state.status === "COMPLETED") {
+        assert.match(state.error || "", /High-impact browser controls/);
+        break;
+      }
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
+    assert.equal(guardedStatus, "FAILED", "form controls must not be clicked even when interaction approval is present");
 
     const duplicate = await fetch(`${base}/v1/jobs`, {
       method: "POST",
