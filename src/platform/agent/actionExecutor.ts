@@ -8,6 +8,7 @@ import { workspaceManager } from '../workspace/workspaceManager';
 import { provisioningService } from '../provisioning/provisioningService';
 import { businessCompositionService } from '../composition/businessCompositionService';
 import { connectorReadinessService } from '../connectors/connectorReadinessService';
+import { browserAutomationTool } from './tools/browserAutomationTool';
 import { AgentAction, AgentActionResult, AgentInstruction } from './types';
 
 export class AgentActionExecutor {
@@ -145,6 +146,17 @@ export class AgentActionExecutor {
             blueprintId: 'agent-runtime',
             status: 'ACTIVE',
           },
+        }));
+
+      case 'RUN_BROWSER_AUTOMATION':
+        if (!tenantId || !action.browserTask) throw new Error('Tenant and structured browser task are required.');
+        return this.completed(action, await browserAutomationTool.submit(instruction.context, {
+          tenantId,
+          requestId: instruction.instructionId,
+          createdBy: instruction.context.principal.id,
+          url: action.browserTask.url,
+          steps: action.browserTask.steps,
+          allowInteractions: action.browserTask.allowInteractions === true,
         }));
 
       case 'EXECUTE_WORKFLOW':
