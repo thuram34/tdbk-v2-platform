@@ -25,6 +25,7 @@ const ACTION_OWNERS: Record<AgentAction['kind'], { lead: string; collaborators: 
   RESTORE_DBK: { lead: 'chief-intelligence', collaborators: ['security', 'engineering', 'quality-assurance'], rationale: 'Restoration requires lifecycle governance, tenant isolation and verification.' },
   RECOVER_WORKFLOWS: { lead: 'engineering', collaborators: ['infrastructure', 'quality-assurance'], rationale: 'Workflow recovery requires durable execution and infrastructure health checks.' },
   EXECUTE_WORKFLOW: { lead: 'engineering', collaborators: ['security', 'quality-assurance'], rationale: 'Workflow execution requires authorization, orchestration and outcome verification.' },
+  RUN_BROWSER_AUTOMATION: { lead: 'quality-assurance', collaborators: ['engineering', 'security'], rationale: 'Browser workflows are executed in an isolated worker with tenant authority, approved interactions and verifiable evidence.' },
 };
 
 export class TdbkAgentTeamCoordinator {
