@@ -44,7 +44,7 @@ Content-Type: application/json
 }
 ```
 
-Poll: `GET /api/lab/browser/jobs/:jobId?tenantId=your-tenant-id`
+Poll: `GET /api/lab/browser/jobs/:jobId?tenantId=your-tenant-id`\n\nRead screenshot evidence: `GET /api/lab/browser/jobs/:jobId/evidence/:stepIndex?tenantId=your-tenant-id`
 
 Supported task steps:
 - `navigate` — navigate to another allowlisted URL
