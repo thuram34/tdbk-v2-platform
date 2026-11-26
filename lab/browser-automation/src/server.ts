@@ -52,6 +52,11 @@ const server = createServer(async (req, res) => {
       const context = await browser.newContext({ acceptDownloads: false, ignoreHTTPSErrors: false });
       const page = await context.newPage();
       page.setDefaultTimeout(10_000);
+      // Enforce the host policy on every request, including redirects and subresources.
+      await page.route("**/*", async route => {
+        if (isAllowedTarget(route.request().url(), allowedHosts)) return route.continue();
+        return route.abort("blockedbyclient");
+      });
       const id = randomUUID();
       sessions.set(id, { context, page, createdAt: new Date().toISOString() });
       if (startUrl) await page.goto(startUrl, { waitUntil: "domcontentloaded", timeout: 20_000 });
