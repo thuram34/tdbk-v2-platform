@@ -415,6 +415,74 @@ async function startServer() {
     }
   });
 
+  // -------------------------------------------------------------
+  // TDBK LAB — MASTER-ONLY ENGINEERING WORKBENCH STATUS
+  // Read-only status endpoint; all project and operational mutations
+  // remain behind separately authorized job/release APIs.
+  // -------------------------------------------------------------
+  app.get('/api/lab/status', async (req: Request, res: Response) => {
+    try {
+      const context = await securityContextFactory.createSecurityContext({
+        authHeader: req.headers.authorization,
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+      });
+      masterAuthority.assertMasterAuthority(context.principal, 'LAB_READ_STATUS', context.requestId);
+
+      const workerUrl = process.env.TDBK_BROWSER_LAB_URL;
+      const workerToken = process.env.TDBK_BROWSER_LAB_TOKEN;
+      let workerStatus: 'NOT_CONFIGURED' | 'ONLINE' | 'UNREACHABLE' = 'NOT_CONFIGURED';
+      let workerDetails: Record<string, unknown> = {};
+      if (workerUrl && workerToken) {
+        workerStatus = 'UNREACHABLE';
+        try {
+          const healthUrl = new URL('/health', workerUrl);
+          const response = await fetch(healthUrl, { signal: AbortSignal.timeout(1800) });
+          if (response.ok) {
+            const health = await response.json() as Record<string, unknown>;
+            workerStatus = 'ONLINE';
+            workerDetails = {
+              version: health.version,
+              browser: health.browser,
+              activeJobs: health.activeJobs,
+              activeSessions: health.activeSessions,
+              allowlistConfigured: health.allowlistConfigured,
+            };
+          }
+        } catch {
+          workerStatus = 'UNREACHABLE';
+        }
+      }
+
+      return res.json({
+        status: 'SUCCESS',
+        checkedAt: new Date().toISOString(),
+        platform: {
+          environment: process.env.NODE_ENV || 'development',
+          nodeVersion: process.version,
+          health: healthMonitoring.getLiveStatus(),
+        },
+        browserWorker: {
+          status: workerStatus,
+          details: workerDetails,
+        },
+        capabilities: {
+          projectRegistry: 'AVAILABLE',
+          browserAutomation: 'IMPLEMENTED',
+          buildAndTestOrchestration: 'PLANNED',
+          durableJobHistory: 'PLANNED',
+          artifactStore: 'PLANNED',
+          releaseOperations: 'PLANNED',
+          selfHostedObservability: 'PLANNED',
+          localAiRuntime: 'PLANNED',
+        },
+      });
+    } catch (err) {
+      if (err instanceof KernelError) return res.status(err.statusCode).json(err.toJSON());
+      return res.status(500).json({ error: { code: 'LAB_STATUS_ERROR', message: (err as Error).message } });
+    }
+  });
+
   app.get('/api/tenant/verify/:tenantId', async (req: Request, res: Response) => {
     try {
       const authHeader = req.headers.authorization;
