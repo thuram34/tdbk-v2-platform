@@ -64,6 +64,32 @@ function routeError(error: unknown): { status: number; message: string } {
   if (message.startsWith("Invalid ") || message.includes("exceeds") || message.startsWith("Unsupported ") || message.includes("explicit approval") || message.includes("disabled in v1.0") || message.includes("credential vault")) return { status: 400, message };
   return { status: 500, message };
 }
+async function guardedClick(page: Page, selector: string) {
+  const target = page.locator(selector).first();
+  const details = await target.evaluate((element) => {
+    const node = element as HTMLElement;
+    const control = node as HTMLInputElement;
+    return {
+      type: node.getAttribute("type") || "",
+      label: [
+        node.innerText,
+        node.getAttribute("aria-label"),
+        node.getAttribute("title"),
+        control.value,
+        node.getAttribute("name"),
+        node.getAttribute("href"),
+        node.getAttribute("formaction"),
+      ].filter(Boolean).join(" ").toLowerCase(),
+      insideForm: Boolean(node.closest("form")),
+    };
+  });
+  if (details.insideForm || details.type === "submit" || details.type === "image" ||
+      /submit|checkout|purchase|delete|remove|archive|transfer|approve|publish|payment|pay[- ]?now/.test(details.label)) {
+    throw new Error("High-impact browser controls are disabled in v1.0");
+  }
+  await target.click();
+}
+
 function requiredString(value: unknown, name: string, max = 4000): string {
   if (typeof value !== "string" || !value.trim() || value.length > max) throw new Error(`Invalid ${name}`);
   return value.trim();
@@ -142,7 +168,7 @@ export function createBrowserLabServer(options: LabOptions = {}): Server {
             result.evidenceId = evidenceId;
           } else if (step.type === "click") {
             if (!input.allowInteractions) throw new Error("Interactive step was not approved");
-            await page.locator(step.selector).first().click();
+            await guardedClick(page, step.selector);
             await assertPageTarget(page);
           } else if (step.type === "fill") {
             if (!input.allowInteractions) throw new Error("Interactive step was not approved");
@@ -279,7 +305,7 @@ export function createBrowserLabServer(options: LabOptions = {}): Server {
         if (req.method === "POST" && action === "click") {
           if (!current.allowInteractions) return send(res, 403, { error: "Session was not created with explicit interaction approval" });
           const input = await readBody(req) as Record<string, unknown>;
-          await current.page.locator(requiredString(input.selector, "selector", 500)).first().click();
+          await guardedClick(current.page, requiredString(input.selector, "selector", 500));
           await assertPageTarget(current.page);
           return send(res, 200, { ok: true, url: current.page.url() });
         }
