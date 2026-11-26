@@ -1,35 +1,78 @@
-# TDBK LAB — Browser Automation Engine
+# TDBK LAB — Browser Automation Engine v1.0
 
-An independently deployable Playwright/Chromium worker for TDBK-owned browser sessions. It is deliberately separate from the customer-facing application and reuses TDBK's existing agent and workflow layers as the future control plane.
+TDBK-owned Playwright/Chromium execution worker for controlled browser testing. The worker is separate from the main web application; the existing TDBK Security Context, RBAC, Master Authority and Flow Orchestrator remain the control plane.
+
+## Hybrid topology
+
+- **Local lab:** run the worker on a developer workstation, bound to `127.0.0.1`, for local development and test targets.
+- **Cloud worker:** build the supplied Playwright container and deploy it as a private service. Set `HOST=0.0.0.0`; do not make it public.
+- **TDBK API:** set `TDBK_BROWSER_LAB_URL` and `TDBK_BROWSER_LAB_TOKEN` on the TDBK API service. For a remote worker, connect over a private network/VPN or authenticated service mesh; do not expose the worker to the public internet.
+
+The TDBK API routes below enforce tenant authority and the existing `workflow:execute` permission. Click/fill actions additionally require `allowInteractions: true` and a TDBK/tenant administrator role.
 
 ## Local start
 
 ```bash
 cd lab/browser-automation
 cp .env.example .env
-# Set LAB_API_TOKEN to a long random value and LAB_ALLOWED_HOSTS to exact hostnames.
+# Replace the token and set LAB_ALLOWED_HOSTS to the exact TDBK test hostname(s).
 npm install
 npx playwright install chromium
 npm run dev
 ```
 
-The worker binds to `127.0.0.1` by default. Do not expose it publicly without a strong bearer token, TLS termination, network restrictions, and an explicit host allowlist.
+Health: `GET http://127.0.0.1:8787/health`
 
-## API
+## TDBK API
 
-All endpoints except `GET /health` require `Authorization: Bearer <LAB_API_TOKEN>`.
+All calls require the user's existing Firebase/JWT bearer token.
 
-- `POST /v1/sessions` — create an isolated browser context; optional JSON `{"url":"https://allowed.example"}`
-- `POST /v1/sessions/:id/navigate` — `{"url":"https://allowed.example/path"}`
-- `POST /v1/sessions/:id/click` — `{"selector":"button[type=submit]"}`
-- `POST /v1/sessions/:id/fill` — `{"selector":"input[name=email]","value":"..."}`
-- `POST /v1/sessions/:id/screenshot` — returns PNG as base64
-- `DELETE /v1/sessions/:id/close` — close and dispose of the context
+Submit a read-only test:
+```http
+POST /api/lab/browser/jobs
+Authorization: Bearer <TDBK-user-token>
+Content-Type: application/json
 
-## Safety boundary
+{
+  "tenantId": "your-tenant-id",
+  "url": "https://tdbk.example.com",
+  "steps": [
+    { "type": "inspect" },
+    { "type": "assertText", "text": "TDBK" },
+    { "type": "screenshot" }
+  ]
+}
+```
 
-The worker enforces exact hostname allowlisting, blocks localhost/private IP literals, rejects non-HTTP(S) schemes, requires a bearer token for all control actions, limits request bodies and field sizes, and uses isolated browser contexts. It does not expose arbitrary JavaScript evaluation, shell execution, file upload/download, credential storage, payment submission, or destructive actions. Those require a separate audited approval layer before implementation.
+Poll: `GET /api/lab/browser/jobs/:jobId?tenantId=your-tenant-id`
 
-## Current scope and next integration
+Supported task steps:
+- `navigate` — navigate to another allowlisted URL
+- `inspect` — capture page title and visible body text
+- `assertText` — assert that expected text is present
+- `screenshot` — capture PNG evidence
+- `click` and `fill` — interactive steps; require elevated authorization and explicit `allowInteractions: true`
 
-This is the first execution-worker slice, not yet an autonomous agent or production deployment. Next: connect authenticated jobs from the existing TDBK agent runtime/FlowOrchestrator, persist run metadata and evidence, add job-level authority checks and human approval gates, and build the LAB control panel.
+Direct worker endpoints (private network only):
+- `POST /v1/jobs`, `GET /v1/jobs/:jobId`, `GET /v1/jobs/:jobId/evidence/:stepIndex`
+- Session endpoints remain available for controlled manual sessions.
+
+## Limits and security
+
+- Exact hostname allowlist; no wildcard entries or IP-literal destinations.
+- DNS preflight rejects private, loopback, link-local and reserved address ranges.
+- Context-level Playwright routing and blocked service workers provide an additional request boundary.
+- Configure cloud egress/firewall policy to deny private, metadata and unapproved destinations. Browser routing is defense in depth, not a substitute for network egress controls, particularly across redirect chains.
+- 20 steps/job, 5 concurrent jobs, 5 concurrent manual sessions, 32 KB request payload, 4 MB screenshot evidence.
+- Each job receives a fresh browser context; contexts are closed after completion.
+- Worker job/evidence retention is in-memory and bounded to the latest 100 jobs. This v1.0 slice is not yet a durable audit store; TDBK records the authenticated submission/flow, while durable job/evidence persistence is a follow-on.
+- No arbitrary JavaScript evaluation, shell access, file upload/download, password vault, payment execution, publishing or destructive actions.
+
+## Tests
+
+```bash
+npm test
+npm run typecheck
+```
+
+The automated suite exercises policy validation, tenant/task payload validation, authorization gates, job execution, status polling and screenshot evidence using an injected fake browser. Live Chromium smoke tests require an installed browser and a configured allowlisted test hostname.
