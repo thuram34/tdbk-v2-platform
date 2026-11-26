@@ -19,6 +19,14 @@ test("rejects interactions unless explicitly approved", () => {
   assert.throws(() => parseBrowserJobInput({ ...valid, steps: [{ type: "click", selector: "#save" }] }), /explicit approval/);
   assert.equal(parseBrowserJobInput({ ...valid, allowInteractions: true, steps: [{ type: "click", selector: "#save" }] }).allowInteractions, true);
 });
+test("blocks high-impact controls and sensitive credential fields", () => {
+  assert.throws(() => parseBrowserJobInput({
+    ...valid, allowInteractions: true, steps: [{ type: "click", selector: "button[type=submit]" }],
+  }), /High-impact browser controls/);
+  assert.throws(() => parseBrowserJobInput({
+    ...valid, allowInteractions: true, steps: [{ type: "fill", selector: "input[name=password]", value: "test" }],
+  }), /Sensitive form fields/);
+});
 test("rejects excessive steps and unsupported operations", () => {
   assert.throws(() => parseBrowserJobInput({ ...valid, steps: Array(21).fill({ type: "inspect" }) }), /between 1 and 20/);
   assert.throws(() => parseBrowserJobInput({ ...valid, steps: [{ type: "evaluate", code: "alert(1)" }] }), /Unsupported browser step/);
