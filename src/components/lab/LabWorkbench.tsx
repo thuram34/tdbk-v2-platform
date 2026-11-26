@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  Activity, ArrowLeft, Blocks, Bot, Box, CheckCircle2, ChevronRight,
+  Activity, ArrowLeft, Blocks, Bot, CheckCircle2, ChevronRight,
   CircleAlert, Code2, Database, ExternalLink, FlaskConical, GitBranch,
-  HardDrive, Layers3, LockKeyhole, MonitorCheck, RefreshCw, Rocket,
-  ShieldCheck, Terminal, Workflow, XCircle,
+  HardDrive, LockKeyhole, MonitorCheck, RefreshCw, Rocket,
+  ShieldCheck, Terminal, Workflow,
 } from 'lucide-react';
 import { getLabStatus, type LabStatusResponse } from '../../client/labApi';
 
@@ -29,7 +29,7 @@ const project = {
 };
 
 function StatePill({ state }: { state: string }) {
-  const good = ['ONLINE', 'SUCCESS', 'AVAILABLE', 'IMPLEMENTED', 'ACTIVE'].includes(state);
+  const good = ['ONLINE', 'SUCCESS', 'AVAILABLE', 'IMPLEMENTED', 'ACTIVE', 'MASTER VERIFIED'].includes(state);
   const warning = ['NOT_CONFIGURED', 'PLANNED', 'UNREACHABLE'].includes(state);
   return (
     <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-bold tracking-wide ${good ? 'border-emerald-400/20 bg-emerald-400/10 text-emerald-300' : warning ? 'border-amber-400/20 bg-amber-400/10 text-amber-200' : 'border-rose-400/20 bg-rose-400/10 text-rose-300'}`}>
