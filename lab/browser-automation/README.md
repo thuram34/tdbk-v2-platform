@@ -69,7 +69,7 @@ Direct worker endpoints (private network only):
 - Configure cloud egress/firewall policy to deny private, metadata and unapproved destinations. Browser routing is defense in depth, not a substitute for network egress controls, particularly across redirect chains.
 - 20 steps/job, 5 concurrent jobs, 5 concurrent manual sessions, 32 KB request payload, 4 MB screenshot evidence.
 - Each job receives a fresh browser context; contexts are closed after completion.
-- Worker job/evidence retention is in-memory and bounded to the latest 100 jobs. This v1.0 slice is not yet a durable audit store; TDBK records the authenticated submission/flow, while durable job/evidence persistence is a follow-on.
+- Worker job/evidence retention is in-memory and bounded to the latest 100 jobs. This v1.0 slice is not yet a durable audit store; TDBK records the authenticated submission/flow, while durable job/evidence persistence is a follow-on. Until that exists, keep a cloud lab worker at a single instance (no scale-out); a restart loses active jobs and evidence.
 - No arbitrary JavaScript evaluation, shell access, file upload/download, password vault, payment execution, publishing or destructive actions.
 
 ## Tests
