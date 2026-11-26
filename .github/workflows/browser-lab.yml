@@ -4,7 +4,8 @@ on:
     branches: [main, "feat/tdbk-browser-lab-v1"]
     paths:
       - "lab/browser-automation/**"
-      - "src/platform/agent/tools/browserAutomationTool.ts"
+      - "src/platform/agent/**"
+      - "vitest.config.ts"
       - "server.ts"
       - "tsconfig.json"
       - ".github/workflows/browser-lab.yml"
