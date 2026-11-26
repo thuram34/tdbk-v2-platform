@@ -8,7 +8,7 @@ TDBK-owned Playwright/Chromium execution worker for controlled browser testing. 
 - **Cloud worker:** build the supplied Playwright container and deploy it as a private service. Set `HOST=0.0.0.0`; do not make it public.
 - **TDBK API:** set `TDBK_BROWSER_LAB_URL` and `TDBK_BROWSER_LAB_TOKEN` on the TDBK API service. For a remote worker, connect over a private network/VPN or authenticated service mesh; do not expose the worker to the public internet.
 
-The TDBK API routes below enforce tenant authority and the existing `workflow:execute` permission. Click/fill actions additionally require `allowInteractions: true` and a TDBK/tenant administrator role.
+The TDBK API routes below submit through the existing durable Agent Runtime, Authority Policy and Flow Orchestrator. They enforce tenant authority and the existing `workflow:execute` permission. Click/fill actions additionally require `allowInteractions: true` and a TDBK/tenant administrator role.
 
 ## Local start
 
@@ -53,7 +53,7 @@ Supported task steps:
 - `screenshot` — capture PNG evidence
 - `click` and `fill` — interactive steps; require elevated authorization and explicit `allowInteractions: true`
 
-Direct worker endpoints (private network only):
+The agent execution record stores the task plan and job acceptance result. Worker retries use the agent instruction ID as an idempotency key, preventing duplicate browser jobs after an interrupted response. Job state and screenshot bytes remain in-memory in this v1.0 worker.\n\nDirect worker endpoints (private network only):
 - `POST /v1/jobs`, `GET /v1/jobs/:jobId`, `GET /v1/jobs/:jobId/evidence/:stepIndex`
 - Session endpoints remain available for controlled manual sessions.
 
