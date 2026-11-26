@@ -86,6 +86,9 @@ export function createBrowserLabServer(options: LabOptions = {}): Server {
 
   const getBrowser = async () => browser ??= await launchBrowser();
   const safeTarget = (url: string) => isSafeResolvedTarget(url, allowedHosts, resolveHost);
+  const assertPageTarget = async (page: Page) => {
+    if (!await safeTarget(page.url())) throw new Error("Browser navigation ended outside the approved public hostname allowlist");
+  };
   const createContext = async () => {
     const context = await (await getBrowser()).newContext({
       acceptDownloads: false,
@@ -111,6 +114,7 @@ export function createBrowserLabServer(options: LabOptions = {}): Server {
       const page = await context.newPage();
       page.setDefaultTimeout(10_000);
       await page.goto(input.url, { waitUntil: "domcontentloaded", timeout: 20_000 });
+      await assertPageTarget(page);
 
       for (let index = 0; index < input.steps.length; index++) {
         const step = input.steps[index];
@@ -120,6 +124,7 @@ export function createBrowserLabServer(options: LabOptions = {}): Server {
           if (step.type === "navigate") {
             if (!await safeTarget(step.url)) throw new Error("Target host is not allowlisted or resolves to a non-public address");
             await page.goto(step.url, { waitUntil: "domcontentloaded", timeout: 20_000 });
+            await assertPageTarget(page);
           } else if (step.type === "inspect") {
             result.title = await page.title();
             result.text = (await page.locator("body").innerText()).slice(0, 10_000);
@@ -136,6 +141,7 @@ export function createBrowserLabServer(options: LabOptions = {}): Server {
           } else if (step.type === "click") {
             if (!input.allowInteractions) throw new Error("Interactive step was not approved");
             await page.locator(step.selector).first().click();
+            await assertPageTarget(page);
           } else if (step.type === "fill") {
             if (!input.allowInteractions) throw new Error("Interactive step was not approved");
             await page.locator(step.selector).first().fill(step.value);
@@ -234,7 +240,10 @@ export function createBrowserLabServer(options: LabOptions = {}): Server {
         page.setDefaultTimeout(10_000);
         const id = randomUUID();
         sessions.set(id, { context, page, createdAt: new Date().toISOString(), allowInteractions: input.allowInteractions === true });
-        if (startUrl) await page.goto(startUrl, { waitUntil: "domcontentloaded", timeout: 20_000 });
+        if (startUrl) {
+          await page.goto(startUrl, { waitUntil: "domcontentloaded", timeout: 20_000 });
+          await assertPageTarget(page);
+        }
         return send(res, 201, { sessionId: id, createdAt: new Date().toISOString(), url: page.url() });
       }
 
@@ -248,12 +257,14 @@ export function createBrowserLabServer(options: LabOptions = {}): Server {
           const url = requiredString(input.url, "url", 2048);
           if (!await safeTarget(url)) return send(res, 403, { error: "Target host is not allowlisted or public" });
           await current.page.goto(url, { waitUntil: "domcontentloaded", timeout: 20_000 });
+          await assertPageTarget(current.page);
           return send(res, 200, { ok: true, url: current.page.url(), title: await current.page.title() });
         }
         if (req.method === "POST" && action === "click") {
           if (!current.allowInteractions) return send(res, 403, { error: "Session was not created with explicit interaction approval" });
           const input = await readBody(req) as Record<string, unknown>;
           await current.page.locator(requiredString(input.selector, "selector", 500)).first().click();
+          await assertPageTarget(current.page);
           return send(res, 200, { ok: true, url: current.page.url() });
         }
         if (req.method === "POST" && action === "fill") {
