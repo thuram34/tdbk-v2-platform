@@ -61,7 +61,7 @@ async function readBody(req: IncomingMessage): Promise<unknown> {
 function routeError(error: unknown): { status: number; message: string } {
   const message = error instanceof Error ? error.message : "Unexpected error";
   if (message === "Session not found" || message === "Job not found") return { status: 404, message };
-  if (message.startsWith("Invalid ") || message.includes("exceeds") || message.startsWith("Unsupported ") || message.includes("explicit approval")) return { status: 400, message };
+  if (message.startsWith("Invalid ") || message.includes("exceeds") || message.startsWith("Unsupported ") || message.includes("explicit approval") || message.includes("disabled in v1.0") || message.includes("credential vault")) return { status: 400, message };
   return { status: 500, message };
 }
 function requiredString(value: unknown, name: string, max = 4000): string {
