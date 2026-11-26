@@ -8,3 +8,5 @@ export * from './verificationEngine';
 export * from './repairPlanner';
 export * from './agentCatalog';
 export * from './agentTeamCoordinator';
+
+export * from './tools/browserAutomationTool';
