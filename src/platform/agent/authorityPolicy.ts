@@ -167,7 +167,7 @@ export class AgentAuthorityPolicy {
       );
       if (!result.allowed) return { allowed: false, reason: result.reason };
       const hasInteractions = action.browserTask.steps.some(step => step.type === 'click' || step.type === 'fill');
-      const interactionRoles = ['TENANT_ADMIN', 'OWNER_OPERATOR', 'BUSINESS_OWNER'];
+      const interactionRoles = ['TENANT_ADMIN', 'OWNER_OPERATOR', 'BUSINESS_OWNER', 'OWNER'];
       const canApproveInteractions = masterAuthority.isMasterAdmin(instruction.context.principal) ||
         instruction.context.principal.roles.some(role => interactionRoles.includes(role));
       if (hasInteractions && (!action.browserTask.allowInteractions || !canApproveInteractions)) {
