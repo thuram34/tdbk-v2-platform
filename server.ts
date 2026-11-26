@@ -276,8 +276,8 @@ async function startServer() {
         flowId: `browser_lab_${context.requestId}`,
         name: 'tdbk-browser-lab-job',
         context,
-        execute: async (_state, advance) => advance('INTEGRATION', async () => ({
-          stage: 'INTEGRATION',
+        execute: async (_state, advance) => advance('RUNTIME', async () => ({
+          stage: 'RUNTIME',
           status: 'COMPLETED',
           output: await tdbkAgentRuntime.run({
             instructionId: context.requestId,
