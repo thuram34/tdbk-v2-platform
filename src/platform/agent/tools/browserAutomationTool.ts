@@ -62,6 +62,15 @@ export class BrowserAutomationTool {
     return job;
   }
 
+  public async getEvidence(_context: SecurityContext, jobId: string, tenantId: string, stepIndex: number) {
+    await this.get(_context, jobId, tenantId);
+    if (!Number.isInteger(stepIndex) || stepIndex < 0 || stepIndex > 19) throw new Error("Invalid evidence step index");
+    return this.request<{ mimeType: string; dataBase64: string }>(
+      `/v1/jobs/${jobId}/evidence/${stepIndex}`,
+      { method: "GET" },
+    );
+  }
+
   public health() {
     return this.request<{ ok: boolean; service: string; version: string }>("/health", { method: "GET" });
   }
