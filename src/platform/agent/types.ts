@@ -9,13 +9,28 @@ export type AgentActionKind =
   | 'COMPOSE_BUSINESS' | 'ACTIVATE_BUSINESS' | 'REBUILD_BUSINESS_STATE' | 'ENABLE_CAPABILITY'
   | 'DISABLE_CAPABILITY' | 'ENSURE_HEADQUARTERS_BRANCH' | 'REFRESH_DBK_TOPOLOGY'
   | 'RECOMPILE_WORKSPACE' | 'SUSPEND_DBK' | 'REACTIVATE_DBK' | 'ARCHIVE_DBK'
-  | 'RESTORE_DBK' | 'RECOVER_WORKFLOWS' | 'EXECUTE_WORKFLOW';
+  | 'RESTORE_DBK' | 'RECOVER_WORKFLOWS' | 'EXECUTE_WORKFLOW' | 'RUN_BROWSER_AUTOMATION';
+
+export type BrowserAutomationStep =
+  | { type: 'navigate'; url: string }
+  | { type: 'inspect' }
+  | { type: 'assertText'; text: string }
+  | { type: 'screenshot' }
+  | { type: 'click'; selector: string }
+  | { type: 'fill'; selector: string; value: string };
+
+export interface BrowserAutomationTask {
+  url: string;
+  steps: BrowserAutomationStep[];
+  allowInteractions?: boolean;
+}
 
 export interface AgentInstruction {
   instructionId: string;
   text: string;
   context: SecurityContext;
   requestedAuthority?: AgentAuthority;
+  browserTask?: BrowserAutomationTask;
 }
 
 export interface AgentAction {
@@ -33,6 +48,7 @@ export interface AgentAction {
   primaryBranchName?: string;
   description: string;
   requiresAuthorization: boolean;
+  browserTask?: BrowserAutomationTask;
 }
 
 export interface AgentAssignment {
