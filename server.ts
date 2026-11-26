@@ -58,6 +58,7 @@ import { tdbkAgentRuntime } from './src/platform/agent/agentRuntime';
 import { agentExecutionRepository } from './src/persistence/firestore/repositories/agentExecutionRepository';
 import { flowOrchestrator } from './src/platform/flow/flowOrchestrator';
 import { globalIncomeRouter } from './src/platform/globalIncome/globalIncomeRouter';
+import { browserAutomationTool } from './src/platform/agent/tools/browserAutomationTool';
 
 async function startServer() {
   // Explicit bootstrap boundary: Seed demo DBKs only in development, preview, or explicit flag
@@ -231,6 +232,86 @@ async function startServer() {
     } catch (err) {
       if (err instanceof KernelError) return res.status(err.statusCode).json(err.toJSON());
       return res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Unable to read agent execution history' } });
+    }
+  });
+
+  // -------------------------------------------------------------
+  // TDBK LAB — GOVERNED BROWSER AUTOMATION
+  // Browser tasks are tenant-scoped, flow-audited and delegated to the
+  // separately isolated Playwright worker. Mutating interactions are opt-in.
+  // -------------------------------------------------------------
+  app.post('/api/lab/browser/jobs', async (req: Request, res: Response) => {
+    try {
+      const context = await securityContextFactory.createSecurityContext({
+        authHeader: req.headers.authorization,
+        targetTenantId: req.body?.tenantId,
+        targetBranchId: req.body?.branchId,
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+      });
+      const tenantId = context.tenantContext?.tenantId || context.principal.tenantId;
+      if (!tenantId) return res.status(400).json({ error: { code: 'TENANT_REQUIRED', message: 'A tenant context is required for Browser Lab jobs.' } });
+
+      await masterAuthority.assertTenantAuthority(context, tenantId, 'browserLab.execute', context.requestId);
+      const permission = await rbacEngine.authorizeAsync(context.principal, 'execute', 'workflow:execute', {
+        tenantId,
+        branchId: context.branchContext?.branchId || context.principal.branchId,
+        requiredPermission: 'workflow:execute',
+        requestId: context.requestId,
+      });
+      if (!permission.allowed) return res.status(403).json({ error: { code: 'AUTHORIZATION_ERROR', message: permission.reason } });
+
+      const steps = Array.isArray(req.body?.steps) ? req.body.steps : [];
+      const hasInteractions = steps.some((step: any) => step?.type === 'click' || step?.type === 'fill');
+      const interactionRoles = ['TENANT_ADMIN', 'OWNER_OPERATOR', 'BUSINESS_OWNER', 'OWNER'];
+      const canApproveInteractions = masterAuthority.isMasterAdmin(context.principal) ||
+        context.principal.roles.some((role: string) => interactionRoles.includes(role));
+      if (hasInteractions && (req.body?.allowInteractions !== true || !canApproveInteractions)) {
+        return res.status(403).json({
+          error: { code: 'INTERACTION_APPROVAL_REQUIRED', message: 'Browser click/fill actions require allowInteractions=true and an elevated tenant or TDBK administrator role.' },
+        });
+      }
+
+      const flow = await flowOrchestrator.execute({
+        flowId: `browser_lab_${context.requestId}`,
+        name: 'tdbk-browser-lab-job',
+        context,
+        execute: async (_state, advance) => advance('INTEGRATION', async () => ({
+          stage: 'INTEGRATION',
+          status: 'COMPLETED',
+          output: await browserAutomationTool.submit(context, {
+            tenantId,
+            requestId: context.requestId,
+            createdBy: context.principal.id,
+            url: req.body?.url,
+            steps,
+            allowInteractions: req.body?.allowInteractions === true,
+          }),
+        })),
+      });
+      return res.status(202).json({ status: 'ACCEPTED', job: flow.output, flow: flow.state });
+    } catch (err) {
+      if (err instanceof KernelError) return res.status(err.statusCode).json(err.toJSON());
+      return res.status(500).json({ error: { code: 'BROWSER_LAB_ERROR', message: (err as Error).message } });
+    }
+  });
+
+  app.get('/api/lab/browser/jobs/:jobId', async (req: Request, res: Response) => {
+    try {
+      const context = await securityContextFactory.createSecurityContext({
+        authHeader: req.headers.authorization,
+        targetTenantId: req.query.tenantId as string,
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+      });
+      const tenantId = context.tenantContext?.tenantId || context.principal.tenantId;
+      if (!tenantId) return res.status(400).json({ error: { code: 'TENANT_REQUIRED', message: 'A tenant context is required to read Browser Lab jobs.' } });
+      await masterAuthority.assertTenantAuthority(context, tenantId, 'browserLab.read', context.requestId);
+      const job = await browserAutomationTool.get(context, req.params.jobId, tenantId);
+      return res.json({ status: 'SUCCESS', job });
+    } catch (err) {
+      if (err instanceof KernelError) return res.status(err.statusCode).json(err.toJSON());
+      return res.status(500).json({ error: { code: 'BROWSER_LAB_ERROR', message: (err as Error).message } });
     }
   });
 
