@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "projects": [
+    {
+      "id": "tdbk-v2-platform",
+      "name": "Thuram Digital Bridge Kenya V2",
+      "repository": "https://github.com/thuram34/tdbk-v2-platform",
+      "defaultBranch": "main",
+      "runtime": ["nodejs-22", "typescript", "react", "express"],
+      "environments": ["local", "test", "staging", "production"],
+      "verification": [
+        "npm ci",
+        "npm run typecheck",
+        "npm run lint",
+        "npm test",
+        "npm run build"
+      ],
+      "labCapabilities": ["build", "test", "browser", "security", "release"],
+      "status": "active"
+    }
+  ]
+}
