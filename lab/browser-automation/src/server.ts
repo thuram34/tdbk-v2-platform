@@ -81,6 +81,8 @@ export function createBrowserLabServer(options: LabOptions = {}): Server {
   const resolveHost = options.resolveHost || (async (hostname: string) => (await lookup(hostname, { all: true, verbatim: true })).map(item => item.address));
   const sessions = new Map<string, { context: BrowserContext; page: Page; createdAt: string; allowInteractions: boolean }>();
   const jobs = new Map<string, BrowserJobRecord>();
+  const requestBindings = new Map<string, string>();
+  const requestFingerprints = new Map<string, string>();
   const evidence = new Map<string, Buffer>();
   let browser: Browser | undefined;
 
@@ -197,6 +199,16 @@ export function createBrowserLabServer(options: LabOptions = {}): Server {
             return send(res, 403, { error: "A navigation step targets a non-allowlisted or non-public host" });
           }
         }
+        const fingerprint = JSON.stringify(input);
+        const existingId = requestBindings.get(input.requestId);
+        if (existingId) {
+          const existing = jobs.get(existingId);
+          if (!existing || requestFingerprints.get(input.requestId) !== fingerprint ||
+              existing.tenantId !== input.tenantId || existing.createdBy !== input.createdBy) {
+            return send(res, 409, { error: "Request ID is already bound to a different browser task or tenant identity" });
+          }
+          return send(res, existing.status === "COMPLETED" || existing.status === "FAILED" ? 200 : 202, publicJob(existing));
+        }
         const active = [...jobs.values()].filter(job => job.status === "QUEUED" || job.status === "RUNNING").length;
         if (active >= MAX_ACTIVE_JOBS) return send(res, 429, { error: "Browser worker is at active job capacity" });
         const job: BrowserJobRecord = {
@@ -204,10 +216,14 @@ export function createBrowserLabServer(options: LabOptions = {}): Server {
           status: "QUEUED", createdAt: new Date().toISOString(), results: [],
         };
         jobs.set(job.jobId, job);
+        requestBindings.set(input.requestId, job.jobId);
+        requestFingerprints.set(input.requestId, fingerprint);
         while (jobs.size > MAX_RETAINED_JOBS) {
           const oldest = [...jobs.values()].find(item => item.status === "COMPLETED" || item.status === "FAILED");
           if (!oldest) break;
           jobs.delete(oldest.jobId);
+          if (requestBindings.get(oldest.requestId) === oldest.jobId) requestBindings.delete(oldest.requestId);
+          requestFingerprints.delete(oldest.requestId);
           for (const key of evidence.keys()) if (key.startsWith(`${oldest.jobId}:`)) evidence.delete(key);
         }
         void executeJob(job, input);
