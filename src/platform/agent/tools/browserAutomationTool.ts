@@ -1,5 +1,11 @@
 import type { SecurityContext } from "../../../kernel/types";
-import type { BrowserStep } from "../../../../lab/browser-automation/src/task";
+export type BrowserStep =
+  | { type: "navigate"; url: string }
+  | { type: "inspect" }
+  | { type: "assertText"; text: string }
+  | { type: "screenshot" }
+  | { type: "click"; selector: string }
+  | { type: "fill"; selector: string; value: string };
 
 export interface BrowserJobSubmission {
   tenantId: string;
