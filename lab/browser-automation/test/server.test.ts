@@ -89,6 +89,16 @@ test("browser job API authenticates, runs a read-only workflow and exposes scree
     const duplicateJob = await duplicate.json() as { jobId: string };
     assert.equal(duplicateJob.jobId, accepted.jobId, "retries with the same request ID must not create duplicate browser jobs");
 
+    const conflictingRetry = await fetch(`${base}/v1/jobs`, {
+      method: "POST",
+      headers: { authorization: "Bearer test-secret", "content-type": "application/json" },
+      body: JSON.stringify({
+        tenantId: "tdbk", requestId: "req_lab_test", createdBy: "owner", url: "https://example.test",
+        steps: [{ type: "inspect" }],
+      }),
+    });
+    assert.equal(conflictingRetry.status, 409, "a reused request ID cannot be rebound to a different task");
+
     const evidence = await fetch(`${base}/v1/jobs/${accepted.jobId}/evidence/2`, { headers: { authorization: "Bearer test-secret" } });
     assert.equal(evidence.status, 200);
     const image = await evidence.json() as { mimeType: string; dataBase64: string };
