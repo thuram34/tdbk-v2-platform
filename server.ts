@@ -279,13 +279,16 @@ async function startServer() {
         execute: async (_state, advance) => advance('INTEGRATION', async () => ({
           stage: 'INTEGRATION',
           status: 'COMPLETED',
-          output: await browserAutomationTool.submit(context, {
-            tenantId,
-            requestId: context.requestId,
-            createdBy: context.principal.id,
-            url: req.body?.url,
-            steps,
-            allowInteractions: req.body?.allowInteractions === true,
+          output: await tdbkAgentRuntime.run({
+            instructionId: context.requestId,
+            text: 'Execute the submitted TDBK Browser Lab task.',
+            context,
+            requestedAuthority: 'WORKFLOW',
+            browserTask: {
+              url: req.body?.url,
+              steps,
+              allowInteractions: req.body?.allowInteractions === true,
+            },
           }),
         })),
       });
