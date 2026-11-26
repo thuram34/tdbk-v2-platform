@@ -296,6 +296,26 @@ async function startServer() {
     }
   });
 
+  app.get('/api/lab/browser/jobs/:jobId/evidence/:stepIndex', async (req: Request, res: Response) => {
+    try {
+      const context = await securityContextFactory.createSecurityContext({
+        authHeader: req.headers.authorization,
+        targetTenantId: req.query.tenantId as string,
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+      });
+      const tenantId = context.tenantContext?.tenantId || context.principal.tenantId;
+      if (!tenantId) return res.status(400).json({ error: { code: 'TENANT_REQUIRED', message: 'A tenant context is required to read Browser Lab evidence.' } });
+      await masterAuthority.assertTenantAuthority(context, tenantId, 'browserLab.readEvidence', context.requestId);
+      const stepIndex = Number(req.params.stepIndex);
+      const evidence = await browserAutomationTool.getEvidence(context, req.params.jobId, tenantId, stepIndex);
+      return res.json({ status: 'SUCCESS', evidence });
+    } catch (err) {
+      if (err instanceof KernelError) return res.status(err.statusCode).json(err.toJSON());
+      return res.status(500).json({ error: { code: 'BROWSER_LAB_ERROR', message: (err as Error).message } });
+    }
+  });
+
   app.get('/api/lab/browser/jobs/:jobId', async (req: Request, res: Response) => {
     try {
       const context = await securityContextFactory.createSecurityContext({
